@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: splattop-bots-apps
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elementsFile:
+          repo:
+            url: https://github.com/cesaregarza/SplatTopConfig
+            path: apps/bots.yaml
+          
+  template:
+    metadata:
+      name: 'splattop-bot-{{botName}}'
+    spec:
+      project: splattop-bots
+      source:
+        repoURL: '{{repoURL}}'
+        targetRevision: '{{targetRevision}}'
+        path: '{{chartPath}}'
+      destination:
+        namespace: 'splattop-bot-{{botName}}'
+        server: https://kubernetes.default.svc
+      syncPolicy:
+        automated: { prune: true, selfHeal: true }
+        syncOptions:
+          - CreateNamespace=true

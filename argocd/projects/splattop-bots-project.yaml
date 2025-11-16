@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: splattop-bots
+  namespace: argocd
+spec:
+  description: Project for 3rd-party Discord Bots (Secure-by-Default)
+  
+  sourceRepos:
+    - '*'
+  
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: 'splattop-bot-*'
+
+  clusterResourceWhitelist: []
+
+  namespaceResourceBlacklist:
+    - group: 'networking.k8s.io'
+      kind: NetworkPolicy
+
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Secret
+    - group: 'apps'
+      kind: Deployment
+    - group: 'batch'
+      kind: CronJob

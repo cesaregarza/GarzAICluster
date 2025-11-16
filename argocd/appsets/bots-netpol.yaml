@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: splattop-bots-netpol
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elementsFile:
+          repo:
+            url: https://github.com/cesaregarza/SplatTopConfig
+            path: apps/bots.yaml
+            
+  template:
+    metadata:
+      name: 'splattop-bot-{{botName}}-netpol'
+    spec:
+      project: splattop-bots
+      source:
+        repoURL: https://github.com/cesaregarza/SplatTopConfig
+        targetRevision: main
+        path: helm/bot-netpol
+        helm:
+          values: |
+            permissions:
+              postgres: {{permissions.postgres}}
+              prometheus: {{permissions.prometheus}}
+              dbReadOnlyVPC: {{permissions.dbReadOnlyVPC}}
+      destination:
+        namespace: 'splattop-bot-{{botName}}'
+        server: https://kubernetes.default.svc
+      syncPolicy:
+        automated: { prune: true, selfHeal: true }
+        syncOptions:
+          - CreateNamespace=true

@@ -1,0 +1,31 @@
+name: no-latest
+
+on:
+  pull_request:
+    paths:
+      - 'helm/**'
+      - 'argocd/**'
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Block :latest tags (allow override with # allow-latest)
+        run: |
+          set -euo pipefail
+          matches=$(git grep -nE '(^\s*tag:\s*"?latest"?\s*$)|(image:\s*[^\s]+:latest)' -- 'helm' 'argocd' || true)
+          if [ -z "$matches" ]; then
+            exit 0
+          fi
+          filtered=$(printf "%s\n" "$matches" | grep -v 'allow-latest' || true)
+          if [ -n "$filtered" ]; then
+            echo '::error ::Found mutable :latest reference in Helm/Argo manifests (add "# allow-latest" to annotate intentional uses).'
+            printf '%s\n' "$filtered"
+            exit 1
+          fi

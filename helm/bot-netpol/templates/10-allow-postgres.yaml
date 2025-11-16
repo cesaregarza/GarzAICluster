@@ -1,0 +1,17 @@
+{{- if .Values.permissions.postgres }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-external-postgres
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 161.35.125.48/32
+      ports:
+        - protocol: TCP
+          port: 25060
+{{- end }}

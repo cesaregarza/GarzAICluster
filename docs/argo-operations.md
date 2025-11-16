@@ -32,6 +32,13 @@ All of the details are codified inside `argocd/applications/splattop-prod.yaml`;
 
 Keep renewal dates in `developer-cheat-sheet.md` or a shared calendar.
 
+## Argo UI Exposure
+
+- `argo.splat.top` is the public entry point for the Argo CD UI/API. The DNS record already maps to the nginx ingress load balancer; keep it updated if the LB IP changes.
+- TLS is provisioned by cert-manager via `k8s/argocd/certificate.yaml` (secret `argo-splat-top-tls`, issuer `letsencrypt-prod`). Reapply it after issuer/cluster moves.
+- The ingress at `k8s/argocd/ingress.yaml` fronts `svc/argocd-server` with HTTPS pass-through. Apply this manifest whenever the controller name or annotations need to change.
+- Once the ingress is reachable, patch `argocd-cm` with `data.url: https://argo.splat.top` so CLI logins and links point at the new hostname.
+
 ## Policy Enforcement
 
 - Kyverno/Gatekeeper policies (post-cutover):
@@ -59,3 +66,40 @@ Keep renewal dates in `developer-cheat-sheet.md` or a shared calendar.
   5. Document findings + update docs/tests.
 
 Record outcomes (date, scenario, owner) at the bottom of this file for traceability.
+
+## Bot Read-Only DB Access
+
+When a Discord bot maintainer needs database reads without touching the FastAPI service:
+
+1. **Encrypt their Discord token** via the helper script:
+
+   ```bash
+   python scripts/onboard_bot_secret.py <bot-name> "<discord-token>"
+   ```
+
+   This writes `secrets/bots/<bot-name>/token.enc.yaml`, which the `bots-secrets` ApplicationSet syncs automatically.
+
+2. **Provision their schema + secret** with the helper script (it connects via `psql`, creates the schema/role, and optionally writes the Kubernetes Secret manifest):
+
+   ```bash
+   BOT_DB_ADMIN_URL="postgresql://admin:***@private-db:25060/xscraper?sslmode=require" \
+     python scripts/provision_bot_db.py <bot-name> \
+       --secret-file secrets/bots/<bot-name>/db-secret.enc.yaml
+
+   sops --encrypt --in-place secrets/bots/<bot-name>/db-secret.enc.yaml
+   ```
+
+   - `BOT_DB_ADMIN_URL` (or `--admin-url`) must point at a superuser/owner account inside the cluster’s Postgres instance.
+   - The script constrains the new role to its own schema (`bot_<bot-name>`) and prints the generated connection string for auditing.
+   - Once you encrypt the file, the `.sops.yaml` rule for `secrets/bots/**` keeps the cipher text tied to the repo’s Age key.
+
+3. **Flip the network permission** inside `apps/bots.yaml` so the `bot-netpol` chart opens only the needed egress:
+
+   ```yaml
+   permissions:
+     postgres: false
+     prometheus: false
+     dbReadOnlyVPC: true
+   ```
+
+After the PR merges, Argo CD renders the new encrypted secrets (via the `splattop-bot-*-secret` ApplicationSet) and deploys the updated sandbox NetworkPolicy (via `splattop-bot-*-netpol`). Developers simply mount `bot-token` / `bot-db-readonly` inside their chart and can read from the DigitalOcean VPC-scoped Postgres instance.

@@ -8,7 +8,7 @@ global:
   imagePullSecrets:
     - regcred
   databaseSecretName: db-secrets
-  appImageTag: latest
+  appImageTag: v2.0.2
 
 # Cluster issuer (cert-manager) configuration
 clusterIssuer:
@@ -32,7 +32,7 @@ fastapi:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/fast-api
-    tag: latest
+    tag: v2.0.2
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -70,7 +70,7 @@ react:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/react
-    tag: latest
+    tag: v2.0.2
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -93,7 +93,7 @@ celeryWorker:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/celery
-    tag: latest
+    tag: v2.0.2
     pullPolicy: Always
   command:
     - celery
@@ -127,7 +127,7 @@ celeryBeat:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/celery
-    tag: latest
+    tag: v2.0.2
     pullPolicy: Always
   command:
     - celery
@@ -169,7 +169,7 @@ redis:
   replicas: 1
   image:
     repository: redis
-    tag: latest
+    tag: "7.2.4"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -188,7 +188,7 @@ splatnlp:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/splatnlp
-    tag: latest
+    tag: latest # allow-latest (upstream image publishes latest only)
     pullPolicy: Always
   service:
     type: ClusterIP

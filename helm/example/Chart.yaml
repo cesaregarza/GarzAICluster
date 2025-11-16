@@ -1,0 +1,6 @@
+apiVersion: v2
+name: discord-bot
+description: Minimal, locked-down Helm chart for outbound-only Discord bots (e.g., Agent-8s)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

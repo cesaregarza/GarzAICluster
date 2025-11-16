@@ -1,0 +1,17 @@
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: splattop-bot-agent-8s
+  namespace: argocd
+spec:
+  project: splattop-bots
+  source:
+    repoURL: https://github.com/hfcRed/Agent-8s.git
+    targetRevision: main
+    path: helm
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: splattop-bot-agent-8s
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }

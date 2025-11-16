@@ -1,0 +1,23 @@
+# This is the master list of all approved bots.
+# The ApplicationSet controller watches this file.
+#
+# To onboard a new bot, just add a new item to this list
+# and run the secret-creation script.
+
+- botName: "agent-8s"
+  repoURL: "https://github.com/hfcRed/Agent-8s.git"
+  chartPath: "helm"
+  targetRevision: "main"
+  permissions:
+    postgres: true
+    prometheus: true
+    dbReadOnlyVPC: false
+
+# - botName: "example-bot"
+#   repoURL: "https://github.com/another-dev/example-bot.git"
+#   chartPath: "." # Root of the repo
+#   targetRevision: "v1.2.0" # Can be a tag/branch
+#   permissions:
+#     postgres: false
+#     prometheus: false
+#     dbReadOnlyVPC: false

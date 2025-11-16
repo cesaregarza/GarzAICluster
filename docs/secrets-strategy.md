@@ -21,6 +21,8 @@ The config repo never stores plaintext secrets. We use SOPS with Age encryption 
   - Delete/ignore the plaintext copy once you’re done editing.
 - Use `sops -d` or `sops k8s/secrets.enc.yaml` for temporary reads; never commit decrypted output.
 - For Helm values, prefer sealed values or reference ESO SecretStore once available.
+- Discord bot secrets live under `secrets/bots/<bot-name>/`. Use `python scripts/onboard_bot_secret.py ...` for Discord tokens and craft any additional secrets (e.g., `db-secret.enc.yaml`) manually before running `sops --encrypt --in-place`.
+- `python scripts/provision_bot_db.py <bot-name>` provisions the bot’s schema/role (restricted to their schema) and can emit the matching `db-secret.enc.yaml`; encrypt the file immediately afterward.
 
 ## Developer Workflow
 
@@ -37,7 +39,7 @@ The config repo never stores plaintext secrets. We use SOPS with Age encryption 
 - Block logging decrypted content:
   - Wrap commands in `set +o xtrace`.
   - Use `git-secrets`/`trufflehog` to scan PRs.
-- `.sops.yaml` currently targets files matching `k8s/.*\.enc\.yaml`; extend the rule set as more encrypted artifacts appear and add CI checks to ensure no plaintext equivalents are committed.
+- `.sops.yaml` currently targets files matching `k8s/.*\.enc\.yaml` and `secrets/bots/.*\.enc\.yaml`; extend the rule set as more encrypted artifacts appear and add CI checks to ensure no plaintext equivalents are committed.
 
 ## ESO / External Secrets (Optional)
 
