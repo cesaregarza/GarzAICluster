@@ -5,7 +5,7 @@ Provision a bot-specific Postgres schema + user and emit a ready-to-use connecti
 Usage:
 
     BOT_DB_ADMIN_URL=postgresql://admin:pass@db:25060/xscraper?sslmode=require \\
-        python scripts/provision_bot_db.py my-cool-bot
+        uv run python scripts/provision_bot_db.py my-cool-bot
 
 Requirements:
     - `psql` must be installed and reachable in $PATH.

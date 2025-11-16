@@ -1,13 +1,13 @@
 # Scripts
 
-Utilities that were previously bundled with the app repo move here when they are infrastructure-focused or referenced by config-repo CI.
+Utilities that were previously bundled with the app repo move here when they are infrastructure-focused or referenced by config-repo CI. Use [uv](https://docs.astral.sh/uv/) (`uv run python ...`) so the dependencies defined in `pyproject.toml` are installed automatically.
 
 ## Available
 
 - `onboard_bot_secret.py` – scaffolds/ encrypts a Discord bot token under `secrets/bots/<bot>/token.enc.yaml`. Example:
 
   ```bash
-  python scripts/onboard_bot_secret.py my-cool-bot "DISCORD_TOKEN"
+  uv run python scripts/onboard_bot_secret.py my-cool-bot "DISCORD_TOKEN"
   ```
 
   Commit the resulting `.enc.yaml` and let the `splattop-bot-*-secret` ApplicationSet sync it.
@@ -16,7 +16,7 @@ Utilities that were previously bundled with the app repo move here when they are
 
   ```bash
   BOT_DB_ADMIN_URL=postgresql://admin:***@private-db:25060/xscraper?sslmode=require \
-    python scripts/provision_bot_db.py my-cool-bot \
+    uv run python scripts/provision_bot_db.py my-cool-bot \
       --secret-file secrets/bots/my-cool-bot/db-secret.enc.yaml
   sops --encrypt --in-place secrets/bots/my-cool-bot/db-secret.enc.yaml
   ```
@@ -24,7 +24,7 @@ Utilities that were previously bundled with the app repo move here when they are
 - `validate_prometheus_config.py` – renders the Prometheus ConfigMaps from the Helm chart (`helm template --show-only …`) and runs `promtool check config/rules` inside a Docker container. Example (prod values):
 
   ```bash
-  python scripts/validate_prometheus_config.py --values helm/splattop/values-prod.yaml
+  uv run python scripts/validate_prometheus_config.py --values helm/splattop/values-prod.yaml
   ```
 
   Add `--allow-missing` if you want the script to exit successfully when monitoring is disabled for a given values file.

@@ -21,8 +21,8 @@ The config repo never stores plaintext secrets. We use SOPS with Age encryption 
   - Delete/ignore the plaintext copy once you’re done editing.
 - Use `sops -d` or `sops k8s/secrets.enc.yaml` for temporary reads; never commit decrypted output.
 - For Helm values, prefer sealed values or reference ESO SecretStore once available.
-- Discord bot secrets live under `secrets/bots/<bot-name>/`. Use `python scripts/onboard_bot_secret.py ...` for Discord tokens and craft any additional secrets (e.g., `db-secret.enc.yaml`) manually before running `sops --encrypt --in-place`.
-- `python scripts/provision_bot_db.py <bot-name>` provisions the bot’s schema/role (restricted to their schema) and can emit the matching `db-secret.enc.yaml`; encrypt the file immediately afterward.
+- Discord bot secrets live under `secrets/bots/<bot-name>/`. Use `uv run python scripts/onboard_bot_secret.py ...` for Discord tokens and craft any additional secrets (e.g., `db-secret.enc.yaml`) manually before running `sops --encrypt --in-place`.
+- `uv run python scripts/provision_bot_db.py <bot-name>` provisions the bot’s schema/role (restricted to their schema) and can emit the matching `db-secret.enc.yaml`; encrypt the file immediately afterward.
 
 ## Developer Workflow
 

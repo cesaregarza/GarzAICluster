@@ -22,7 +22,7 @@ cd SplatTopConfig
 helm lint helm/splattop
 helm template helm/splattop -f helm/splattop/values-dev.yaml > /tmp/dev.yaml
 kubeconform -strict /tmp/dev.yaml
-python scripts/validate_prometheus_config.py --values helm/splattop/values-prod.yaml
+uv run python scripts/validate_prometheus_config.py --values helm/splattop/values-prod.yaml
 trufflehog filesystem --no-update --only-verified --fail .
 ```
 
@@ -41,7 +41,7 @@ trufflehog filesystem --no-update --only-verified --fail .
 | Rotate Age keys | Follow `docs/secrets-strategy.md`. |
 | Check Argo status | `argocd app list`, `argocd app get splattop-prod`. |
 | Rollback | See `docs/release-workflow.md#Rollbacks`. |
-| Provision bot DB login | `BOT_DB_ADMIN_URL=... python scripts/provision_bot_db.py <bot> --secret-file secrets/bots/<bot>/db-secret.enc.yaml && sops --encrypt --in-place secrets/bots/<bot>/db-secret.enc.yaml`. |
+| Provision bot DB login | `BOT_DB_ADMIN_URL=... uv run python scripts/provision_bot_db.py <bot> --secret-file secrets/bots/<bot>/db-secret.enc.yaml && sops --encrypt --in-place secrets/bots/<bot>/db-secret.enc.yaml`. |
 
 ## Argo Access Controls
 

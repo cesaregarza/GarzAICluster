@@ -24,22 +24,19 @@ stringData:
 """
 
 secret_dir.mkdir(parents=True, exist_ok=True)
-
-temp_file = secret_dir / "temp.yaml"
-temp_file.write_text(secret_template)
+secret_file.write_text(secret_template)
 
 try:
     subprocess.run(
-        ["sops", "--encrypt", "--in-place", str(temp_file)],
+        ["sops", "--encrypt", "--in-place", str(secret_file)],
         check=True,
         capture_output=True,
     )
-    temp_file.rename(secret_file)
     print(f"✅ Success! Encrypted secret created at: {secret_file}")
 except subprocess.CalledProcessError as e:
     print(f"🔥 SOPS encryption failed:")
     print(e.stderr.decode())
-    temp_file.unlink(missing_ok=True)
+    secret_file.unlink(missing_ok=True)
 except Exception as e:
     print(f"An error occurred: {e}")
-    temp_file.unlink(missing_ok=True)
+    secret_file.unlink(missing_ok=True)
