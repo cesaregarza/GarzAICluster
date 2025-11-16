@@ -78,6 +78,7 @@ When a Discord bot maintainer needs database reads without touching the FastAPI 
    ```
 
    This writes `secrets/bots/<bot-name>/token.enc.yaml`, which the `bots-secrets` ApplicationSet syncs automatically.
+   Store the token in `.env` as `BOT_TOKEN` to avoid passing it on the command line.
 
 2. **Provision their schema + secret** with the helper script (it connects via `psql`, creates the schema/role, and optionally writes the Kubernetes Secret manifest):
 
@@ -92,6 +93,7 @@ When a Discord bot maintainer needs database reads without touching the FastAPI 
    - `BOT_DB_ADMIN_URL` (or `--admin-url`) must point at a superuser/owner account inside the cluster’s Postgres instance.
    - The script constrains the new role to its own schema (`bot_<bot-name>`) and prints the generated connection string for auditing.
    - Once you encrypt the file, the `.sops.yaml` rule for `secrets/bots/**` keeps the cipher text tied to the repo’s Age key.
+   - Scripts automatically load secrets from `.env` (or the path in `SPLATTOPCONFIG_ENV_FILE`) before falling back to interactive prompts, so keeping `BOT_DB_ADMIN_URL` there works without exporting it every time.
 
 3. **Flip the network permission** inside `apps/bots.yaml` so the `bot-netpol` chart opens only the needed egress:
 

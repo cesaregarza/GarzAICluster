@@ -107,15 +107,15 @@ def build_connection_string(admin_url: str, username: str, password: str) -> str
 
 def run_sql(admin_url: str, schema: str, role: str, password: str) -> None:
     sql = textwrap.dedent(
-        r"""
+        f"""
         \set ON_ERROR_STOP on
 
         DO
         $$
         DECLARE
-            role_name text := :'role_name';
-            role_password text := :'role_password';
-            schema_name text := :'schema_name';
+            role_name text := '{role}';
+            role_password text := '{password}';
+            schema_name text := '{schema}';
             db_name text := current_database();
         BEGIN
             IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
@@ -124,7 +124,6 @@ def run_sql(admin_url: str, schema: str, role: str, password: str) -> None:
                 EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', role_name, role_password);
             END IF;
 
-            EXECUTE format('ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION', role_name);
             EXECUTE format('ALTER ROLE %I IN DATABASE %I SET search_path = %I', role_name, db_name, schema_name);
 
             EXECUTE format('REVOKE ALL ON DATABASE %I FROM %I', db_name, role_name);
@@ -155,12 +154,6 @@ def run_sql(admin_url: str, schema: str, role: str, password: str) -> None:
         "psql",
         admin_url,
         "-q",
-        "-v",
-        f"role_name={role}",
-        "-v",
-        f"role_password={password}",
-        "-v",
-        f"schema_name={schema}",
     ]
 
     try:
@@ -192,7 +185,29 @@ def maybe_write_secret(path: Path, namespace: str, secret_name: str, connection_
     print(f"Wrote plaintext secret manifest to {path}. Encrypt it with SOPS before committing.")
 
 
+def load_env_file() -> None:
+    env_path = Path(os.environ.get("SPLATTOPCONFIG_ENV_FILE", ".env"))
+    if not env_path.exists():
+        return
+
+    for raw in env_path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if not key:
+            continue
+        os.environ.setdefault(key, value)
+
+
 def main() -> None:
+    load_env_file()
     args = parse_args()
     ensure_psql_available()
 

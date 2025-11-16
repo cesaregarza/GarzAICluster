@@ -6,6 +6,8 @@ Encrypt the Discord token and read-only database URL before merging:
 
    ```bash
    uv run python scripts/onboard_bot_secret.py agent-8s "DISCORD_TOKEN"
+   # or set BOT_TOKEN in .env and omit the argument:
+   uv run python scripts/onboard_bot_secret.py agent-8s
    ```
 
 2. Database credentials (requires `BOT_DB_ADMIN_URL` or `--admin-url`):

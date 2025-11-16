@@ -1,6 +1,6 @@
 # Scripts
 
-Utilities that were previously bundled with the app repo move here when they are infrastructure-focused or referenced by config-repo CI. Use [uv](https://docs.astral.sh/uv/) (`uv run python ...`) so the dependencies defined in `pyproject.toml` are installed automatically.
+Utilities that were previously bundled with the app repo move here when they are infrastructure-focused or referenced by config-repo CI. Use [uv](https://docs.astral.sh/uv/) (`uv run python ...`) so the dependencies defined in `pyproject.toml` are installed automatically. Scripts automatically load variables from `.env` (override with `SPLATTOPCONFIG_ENV_FILE`) before reading other environment values.
 
 ## Available
 
@@ -8,6 +8,8 @@ Utilities that were previously bundled with the app repo move here when they are
 
   ```bash
   uv run python scripts/onboard_bot_secret.py my-cool-bot "DISCORD_TOKEN"
+  # or set BOT_TOKEN in .env and omit the argument:
+  uv run python scripts/onboard_bot_secret.py my-cool-bot
   ```
 
   Commit the resulting `.enc.yaml` and let the `splattop-bot-*-secret` ApplicationSet sync it.

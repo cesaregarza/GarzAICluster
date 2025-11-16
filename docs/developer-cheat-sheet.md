@@ -41,7 +41,7 @@ trufflehog filesystem --no-update --only-verified --fail .
 | Rotate Age keys | Follow `docs/secrets-strategy.md`. |
 | Check Argo status | `argocd app list`, `argocd app get splattop-prod`. |
 | Rollback | See `docs/release-workflow.md#Rollbacks`. |
-| Provision bot DB login | `BOT_DB_ADMIN_URL=... uv run python scripts/provision_bot_db.py <bot> --secret-file secrets/bots/<bot>/db-secret.enc.yaml && sops --encrypt --in-place secrets/bots/<bot>/db-secret.enc.yaml`. |
+| Provision bot DB login | `BOT_DB_ADMIN_URL=... uv run python scripts/provision_bot_db.py <bot> --secret-file secrets/bots/<bot>/db-secret.enc.yaml && sops --encrypt --in-place secrets/bots/<bot>/db-secret.enc.yaml` (or set the URL in `.env`). |
 
 ## Argo Access Controls
 
