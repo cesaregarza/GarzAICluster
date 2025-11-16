@@ -1,0 +1,16 @@
+{{- if and .Values.metrics.enabled .Values.metrics.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent-8s.fullname" . }}-metrics
+  labels: {{- include "agent-8s.labels" . | nindent 4 }}
+  annotations: {{- toYaml .Values.metrics.service.annotations | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: {{ .Values.metrics.portName | default "metrics" }}
+      port: {{ .Values.metrics.port }}
+      targetPort: {{ .Values.metrics.portName | default "metrics" }}
+      protocol: TCP
+  selector: {{- include "agent-8s.selectorLabels" . | nindent 4 }}
+{{- end }}

@@ -74,7 +74,7 @@ When a Discord bot maintainer needs database reads without touching the FastAPI 
 1. **Encrypt their Discord token** via the helper script:
 
    ```bash
-   python scripts/onboard_bot_secret.py <bot-name> "<discord-token>"
+   uv run python scripts/onboard_bot_secret.py <bot-name> "<discord-token>"
    ```
 
    This writes `secrets/bots/<bot-name>/token.enc.yaml`, which the `bots-secrets` ApplicationSet syncs automatically.
@@ -83,7 +83,7 @@ When a Discord bot maintainer needs database reads without touching the FastAPI 
 
    ```bash
    BOT_DB_ADMIN_URL="postgresql://admin:***@private-db:25060/xscraper?sslmode=require" \
-     python scripts/provision_bot_db.py <bot-name> \
+     uv run python scripts/provision_bot_db.py <bot-name> \
        --secret-file secrets/bots/<bot-name>/db-secret.enc.yaml
 
    sops --encrypt --in-place secrets/bots/<bot-name>/db-secret.enc.yaml

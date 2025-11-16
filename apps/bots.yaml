@@ -5,8 +5,8 @@
 # and run the secret-creation script.
 
 - botName: "agent-8s"
-  repoURL: "https://github.com/hfcRed/Agent-8s.git"
-  chartPath: "helm"
+  repoURL: "https://github.com/cesaregarza/SplatTopConfig.git"
+  chartPath: "apps/agent-8s"
   targetRevision: "main"
   permissions:
     postgres: true
