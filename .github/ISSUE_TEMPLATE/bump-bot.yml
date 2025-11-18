@@ -1,0 +1,39 @@
+name: "Bump a bot image"
+description: "Request a digest bump for your bot."
+title: "Bump: <choose bot> to <tag or digest>"
+labels: ["bump-request"]
+body:
+  - type: dropdown
+    id: bot
+    attributes:
+      label: Which bot?
+      description: "If your bot is missing, mention us to add it to bots.yaml."
+      options:
+        - agent-8s
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: How are you specifying the new version?
+      options:
+        - "tag (easiest)"
+        - "digest (advanced)"
+    validations:
+      required: true
+
+  - type: input
+    id: value
+    attributes:
+      label: Tag or Digest
+      description: "Examples: v1.2.3  |  sha256:abc... (64 hex)"
+      placeholder: v1.2.3
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes (optional)
+      placeholder: "Changelog or release link"

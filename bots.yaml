@@ -1,0 +1,12 @@
+# Bot registry used by the /bump IssueOps workflow
+#
+# Each bot entry must define:
+# - image: canonical OCI image repository
+# - valuesFile: Helm values file that stores the pinned digest
+# - cosign (optional): signature policy enforced during bumps
+bots:
+  agent-8s:
+    image: ghcr.io/hfcred/agent-8s
+    valuesFile: apps/agent-8s/values.yaml
+    cosign:
+      required: false
