@@ -1,0 +1,224 @@
+name: bump-image
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+concurrency:
+  group: bump-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+env:
+  BUMP_ENV: update-config
+
+jobs:
+  detect-intent:
+    runs-on: ubuntu-latest
+    outputs:
+      bot: ${{ steps.parse.outputs.bot }}
+      mode: ${{ steps.parse.outputs.mode }}
+      value: ${{ steps.parse.outputs.value }}
+      trigger: ${{ steps.parse.outputs.trigger }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse issue form or slash command
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const isIssue = context.eventName === 'issues';
+            const isComment = context.eventName === 'issue_comment';
+            const body = (isComment ? context.payload.comment.body : context.payload.issue.body) || "";
+            let out = {bot:"", mode:"", value:"", trigger:""};
+
+            if (/^\/bump\b/i.test(body)) {
+              const tail = body.replace(/^\/bump\b/i, '').trim();
+              const parts = tail.split(/\s+/).filter(Boolean);
+              if (parts.length < 2) {
+                core.setFailed('Usage: /bump <bot> <tag|digest>');
+                return;
+              }
+              const hasLabel = (context.payload.issue.labels || []).some(l => l.name === 'bump-request');
+              if (!hasLabel) {
+                core.setFailed('Slash command must be used on a bump-request issue.');
+                return;
+              }
+              const bot = parts.shift();
+              const valueRaw = parts.join(' ').trim();
+              if (!valueRaw) {
+                core.setFailed('Missing tag or digest');
+                return;
+              }
+              const cleaned = valueRaw.replace(/^digest=/i, '').trim();
+              out.bot = bot;
+              out.mode = cleaned.startsWith('sha256:') ? 'digest' : 'tag';
+              out.value = cleaned;
+              out.trigger = 'comment';
+              core.setOutput('bot', out.bot);
+              core.setOutput('mode', out.mode);
+              core.setOutput('value', out.value);
+              core.setOutput('trigger', out.trigger);
+              return;
+            }
+
+            if (isIssue && (context.payload.issue.labels || []).some(l => l.name === 'bump-request')) {
+              const get = (hdr) => {
+                const re = new RegExp(`###\\s+${hdr}\\s*[\\r\\n]+([\\s\\S]*?)(?=\\n###|$)`);
+                const m = body.match(re);
+                return m ? m[1].trim() : '';
+              };
+              const bot = get('Which bot\\?');
+              const mode = /digest/.test(get('How are you specifying the new version\\?')) ? 'digest' : 'tag';
+              const value = get('Tag or Digest');
+              if (!bot || !value) {
+                core.setFailed('Missing bot or value');
+                return;
+              }
+              core.setOutput('bot', bot);
+              core.setOutput('mode', mode);
+              core.setOutput('value', value);
+              core.setOutput('trigger', 'issue');
+              return;
+            }
+
+            core.setFailed('No bump request detected.');
+
+  resolve-and-verify:
+    needs: detect-intent
+    runs-on: ubuntu-latest
+    outputs:
+      bot: ${{ steps.out.outputs.bot }}
+      image: ${{ steps.out.outputs.image }}
+      digest: ${{ steps.out.outputs.digest }}
+      tag: ${{ steps.out.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install crane
+        run: |
+          sudo curl -sSL -o /usr/local/bin/crane https://github.com/google/go-containerregistry/releases/latest/download/crane_linux_amd64
+          sudo chmod +x /usr/local/bin/crane
+
+      - name: Install yq
+        run: |
+          sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Read bot config
+        id: cfg
+        run: |
+          BOT="${{ needs.detect-intent.outputs.bot }}"
+          VAL='${{ needs.detect-intent.outputs.value }}'
+
+          if [ -z "$BOT" ]; then
+            echo "No bot detected" >&2
+            exit 1
+          fi
+
+          IMG=$(yq -r ".bots[\"$BOT\"].image" bots.yaml)
+          if [ -z "$IMG" ] || [ "$IMG" = "null" ]; then
+            echo "Unknown bot: $BOT" >&2
+            exit 1
+          fi
+
+          FILE=$(yq -r ".bots[\"$BOT\"].valuesFile" bots.yaml)
+          if [ -z "$FILE" ] || [ "$FILE" = "null" ]; then
+            echo "Bot $BOT missing valuesFile" >&2
+            exit 1
+          fi
+          if [ ! -f "$FILE" ]; then
+            echo "Values file $FILE not found" >&2
+            exit 1
+          fi
+
+          echo "bot=$BOT" >> "$GITHUB_OUTPUT"
+          echo "image=$IMG" >> "$GITHUB_OUTPUT"
+          echo "raw=$VAL" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve tag -> digest (or accept digest)
+        id: digest
+        run: |
+          RAW='${{ steps.cfg.outputs.raw }}'
+          IMG='${{ steps.cfg.outputs.image }}'
+
+          TAG_OUT=""
+          if echo "$RAW" | grep -q '^sha256:'; then
+            DIGEST="$RAW"
+          else
+            TAG_OUT="$RAW"
+            DIGEST=$(crane digest "$IMG:$TAG_OUT")
+          fi
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG_OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Optional cosign verification
+        id: cosign
+        run: |
+          set -euo pipefail
+          BOT='${{ steps.cfg.outputs.bot }}'
+          if [ -n "$BOT" ]; then
+            REQUIRED=$(yq -r ".bots[\"$BOT\"].cosign.required" bots.yaml)
+            if [ "$REQUIRED" = "true" ]; then
+              curl -sSfL https://raw.githubusercontent.com/sigstore/cosign/main/install.sh | sudo sh -s -- -d -b /usr/local/bin
+              ISSUER=$(yq -r ".bots[\"$BOT\"].cosign.issuer" bots.yaml)
+              IDRE=$(yq -r ".bots[\"$BOT\"].cosign.identity_regexp" bots.yaml)
+              cosign verify "${{ steps.cfg.outputs.image }}@${{ steps.digest.outputs.digest }}" \
+                --certificate-oidc-issuer "$ISSUER" \
+                --certificate-identity-regexp "$IDRE"
+            fi
+          fi
+
+      - name: Capture outputs
+        id: out
+        run: |
+          echo "bot=${{ steps.cfg.outputs.bot }}" >> "$GITHUB_OUTPUT"
+          echo "image=${{ steps.cfg.outputs.image }}" >> "$GITHUB_OUTPUT"
+          echo "digest=${{ steps.digest.outputs.digest }}" >> "$GITHUB_OUTPUT"
+          echo "tag=${{ steps.digest.outputs.tag }}" >> "$GITHUB_OUTPUT"
+
+  patch-and-pr:
+    needs: resolve-and-verify
+    runs-on: ubuntu-latest
+    environment: ${{ env.BUMP_ENV }}
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Apply patch
+        run: |
+          chmod +x scripts/patch-image.sh
+          scripts/patch-image.sh "${{ needs.resolve-and-verify.outputs.bot }}" \
+            "${{ needs.resolve-and-verify.outputs.image }}" \
+            "${{ needs.resolve-and-verify.outputs.digest }}" \
+            "${{ needs.resolve-and-verify.outputs.tag }}"
+
+      - name: Create PR
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: ${{ format('chore({0}): pin {1} -> {2}', needs.resolve-and-verify.outputs.bot, needs.resolve-and-verify.outputs.image, needs.resolve-and-verify.outputs.digest) }}
+          title: ${{ format('Bump: {0} → {1}', needs.resolve-and-verify.outputs.image, needs.resolve-and-verify.outputs.digest) }}
+          body: |
+            Requested by @${{ github.actor }} via ${{ needs.detect-intent.outputs.trigger }}.
+            Image: `${{ needs.resolve-and-verify.outputs.image }}@${{ needs.resolve-and-verify.outputs.digest }}`
+
+            _This PR is auto-generated; reviewers gate merges via the **${{ env.BUMP_ENV }}** environment._
+          branch: ${{ format('bump/{0}-{1}', needs.resolve-and-verify.outputs.bot, github.run_id) }}
+          signoff: true
+          labels: bump-request, automated

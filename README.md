@@ -15,3 +15,7 @@ This repository tracks the Kubernetes and Argo CD configuration for SplatTop. Al
 - `scripts/validate_prometheus_config.py` renders the Helm chart before invoking `promtool` to ensure production rules stay valid.
 - Secret management primitives are wired up (SOPS config, Age public key, encrypted secret templates, TruffleHog job).
 - Remaining automation work (CI workflows, secret rotation helpers, digest bumping) is tracked in `docs/config_repo_split_plan.md`.
+
+### Request a bump
+Want your bot deployed? Use our one-click form:  
+👉 **[Request a bump](https://github.com/cesaregarza/SplatTopConfig/issues/new?template=bump-bot.yml)**

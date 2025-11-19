@@ -1,0 +1,74 @@
+name: bot-image-pr
+
+on:
+  workflow_dispatch:
+    inputs:
+      bot_name:
+        description: "apps/<bot> directory name"
+        required: true
+        type: string
+      image_repo:
+        description: "Container image repository (e.g., ghcr.io/friend/agent-8s)"
+        required: true
+        type: string
+      digest:
+        description: "sha256 digest to pin"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          set -euo pipefail
+          sudo wget -O /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Ensure values file exists
+        env:
+          BOT_NAME: ${{ github.event.inputs.bot_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p "apps/${BOT_NAME}"
+          VALUES_FILE="apps/${BOT_NAME}/values.yaml"
+          if [ ! -f "$VALUES_FILE" ]; then
+            cat > "$VALUES_FILE" <<'VALS'
+image:
+  repository: ""
+  tag: ""
+  digest: ""
+imagePullSecrets: []
+VALS
+          fi
+
+      - name: Update image repository and digest
+        env:
+          BOT_NAME: ${{ github.event.inputs.bot_name }}
+          IMAGE_REPO: ${{ github.event.inputs.image_repo }}
+          DIGEST: ${{ github.event.inputs.digest }}
+        run: |
+          set -euo pipefail
+          VALUES_FILE="apps/${BOT_NAME}/values.yaml"
+          yq -i '.image.repository = strenv(IMAGE_REPO)
+                 | .image.tag = ""
+                 | .image.digest = strenv(DIGEST)' "$VALUES_FILE"
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "bot(${{ github.event.inputs.bot_name }}): pin image digest"
+          title: "Bot ${{ github.event.inputs.bot_name }}: pin to ${{ github.event.inputs.digest }}"
+          body: |
+            Pin **${{ github.event.inputs.bot_name }}** to:
+            - repo: `${{ github.event.inputs.image_repo }}`
+            - digest: `${{ github.event.inputs.digest }}`
+          branch: bot/${{ github.event.inputs.bot_name }}-digest
+          base: main

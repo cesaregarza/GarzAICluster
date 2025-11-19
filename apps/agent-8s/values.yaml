@@ -1,0 +1,95 @@
+# --- image (digest REQUIRED) ---
+image:
+  repository: ghcr.io/hfcred/agent-8s
+  tag: ""
+  # IMPORTANT: use a pinned digest, not a mutable tag
+  digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: regcred
+
+# --- env ---
+env:                 # plain (non-secret) environment variables
+  NODE_ENV: "production"
+  METRICS_PORT: "9464"   # Agent-8s default
+extraEnv: []          # list of {name: X, value: Y}
+
+# --- secret references ---
+# Do NOT put secret values into Helm values. Refer to existing Secrets.
+secretRefs:
+  - name: bot-token            # provides BOT_TOKEN
+  - name: bot-db-readonly      # provides DATABASE_URL
+  # - name: telemetry-secret   # optional, if used
+
+# --- health checks ---
+health:
+  enabled: true
+  port: 8080
+  portName: http
+  livenessPath: /healthz
+  readinessPath: /readyz
+
+# --- pod security & resources ---
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 10001
+  capabilities:
+    drop: ["ALL"]
+
+replicaCount: 1
+
+# --- metrics ---
+metrics:
+  enabled: true
+  portName: metrics
+  port: 9464
+  path: /metrics
+  service:
+    enabled: true
+    annotations: {}
+  serviceMonitor:
+    enabled: false           # set true if Prometheus Operator is installed
+    namespace: ""            # empty = same ns
+    interval: 30s
+    scrapeTimeout: 10s
+    additionalLabels: {}
+
+# --- network policy ---
+networkPolicy:
+  enabled: true
+  allowDNS: true
+  allowHTTPS: true
+  # If you run Cilium and want stricter egress by SNI/HTTP host, render a separate CNPG/CNP outside this chart.
+
+# --- service account ---
+serviceAccount:
+  create: true
+  name: ""
+  automount: false
+
+# --- autoscaling (optional) ---
+hpa:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+
+# --- pod disruption budget ---
+pdb:
+  enabled: false
+  minAvailable: 0

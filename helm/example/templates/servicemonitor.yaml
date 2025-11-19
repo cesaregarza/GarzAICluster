@@ -1,0 +1,24 @@
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "discord-bot.fullname" . }}
+  labels:
+    release: prometheus   # adjust to your Prometheus Operator's selector
+    {{- range $k, $v := .Values.metrics.serviceMonitor.additionalLabels }}
+    {{ $k }}: {{ $v | quote }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels: {{- include "discord-bot.labels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ default .Release.Namespace .Values.metrics.serviceMonitor.namespace | quote }}
+  endpoints:
+    - port: {{ .Values.metrics.portName | default "metrics" }}
+      path: {{ .Values.metrics.path | default "/metrics" }}
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
+  targetLabels: []
+  sampleLimit: 0
+{{- end }}

@@ -9,12 +9,12 @@ Thanks for helping keep our GitOps pipeline healthy! This repo is lightweight by
    - `docs/bootstrap.md` – environment bring-up and required secrets.
    - `docs/release-workflow.md` – how images/digests move between repos.
    - `docs/secrets-strategy.md` – SOPS + Age guidance.
-3. Install tooling: Helm 3, kubectl, argocd CLI, sops, age, Python 3.11+, Docker (for promtool checks).
+3. Install tooling: Helm 3, kubectl, argocd CLI, sops, age, Python 3.11+, [uv](https://docs.astral.sh/uv/) (to run the helper scripts), Docker (for promtool checks).
 
 ## Making Changes
 
 - Prefer small, focused PRs (e.g., “Bump API digest for staging”).
-- Run validation locally (`helm lint`, `helm template`, `kubeconform`, `python scripts/validate_prometheus_config.py --values helm/splattop/values-prod.yaml`, `trufflehog filesystem --no-update --only-verified --fail .`) before opening a PR.
+- Run validation locally (`helm lint`, `helm template`, `kubeconform`, `uv run python scripts/validate_prometheus_config.py --values helm/splattop/values-prod.yaml`, `trufflehog filesystem --no-update --only-verified --fail .`) before opening a PR.
 - Keep docs in sync with reality—if you introduce a new workflow or policy, update the relevant file in `docs/`.
 - Never commit plaintext secrets. Use SOPS-encrypted files and run the secrets scanners (CI gate coming soon).
 - If you need to decrypt `k8s/*.enc.yaml`, copy the Age private key from the GitHub Actions secret `SOPS_AGE_KEY` (or the Argo `sops-age-key` secret), save it under `~/.config/sops/age/keys.txt`, and set `SOPS_AGE_KEY_FILE` before running `sops`.

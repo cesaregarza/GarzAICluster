@@ -1,0 +1,6 @@
+apiVersion: v2
+name: agent-8s
+description: Helm chart for deploying the Agent-8s Discord bot into the splattop-bots cluster.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

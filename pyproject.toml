@@ -1,0 +1,14 @@
+[project]
+name = "splattopconfig-scripts"
+version = "0.1.0"
+description = "Helper scripts for the SplatTopConfig repo."
+authors = [
+  { name = "SplatTop contributors" }
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "ruamel.yaml>=0.18.0",
+]
+
+[tool.uv]

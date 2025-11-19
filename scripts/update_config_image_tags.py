@@ -3,7 +3,7 @@
 Update Helm image tags inside the config repository.
 
 Usage:
-    python scripts/update_config_image_tags.py \
+    uv run python scripts/update_config_image_tags.py \
         --values-file helm/splattop/values-prod.yaml \
         --tag v2.0.3 \
         --component fastapi --component react \
