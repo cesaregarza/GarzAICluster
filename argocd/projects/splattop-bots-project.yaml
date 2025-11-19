@@ -15,10 +15,6 @@ spec:
 
   clusterResourceWhitelist: []
 
-  namespaceResourceBlacklist:
-    - group: 'networking.k8s.io'
-      kind: NetworkPolicy
-
   namespaceResourceWhitelist:
     - group: ''
       kind: Service
@@ -26,7 +22,19 @@ spec:
       kind: ConfigMap
     - group: ''
       kind: Secret
+    - group: ''
+      kind: ServiceAccount
     - group: 'apps'
       kind: Deployment
+    - group: 'apps'
+      kind: StatefulSet
+    - group: 'autoscaling'
+      kind: HorizontalPodAutoscaler
     - group: 'batch'
       kind: CronJob
+    - group: 'networking.k8s.io'
+      kind: NetworkPolicy
+    - group: 'policy'
+      kind: PodDisruptionBudget
+    - group: 'monitoring.coreos.com'
+      kind: ServiceMonitor
