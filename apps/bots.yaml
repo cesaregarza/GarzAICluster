@@ -1,23 +1,28 @@
-# This is the master list of all approved bots.
-# The ApplicationSet controller watches this file.
+# This file enumerates every approved bot.
+# Each YAML document defines the values the ApplicationSet generator
+# uses to render the downstream Applications.
 #
-# To onboard a new bot, just add a new item to this list
-# and run the secret-creation script.
-
-- botName: "agent-8s"
-  repoURL: "https://github.com/cesaregarza/SplatTopConfig.git"
-  chartPath: "apps/agent-8s"
-  targetRevision: "main"
-  permissions:
-    postgres: true
-    prometheus: true
-    dbReadOnlyVPC: false
-
-# - botName: "example-bot"
-#   repoURL: "https://github.com/another-dev/example-bot.git"
-#   chartPath: "." # Root of the repo
-#   targetRevision: "v1.2.0" # Can be a tag/branch
-#   permissions:
-#     postgres: false
-#     prometheus: false
-#     dbReadOnlyVPC: false
+# To onboard a new bot:
+#   1. Add a new `---`-separated document at the bottom.
+#   2. Populate the repo/chart/revision + permission flags.
+#   3. Run the secret-creation script per docs before flipping new permissions.
+---
+botName: "agent-8s"
+repoURL: "https://github.com/cesaregarza/SplatTopConfig.git"
+chartPath: "apps/agent-8s"
+targetRevision: "main"
+permissions:
+  postgres: true
+  prometheus: true
+  dbReadOnlyVPC: false
+#
+# Example entry:
+# ---
+# botName: "example-bot"
+# repoURL: "https://github.com/another-dev/example-bot.git"
+# chartPath: "." # Root of the repo
+# targetRevision: "v1.2.0" # Can be a tag/branch
+# permissions:
+#   postgres: false
+#   prometheus: false
+#   dbReadOnlyVPC: false

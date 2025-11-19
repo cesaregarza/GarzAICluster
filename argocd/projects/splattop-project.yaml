@@ -30,6 +30,8 @@ spec:
       kind: Certificate
     - group: cert-manager.io
       kind: ClusterIssuer
+    - group: argoproj.io
+      kind: ApplicationSet
 
   namespaceResourceWhitelist:
     - group: ''
