@@ -20,11 +20,9 @@ spec:
         repoURL: '{{repoURL}}'
         targetRevision: '{{targetRevision}}'
         path: '{{chartPath}}'
-        {{ if valuesFile }}
         helm:
           valueFiles:
-            - '{{valuesFile}}'
-        {{ end }}
+            - '{{ default "values.yaml" valuesFile }}'
       destination:
         namespace: 'splattop-bot-{{botName}}'
         server: https://kubernetes.default.svc
