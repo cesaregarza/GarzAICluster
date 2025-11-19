@@ -22,7 +22,7 @@ spec:
         path: '{{chartPath}}'
         helm:
           valueFiles:
-            - '{{ default "values.yaml" valuesFile }}'
+            - '{{valuesFile}}'
       destination:
         namespace: 'splattop-bot-{{botName}}'
         server: https://kubernetes.default.svc
