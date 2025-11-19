@@ -4,17 +4,28 @@
 #
 # To onboard a new bot:
 #   1. Add a new `---`-separated document at the bottom.
-#   2. Populate the repo/chart/revision + permission flags.
+#   2. Populate the repo/chart/revision, the Helm values file, and permission flags.
 #   3. Run the secret-creation script per docs before flipping new permissions.
 ---
 botName: "agent-8s"
 repoURL: "https://github.com/cesaregarza/SplatTopConfig.git"
 chartPath: "apps/agent-8s"
 targetRevision: "main"
+valuesFile: "values.yaml"
 permissions:
   postgres: true
   prometheus: true
   dbReadOnlyVPC: true
+---
+botName: "agent-8s-dev"
+repoURL: "https://github.com/cesaregarza/SplatTopConfig.git"
+chartPath: "apps/agent-8s"
+targetRevision: "main"
+valuesFile: "values.dev.yaml"
+permissions:
+  postgres: true
+  prometheus: true
+  dbReadOnlyVPC: false
 #
 # Example entry:
 # ---

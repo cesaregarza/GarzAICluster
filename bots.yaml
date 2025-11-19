@@ -6,7 +6,12 @@
 # - cosign (optional): signature policy enforced during bumps
 bots:
   agent-8s:
-    image: ghcr.io/hfcred/agent-8s
+    image: registry.digitalocean.com/sendouq/agent8s
     valuesFile: apps/agent-8s/values.yaml
+    cosign:
+      required: false
+  agent-8s-dev:
+    image: registry.digitalocean.com/sendouq/agent8s
+    valuesFile: apps/agent-8s/values.dev.yaml
     cosign:
       required: false
