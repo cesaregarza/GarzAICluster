@@ -14,7 +14,7 @@ targetRevision: "main"
 permissions:
   postgres: true
   prometheus: true
-  dbReadOnlyVPC: false
+  dbReadOnlyVPC: true
 #
 # Example entry:
 # ---
