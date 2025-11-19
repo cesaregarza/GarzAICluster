@@ -20,11 +20,11 @@ spec:
         repoURL: '{{repoURL}}'
         targetRevision: '{{targetRevision}}'
         path: '{{chartPath}}'
-        {{- if valuesFile }}
+        {{ if valuesFile }}
         helm:
           valueFiles:
             - '{{valuesFile}}'
-        {{- end }}
+        {{ end }}
       destination:
         namespace: 'splattop-bot-{{botName}}'
         server: https://kubernetes.default.svc
