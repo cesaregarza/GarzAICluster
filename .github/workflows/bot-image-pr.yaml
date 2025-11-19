@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       image_repo:
-        description: "Container image repository (e.g., ghcr.io/friend/agent-8s)"
+        description: "Container image repository (e.g., ghcr.io/<org>/<repo>)"
         required: true
         type: string
       digest:

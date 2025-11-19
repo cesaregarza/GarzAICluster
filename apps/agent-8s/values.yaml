@@ -1,6 +1,6 @@
 # --- image (digest REQUIRED) ---
 image:
-  repository: ghcr.io/hfcred/agent-8s
+  repository: registry.digitalocean.com/sendouq/agent8s
   tag: ""
   # IMPORTANT: use a pinned digest, not a mutable tag
   digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"

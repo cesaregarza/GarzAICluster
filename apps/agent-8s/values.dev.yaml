@@ -1,7 +1,7 @@
 # Agent-8s development overlay values.
 # Keeps the chart identical while letting us pin a dev image digest separately.
 image:
-  repository: ghcr.io/hfcred/agent-8s
+  repository: registry.digitalocean.com/sendouq/agent8s
   tag: ""
   digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   pullPolicy: IfNotPresent
