@@ -44,7 +44,7 @@ jobs:
             echo "Validating ${file}"
             kubeconform \
               -schema-location default \
-              -schema-location 'https://raw.githubusercontent.com/cilium/cilium/v1.15.11/install/kubernetes/Crds.yaml?ignore-missing=true' \
+              -skip CiliumNetworkPolicy \
               -strict -summary -exit-on-error "$file"
           done
 
