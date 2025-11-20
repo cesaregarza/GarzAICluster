@@ -1,0 +1,9 @@
+botName: "agent-8s"
+repoURL: "https://github.com/cesaregarza/SplatTopConfig.git"
+chartPath: "apps/agent-8s"
+targetRevision: "main"
+valuesFile: "values.yaml"
+permissions:
+  postgres: true
+  prometheus: true
+  dbReadOnlyVPC: true

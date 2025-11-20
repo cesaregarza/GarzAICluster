@@ -95,7 +95,7 @@ When a Discord bot maintainer needs database reads without touching the FastAPI 
    - Once you encrypt the file, the `.sops.yaml` rule for `secrets/bots/**` keeps the cipher text tied to the repo’s Age key.
    - Scripts automatically load secrets from `.env` (or the path in `SPLATTOPCONFIG_ENV_FILE`) before falling back to interactive prompts, so keeping `BOT_DB_ADMIN_URL` there works without exporting it every time.
 
-3. **Flip the network permission** inside `apps/bots.yaml` so the `bot-netpol` chart opens only the needed egress:
+3. **Flip the network permission** inside `apps/bots/<bot>.yaml` so the `bot-netpol` chart opens only the needed egress:
 
    ```yaml
    permissions:

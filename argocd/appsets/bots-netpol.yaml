@@ -9,7 +9,7 @@ spec:
         repoURL: https://github.com/cesaregarza/SplatTopConfig
         revision: main
         files:
-          - path: apps/bots.yaml
+          - path: apps/bots/*.yaml
         
   template:
     metadata:
