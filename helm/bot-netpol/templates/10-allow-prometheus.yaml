@@ -14,7 +14,7 @@ spec:
               kubernetes.io/metadata.name: monitoring
           podSelector:
             matchExpressions:
-              - key: app
+              - key: app.kubernetes.io/component
                 operator: In
                 values: ["prometheus"]
       ports:

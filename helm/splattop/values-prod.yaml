@@ -137,6 +137,14 @@ ingress:
 # Monitoring stack configuration (enabled in production)
 monitoring:
   createNamespace: false
+  networkPolicies:
+    prometheus:
+      allowedEgressNamespaces:
+        - monitoring
+        - default
+        - ingress-nginx
+        - splattop-bot-agent-8s
+        - splattop-bot-agent-8s-dev
   cilium:
     prometheusEgressKubeAPI:
       enabled: true
