@@ -16,10 +16,11 @@ secretRefs:
   - name: bot-db-readonly
 health:
   enabled: true
-  port: 8080
-  portName: http
-  livenessPath: /healthz
-  readinessPath: /readyz
+  port: 9464
+  portName: metrics
+  livenessPath: /metrics
+  readinessPath: /metrics
+
 resources:
   requests:
     cpu: 100m
