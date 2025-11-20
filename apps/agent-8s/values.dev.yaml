@@ -2,29 +2,24 @@
 # Keeps the chart identical while letting us pin a dev image digest separately.
 image:
   repository: registry.digitalocean.com/sendouq/agent8s
-  tag: ""
-  digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  tag: "v1.0.1"
+  digest: "sha256:126d14e00e9bd1b32cc34b0d453942f421856228a92896d12d1f12f54f495487"
   pullPolicy: IfNotPresent
-
 imagePullSecrets:
   - name: regcred
-
 env:
   NODE_ENV: "development"
   METRICS_PORT: "9464"
 extraEnv: []
-
 secretRefs:
   - name: bot-token
   - name: bot-db-readonly
-
 health:
   enabled: true
   port: 8080
   portName: http
   livenessPath: /healthz
   readinessPath: /readyz
-
 resources:
   requests:
     cpu: 100m
@@ -32,11 +27,9 @@ resources:
   limits:
     cpu: 300m
     memory: 256Mi
-
 podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
-
 containerSecurityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
@@ -44,9 +37,7 @@ containerSecurityContext:
   runAsUser: 10001
   capabilities:
     drop: ["ALL"]
-
 replicaCount: 1
-
 metrics:
   enabled: true
   portName: metrics
@@ -61,23 +52,19 @@ metrics:
     interval: 30s
     scrapeTimeout: 10s
     additionalLabels: {}
-
 networkPolicy:
   enabled: true
   allowDNS: true
   allowHTTPS: true
-
 serviceAccount:
   create: true
   name: ""
   automount: false
-
 hpa:
   enabled: false
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
-
 pdb:
   enabled: false
   minAvailable: 0
