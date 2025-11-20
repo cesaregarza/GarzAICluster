@@ -2,13 +2,13 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-egress-to-prometheus
+  name: allow-prometheus-scrape
 spec:
   podSelector: {}
   policyTypes:
-    - Egress
-  egress:
-    - to:
+    - Ingress
+  ingress:
+    - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
@@ -19,5 +19,5 @@ spec:
                 values: ["prometheus"]
       ports:
         - protocol: TCP
-          port: 9090
+          port: {{ .Values.metricsPort | default 9464 }}
 {{- end }}

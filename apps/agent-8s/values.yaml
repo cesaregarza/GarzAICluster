@@ -1,4 +1,5 @@
-# --- image (digest REQUIRED) ---
+# Agent-8s production overlay values.
+# Keeps the chart identical while letting us pin a prod image digest.
 image:
   repository: registry.digitalocean.com/sendouq/agent8s
   tag: ""
@@ -9,28 +10,23 @@ image:
 imagePullSecrets:
   - name: regcred
 
-# --- env ---
-env:                 # plain (non-secret) environment variables
+env:
   NODE_ENV: "production"
-  METRICS_PORT: "9464"   # Agent-8s default
-extraEnv: []          # list of {name: X, value: Y}
+  METRICS_PORT: "9464"
+  AUTHOR_ID: "313762200286396416"
+extraEnv: []
 
-# --- secret references ---
-# Do NOT put secret values into Helm values. Refer to existing Secrets.
 secretRefs:
-  - name: bot-token            # provides BOT_TOKEN
-  - name: bot-db-readonly      # provides DATABASE_URL
-  # - name: telemetry-secret   # optional, if used
+  - name: bot-token
+  - name: bot-db-readonly
 
-# --- health checks ---
 health:
   enabled: true
-  port: 8080
-  portName: http
-  livenessPath: /healthz
-  readinessPath: /readyz
+  port: 9464
+  portName: metrics
+  livenessPath: /metrics
+  readinessPath: /metrics
 
-# --- pod security & resources ---
 resources:
   requests:
     cpu: 100m
@@ -53,7 +49,6 @@ containerSecurityContext:
 
 replicaCount: 1
 
-# --- metrics ---
 metrics:
   enabled: true
   portName: metrics
@@ -63,33 +58,28 @@ metrics:
     enabled: true
     annotations: {}
   serviceMonitor:
-    enabled: false           # set true if Prometheus Operator is installed
-    namespace: ""            # empty = same ns
+    enabled: false
+    namespace: ""
     interval: 30s
     scrapeTimeout: 10s
     additionalLabels: {}
 
-# --- network policy ---
 networkPolicy:
   enabled: true
   allowDNS: true
   allowHTTPS: true
-  # If you run Cilium and want stricter egress by SNI/HTTP host, render a separate CNPG/CNP outside this chart.
 
-# --- service account ---
 serviceAccount:
   create: true
   name: ""
   automount: false
 
-# --- autoscaling (optional) ---
 hpa:
   enabled: false
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
 
-# --- pod disruption budget ---
 pdb:
   enabled: false
   minAvailable: 0

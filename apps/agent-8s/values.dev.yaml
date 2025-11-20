@@ -10,6 +10,7 @@ imagePullSecrets:
 env:
   NODE_ENV: "development"
   METRICS_PORT: "9464"
+  AUTHOR_ID: "313762200286396416"
 extraEnv: []
 secretRefs:
   - name: bot-token

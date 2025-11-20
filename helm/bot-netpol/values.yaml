@@ -2,3 +2,4 @@ permissions:
   postgres: false
   prometheus: false
   dbReadOnlyVPC: false  # Opens egress to the DO VPC read-only Postgres endpoint
+metricsPort: 9464
