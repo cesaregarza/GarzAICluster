@@ -154,8 +154,8 @@ jobs:
 
       - name: Install crane
         run: |
-          sudo curl -sSL -o /usr/local/bin/crane https://github.com/google/go-containerregistry/releases/latest/download/crane_linux_amd64
-          sudo chmod +x /usr/local/bin/crane
+          curl -sSL -o /tmp/go-containerregistry.tar.gz https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz
+          sudo tar -C /usr/local/bin -xzf /tmp/go-containerregistry.tar.gz crane
 
       - name: Install yq
         run: |

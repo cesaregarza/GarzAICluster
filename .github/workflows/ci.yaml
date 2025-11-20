@@ -42,7 +42,10 @@ jobs:
           set -euo pipefail
           for file in rendered/*.yaml; do
             echo "Validating ${file}"
-            kubeconform -strict -summary -exit-on-error "$file"
+            kubeconform \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/cilium/cilium/v1.15.11/install/kubernetes/Crds.yaml?ignore-missing=true' \
+              -strict -summary -exit-on-error "$file"
           done
 
       - name: Upload rendered manifests (for debugging)
