@@ -4,6 +4,7 @@ kind: Namespace
 metadata:
   name: {{ include "splattop.monitoringNamespace" . }}
   labels:
-    app.kubernetes.io/name: monitoring
-    {{- include "splattop.labels" . | nindent 4 }}
+    {{- $labels := include "splattop.labels" . | fromYaml -}}
+    {{- $_ := set $labels "app.kubernetes.io/name" "monitoring" -}}
+    {{- toYaml $labels | nindent 4 }}
 {{- end }}
