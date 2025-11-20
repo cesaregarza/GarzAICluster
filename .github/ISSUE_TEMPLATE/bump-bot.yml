@@ -10,6 +10,7 @@ body:
       description: "If your bot is missing, mention us to add it to bots.yaml."
       options:
         - agent-8s
+        - agent-8s-dev
     validations:
       required: true
 
