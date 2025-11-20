@@ -41,12 +41,12 @@ jobs:
           VALUES_FILE="apps/${BOT_NAME}/values.yaml"
           if [ ! -f "$VALUES_FILE" ]; then
             cat > "$VALUES_FILE" <<'VALS'
-image:
-  repository: ""
-  tag: ""
-  digest: ""
-imagePullSecrets: []
-VALS
+          image:
+            repository: ""
+            tag: ""
+            digest: ""
+          imagePullSecrets: []
+          VALS
           fi
 
       - name: Update image repository and digest

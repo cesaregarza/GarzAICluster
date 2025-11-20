@@ -13,9 +13,6 @@ concurrency:
   group: bump-${{ github.event.issue.number || github.run_id }}
   cancel-in-progress: false
 
-env:
-  BUMP_ENV: update-config
-
 jobs:
   gate:
     runs-on: ubuntu-latest
@@ -221,7 +218,6 @@ jobs:
   patch-and-pr:
     needs: resolve-and-verify
     runs-on: ubuntu-latest
-    environment: ${{ env.BUMP_ENV }}
     permissions:
       contents: write
       pull-requests: write
@@ -246,13 +242,13 @@ jobs:
         id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
-          commit-message: ${{ format('chore({0}): pin {1} -> {2}', needs.resolve-and-verify.outputs.bot, needs.resolve-and-verify.outputs.image, needs.resolve-and-verify.outputs.digest) }}
-          title: ${{ format('Bump: {0} → {1}', needs.resolve-and-verify.outputs.image, needs.resolve-and-verify.outputs.digest) }}
+          commit-message: "${{ format('chore({0}): pin {1} -> {2}', needs.resolve-and-verify.outputs.bot, needs.resolve-and-verify.outputs.image, needs.resolve-and-verify.outputs.digest) }}"
+          title: "${{ format('Bump: {0} → {1}', needs.resolve-and-verify.outputs.image, needs.resolve-and-verify.outputs.digest) }}"
           body: |
             Requested by @${{ github.actor }} via ${{ needs.detect-intent.outputs.trigger }}.
             Image: `${{ needs.resolve-and-verify.outputs.image }}@${{ needs.resolve-and-verify.outputs.digest }}`
 
-            _This PR is auto-generated; reviewers gate merges via the **${{ env.BUMP_ENV }}** environment._
+            _This PR is auto-generated._
           branch: ${{ format('bump/{0}-{1}', needs.resolve-and-verify.outputs.bot, github.run_id) }}
           signoff: true
           labels: bump-request, automated

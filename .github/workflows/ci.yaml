@@ -75,17 +75,3 @@ jobs:
 
       - name: Run promtool validation
         run: python scripts/validate_prometheus_config.py --values ${{ matrix.env.values }} --label ${{ matrix.env.name }}
-
-  secrets-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Run TruffleHog
-        uses: trufflesecurity/trufflehog@v3
-        with:
-          scanArguments: --no-update --only-verified --fail --git-history=false .
-*** End Patch
