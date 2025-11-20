@@ -144,6 +144,7 @@ jobs:
   resolve-and-verify:
     needs: detect-intent
     runs-on: ubuntu-latest
+    environment: config
     outputs:
       bot: ${{ steps.out.outputs.bot }}
       image: ${{ steps.out.outputs.image }}
@@ -156,6 +157,16 @@ jobs:
         run: |
           curl -sSL -o /tmp/go-containerregistry.tar.gz https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz
           sudo tar -C /usr/local/bin -xzf /tmp/go-containerregistry.tar.gz crane
+
+      - name: Authenticate to DigitalOcean Registry
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$DIGITALOCEAN_ACCESS_TOKEN" ]; then
+            echo "DIGITALOCEAN_ACCESS_TOKEN is required to query image digests" >&2
+            exit 1
+          fi
+          echo "$DIGITALOCEAN_ACCESS_TOKEN" | crane auth login registry.digitalocean.com -u doctl --password-stdin
 
       - name: Install yq
         run: |
