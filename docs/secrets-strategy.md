@@ -68,7 +68,15 @@ The config repo never stores plaintext secrets. We use SOPS with Age encryption 
     --from-literal=age.agekey="$SOPS_AGE_KEY"
   ```
 
-- Reference this secret in the ksops/Argo SOPS config (TODO when we wire ksops). Rotating the key means updating the secret + GH Actions secret.
+- Patch repo-server to mount the Age key and install ksops/sops so Argo can decrypt during sync:
+
+  ```bash
+  kubectl patch deploy argocd-repo-server -n argocd \
+    --type strategic \
+    --patch-file k8s/argocd/repo-server-ksops-patch.yaml
+  ```
+
+- Bot secret folders now include `kustomization.yaml` + `ksops.yaml` and the `bots-secrets` ApplicationSet sets `enableAlphaPlugins=true`, so Argo will run `kustomize build --enable-alpha-plugins` with ksops to decrypt at sync time. Rotating the key means updating the secret + GH Actions secret.
 
 ## Secrets Scanning
 
