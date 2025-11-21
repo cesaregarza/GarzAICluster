@@ -36,7 +36,12 @@ Use this runbook when standing up a brand-new cluster or when rehydrating Argo t
 8. **Apply the production Application**
    - `kubectl apply -f argocd/applications/splattop-prod.yaml`.
    - Ensure `repoURL` references this repo and `targetRevision: main`.
-9. **Seed secrets**
+9. **Enable in-cluster SOPS decryption (ksops)**
+   - Ensure the Age key secret exists: `kubectl -n argocd create secret generic sops-age-key --from-literal=age.agekey="$SOPS_AGE_KEY"`.
+   - Patch repo-server to install ksops + sops and mount the key:  
+     `kubectl patch deploy argocd-repo-server -n argocd --type strategic --patch-file k8s/argocd/repo-server-ksops-patch.yaml`
+   - Once rolled out, Argo can decrypt `secrets/bots/**` during sync.
+10. **Seed secrets**
    - Populate `k8s/secrets.template.yaml` with environment-specific data, copy to `k8s/secrets.enc.yaml`, and run `SOPS_AGE_RECIPIENTS=$(tail -n1 keys/age-public.txt) sops --encrypt --in-place k8s/secrets.enc.yaml`.
    - Store the plaintext template outside git or delete it after encrypting.
 

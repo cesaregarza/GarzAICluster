@@ -67,6 +67,14 @@ Keep renewal dates in `developer-cheat-sheet.md` or a shared calendar.
 
 Record outcomes (date, scenario, owner) at the bottom of this file for traceability.
 
+## In-Cluster Secret Decryption (SOPS/ksops)
+
+- Ensure the Age private key is present as `sops-age-key` in the `argocd` namespace (`age.agekey` key).
+- Patch repo-server to install ksops + sops and mount the key:  
+  `kubectl patch deploy argocd-repo-server -n argocd --type strategic --patch-file k8s/argocd/repo-server-ksops-patch.yaml`
+- The `bots-secrets` ApplicationSet enables `enableAlphaPlugins` and each bot secrets folder includes `kustomization.yaml` + `ksops.yaml`, so `kustomize build --enable-alpha-plugins` will decrypt `*.enc.yaml` during sync.
+- Rotate keys by updating the `sops-age-key` secret and reapplying the patch (or rolling repo-server) to ensure the new key is mounted.
+
 ## Bot Read-Only DB Access
 
 When a Discord bot maintainer needs database reads without touching the FastAPI service:
@@ -84,15 +92,12 @@ When a Discord bot maintainer needs database reads without touching the FastAPI 
 
    ```bash
    BOT_DB_ADMIN_URL="postgresql://admin:***@private-db:25060/xscraper?sslmode=require" \
-     uv run python scripts/provision_bot_db.py <bot-name> \
-       --secret-file secrets/bots/<bot-name>/db-secret.enc.yaml
-
-   sops --encrypt --in-place secrets/bots/<bot-name>/db-secret.enc.yaml
+     uv run python scripts/provision_bot_db.py <bot-name>
    ```
 
    - `BOT_DB_ADMIN_URL` (or `--admin-url`) must point at a superuser/owner account inside the cluster’s Postgres instance.
    - The script constrains the new role to its own schema (`bot_<bot-name>`) and prints the generated connection string for auditing.
-   - Once you encrypt the file, the `.sops.yaml` rule for `secrets/bots/**` keeps the cipher text tied to the repo’s Age key.
+   - Secrets auto-encrypt via SOPS when available, and Argo decrypts them in-cluster via ksops (Age key mounted in repo-server).
    - Scripts automatically load secrets from `.env` (or the path in `SPLATTOPCONFIG_ENV_FILE`) before falling back to interactive prompts, so keeping `BOT_DB_ADMIN_URL` there works without exporting it every time.
 
 3. **Flip the network permission** inside `apps/bots/<bot>.yaml` so the `bot-netpol` chart opens only the needed egress:

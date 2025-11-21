@@ -1,0 +1,44 @@
+# Patch repo-server to install ksops + sops and mount the Age key for SOPS decryption.
+# Apply with:
+#   kubectl patch deploy argocd-repo-server -n argocd --type strategic --patch-file k8s/argocd/repo-server-ksops-patch.yaml
+spec:
+  template:
+    spec:
+      volumes:
+        - name: ksops-tools
+          emptyDir: {}
+        - name: sops-age
+          secret:
+            secretName: sops-age-key
+            items:
+              - key: age.agekey
+                path: age.agekey
+      initContainers:
+        - name: install-ksops
+          image: viaductoss/ksops:v4.3.2
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              mkdir -p /custom-tools/kustomize/plugin/viaduct.ai/v1/ksops
+              cp /usr/local/bin/ksops /custom-tools/kustomize/plugin/viaduct.ai/v1/ksops/ksops
+              cp /usr/bin/sops /custom-tools/sops
+          volumeMounts:
+            - name: ksops-tools
+              mountPath: /custom-tools
+      containers:
+        - name: argocd-repo-server
+          env:
+            - name: PATH
+              value: /custom-tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+            - name: KUSTOMIZE_PLUGIN_HOME
+              value: /custom-tools/kustomize/plugin
+            - name: SOPS_AGE_KEY_FILE
+              value: /sops/age.agekey
+          volumeMounts:
+            - name: ksops-tools
+              mountPath: /custom-tools
+              readOnly: true
+            - name: sops-age
+              mountPath: /sops
+              readOnly: true
