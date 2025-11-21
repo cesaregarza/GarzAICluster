@@ -2,8 +2,8 @@
 # Keeps the chart identical while letting us pin a dev image digest separately.
 image:
   repository: registry.digitalocean.com/sendouq/agent8s
-  tag: "v1.0.1"
-  digest: "sha256:126d14e00e9bd1b32cc34b0d453942f421856228a92896d12d1f12f54f495487"
+  tag: "v1.0.2"
+  digest: "sha256:9785d9326c0d00c1dd4e6fd8a22654ebe05133962378a5cd10e71c86b9950108"
   pullPolicy: IfNotPresent
 imagePullSecrets:
   - name: regcred
@@ -21,7 +21,6 @@ health:
   portName: metrics
   livenessPath: /metrics
   readinessPath: /metrics
-
 resources:
   requests:
     cpu: 100m
