@@ -251,6 +251,7 @@ jobs:
     permissions:
       contents: write
       issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -290,6 +291,57 @@ jobs:
           git push origin "$BRANCH"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
+      - name: Open PR (or reuse existing)
+        if: steps.push.outputs.branch != ''
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = '${{ steps.push.outputs.branch }}';
+            const bot = '${{ needs.resolve-and-verify.outputs.bot }}';
+            const image = '${{ needs.resolve-and-verify.outputs.image }}';
+            const digest = '${{ needs.resolve-and-verify.outputs.digest }}';
+            const base = 'main';
+            const title = `bot(${bot}): pin ${image} -> ${digest}`;
+            const body = [
+              `Requested by @${context.actor} via ${{ needs.detect-intent.outputs.trigger }}.`,
+              '',
+              `Pinned image: \`${image}@${digest}\``,
+              `Branch: \`${branch}\``,
+            ].join('\n');
+
+            try {
+              const { data: pr } = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head: branch,
+                base,
+                title,
+                body,
+                maintainer_can_modify: true,
+              });
+              core.setOutput('pr_url', pr.html_url);
+              core.setOutput('pr_number', pr.number);
+              core.setOutput('pr_created', 'true');
+            } catch (error) {
+              if (error.status === 422 && /already exists/i.test(error.message)) {
+                const { data: prs } = await github.rest.pulls.list({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  head: `${context.repo.owner}:${branch}`,
+                  state: 'open',
+                });
+                if (prs.length) {
+                  const pr = prs[0];
+                  core.setOutput('pr_url', pr.html_url);
+                  core.setOutput('pr_number', pr.number);
+                  core.setOutput('pr_created', 'false');
+                  return;
+                }
+              }
+              throw error;
+            }
+
       - name: Comment with branch details
         if: steps.push.outputs.branch != ''
         uses: actions/github-script@v7
@@ -300,14 +352,15 @@ jobs:
             const digest = '${{ needs.resolve-and-verify.outputs.digest }}';
             const trigger = '${{ needs.detect-intent.outputs.trigger }}';
             const actor = context.actor;
+            const prUrl = '${{ steps.pr.outputs.pr_url || "" }}';
+            const prNumber = '${{ steps.pr.outputs.pr_number || "" }}';
 
             const body = [
               `Requested by @${actor} via ${trigger}.`,
               '',
               `Pinned image: \`${image}@${digest}\``,
               `Branch: \`${branch}\``,
-              '',
-              'GitHub Actions cannot open a PR; please create one from this branch to merge.'
+              prUrl ? `PR: #${prNumber} (${prUrl})` : 'PR: not created automatically.',
             ].join('\n');
 
             await github.rest.issues.createComment({

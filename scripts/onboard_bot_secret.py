@@ -55,6 +55,7 @@ metadata:
   name: bot-token
   namespace: {bot_ns}
 stringData:
+  BOT_TOKEN: "{token}"
   DISCORD_TOKEN: "{token}"
 """
 
