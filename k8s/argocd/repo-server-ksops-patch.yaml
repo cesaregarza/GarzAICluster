@@ -19,10 +19,9 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              set -euo pipefail
+              set -eu
               mkdir -p /custom-tools/kustomize/plugin/viaduct.ai/v1/ksops
               cp /usr/local/bin/ksops /custom-tools/kustomize/plugin/viaduct.ai/v1/ksops/ksops
-              cp /usr/bin/sops /custom-tools/sops
           volumeMounts:
             - name: ksops-tools
               mountPath: /custom-tools
