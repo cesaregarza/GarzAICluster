@@ -345,15 +345,22 @@ jobs:
       - name: Comment with branch details
         if: steps.push.outputs.branch != ''
         uses: actions/github-script@v7
+        env:
+          BRANCH: ${{ steps.push.outputs.branch }}
+          IMAGE: ${{ needs.resolve-and-verify.outputs.image }}
+          DIGEST: ${{ needs.resolve-and-verify.outputs.digest }}
+          TRIGGER: ${{ needs.detect-intent.outputs.trigger }}
+          PR_URL: ${{ steps.pr.outputs.pr_url }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
         with:
           script: |
-            const branch = '${{ steps.push.outputs.branch }}';
-            const image = '${{ needs.resolve-and-verify.outputs.image }}';
-            const digest = '${{ needs.resolve-and-verify.outputs.digest }}';
-            const trigger = '${{ needs.detect-intent.outputs.trigger }}';
+            const branch = process.env.BRANCH;
+            const image = process.env.IMAGE;
+            const digest = process.env.DIGEST;
+            const trigger = process.env.TRIGGER;
             const actor = context.actor;
-            const prUrl = '${{ steps.pr.outputs.pr_url || "" }}';
-            const prNumber = '${{ steps.pr.outputs.pr_number || "" }}';
+            const prUrl = process.env.PR_URL || '';
+            const prNumber = process.env.PR_NUMBER || '';
 
             const body = [
               `Requested by @${actor} via ${trigger}.`,
