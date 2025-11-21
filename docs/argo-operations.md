@@ -70,9 +70,11 @@ Record outcomes (date, scenario, owner) at the bottom of this file for traceabil
 ## In-Cluster Secret Decryption (SOPS/ksops)
 
 - Ensure the Age private key is present as `sops-age-key` in the `argocd` namespace (`age.agekey` key).
+- Argo CD 3.2 only honors kustomize flags from `argocd-cm.data.kustomize.buildOptions` (or per-app build options), so apply `k8s/argocd/argocd-cm-ksops-patch.yaml` to inject `--enable-alpha-plugins --enable-exec`; `argocd-cmd-params-cm` does nothing for kustomize flags.
 - Patch repo-server to install ksops + sops and mount the key:  
   `kubectl patch deploy argocd-repo-server -n argocd --type strategic --patch-file k8s/argocd/repo-server-ksops-patch.yaml`
-- The `bots-secrets` ApplicationSet enables `enableAlphaPlugins` and each bot secrets folder includes `kustomization.yaml` + `ksops.yaml`, so `kustomize build --enable-alpha-plugins` will decrypt `*.enc.yaml` during sync.
+- The `bots-secrets` ApplicationSet simply renders `kustomization.yaml` + `ksops.yaml`; it relies on the global build options above rather than setting `enableAlphaPlugins` per app.
+- If you need the CMP/plugin-server variant instead of plain kustomize+KSOPS, the full recipe lives in `docs/ksops-llm-response.md`.
 - Rotate keys by updating the `sops-age-key` secret and reapplying the patch (or rolling repo-server) to ensure the new key is mounted.
 
 ## Bot Read-Only DB Access

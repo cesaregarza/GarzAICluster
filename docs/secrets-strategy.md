@@ -68,6 +68,8 @@ The config repo never stores plaintext secrets. We use SOPS with Age encryption 
     --from-literal=age.agekey="$SOPS_AGE_KEY"
   ```
 
+- Apply `k8s/argocd/argocd-cm-ksops-patch.yaml` so `argocd-cm.data.kustomize.buildOptions` carries `--enable-alpha-plugins --enable-exec` (the only knobs Argo CD 3.2 honors for kustomize flags; `argocd-cmd-params-cm` is ignored for this).
+
 - Patch repo-server to mount the Age key and install ksops/sops so Argo can decrypt during sync:
 
   ```bash
@@ -76,7 +78,8 @@ The config repo never stores plaintext secrets. We use SOPS with Age encryption 
     --patch-file k8s/argocd/repo-server-ksops-patch.yaml
   ```
 
-- Bot secret folders now include `kustomization.yaml` + `ksops.yaml` and the `bots-secrets` ApplicationSet sets `enableAlphaPlugins=true`, so Argo will run `kustomize build --enable-alpha-plugins` with ksops to decrypt at sync time. Rotating the key means updating the secret + GH Actions secret.
+- Bot secret folders include `kustomization.yaml` + `ksops.yaml` and rely on the global build options above (the ApplicationSet itself does not set `enableAlphaPlugins`); with the patches applied Argo runs `kustomize build --enable-alpha-plugins --enable-exec` and decrypts at sync time. Rotating the key means updating the secret + GH Actions secret.
+- If you need the CMP/plugin-server path instead of plain kustomize + KSOPS, see `docs/ksops-llm-response.md` for the full recipe.
 
 ## Secrets Scanning
 
