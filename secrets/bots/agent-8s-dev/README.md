@@ -14,13 +14,10 @@ Encrypt the Discord token and optional database URL before merging:
 
    ```bash
    BOT_DB_ADMIN_URL=postgresql://admin:***@private-db:25060/xscraper?sslmode=require \
-     uv run python scripts/provision_bot_db.py agent-8s-dev \
-       --secret-file secrets/bots/agent-8s-dev/db-secret.enc.yaml \
-       --secret-name bot-db-readonly
-
-   sops --encrypt --in-place secrets/bots/agent-8s-dev/db-secret.enc.yaml
+     uv run python scripts/provision_bot_db.py agent-8s-dev
    ```
 
-Commit only the encrypted `.enc.yaml` files. The Agent-8s chart mounts them as
-`bot-token` (`BOT_TOKEN`) and `bot-db-readonly` (`DATABASE_URL`) inside the
-`splattop-bot-agent-8s-dev` namespace.
+The script now writes to `secrets/bots/agent-8s-dev/db-secret.enc.yaml` by default
+and will auto-encrypt with SOPS when available. Commit only the encrypted `.enc.yaml`
+files. The Agent-8s chart mounts them as `bot-token` (`BOT_TOKEN`) and
+`bot-db-readonly` (`DATABASE_URL`) inside the `splattop-bot-agent-8s-dev` namespace.

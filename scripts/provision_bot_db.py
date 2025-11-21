@@ -185,6 +185,26 @@ def maybe_write_secret(path: Path, namespace: str, secret_name: str, connection_
     print(f"Wrote plaintext secret manifest to {path}. Encrypt it with SOPS before committing.")
 
 
+def maybe_encrypt_secret(path: Path) -> bool:
+    """Attempt to encrypt the secret in-place with SOPS if available."""
+    if which("sops") is None:
+        print("sops not found in PATH; leaving secret plaintext. Encrypt manually before committing.")
+        return False
+
+    try:
+        subprocess.run(
+            ["sops", "--encrypt", "--in-place", str(path)],
+            check=True,
+            capture_output=True,
+        )
+        print(f"Encrypted secret with sops: {path}")
+        return True
+    except subprocess.CalledProcessError as exc:
+        sys.stderr.write(exc.stderr.decode())
+        print("sops encryption failed; secret remains plaintext. Encrypt manually before committing.")
+        return False
+
+
 def load_env_file() -> None:
     env_path = Path(os.environ.get("SPLATTOPCONFIG_ENV_FILE", ".env"))
     if not env_path.exists():
@@ -219,6 +239,7 @@ def main() -> None:
     schema_name = f"bot_{identifier}"
     role_name = f"{schema_name}_user"
     namespace = args.namespace or f"splattop-bot-{bot_slug}"
+    secret_path = args.secret_file or Path("secrets") / "bots" / bot_slug / "db-secret.enc.yaml"
     password = generate_password()
 
     print(f"Creating/refreshing schema '{schema_name}' and role '{role_name}'...")
@@ -231,8 +252,9 @@ def main() -> None:
     print(f"Bot namespace: {namespace}")
     print(f"\nConnection string (store via SOPS):\n{connection_string}\n")
 
-    if args.secret_file:
-        maybe_write_secret(args.secret_file, namespace, args.secret_name, connection_string)
+    if secret_path:
+        maybe_write_secret(secret_path, namespace, args.secret_name, connection_string)
+        maybe_encrypt_secret(secret_path)
 
 
 if __name__ == "__main__":
