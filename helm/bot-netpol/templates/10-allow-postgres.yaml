@@ -10,7 +10,7 @@ spec:
   egress:
     - to:
         - ipBlock:
-            cidr: 161.35.125.48/32
+            cidr: 10.108.0.10/32
       ports:
         - protocol: TCP
           port: 25060
