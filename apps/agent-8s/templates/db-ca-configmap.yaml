@@ -1,0 +1,10 @@
+{{- if and .Values.ssl.ca.enabled .Values.ssl.ca.createConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.ssl.ca.configMapName | default "do-db-ca" | quote }}
+  labels: {{- include "agent-8s.labels" . | nindent 4 }}
+data:
+  {{ .Values.ssl.ca.fileName | default "ca.crt" }}: |
+{{ (.Files.Get "files/do-db-ca.crt") | nindent 4 }}
+{{- end }}

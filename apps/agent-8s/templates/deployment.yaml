@@ -13,11 +13,17 @@ spec:
   template:
     metadata:
       labels: {{- include "agent-8s.selectorLabels" . | nindent 8 }}
-      {{- if .Values.metrics.enabled }}
+      {{- $hasAnn := or .Values.metrics.enabled .Values.ssl.ca.enabled }}
+      {{- if $hasAnn }}
       annotations:
+        {{- if .Values.metrics.enabled }}
         prometheus.io/scrape: "true"
         prometheus.io/port: "{{ .Values.metrics.port }}"
         prometheus.io/path: "{{ .Values.metrics.path | default "/metrics" }}"
+        {{- end }}
+        {{- if .Values.ssl.ca.enabled }}
+        checksum/db-ca: {{ include (print $.Template.BasePath "/db-ca-configmap.yaml") . | sha256sum }}
+        {{- end }}
       {{- end }}
     spec:
       serviceAccountName: {{ include "agent-8s.serviceAccountName" . }}
@@ -40,6 +46,14 @@ spec:
           {{- range .Values.extraEnv }}
             - name: {{ .name | quote }}
               value: {{ .value | quote }}
+          {{- end }}
+          {{- if .Values.ssl.ca.enabled }}
+            - name: PGSSLROOTCERT
+              value: {{ .Values.ssl.ca.mountPath | default "/etc/ssl/certs/do-db-ca.crt" | quote }}
+            - name: PGSSLMODE
+              value: "verify-full"
+            - name: NODE_EXTRA_CA_CERTS
+              value: {{ .Values.ssl.ca.mountPath | default "/etc/ssl/certs/do-db-ca.crt" | quote }}
           {{- end }}
           envFrom:
           {{- range .Values.secretRefs }}
@@ -71,3 +85,16 @@ spec:
           {{- end }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
           securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- if .Values.ssl.ca.enabled }}
+          volumeMounts:
+            - name: db-ca
+              mountPath: {{ .Values.ssl.ca.mountPath | default "/etc/ssl/certs/do-db-ca.crt" | quote }}
+              subPath: {{ .Values.ssl.ca.fileName | default "ca.crt" | quote }}
+              readOnly: true
+          {{- end }}
+      {{- if .Values.ssl.ca.enabled }}
+      volumes:
+        - name: db-ca
+          configMap:
+            name: {{ .Values.ssl.ca.configMapName | default "do-db-ca" | quote }}
+      {{- end }}

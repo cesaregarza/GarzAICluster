@@ -63,6 +63,13 @@ metrics:
     interval: 30s
     scrapeTimeout: 10s
     additionalLabels: {}
+ssl:
+  ca:
+    enabled: true
+    createConfigMap: true
+    configMapName: do-db-ca
+    fileName: ca.crt
+    mountPath: /etc/ssl/certs/do-db-ca.crt
 
 networkPolicy:
   enabled: true

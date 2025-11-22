@@ -81,6 +81,21 @@
         "maxReplicas": { "type": "integer", "minimum": 1 },
         "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
       }
+    },
+    "ssl": {
+      "type": "object",
+      "properties": {
+        "ca": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "createConfigMap": { "type": "boolean" },
+            "configMapName": { "type": "string" },
+            "fileName": { "type": "string" },
+            "mountPath": { "type": "string" }
+          }
+        }
+      }
     }
   },
   "required": ["image", "secretRefs"],
