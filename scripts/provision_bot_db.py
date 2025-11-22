@@ -50,8 +50,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--host",
         default=os.environ.get("BOT_DB_HOST"),
-        help="Override hostname for generated connection strings (e.g., private DB host). "
-             "If unset, the admin URL host is used. You can also set BOT_DB_HOST.",
+        help=(
+            "Override hostname for generated connection strings (e.g., private DB host). "
+            "If unset, a private host is derived by prepending 'private-' to the admin URL host "
+            "when needed. You can also set BOT_DB_HOST."
+        ),
     )
     parser.add_argument(
         "--namespace",
@@ -136,6 +139,13 @@ def build_connection_string(
             "",
         )
     )
+
+
+def derive_private_host(host: str, prefix: str = "private-") -> str:
+    """Return host prefixed with 'private-' unless it already has it."""
+    if not host:
+        sys.exit("Unable to determine host from admin URL.")
+    return host if host.startswith(prefix) else f"{prefix}{host}"
 
 
 def admin_url_for_db(admin_url: str, database: str, host_override: str | None = None) -> str:
@@ -348,6 +358,14 @@ def main() -> None:
     if not args.admin_url:
         sys.exit("Provide --admin-url or export BOT_DB_ADMIN_URL.")
 
+    parsed_admin = urlparse(args.admin_url)
+    if not parsed_admin.hostname:
+        sys.exit("Unable to determine host from admin URL.")
+    # Only override the emitted connection string by default; keep admin connections on the provided host
+    # unless the operator explicitly sets --host / BOT_DB_HOST.
+    connection_host_override = args.host or derive_private_host(parsed_admin.hostname)
+    admin_host_override = args.host
+
     bot_slug = normalize_bot_name(args.bot_name)
     identifier = to_identifier(bot_slug)
     schema_name = f"bot_{identifier}"
@@ -364,7 +382,7 @@ def main() -> None:
     password = generate_password()
 
     print(f"Creating/refreshing schema '{schema_name}' and role '{role_name}'...")
-    admin_url_db = admin_url_for_db(args.admin_url, args.database, args.host)
+    admin_url_db = admin_url_for_db(args.admin_url, args.database, admin_host_override)
     run_sql(admin_url_db, args.database, schema_name, role_name, password, readonly_role, common_schema_value)
 
     connection_string = build_connection_string(
@@ -372,7 +390,7 @@ def main() -> None:
         role_name,
         password,
         args.database,
-        args.host,
+        connection_host_override,
     )
     print("\n✅ Provisioned!")
     print(f"Schema: {schema_name}")
