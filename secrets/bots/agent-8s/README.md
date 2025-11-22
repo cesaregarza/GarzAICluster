@@ -1,6 +1,6 @@
 # Agent-8s Secrets
 
-Encrypt the Discord token and read-only database URL before merging:
+Encrypt the Discord token and optional database URL before merging:
 
 1. Discord token:
 
@@ -17,7 +17,7 @@ Encrypt the Discord token and read-only database URL before merging:
      uv run python scripts/provision_bot_db.py agent-8s
    ```
 
-The script now writes to `secrets/bots/agent-8s/db-secret.enc.yaml` by default and will
-auto-encrypt with SOPS when available. Commit the encrypted `token.enc.yaml` and
-`db-secret.enc.yaml` files only. The `apps/agent-8s` chart mounts these as `bot-token`
-and `bot-db-readonly` to provide `BOT_TOKEN` and `DATABASE_URL` to the pod.
+The script now writes to `secrets/bots/agent-8s/db-secret.enc.yaml` by default
+and will auto-encrypt with SOPS when available. Commit only the encrypted `.enc.yaml`
+files. The Agent-8s chart mounts them as `bot-token` (`BOT_TOKEN`) and
+`bot-db-readonly` (`DATABASE_URL`) inside the `splattop-bot-agent-8s` namespace.

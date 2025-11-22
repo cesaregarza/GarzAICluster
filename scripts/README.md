@@ -14,7 +14,7 @@ Utilities that were previously bundled with the app repo move here when they are
 
   Commit the resulting `.enc.yaml` and let the `splattop-bot-*-secret` ApplicationSet sync it.
 
-- `provision_bot_db.py` – connects to Postgres via `psql`, creates a schema + login limited to that schema, and prints the bot’s connection string. Optionally write the secret manifest:
+- `provision_bot_db.py` – connects to Postgres via `psql`, creates a schema + login limited to that schema, grants a read-only role (default: `readonly`) usage/select on the schema with default privileges, and (by default) gives both roles SELECT/USAGE on the shared `common` schema. Optionally write the secret manifest:
 
   ```bash
   BOT_DB_ADMIN_URL=postgresql://admin:***@private-db:25060/xscraper?sslmode=require \
@@ -30,6 +30,16 @@ Utilities that were previously bundled with the app repo move here when they are
   ```
 
   Add `--allow-missing` if you want the script to exit successfully when monitoring is disabled for a given values file.
+
+- `bootstrap_bot.py` – scaffolds a bot entry (apps/bots YAML), secrets folder (README/kustomization/ksops), and copies the DB CA into the shared chart. Examples:
+
+  ```bash
+  uv run python scripts/bootstrap_bot.py my-cool-bot \
+    --chart-path apps/agent-8s \
+    --values-file apps/agent-8s/values.dev.yaml
+  ```
+
+  Follow up with `onboard_bot_secret.py` and `provision_bot_db.py` to generate encrypted secrets.
 
 ## Adding New Scripts
 

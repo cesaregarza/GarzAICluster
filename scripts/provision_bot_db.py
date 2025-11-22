@@ -48,6 +48,12 @@ def parse_args() -> argparse.Namespace:
              "Use BOT_DB_NAME env var or --database to override.",
     )
     parser.add_argument(
+        "--host",
+        default=os.environ.get("BOT_DB_HOST"),
+        help="Override hostname for generated connection strings (e.g., private DB host). "
+             "If unset, the admin URL host is used. You can also set BOT_DB_HOST.",
+    )
+    parser.add_argument(
         "--namespace",
         help="Optional Kubernetes namespace for the bot (defaults to splattop-bot-<bot-name>).",
     )
@@ -63,8 +69,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--schema-key",
-        default="DB_SCHEMA",
-        help="Key name to include the schema in the generated Secret (default: DB_SCHEMA).",
+        default="DATABASE_SCHEMA",
+        help="Key name to include the schema in the generated Secret (default: DATABASE_SCHEMA).",
+    )
+    parser.add_argument(
+        "--readonly-role",
+        default=os.environ.get("BOT_DB_READONLY_ROLE", "readonly"),
+        help="Role that should receive read-only grants on the schema (default: readonly).",
+    )
+    parser.add_argument(
+        "--common-schema",
+        default=os.environ.get("BOT_DB_COMMON_SCHEMA", "common"),
+        help="Shared schema to grant SELECT/USAGE to both roles (default: common). Set empty to skip.",
     )
     return parser.parse_args()
 
@@ -90,12 +106,18 @@ def generate_password(length: int = 40) -> str:
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
-def build_connection_string(admin_url: str, username: str, password: str, database: str | None = None) -> str:
+def build_connection_string(
+    admin_url: str,
+    username: str,
+    password: str,
+    database: str | None = None,
+    host_override: str | None = None,
+) -> str:
     parsed = urlparse(admin_url)
     if not parsed.scheme.startswith("postgres"):
         sys.exit("Admin URL must be a postgres:// or postgresql:// connection string.")
 
-    host = parsed.hostname
+    host = host_override or parsed.hostname
     if not host:
         sys.exit("Unable to determine host from admin URL.")
 
@@ -116,14 +138,30 @@ def build_connection_string(admin_url: str, username: str, password: str, databa
     )
 
 
-def admin_url_for_db(admin_url: str, database: str) -> str:
+def admin_url_for_db(admin_url: str, database: str, host_override: str | None = None) -> str:
     parsed = urlparse(admin_url)
     if not parsed.scheme.startswith("postgres"):
         sys.exit("Admin URL must be a postgres:// or postgresql:// connection string.")
+
+    if host_override:
+        netloc_host = host_override
+        if parsed.port:
+            netloc_host = f"{netloc_host}:{parsed.port}"
+        # Preserve userinfo if present
+        userinfo = ""
+        if parsed.username:
+            userinfo = parsed.username
+            if parsed.password:
+                userinfo += f":{parsed.password}"
+            userinfo += "@"
+        netloc = f"{userinfo}{netloc_host}"
+    else:
+        netloc = parsed.netloc
+
     return urlunparse(
         (
             parsed.scheme,
-            parsed.netloc,
+            netloc,
             f"/{database}",
             parsed.params,
             parsed.query,
@@ -132,10 +170,19 @@ def admin_url_for_db(admin_url: str, database: str) -> str:
     )
 
 
-def run_sql(admin_url: str, db_name: str, schema: str, role: str, password: str) -> None:
+def run_sql(
+    admin_url: str,
+    db_name: str,
+    schema: str,
+    role: str,
+    password: str,
+    readonly_role: str,
+    common_schema: str | None,
+) -> None:
+    common_schema_literal = f"'{common_schema}'" if common_schema else "NULL"
     sql = textwrap.dedent(
         f"""
-        \set ON_ERROR_STOP on
+        \\set ON_ERROR_STOP on
 
         DO
         $$
@@ -144,6 +191,8 @@ def run_sql(admin_url: str, db_name: str, schema: str, role: str, password: str)
             role_password text := '{password}';
             schema_name text := '{schema}';
             db_name text := '{db_name}';
+            readonly_role_name text := '{readonly_role}';
+            shared_schema text := {common_schema_literal};
         BEGIN
             IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
                 EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', role_name, role_password);
@@ -151,27 +200,57 @@ def run_sql(admin_url: str, db_name: str, schema: str, role: str, password: str)
                 EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', role_name, role_password);
             END IF;
 
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = readonly_role_name) THEN
+                EXECUTE format('CREATE ROLE %I', readonly_role_name);
+            END IF;
+
             EXECUTE format('ALTER ROLE %I IN DATABASE %I SET search_path = %I', role_name, db_name, schema_name);
 
             EXECUTE format('REVOKE ALL ON DATABASE %I FROM %I', db_name, role_name);
             EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', db_name, role_name);
+            EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', db_name, readonly_role_name);
 
             EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', schema_name);
             EXECUTE format('ALTER SCHEMA %I OWNER TO %I', schema_name, role_name);
+            EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', schema_name, role_name);
+            EXECUTE format('GRANT CREATE ON SCHEMA %I TO %I', schema_name, role_name);
+            EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', schema_name, readonly_role_name);
 
             EXECUTE format('REVOKE ALL ON SCHEMA public FROM %I', role_name);
             EXECUTE format('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM %I', role_name);
             EXECUTE format('REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM %I', role_name);
             EXECUTE format('REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM %I', role_name);
 
-            EXECUTE format('GRANT USAGE, CREATE ON SCHEMA %I TO %I', schema_name, role_name);
             EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA %I TO %I', schema_name, role_name);
             EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %I TO %I', schema_name, role_name);
             EXECUTE format('GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA %I TO %I', schema_name, role_name);
+            EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO %I', schema_name, readonly_role_name);
+            EXECUTE format('GRANT SELECT ON ALL SEQUENCES IN SCHEMA %I TO %I', schema_name, readonly_role_name);
 
             EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL PRIVILEGES ON TABLES TO %I', schema_name, role_name);
             EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL PRIVILEGES ON SEQUENCES TO %I', schema_name, role_name);
             EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL PRIVILEGES ON FUNCTIONS TO %I', schema_name, role_name);
+            EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT ON TABLES TO %I', schema_name, readonly_role_name);
+            EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT ON SEQUENCES TO %I', schema_name, readonly_role_name);
+
+            IF shared_schema IS NOT NULL AND btrim(shared_schema) <> '' THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = shared_schema) THEN
+                    EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', shared_schema);
+                END IF;
+
+                EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', shared_schema, role_name);
+                EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', shared_schema, readonly_role_name);
+
+                EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO %I', shared_schema, role_name);
+                EXECUTE format('GRANT SELECT ON ALL SEQUENCES IN SCHEMA %I TO %I', shared_schema, role_name);
+                EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO %I', shared_schema, readonly_role_name);
+                EXECUTE format('GRANT SELECT ON ALL SEQUENCES IN SCHEMA %I TO %I', shared_schema, readonly_role_name);
+
+                EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT ON TABLES TO %I', shared_schema, role_name);
+                EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT ON SEQUENCES TO %I', shared_schema, role_name);
+                EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT ON TABLES TO %I', shared_schema, readonly_role_name);
+                EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT ON SEQUENCES TO %I', shared_schema, readonly_role_name);
+            END IF;
         END
         $$;
         """
@@ -273,18 +352,34 @@ def main() -> None:
     identifier = to_identifier(bot_slug)
     schema_name = f"bot_{identifier}"
     role_name = f"{schema_name}_user"
+    readonly_role = args.readonly_role.strip()
+    if not readonly_role or not re.fullmatch(r"[A-Za-z0-9_:-]+", readonly_role):
+        sys.exit("readonly-role must contain only letters, numbers, underscores, dashes, or colons.")
+    common_schema = (args.common_schema or "").strip()
+    if common_schema and not re.fullmatch(r"[A-Za-z0-9_:-]+", common_schema):
+        sys.exit("common-schema must contain only letters, numbers, underscores, dashes, or colons.")
+    common_schema_value = common_schema or None
     namespace = args.namespace or f"splattop-bot-{bot_slug}"
     secret_path = args.secret_file or Path("secrets") / "bots" / bot_slug / "db-secret.enc.yaml"
     password = generate_password()
 
     print(f"Creating/refreshing schema '{schema_name}' and role '{role_name}'...")
-    admin_url_db = admin_url_for_db(args.admin_url, args.database)
-    run_sql(admin_url_db, args.database, schema_name, role_name, password)
+    admin_url_db = admin_url_for_db(args.admin_url, args.database, args.host)
+    run_sql(admin_url_db, args.database, schema_name, role_name, password, readonly_role, common_schema_value)
 
-    connection_string = build_connection_string(args.admin_url, role_name, password, args.database)
+    connection_string = build_connection_string(
+        args.admin_url,
+        role_name,
+        password,
+        args.database,
+        args.host,
+    )
     print("\n✅ Provisioned!")
     print(f"Schema: {schema_name}")
     print(f"Role:   {role_name}")
+    print(f"Readonly role: {readonly_role}")
+    if common_schema_value:
+        print(f"Shared read access on schema: {common_schema_value}")
     print(f"Bot namespace: {namespace}")
     print(f"\nConnection string (store via SOPS):\n{connection_string}\n")
 
