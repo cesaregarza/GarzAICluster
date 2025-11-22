@@ -42,6 +42,12 @@ def parse_args() -> argparse.Namespace:
              "Can also be provided via BOT_DB_ADMIN_URL env var.",
     )
     parser.add_argument(
+        "--database",
+        default=os.environ.get("BOT_DB_NAME", "bots"),
+        help="Database name to target for the bot schema (default: bots). "
+             "Use BOT_DB_NAME env var or --database to override.",
+    )
+    parser.add_argument(
         "--namespace",
         help="Optional Kubernetes namespace for the bot (defaults to splattop-bot-<bot-name>).",
     )
@@ -54,6 +60,11 @@ def parse_args() -> argparse.Namespace:
         "--secret-name",
         default="bot-db-readonly",
         help="Secret metadata.name to use when writing --secret-file (default: bot-db-readonly).",
+    )
+    parser.add_argument(
+        "--schema-key",
+        default="DB_SCHEMA",
+        help="Key name to include the schema in the generated Secret (default: DB_SCHEMA).",
     )
     return parser.parse_args()
 
@@ -79,7 +90,7 @@ def generate_password(length: int = 40) -> str:
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
-def build_connection_string(admin_url: str, username: str, password: str) -> str:
+def build_connection_string(admin_url: str, username: str, password: str, database: str | None = None) -> str:
     parsed = urlparse(admin_url)
     if not parsed.scheme.startswith("postgres"):
         sys.exit("Admin URL must be a postgres:// or postgresql:// connection string.")
@@ -91,13 +102,13 @@ def build_connection_string(admin_url: str, username: str, password: str) -> str
     port = f":{parsed.port}" if parsed.port else ""
     hostpart = host if ":" not in host else f"[{host}]"
     netloc = f"{quote(username)}:{quote(password)}@{hostpart}{port}"
-    path = parsed.path or "/"
+    db_path = f"/{database}" if database else (parsed.path or "/")
 
     return urlunparse(
         (
             "postgresql",
             netloc,
-            path,
+            db_path,
             "",
             parsed.query or "sslmode=require",
             "",
@@ -105,7 +116,23 @@ def build_connection_string(admin_url: str, username: str, password: str) -> str
     )
 
 
-def run_sql(admin_url: str, schema: str, role: str, password: str) -> None:
+def admin_url_for_db(admin_url: str, database: str) -> str:
+    parsed = urlparse(admin_url)
+    if not parsed.scheme.startswith("postgres"):
+        sys.exit("Admin URL must be a postgres:// or postgresql:// connection string.")
+    return urlunparse(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            f"/{database}",
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
+
+
+def run_sql(admin_url: str, db_name: str, schema: str, role: str, password: str) -> None:
     sql = textwrap.dedent(
         f"""
         \set ON_ERROR_STOP on
@@ -116,7 +143,7 @@ def run_sql(admin_url: str, schema: str, role: str, password: str) -> None:
             role_name text := '{role}';
             role_password text := '{password}';
             schema_name text := '{schema}';
-            db_name text := current_database();
+            db_name text := '{db_name}';
         BEGIN
             IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
                 EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', role_name, role_password);
@@ -168,7 +195,14 @@ def run_sql(admin_url: str, schema: str, role: str, password: str) -> None:
         sys.exit(f"psql failed with exit code {exc.returncode}")
 
 
-def maybe_write_secret(path: Path, namespace: str, secret_name: str, connection_string: str) -> None:
+def maybe_write_secret(
+    path: Path,
+    namespace: str,
+    secret_name: str,
+    connection_string: str,
+    schema_name: str,
+    schema_key: str,
+) -> None:
     manifest = textwrap.dedent(
         f"""\
         apiVersion: v1
@@ -178,6 +212,7 @@ def maybe_write_secret(path: Path, namespace: str, secret_name: str, connection_
           namespace: {namespace}
         stringData:
           DATABASE_URL: "{connection_string}"
+          {schema_key}: "{schema_name}"
         """
     )
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -243,9 +278,10 @@ def main() -> None:
     password = generate_password()
 
     print(f"Creating/refreshing schema '{schema_name}' and role '{role_name}'...")
-    run_sql(args.admin_url, schema_name, role_name, password)
+    admin_url_db = admin_url_for_db(args.admin_url, args.database)
+    run_sql(admin_url_db, args.database, schema_name, role_name, password)
 
-    connection_string = build_connection_string(args.admin_url, role_name, password)
+    connection_string = build_connection_string(args.admin_url, role_name, password, args.database)
     print("\n✅ Provisioned!")
     print(f"Schema: {schema_name}")
     print(f"Role:   {role_name}")
@@ -253,7 +289,14 @@ def main() -> None:
     print(f"\nConnection string (store via SOPS):\n{connection_string}\n")
 
     if secret_path:
-        maybe_write_secret(secret_path, namespace, args.secret_name, connection_string)
+        maybe_write_secret(
+            secret_path,
+            namespace,
+            args.secret_name,
+            connection_string,
+            schema_name,
+            args.schema_key,
+        )
         maybe_encrypt_secret(secret_path)
 
 
