@@ -83,6 +83,7 @@ jobs:
       mode: ${{ steps.parse.outputs.mode }}
       value: ${{ steps.parse.outputs.value }}
       trigger: ${{ steps.parse.outputs.trigger }}
+      paused: ${{ steps.parse.outputs.paused }}
     steps:
       - uses: actions/checkout@v4
 
@@ -93,13 +94,15 @@ jobs:
           script: |
             const body = context.payload.comment?.body || "";
             const issueBody = context.payload.issue?.body || "";
-            let out = { bot: "", mode: "", value: "", trigger: "" };
+            let out = { bot: "", mode: "", value: "", trigger: "", paused: "false" };
 
             const get = (hdr) => {
               const re = new RegExp(`###\\s+${hdr}\\s*[\\r\\n]+([\\s\\S]*?)(?=\\n###|$)`);
               const m = issueBody.match(re);
               return m ? m[1].trim() : '';
             };
+
+            const hasPause = (txt) => /\bpause\b/i.test(txt || '');
 
             if (/^\/bump\b/i.test(body)) {
               const tail = body.replace(/^\/bump\b/i, '').trim();
@@ -111,31 +114,37 @@ jobs:
               const bot = parts.shift();
               const valueRaw = parts.join(' ').trim();
               const cleaned = valueRaw.replace(/^digest=/i, '').trim();
+              const paused = hasPause(cleaned);
               out.bot = bot;
-              out.mode = cleaned.startsWith('sha256:') ? 'digest' : 'tag';
+              out.mode = paused ? 'pause' : (cleaned.startsWith('sha256:') ? 'digest' : 'tag');
               out.value = cleaned;
               out.trigger = 'comment';
+              out.paused = String(paused);
               core.setOutput('bot', out.bot);
               core.setOutput('mode', out.mode);
               core.setOutput('value', out.value);
               core.setOutput('trigger', out.trigger);
+              core.setOutput('paused', out.paused);
               return;
             }
 
             if (/^\/approve\b/i.test(body)) {
               const bot = get('Which bot\\?');
               const modeField = get('How are you specifying the new version\\?');
-              const mode = /digest/.test(modeField) ? 'digest' : 'tag';
-              const value = get('Tag or Digest');
+              const mode = /pause/i.test(modeField) ? 'pause' : (/digest/.test(modeField) ? 'digest' : 'tag');
+              const value = get("Tag, Digest, or 'pause'");
               if (!bot || !value) {
                 core.setFailed('Issue form is missing bot or value.');
                 return;
               }
               const cleaned = value.replace(/^digest=/i, '').trim();
+              const paused = mode === 'pause' || hasPause(cleaned);
+              const resolvedMode = paused ? 'pause' : (mode || (cleaned.startsWith('sha256:') ? 'digest' : 'tag'));
               core.setOutput('bot', bot);
-              core.setOutput('mode', mode || (cleaned.startsWith('sha256:') ? 'digest' : 'tag'));
+              core.setOutput('mode', resolvedMode);
               core.setOutput('value', cleaned);
               core.setOutput('trigger', 'approval');
+              core.setOutput('paused', String(paused));
               return;
             }
 
@@ -150,6 +159,7 @@ jobs:
       image: ${{ steps.out.outputs.image }}
       digest: ${{ steps.out.outputs.digest }}
       tag: ${{ steps.out.outputs.tag }}
+      paused: ${{ steps.out.outputs.paused }}
     steps:
       - uses: actions/checkout@v4
 
@@ -203,14 +213,29 @@ jobs:
           echo "bot=$BOT" >> "$GITHUB_OUTPUT"
           echo "image=$IMG" >> "$GITHUB_OUTPUT"
           echo "raw=$VAL" >> "$GITHUB_OUTPUT"
+          echo "values_file=$FILE" >> "$GITHUB_OUTPUT"
 
       - name: Resolve tag -> digest (or accept digest)
         id: digest
         run: |
           RAW='${{ steps.cfg.outputs.raw }}'
           IMG='${{ steps.cfg.outputs.image }}'
+          PAUSED='${{ needs.detect-intent.outputs.paused }}'
+          VALUES_FILE='${{ steps.cfg.outputs.values_file }}'
 
           TAG_OUT=""
+          if [ "$PAUSED" = "true" ]; then
+            DIGEST=$(yq -r '.image.digest // ""' "$VALUES_FILE")
+            TAG_OUT=$(yq -r '.image.tag // ""' "$VALUES_FILE")
+            if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
+              echo "Pause requested but $VALUES_FILE is missing image.digest" >&2
+              exit 1
+            fi
+            echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG_OUT" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if echo "$RAW" | grep -q '^sha256:'; then
             DIGEST="$RAW"
           else
@@ -244,6 +269,8 @@ jobs:
           echo "image=${{ steps.cfg.outputs.image }}" >> "$GITHUB_OUTPUT"
           echo "digest=${{ steps.digest.outputs.digest }}" >> "$GITHUB_OUTPUT"
           echo "tag=${{ steps.digest.outputs.tag }}" >> "$GITHUB_OUTPUT"
+          echo "paused=${{ needs.detect-intent.outputs.paused }}" >> "$GITHUB_OUTPUT"
+          echo "values_file=${{ steps.cfg.outputs.values_file }}" >> "$GITHUB_OUTPUT"
 
   patch-and-pr:
     needs: resolve-and-verify
@@ -266,7 +293,8 @@ jobs:
           scripts/patch-image.sh "${{ needs.resolve-and-verify.outputs.bot }}" \
             "${{ needs.resolve-and-verify.outputs.image }}" \
             "${{ needs.resolve-and-verify.outputs.digest }}" \
-            "${{ needs.resolve-and-verify.outputs.tag }}"
+            "${{ needs.resolve-and-verify.outputs.tag }}" \
+            "${{ needs.resolve-and-verify.outputs.paused }}"
 
       - name: Commit and push branch
         id: push
@@ -301,12 +329,14 @@ jobs:
             const bot = '${{ needs.resolve-and-verify.outputs.bot }}';
             const image = '${{ needs.resolve-and-verify.outputs.image }}';
             const digest = '${{ needs.resolve-and-verify.outputs.digest }}';
+            const paused = '${{ needs.resolve-and-verify.outputs.paused }}' === 'true';
             const base = 'main';
             const title = `bot(${bot}): pin ${image} -> ${digest}`;
             const body = [
               `Requested by @${context.actor} via ${{ needs.detect-intent.outputs.trigger }}.`,
               '',
               `Pinned image: \`${image}@${digest}\``,
+              paused ? 'Replica count set to 0 (paused).' : 'Replica count set to 1.',
               `Branch: \`${branch}\``,
             ].join('\n');
 
@@ -350,6 +380,7 @@ jobs:
           IMAGE: ${{ needs.resolve-and-verify.outputs.image }}
           DIGEST: ${{ needs.resolve-and-verify.outputs.digest }}
           TRIGGER: ${{ needs.detect-intent.outputs.trigger }}
+          PAUSED: ${{ needs.resolve-and-verify.outputs.paused }}
           PR_URL: ${{ steps.pr.outputs.pr_url }}
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
         with:
@@ -358,14 +389,17 @@ jobs:
             const image = process.env.IMAGE;
             const digest = process.env.DIGEST;
             const trigger = process.env.TRIGGER;
+            const paused = (process.env.PAUSED || '').toLowerCase() === 'true';
             const actor = context.actor;
             const prUrl = process.env.PR_URL || '';
             const prNumber = process.env.PR_NUMBER || '';
+            const replicaLine = paused ? 'Replica count set to 0 (paused).' : 'Replica count set to 1.';
 
             const body = [
               `Requested by @${actor} via ${trigger}.`,
               '',
               `Pinned image: \`${image}@${digest}\``,
+              replicaLine,
               `Branch: \`${branch}\``,
               prUrl ? `PR: #${prNumber} (${prUrl})` : 'PR: not created automatically.',
             ].join('\n');
@@ -375,4 +409,35 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number,
               body,
+            });
+
+  comment-on-failure:
+    needs: [gate, detect-intent, resolve-and-verify, patch-and-pr]
+    if: >
+      always() && needs.gate.outputs.command == 'true' && (
+        needs.gate.result == 'failure' ||
+        needs.detect-intent.result == 'failure' ||
+        needs.resolve-and-verify.result == 'failure' ||
+        needs.patch-and-pr.result == 'failure'
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Comment with failure details
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue?.number || context.payload.issue?.number;
+            if (!issueNumber) {
+              core.warning('No issue number available to comment on.');
+              return;
+            }
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `Bump workflow run failed. Please check logs: ${runUrl}`,
             });

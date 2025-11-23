@@ -21,15 +21,16 @@ body:
       options:
         - "tag (easiest)"
         - "digest (advanced)"
+        - "pause (scale bot to zero replicas)"
     validations:
       required: true
 
   - type: input
     id: value
     attributes:
-      label: Tag or Digest
-      description: "Examples: v1.2.3  |  sha256:abc... (64 hex)"
-      placeholder: v1.2.3
+      label: Tag, Digest, or 'pause'
+      description: "Examples: v1.2.3  |  sha256:abc... (64 hex)  |  pause (to scale to zero)"
+      placeholder: pause
     validations:
       required: true
 

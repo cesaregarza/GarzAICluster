@@ -5,9 +5,10 @@ BOT="${1:-}"
 IMAGE="${2:-}"
 DIGEST="${3:-}"
 RAW_TAG="${4:-}"
+PAUSED="${5:-false}"
 
 if [[ -z "$BOT" || -z "$IMAGE" || -z "$DIGEST" ]]; then
-  echo "usage: patch-image.sh <bot> <image> <sha256:digest> [tag]" >&2
+  echo "usage: patch-image.sh <bot> <image> <sha256:digest> [tag] [paused]" >&2
   exit 1
 fi
 
@@ -42,6 +43,11 @@ if [[ -n "$RAW_TAG" && "$RAW_TAG" != sha256:* ]]; then
   TAG_VALUE="$RAW_TAG"
 fi
 
+REPLICA_COUNT=1
+if [[ "${PAUSED,,}" =~ ^(true|pause)$ ]]; then
+  REPLICA_COUNT=0
+fi
+
 export IMAGE DIGEST
 yq -i '.image.repository = env(IMAGE)' "$VALUES_FILE"
 if [[ -n "$TAG_VALUE" ]]; then
@@ -51,5 +57,6 @@ else
 fi
 
 yq -i '.image.digest = env(DIGEST)' "$VALUES_FILE"
+yq -i ".replicaCount = ${REPLICA_COUNT}" "$VALUES_FILE"
 
-echo "Pinned $BOT -> ${IMAGE}@${DIGEST} in $VALUES_FILE"
+echo "Pinned $BOT -> ${IMAGE}@${DIGEST} in $VALUES_FILE (replicas=${REPLICA_COUNT})"
