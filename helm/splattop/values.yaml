@@ -345,6 +345,7 @@ monitoring:
       password: admin
     serverDomain: ""
     serverRootUrl: ""
+    plugins: []
     auth:
       anonymous: false
     metrics:

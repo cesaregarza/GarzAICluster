@@ -167,6 +167,8 @@ monitoring:
     enabled: true
     serverDomain: grafana.splat.top
     serverRootUrl: https://grafana.splat.top/
+    plugins:
+      - marcusolsson-hourly-heatmap-panel
     ingress:
       enabled: true
       nameOverride: grafana-ingress

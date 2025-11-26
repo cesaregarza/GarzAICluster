@@ -50,6 +50,10 @@ spec:
               value: {{ .Values.monitoring.grafana.auth.anonymous | quote }}
             - name: GF_METRICS_ENABLED
               value: {{ .Values.monitoring.grafana.metrics.enabled | quote }}
+            {{- if .Values.monitoring.grafana.plugins }}
+            - name: GF_INSTALL_PLUGINS
+              value: {{ join "," .Values.monitoring.grafana.plugins | quote }}
+            {{- end }}
             {{- if .Values.monitoring.grafana.serverDomain }}
             - name: GF_SERVER_DOMAIN
               value: {{ .Values.monitoring.grafana.serverDomain }}

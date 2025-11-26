@@ -39,6 +39,8 @@ spec:
               value: "false"
             - name: GF_METRICS_ENABLED
               value: "true"
+            - name: GF_INSTALL_PLUGINS
+              value: marcusolsson-hourly-heatmap-panel
             - name: GF_SERVER_DOMAIN
               value: grafana.splat.top
             - name: GF_SERVER_ROOT_URL

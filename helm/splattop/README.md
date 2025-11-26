@@ -214,6 +214,7 @@ The following table lists the configurable parameters and their default values.
 | `monitoring.grafana.image.tag` | Image tag | `10.4.3` |
 | `monitoring.grafana.service.port` | Service port | `80` |
 | `monitoring.grafana.serverDomain` | Server domain | `""` (dev), `grafana.splat.top` (prod) |
+| `monitoring.grafana.plugins` | Plugins to install via `GF_INSTALL_PLUGINS` | `[]` (dev), `["marcusolsson-hourly-heatmap-panel"]` (prod) |
 | `monitoring.grafana.adminCredentialsSecret` | Admin credentials secret | `grafana-admin-credentials` |
 | `monitoring.grafana.datasourcesConfigMapName` | ConfigMap for datasource provisioning | `grafana-datasources` |
 | `monitoring.grafana.dashboardProvidersConfigMapName` | ConfigMap for dashboard providers | `grafana-dashboard-providers` |
