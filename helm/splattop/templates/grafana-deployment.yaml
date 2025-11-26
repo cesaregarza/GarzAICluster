@@ -11,6 +11,8 @@ metadata:
   labels:
     {{- include "splattop.componentLabels" (dict "component" "grafana" "root" .) | nindent 4 }}
 spec:
+  strategy:
+    type: Recreate
   replicas: {{ .Values.monitoring.grafana.replicas }}
   selector:
     matchLabels:
