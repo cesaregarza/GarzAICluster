@@ -215,6 +215,7 @@ The following table lists the configurable parameters and their default values.
 | `monitoring.grafana.service.port` | Service port | `80` |
 | `monitoring.grafana.serverDomain` | Server domain | `""` (dev), `grafana.splat.top` (prod) |
 | `monitoring.grafana.plugins` | Plugins to install via `GF_INSTALL_PLUGINS` | `[]` (dev), `["marcusolsson-hourly-heatmap-panel"]` (prod) |
+| `monitoring.networkPolicies.grafana.extraEgress` | Extra Grafana egress rules (`cidr` + optional `ports`) | `[]` (dev), `[{"cidr":"0.0.0.0/0","ports":[443]}]` (prod) |
 | `monitoring.grafana.adminCredentialsSecret` | Admin credentials secret | `grafana-admin-credentials` |
 | `monitoring.grafana.datasourcesConfigMapName` | ConfigMap for datasource provisioning | `grafana-datasources` |
 | `monitoring.grafana.dashboardProvidersConfigMapName` | ConfigMap for dashboard providers | `grafana-dashboard-providers` |

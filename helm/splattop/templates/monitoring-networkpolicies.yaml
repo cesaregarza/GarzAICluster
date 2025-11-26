@@ -71,6 +71,18 @@ spec:
         - protocol: TCP
           port: {{ .grafana.databasePort }}
     {{- end }}
+    {{- range .grafana.extraEgress }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr }}
+      {{- if .ports }}
+      ports:
+        {{- range .ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
     - to:
         - namespaceSelector:
             matchLabels:

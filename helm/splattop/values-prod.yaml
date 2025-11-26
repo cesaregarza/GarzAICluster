@@ -138,6 +138,10 @@ ingress:
 monitoring:
   createNamespace: false
   networkPolicies:
+    grafana:
+      extraEgress:
+        - cidr: 0.0.0.0/0
+          ports: [443]
     prometheus:
       allowedEgressNamespaces:
         - monitoring

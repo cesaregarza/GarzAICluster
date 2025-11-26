@@ -268,6 +268,7 @@ monitoring:
         - monitoring
       databaseCIDR: 10.108.0.0/20
       databasePort: 25060
+      extraEgress: []
     prometheus:
       enabled: true
       allowedIngressNamespaces:
