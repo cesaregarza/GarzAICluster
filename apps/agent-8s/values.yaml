@@ -2,9 +2,9 @@
 # Keeps the chart identical while letting us pin a prod image digest.
 image:
   repository: registry.digitalocean.com/sendouq/agent8s
-  tag: "v1.0.8"
+  tag: "v1.1.0"
   # IMPORTANT: use a pinned digest, not a mutable tag
-  digest: "sha256:050fd4028ac81572a712474406361abf248b074db12550840e59f117ae92ce53"
+  digest: "sha256:9cfe97661586e3f311defddc1bb253ddd52d34b248b46105bfa37c2551230054"
   pullPolicy: IfNotPresent
 imagePullSecrets:
   - name: regcred
