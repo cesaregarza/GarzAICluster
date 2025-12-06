@@ -219,9 +219,22 @@ The following table lists the configurable parameters and their default values.
 | `monitoring.grafana.adminCredentialsSecret` | Admin credentials secret | `grafana-admin-credentials` |
 | `monitoring.grafana.datasourcesConfigMapName` | ConfigMap for datasource provisioning | `grafana-datasources` |
 | `monitoring.grafana.dashboardProvidersConfigMapName` | ConfigMap for dashboard providers | `grafana-dashboard-providers` |
+| `monitoring.grafana.vanityHosts` | List of host → redirect mappings (e.g., `foo.grafana.splat.top` → dashboard URL) | `[]` |
 | `monitoring.grafana.persistence.enabled` | Enable persistent storage | `true` |
 | `monitoring.grafana.persistence.size` | Storage size | `5Gi` |
 | `monitoring.grafana.dashboards` | List of dashboards to mount (`name`, optional `configMapName`) | `[]` (dev), see values-prod.yaml |
+
+Vanity Grafana hosts can be added with `monitoring.grafana.vanityHosts` to issue a redirect per hostname (use the full dashboard URL). Example:
+
+```yaml
+monitoring:
+  grafana:
+    vanityHosts:
+      - host: stats.grafana.splat.top
+        target: https://grafana.splat.top/d/abc123/my-dashboard
+        code: 302 # optional (defaults to 302)
+        cloudflareProxied: true # optional per-host override for external-dns
+```
 
 #### AlertManager
 

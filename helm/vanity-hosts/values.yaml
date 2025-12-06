@@ -1,0 +1,26 @@
+ingressClassName: nginx
+
+# Default annotations applied to every vanity ingress. You can add cert-manager
+# issuer annotations here if you want cert-manager to provision per-host certs.
+defaultAnnotations: {}
+
+# TLS secret to use when no per-host override is set. Leave empty to skip TLS.
+defaultTlsSecretName: ""
+
+# Default HTTP status code for redirects (per-host overrides `code`).
+defaultRedirectCode: 302
+
+# Default Cloudflare proxy setting for external-dns; set to true/false to
+# enable annotation everywhere, or leave null to skip. Per-host `cloudflareProxied`
+# overrides this when present.
+defaultCloudflareProxied: null
+
+# Vanity hosts list. Each entry needs a host and a target URL.
+hosts: []
+#  - name: grafana-foo          # optional resource name override
+#    host: foo.grafana.splat.top
+#    target: https://grafana.splat.top/d/abc123/my-dashboard
+#    code: 302                  # optional; defaults to defaultRedirectCode
+#    tlsSecretName: grafana-tls # optional; defaults to defaultTlsSecretName
+#    annotations: {}            # optional; merged on top of defaultAnnotations
+#    cloudflareProxied: true    # optional; overrides defaultCloudflareProxied

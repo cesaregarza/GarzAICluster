@@ -1,0 +1,24 @@
+# Vanity host mappings for redirects.
+#
+# Add entries under hosts. Example:
+# hosts:
+#   - host: stats.grafana.splat.top
+#     target: https://grafana.splat.top/d/abc123/my-dashboard
+#     code: 302
+#     tlsSecretName: grafana-tls
+#     cloudflareProxied: true
+#     annotations:
+#       cert-manager.io/cluster-issuer: letsencrypt-prod
+
+ingressClassName: nginx
+defaultAnnotations:
+  cert-manager.io/cluster-issuer: letsencrypt-prod
+defaultTlsSecretName: ""
+defaultRedirectCode: 302
+defaultCloudflareProxied: null
+
+hosts:
+  - host: excalibur.grafana.splat.top
+    target: https://grafana.splat.top/public-dashboards/1b6e4f8afe12423b8756ae0b7d6f61e5
+    tlsSecretName: grafana-tls
+    cloudflareProxied: true

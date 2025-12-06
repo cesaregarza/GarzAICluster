@@ -1,0 +1,58 @@
+{{- $root := . -}}
+{{- $ingress := .Values.monitoring.grafana.ingress -}}
+{{- $vanityHosts := .Values.monitoring.grafana.vanityHosts -}}
+{{- if and .Values.monitoring.grafana.enabled $ingress.enabled $vanityHosts }}
+{{- $grafanaSvc := printf "%s-grafana" (include "splattop.fullname" $root) -}}
+{{- range $index, $entry := $vanityHosts }}
+{{- if and $entry.host $entry.target }}
+{{- $name := default (printf "%s-grafana-vanity-%d" (include "splattop.fullname" $root) $index) $entry.nameOverride -}}
+{{- $tlsSecret := default $ingress.tls.secretName $entry.tlsSecretName -}}
+{{- if gt $index 0 }}
+---
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "splattop.monitoringNamespace" $root }}
+  labels:
+    {{- include "splattop.componentLabels" (dict "component" "grafana-vanity" "root" $root) | nindent 4 }}
+  annotations:
+    {{- range $key, $value := $ingress.annotations }}
+    {{- if and $value (not (or (eq $key "nginx.ingress.kubernetes.io/ssl-redirect") (eq $key "nginx.ingress.kubernetes.io/permanent-redirect") (eq $key "nginx.ingress.kubernetes.io/permanent-redirect-code"))) }}
+    {{- printf "%s: %s" $key (tpl $value $root | quote) | nindent 4 }}
+    {{- end }}
+    {{- end }}
+    {{- with $entry.annotations }}
+    {{- range $key, $value := . }}
+    {{- printf "%s: %s" $key (tpl $value $root | quote) | nindent 4 }}
+    {{- end }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/permanent-redirect: {{ $entry.target | quote }}
+    nginx.ingress.kubernetes.io/permanent-redirect-code: {{ default 302 $entry.code | quote }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    {{- if (hasKey $entry "cloudflareProxied") }}
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: {{ ternary "true" "false" $entry.cloudflareProxied | quote }}
+    {{- end }}
+spec:
+  ingressClassName: {{ default "nginx" $ingress.className }}
+  {{- if $tlsSecret }}
+  tls:
+    - hosts:
+        - {{ $entry.host }}
+      secretName: {{ $tlsSecret }}
+  {{- end }}
+  rules:
+    - host: {{ $entry.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $grafanaSvc }}
+                port:
+                  number: {{ default 80 $.Values.monitoring.grafana.service.port }}
+{{- end }}
+{{- end }}
+{{- end }}
