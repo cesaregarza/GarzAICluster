@@ -6,6 +6,7 @@ __pycache__/
 *.retry
 *.log
 .env
+.env.local
 .venv/
 env/
 .pytest_cache/
@@ -15,3 +16,5 @@ node_modules/
 keys/age-private.txt
 keys/*.agekey
 k8s/secrets.yaml
+AGENTS.md
+**/legacy-kind-config.yaml
