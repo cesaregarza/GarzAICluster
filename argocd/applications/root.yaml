@@ -14,8 +14,6 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
-  orphanedResources:
-    warn: true
   syncPolicy:
     automated:
       prune: true

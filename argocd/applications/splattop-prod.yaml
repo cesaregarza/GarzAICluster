@@ -19,11 +19,6 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: default
-  orphanedResources:
-    warn: true
-    ignore:
-      - jqPathExpressions:
-          - '.kind == "Secret" and (.metadata.name | startswith("sh.helm.release.v1.splattop-prod."))'
   syncPolicy:
     automated: null
     syncOptions:
