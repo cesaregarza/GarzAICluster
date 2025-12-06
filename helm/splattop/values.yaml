@@ -360,6 +360,12 @@ monitoring:
       tls:
         enabled: false
         secretName: grafana-tls
+    vanityHosts: []
+    #   - host: stats.grafana.splat.top
+    #     target: https://grafana.splat.top/d/abc123/my-dashboard
+    #     code: 302 # optional; defaults to 302
+    #     tlsSecretName: grafana-tls # optional; defaults to the main Grafana TLS secret
+    #     cloudflareProxied: true # optional; sets external-dns per-host proxy flag
     datasourcesConfigMapName: grafana-datasources
     dashboardProvidersConfigMapName: grafana-dashboard-providers
     dashboards:

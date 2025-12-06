@@ -1,0 +1,57 @@
+{{- $root := . -}}
+{{- $className := default "nginx" .Values.ingressClassName -}}
+{{- $defaultAnnotations := default (dict) .Values.defaultAnnotations -}}
+{{- $defaultTls := default "" .Values.defaultTlsSecretName -}}
+{{- $defaultCode := default 302 .Values.defaultRedirectCode -}}
+{{- $defaultCf := .Values.defaultCloudflareProxied -}}
+{{- range $index, $host := .Values.hosts }}
+{{- if and $host.host $host.target }}
+{{- $name := default (printf "%s-%d" (include "vanity-hosts.fullname" $root) $index) $host.name -}}
+{{- $tlsSecret := default $defaultTls $host.tlsSecretName -}}
+{{- $code := default $defaultCode $host.code -}}
+{{- $cfSetting := ternary $host.cloudflareProxied $defaultCf (hasKey $host "cloudflareProxied") -}}
+{{- if gt $index 0 }}
+---
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "vanity-hosts.labels" $root | nindent 4 }}
+  annotations:
+    {{- range $key, $value := $defaultAnnotations }}
+    {{- printf "%s: %s" $key (tpl (printf "%v" $value) $root | quote) | nindent 4 }}
+    {{- end }}
+    {{- with $host.annotations }}
+    {{- range $key, $value := . }}
+    {{- printf "%s: %s" $key (tpl (printf "%v" $value) $root | quote) | nindent 4 }}
+    {{- end }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/permanent-redirect: {{ $host.target | quote }}
+    nginx.ingress.kubernetes.io/permanent-redirect-code: {{ $code | quote }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    {{- if (kindIs "bool" $cfSetting) }}
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: {{ ternary "true" "false" $cfSetting | quote }}
+    {{- end }}
+spec:
+  ingressClassName: {{ $className }}
+  {{- if $tlsSecret }}
+  tls:
+    - hosts:
+        - {{ $host.host }}
+      secretName: {{ $tlsSecret }}
+  {{- end }}
+  rules:
+    - host: {{ $host.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "vanity-hosts.fullname" $root }}
+                port:
+                  number: 80
+{{- end }}
+{{- end }}

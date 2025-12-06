@@ -190,6 +190,7 @@ monitoring:
       tls:
         enabled: true
         secretName: grafana-tls
+    vanityHosts: []
     datasourcesConfigMapName: grafana-datasources
     dashboardProvidersConfigMapName: grafana-dashboard-providers
     dashboards:
