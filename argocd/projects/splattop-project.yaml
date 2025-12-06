@@ -68,6 +68,8 @@ spec:
       kind: Certificate
     - group: argoproj.io
       kind: ApplicationSet
+    - group: argoproj.io
+      kind: Application
 
   orphanedResources:
     warn: true
