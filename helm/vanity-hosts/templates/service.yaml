@@ -6,6 +6,8 @@ metadata:
     {{- include "vanity-hosts.labels" . | nindent 4 }}
 spec:
   clusterIP: None
+  selector:
+    {{- include "vanity-hosts.selectorLabels" . | nindent 4 }}
   ports:
     - name: http
       port: 80
