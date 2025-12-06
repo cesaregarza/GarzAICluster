@@ -18,7 +18,7 @@ defaultRedirectCode: 302
 defaultCloudflareProxied: null
 
 hosts:
-  - host: excalibur.grafana.splat.top
+  - host: excalibur.splat.top
     target: https://grafana.splat.top/public-dashboards/1b6e4f8afe12423b8756ae0b7d6f61e5
     tlsSecretName: grafana-tls
     cloudflareProxied: true
