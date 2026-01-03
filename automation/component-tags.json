@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-01-03T04:38:13Z",
-  "gitSha": "074c6ff8187096cfcecc73e68261f5e69cec3f7c",
-  "releaseVersion": "2.0.7",
+  "generatedAt": "2026-01-03T05:30:30Z",
+  "gitSha": "411cff0e2c49f849382fe20db6e5586a13ea0820",
+  "releaseVersion": "2.0.8",
   "components": {
     "fastapi": {
       "image": "registry.digitalocean.com/sendouq/fast-api",
-      "tag": "v2.0.7",
-      "digest": "sha256:41a39c50e05e96230d6ee50351d43ba9da64aa8214b6ea32d045bcdb22d919e1"
+      "tag": "v2.0.8",
+      "digest": "sha256:fc7778932415c2d4ba4f0a5e0ac4eb20fc97c2542db059d2db5892d409831afd"
     }
   }
 }
