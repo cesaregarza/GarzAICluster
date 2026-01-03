@@ -7,7 +7,7 @@ global:
   environment: production
 
 # FastAPI backend configuration
-  appImageTag: v2.0.5
+  appImageTag: v2.0.6
 fastapi:
   replicas: 2
   env:
@@ -28,6 +28,8 @@ fastapi:
         app.kubernetes.io/name: splattop
 
 # React frontend configuration
+  image:
+    tag: v2.0.6
 react:
   replicas: 2
   service:
@@ -50,11 +52,15 @@ celeryWorker:
     COMP_LEADERBOARD_ENABLED: "true"
 
 # Celery beat configuration
+  image:
+    tag: v2.0.6
 celeryBeat:
   env:
     COMP_LEADERBOARD_ENABLED: "true"
 
 # Redis compatibility service overrides
+  image:
+    tag: v2.0.6
 redis:
   service:
     extraServices:
