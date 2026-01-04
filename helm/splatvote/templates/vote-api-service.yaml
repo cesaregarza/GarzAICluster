@@ -1,0 +1,19 @@
+{{- if .Values.voteApi.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "splatvote.fullname" . }}-api
+  labels:
+    {{- include "splatvote.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vote-api
+spec:
+  type: {{ .Values.voteApi.service.type }}
+  ports:
+    - port: {{ .Values.voteApi.service.port }}
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "splatvote.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: vote-api
+{{- end }}

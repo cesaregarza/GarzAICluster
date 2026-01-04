@@ -1,0 +1,66 @@
+# Production values for splatvote.
+# Use with: helm install splatvote ./helm/splatvote -f ./helm/splatvote/values-prod.yaml
+
+global:
+  environment: production
+  appImageTag: v1.0.0
+
+# Vote API backend configuration
+voteApi:
+  replicas: 1
+  image:
+    tag: v1.0.0
+    pullPolicy: IfNotPresent
+  env:
+    DEV_MODE: "false"
+    SYNC_ON_STARTUP: "false"
+  migrations:
+    enabled: true
+    hook: pre-install,pre-upgrade
+    backoffLimit: 3
+    ttlSecondsAfterFinished: 600
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Vote Frontend configuration
+voteFrontend:
+  replicas: 1
+  image:
+    tag: v1.0.0
+    pullPolicy: IfNotPresent
+
+# Ingress configuration for production
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: vote.splat.top
+      paths:
+        - path: /api
+          pathType: Prefix
+          serviceName: vote-api
+          servicePort: 8000
+        - path: /health
+          pathType: Exact
+          serviceName: vote-api
+          servicePort: 8000
+        - path: /
+          pathType: Prefix
+          serviceName: vote-frontend
+          servicePort: 80
+  tls:
+    enabled: true
+    secretName: vote-tls-secret
+    certificate:
+      enabled: true
+      dnsNames:
+        - vote.splat.top

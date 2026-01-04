@@ -1,0 +1,103 @@
+# Default values for splatvote.
+# Development defaults - override with values-prod.yaml for production
+
+global:
+  environment: development
+  imagePullSecrets:
+    - regcred
+  databaseSecretName: vote-db-secrets
+  appImageTag: v1.0.0
+
+# Vote API backend configuration
+voteApi:
+  enabled: true
+  replicas: 1
+  image:
+    repository: registry.digitalocean.com/sendouq/vote-api
+    tag: v1.0.0
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8000
+  secretKeys:
+    - DB_HOST
+    - DB_USER
+    - DB_PASSWORD
+    - DB_NAME
+    - DB_PORT
+    - VOTE_IP_PEPPER
+    - ADMIN_TOKEN_PEPPER
+    - ADMIN_API_TOKENS_HASHED
+  env:
+    TRUST_PROXY_HEADERS: "true"
+    API_RL_PER_SEC: "20"
+    VOTE_RL_PER_MIN: "10"
+    SYNC_ON_STARTUP: "true"
+    DEV_MODE: "true"
+  migrations:
+    enabled: false
+    hook: pre-install,pre-upgrade
+    backoffLimit: 3
+    ttlSecondsAfterFinished: 600
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  health:
+    enabled: true
+    path: /health
+    port: 8000
+
+# Vote Frontend configuration
+voteFrontend:
+  enabled: true
+  replicas: 1
+  image:
+    repository: registry.digitalocean.com/sendouq/vote-frontend
+    tag: v1.0.0
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 80
+  env:
+    REACT_APP_API_URL: "/api/v1"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Redis configuration (for rate limiting and caching)
+redis:
+  enabled: true
+  replicas: 1
+  image:
+    repository: redis
+    tag: "7.2.4-alpine"
+  service:
+    type: ClusterIP
+    port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts: []
+  tls:
+    enabled: false
+    secretName: vote-tls-secret

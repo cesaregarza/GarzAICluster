@@ -1,0 +1,69 @@
+{{- if .Values.voteApi.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "splatvote.fullname" . }}-api
+  labels:
+    {{- include "splatvote.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vote-api
+spec:
+  replicas: {{ .Values.voteApi.replicas }}
+  selector:
+    matchLabels:
+      {{- include "splatvote.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: vote-api
+  template:
+    metadata:
+      labels:
+        {{- include "splatvote.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: vote-api
+    spec:
+      {{- include "splatvote.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: vote-api
+          image: "{{ .Values.voteApi.image.repository }}:{{ .Values.voteApi.image.tag | default .Values.global.appImageTag }}"
+          imagePullPolicy: {{ .Values.voteApi.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.voteApi.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            - name: REDIS_HOST
+              value: {{ include "splatvote.fullname" . }}-redis
+            - name: REDIS_PORT
+              value: "6379"
+          envFrom:
+            - secretRef:
+                name: {{ .Values.global.databaseSecretName }}
+          {{- if .Values.voteApi.health.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.voteApi.health.path }}
+              port: {{ .Values.voteApi.health.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: {{ .Values.voteApi.health.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          {{- end }}
+          resources:
+            {{- toYaml .Values.voteApi.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+{{- end }}

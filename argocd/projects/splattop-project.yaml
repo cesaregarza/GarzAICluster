@@ -79,6 +79,9 @@ spec:
         name: regcred
       - group: ''
         kind: Secret
+        name: vote-db-secrets
+      - group: ''
+        kind: Secret
         name: db-secrets
       - group: ''
         kind: Secret

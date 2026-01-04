@@ -1,0 +1,41 @@
+{{- if and .Values.voteApi.enabled .Values.voteApi.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "splatvote.fullname" . }}-migrate
+  labels:
+    {{- include "splatvote.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vote-api-migrate
+  annotations:
+    "helm.sh/hook": {{ .Values.voteApi.migrations.hook | default "pre-install,pre-upgrade" | quote }}
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.voteApi.migrations.backoffLimit }}
+  {{- if .Values.voteApi.migrations.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ .Values.voteApi.migrations.ttlSecondsAfterFinished }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "splatvote.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: vote-api-migrate
+    spec:
+      {{- include "splatvote.imagePullSecrets" . | nindent 6 }}
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: "{{ .Values.voteApi.image.repository }}:{{ .Values.voteApi.image.tag | default .Values.global.appImageTag }}"
+          imagePullPolicy: {{ .Values.voteApi.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - alembic upgrade head
+          env:
+            {{- range $key, $value := .Values.voteApi.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.global.databaseSecretName }}
+{{- end }}

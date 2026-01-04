@@ -1,0 +1,47 @@
+{{- if .Values.voteFrontend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "splatvote.fullname" . }}-frontend
+  labels:
+    {{- include "splatvote.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vote-frontend
+spec:
+  replicas: {{ .Values.voteFrontend.replicas }}
+  selector:
+    matchLabels:
+      {{- include "splatvote.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: vote-frontend
+  template:
+    metadata:
+      labels:
+        {{- include "splatvote.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: vote-frontend
+    spec:
+      {{- include "splatvote.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: vote-frontend
+          image: "{{ .Values.voteFrontend.image.repository }}:{{ .Values.voteFrontend.image.tag | default .Values.global.appImageTag }}"
+          imagePullPolicy: {{ .Values.voteFrontend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.voteFrontend.resources | nindent 12 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+{{- end }}
