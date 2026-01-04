@@ -1,27 +1,22 @@
 {
-  "generatedAt": "2026-01-03T23:52:01Z",
-  "gitSha": "15d98f50311a93affc5907db227a8e48530c9e7d",
-  "releaseVersion": "2.0.9",
+  "generatedAt": "2026-01-04T00:43:59Z",
+  "gitSha": "7ed8a22a43b7a84617a392144610fbfcce467c0a",
+  "releaseVersion": "2.0.10",
   "components": {
     "fastapi": {
       "image": "registry.digitalocean.com/sendouq/fast-api",
-      "tag": "v2.0.9",
-      "digest": "sha256:1c26190ada5d5b6267dd9b6dbcfd75239bf1d63a0bfb1bbf86469fd71568c0fd"
+      "tag": "v2.0.10",
+      "digest": "sha256:ed95cf19fbacedd2bfbf77cac7504e4e8e6fd6e36eefd2922f632ac2f2b0d67c"
     },
     "celeryWorker": {
       "image": "registry.digitalocean.com/sendouq/celery",
-      "tag": "v2.0.9",
-      "digest": "sha256:6b397932f98e489799990deaff04503dd702fec477078f1354f7afdf42e686f3"
+      "tag": "v2.0.10",
+      "digest": "sha256:40bcaa96a318d7db315ea8004a43b8a91def56650203b6f6ca983289ba0001ff"
     },
     "celeryBeat": {
       "image": "registry.digitalocean.com/sendouq/celery",
-      "tag": "v2.0.9",
-      "digest": "sha256:6b397932f98e489799990deaff04503dd702fec477078f1354f7afdf42e686f3"
-    },
-    "react": {
-      "image": "registry.digitalocean.com/sendouq/react",
-      "tag": "v2.0.9",
-      "digest": "sha256:fd95dadf93f5a88e2eea1542c3c0ebd1282ebcaef81b6b3b22198d1f24e67905"
+      "tag": "v2.0.10",
+      "digest": "sha256:40bcaa96a318d7db315ea8004a43b8a91def56650203b6f6ca983289ba0001ff"
     }
   }
 }
