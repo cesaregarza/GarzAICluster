@@ -111,6 +111,15 @@ spec:
         - '*'
       namespaces:
         - '*'
+    - kind: allow
+      schedule: '0 0 * * *'
+      duration: 24h
+      applications:
+        - splatvote-secrets
+      clusters:
+        - '*'
+      namespaces:
+        - '*'
 
   roles:
     - name: admin
