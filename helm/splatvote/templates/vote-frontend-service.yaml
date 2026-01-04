@@ -10,7 +10,7 @@ spec:
   type: {{ .Values.voteFrontend.service.type }}
   ports:
     - port: {{ .Values.voteFrontend.service.port }}
-      targetPort: 80
+      targetPort: {{ .Values.voteFrontend.containerPort | default 80 }}
       protocol: TCP
       name: http
   selector:

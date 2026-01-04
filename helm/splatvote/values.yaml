@@ -55,6 +55,7 @@ voteApi:
 voteFrontend:
   enabled: true
   replicas: 1
+  containerPort: 8080
   image:
     repository: registry.digitalocean.com/sendouq/vote-frontend
     tag: v1.0.0
