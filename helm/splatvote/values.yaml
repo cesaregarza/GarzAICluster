@@ -4,9 +4,9 @@
 global:
   environment: development
   imagePullSecrets:
-    - regcred
+  - regcred
   databaseSecretName: vote-db-secrets
-  appImageTag: v1.0.0
+  appImageTag: v1.0.1
 
 # Vote API backend configuration
 voteApi:
@@ -14,20 +14,20 @@ voteApi:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/vote-api
-    tag: v1.0.0
+    tag: v1.0.1
     pullPolicy: Always
   service:
     type: ClusterIP
     port: 8000
   secretKeys:
-    - DB_HOST
-    - DB_USER
-    - DB_PASSWORD
-    - DB_NAME
-    - DB_PORT
-    - VOTE_IP_PEPPER
-    - ADMIN_TOKEN_PEPPER
-    - ADMIN_API_TOKENS_HASHED
+  - DB_HOST
+  - DB_USER
+  - DB_PASSWORD
+  - DB_NAME
+  - DB_PORT
+  - VOTE_IP_PEPPER
+  - ADMIN_TOKEN_PEPPER
+  - ADMIN_API_TOKENS_HASHED
   env:
     TRUST_PROXY_HEADERS: "true"
     API_RL_PER_SEC: "20"
@@ -58,7 +58,7 @@ voteFrontend:
   containerPort: 8080
   image:
     repository: registry.digitalocean.com/sendouq/vote-frontend
-    tag: v1.0.0
+    tag: v1.0.1
     pullPolicy: Always
   service:
     type: ClusterIP

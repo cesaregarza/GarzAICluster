@@ -3,13 +3,13 @@
 
 global:
   environment: production
-  appImageTag: v1.0.0
+  appImageTag: v1.0.1
 
 # Vote API backend configuration
 voteApi:
   replicas: 1
   image:
-    tag: v1.0.0
+    tag: v1.0.1
     pullPolicy: IfNotPresent
   env:
     DEV_MODE: "false"
@@ -31,7 +31,7 @@ voteApi:
 voteFrontend:
   replicas: 1
   image:
-    tag: v1.0.0
+    tag: v1.0.1
     pullPolicy: IfNotPresent
 
 # Ingress configuration for production
@@ -43,24 +43,24 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
-    - host: vote.splat.top
-      paths:
-        - path: /api
-          pathType: Prefix
-          serviceName: api
-          servicePort: 8000
-        - path: /health
-          pathType: Exact
-          serviceName: api
-          servicePort: 8000
-        - path: /
-          pathType: Prefix
-          serviceName: frontend
-          servicePort: 80
+  - host: vote.splat.top
+    paths:
+    - path: /api
+      pathType: Prefix
+      serviceName: api
+      servicePort: 8000
+    - path: /health
+      pathType: Exact
+      serviceName: api
+      servicePort: 8000
+    - path: /
+      pathType: Prefix
+      serviceName: frontend
+      servicePort: 80
   tls:
     enabled: true
     secretName: vote-tls-secret
     certificate:
       enabled: true
       dnsNames:
-        - vote.splat.top
+      - vote.splat.top
