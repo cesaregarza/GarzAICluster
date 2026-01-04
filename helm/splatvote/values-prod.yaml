@@ -13,7 +13,7 @@ voteApi:
     pullPolicy: IfNotPresent
   env:
     DEV_MODE: "false"
-    SYNC_ON_STARTUP: "false"
+    SYNC_ON_STARTUP: "true"
   migrations:
     enabled: true
     hook: pre-install,pre-upgrade
