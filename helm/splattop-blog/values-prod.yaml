@@ -13,6 +13,7 @@ blog:
     DEBUG: "false"
     ALLOWED_HOSTS: "blog.splat.top"
     CSRF_TRUSTED_ORIGINS: "https://blog.splat.top"
+    SERVE_MEDIA: "true"
   persistence:
     enabled: true
   migrations:
