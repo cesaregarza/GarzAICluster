@@ -1,0 +1,18 @@
+{{- if and .Values.blog.enabled .Values.blog.persistence.enabled (not .Values.blog.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "splattop-blog.fullname" . }}-media
+  labels:
+    {{- include "splattop-blog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: media
+spec:
+  accessModes:
+    - {{ .Values.blog.persistence.accessMode }}
+  {{- if .Values.blog.persistence.storageClass }}
+  storageClassName: {{ .Values.blog.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.blog.persistence.size }}
+{{- end }}

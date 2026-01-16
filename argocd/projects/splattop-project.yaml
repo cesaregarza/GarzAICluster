@@ -96,6 +96,12 @@ spec:
         name: tls-secret
       - group: ''
         kind: Secret
+        name: blog-db-secrets
+      - group: ''
+        kind: Secret
+        name: blog-tls-secret
+      - group: ''
+        kind: Secret
         name: grafana-tls
       - group: ''
         kind: ConfigMap

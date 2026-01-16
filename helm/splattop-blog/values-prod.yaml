@@ -1,0 +1,33 @@
+global:
+  environment: production
+  appImageTag: v1.0.0
+
+blog:
+  replicas: 1
+  image:
+    tag: v1.0.0
+    pullPolicy: IfNotPresent
+  env:
+    DEBUG: "false"
+    ALLOWED_HOSTS: "blog.splat.top"
+    CSRF_TRUSTED_ORIGINS: "https://blog.splat.top"
+  persistence:
+    enabled: true
+  migrations:
+    enabled: true
+
+ingress:
+  enabled: true
+  hosts:
+    - host: blog.splat.top
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: 8000
+  tls:
+    enabled: true
+    secretName: blog-tls-secret
+    certificate:
+      enabled: true
+      dnsNames:
+        - blog.splat.top

@@ -1,0 +1,88 @@
+{{- if .Values.blog.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "splattop-blog.fullname" . }}
+  labels:
+    {{- include "splattop-blog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: blog
+spec:
+  replicas: {{ .Values.blog.replicas }}
+  selector:
+    matchLabels:
+      {{- include "splattop-blog.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: blog
+  template:
+    metadata:
+      labels:
+        {{- include "splattop-blog.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: blog
+    spec:
+      {{- include "splattop-blog.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: blog
+          image: "{{ .Values.blog.image.repository }}:{{ include "splattop-blog.imageTag" . }}"
+          imagePullPolicy: {{ .Values.blog.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            {{- range $key := .Values.blog.secretKeys }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.global.databaseSecretName }}
+                  key: {{ $key }}
+            {{- end }}
+            {{- range $key, $value := .Values.blog.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- if .Values.blog.health.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.blog.health.path }}
+              port: {{ .Values.blog.health.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.blog.health.path }}
+              port: {{ .Values.blog.health.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          {{- end }}
+          resources:
+            {{- toYaml .Values.blog.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: media
+              mountPath: /app/src/media
+      volumes:
+        - name: media
+          {{- if and .Values.blog.persistence.enabled .Values.blog.persistence.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.blog.persistence.existingClaim }}
+          {{- else if .Values.blog.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "splattop-blog.fullname" . }}-media
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

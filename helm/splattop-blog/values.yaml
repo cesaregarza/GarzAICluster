@@ -1,0 +1,72 @@
+global:
+  environment: development
+  imagePullSecrets:
+    - regcred
+  databaseSecretName: blog-db-secrets
+  appImageTag: v1.0.0
+
+nameOverride: ""
+fullnameOverride: ""
+
+blog:
+  enabled: true
+  replicas: 1
+
+  image:
+    repository: registry.digitalocean.com/sendouq/splattop-blog
+    tag: v1.0.0
+    pullPolicy: Always
+
+  service:
+    type: ClusterIP
+    port: 8000
+
+  # Keys to inject from external database secret
+  secretKeys:
+    - DATABASE_URL
+    - DJANGO_SECRET_KEY
+
+  # Plain environment variables
+  env:
+    DJANGO_SETTINGS_MODULE: splattopblog.settings
+    DEBUG: "false"
+    ALLOWED_HOSTS: "localhost,127.0.0.1"
+    CSRF_TRUSTED_ORIGINS: "http://localhost:8000"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  persistence:
+    enabled: false
+    existingClaim: ""
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    storageClass: ""
+
+  health:
+    enabled: true
+    path: /health/
+    port: 8000
+
+  migrations:
+    enabled: false
+    hook: pre-install,pre-upgrade
+    backoffLimit: 3
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts: []
+  tls:
+    enabled: false
+    secretName: blog-tls-secret
+    certificate:
+      enabled: false
+      dnsNames: []
