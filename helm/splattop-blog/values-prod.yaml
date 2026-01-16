@@ -14,6 +14,10 @@ blog:
     ALLOWED_HOSTS: "blog.splat.top"
     CSRF_TRUSTED_ORIGINS: "https://blog.splat.top"
     SERVE_MEDIA: "true"
+    USE_SPACES: "true"
+    SPACES_REGION: "nyc3"
+    SPACES_ENDPOINT_URL: "https://nyc3.digitaloceanspaces.com"
+    SPACES_CDN_DOMAIN: "splat-top.nyc3.cdn.digitaloceanspaces.com"
   persistence:
     enabled: true
   migrations:

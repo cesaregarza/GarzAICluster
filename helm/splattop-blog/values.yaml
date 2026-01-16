@@ -25,6 +25,9 @@ blog:
   secretKeys:
     - DATABASE_URL
     - DJANGO_SECRET_KEY
+    - SPACES_ACCESS_KEY
+    - SPACES_SECRET_KEY
+    - SPACES_BUCKET_NAME
 
   # Plain environment variables
   env:
