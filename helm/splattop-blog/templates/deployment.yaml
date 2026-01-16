@@ -20,6 +20,7 @@ spec:
     spec:
       {{- include "splattop-blog.imagePullSecrets" . | nindent 6 }}
       securityContext:
+        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
