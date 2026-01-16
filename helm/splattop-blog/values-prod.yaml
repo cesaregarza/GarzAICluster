@@ -5,7 +5,7 @@ global:
 blog:
   replicas: 1
   image:
-    tag: v1.0.1
+    tag: v1.0.2
     pullPolicy: IfNotPresent
   health:
     hostHeader: blog.splat.top
@@ -26,15 +26,15 @@ blog:
 ingress:
   enabled: true
   hosts:
-    - host: blog.splat.top
-      paths:
-        - path: /
-          pathType: Prefix
-          servicePort: 8000
+  - host: blog.splat.top
+    paths:
+    - path: /
+      pathType: Prefix
+      servicePort: 8000
   tls:
     enabled: true
     secretName: blog-tls-secret
     certificate:
       enabled: true
       dnsNames:
-        - blog.splat.top
+      - blog.splat.top
