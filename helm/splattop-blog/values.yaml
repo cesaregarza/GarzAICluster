@@ -3,7 +3,7 @@ global:
   imagePullSecrets:
     - regcred
   databaseSecretName: blog-db-secrets
-  appImageTag: latest
+  appImageTag: v1.0.0
 
 nameOverride: ""
 fullnameOverride: ""
@@ -14,7 +14,7 @@ blog:
 
   image:
     repository: registry.digitalocean.com/sendouq/splattop-blog
-    tag: latest
+    tag: v1.0.0
     pullPolicy: Always
 
   service:
