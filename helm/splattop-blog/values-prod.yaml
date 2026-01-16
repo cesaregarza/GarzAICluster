@@ -1,11 +1,11 @@
 global:
   environment: production
-  appImageTag: latest
+  appImageTag: v1.0.0
 
 blog:
   replicas: 1
   image:
-    tag: latest
+    tag: v1.0.0
     pullPolicy: IfNotPresent
   env:
     DEBUG: "false"
