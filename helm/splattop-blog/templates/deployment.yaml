@@ -48,6 +48,11 @@ spec:
             httpGet:
               path: {{ .Values.blog.health.path }}
               port: {{ .Values.blog.health.port }}
+              {{ if .Values.blog.health.hostHeader }}
+              httpHeaders:
+                - name: Host
+                  value: {{ .Values.blog.health.hostHeader | quote }}
+              {{ end }}
             initialDelaySeconds: 15
             periodSeconds: 30
             timeoutSeconds: 5
@@ -56,6 +61,11 @@ spec:
             httpGet:
               path: {{ .Values.blog.health.path }}
               port: {{ .Values.blog.health.port }}
+              {{ if .Values.blog.health.hostHeader }}
+              httpHeaders:
+                - name: Host
+                  value: {{ .Values.blog.health.hostHeader | quote }}
+              {{ end }}
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
