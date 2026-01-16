@@ -1,0 +1,50 @@
+{{- if and .Values.blog.enabled .Values.blog.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "splattop-blog.fullname" . }}-migrate-{{ .Release.Revision }}
+  labels:
+    {{- include "splattop-blog.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": {{ .Values.blog.migrations.hook }}
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.blog.migrations.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "splattop-blog.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migrations
+    spec:
+      {{- include "splattop-blog.imagePullSecrets" . | nindent 6 }}
+      restartPolicy: Never
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: "{{ .Values.blog.image.repository }}:{{ include "splattop-blog.imageTag" . }}"
+          imagePullPolicy: {{ .Values.blog.image.pullPolicy }}
+          command: ["uv", "run", "python", "manage.py", "migrate", "--noinput"]
+          env:
+            {{- range $key := .Values.blog.secretKeys }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.global.databaseSecretName }}
+                  key: {{ $key }}
+            {{- end }}
+            {{- range $key, $value := .Values.blog.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+{{- end }}
