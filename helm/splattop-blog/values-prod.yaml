@@ -5,7 +5,7 @@ global:
 blog:
   replicas: 1
   image:
-    tag: v1.0.7
+    tag: v1.0.8
     pullPolicy: IfNotPresent
   health:
     hostHeader: blog.splat.top
