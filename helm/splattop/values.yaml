@@ -32,7 +32,7 @@ fastapi:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/fast-api
-    tag: v2.0.11
+    tag: v2.0.12
     pullPolicy: Always
   service:
     type: ClusterIP
