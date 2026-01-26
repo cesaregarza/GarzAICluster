@@ -7,7 +7,7 @@ global:
   environment: production
 
 # FastAPI backend configuration
-  appImageTag: v2.0.11
+  appImageTag: v2.0.12
 fastapi:
   replicas: 2
   env:
@@ -29,7 +29,7 @@ fastapi:
 
 # React frontend configuration
   image:
-    tag: v2.0.11
+    tag: v2.0.12
 react:
   replicas: 2
   service:
