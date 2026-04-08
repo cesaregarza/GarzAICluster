@@ -64,21 +64,21 @@ fastapi:
   livenessProbe: {}
   readinessProbe: {}
   extraSecretEnv:
-    - name: COMP_AUTH_ADMIN_DISCORD_IDS
-      secretName: splattop-comp-auth-secrets
-      key: COMP_AUTH_ADMIN_DISCORD_IDS
-    - name: COMP_DISCORD_CLIENT_ID
-      secretName: splattop-comp-auth-secrets
-      key: COMP_DISCORD_CLIENT_ID
-    - name: COMP_DISCORD_CLIENT_SECRET
-      secretName: splattop-comp-auth-secrets
-      key: COMP_DISCORD_CLIENT_SECRET
-    - name: COMP_DISCORD_REDIRECT_URI
-      secretName: splattop-comp-auth-secrets
-      key: COMP_DISCORD_REDIRECT_URI
-    - name: COMP_AUTH_SESSION_SECRET
-      secretName: splattop-comp-auth-secrets
-      key: COMP_AUTH_SESSION_SECRET
+  - name: COMP_AUTH_ADMIN_DISCORD_IDS
+    secretName: splattop-comp-auth-secrets
+    key: COMP_AUTH_ADMIN_DISCORD_IDS
+  - name: COMP_DISCORD_CLIENT_ID
+    secretName: splattop-comp-auth-secrets
+    key: COMP_DISCORD_CLIENT_ID
+  - name: COMP_DISCORD_CLIENT_SECRET
+    secretName: splattop-comp-auth-secrets
+    key: COMP_DISCORD_CLIENT_SECRET
+  - name: COMP_DISCORD_REDIRECT_URI
+    secretName: splattop-comp-auth-secrets
+    key: COMP_DISCORD_REDIRECT_URI
+  - name: COMP_AUTH_SESSION_SECRET
+    secretName: splattop-comp-auth-secrets
+    key: COMP_AUTH_SESSION_SECRET
 
 # React frontend configuration
 react:
@@ -86,7 +86,7 @@ react:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/react
-    tag: v2.0.14
+    tag: v2.0.15
     pullPolicy: Always
   service:
     type: ClusterIP
