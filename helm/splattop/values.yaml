@@ -86,7 +86,7 @@ react:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/react
-    tag: v2.0.16
+    tag: v2.0.17
     pullPolicy: Always
   service:
     type: ClusterIP
