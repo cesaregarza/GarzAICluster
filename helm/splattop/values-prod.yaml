@@ -7,7 +7,7 @@ global:
   environment: production
 
 # FastAPI backend configuration
-  appImageTag: v2.0.17
+  appImageTag: v2.0.18
 fastapi:
   replicas: 2
   env:
