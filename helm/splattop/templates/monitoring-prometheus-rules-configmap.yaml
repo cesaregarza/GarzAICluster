@@ -46,6 +46,42 @@ data:
               summary: FastAPI P95 latency above 1s
               description: 95th percentile request latency is above 1 second for 10 minutes.
 
+          - alert: LookupSQLiteSnapshotStale
+            expr: |
+              time() - max(lookup_sqlite_snapshot_last_success_timestamp_seconds{kind="build"}) > 2700
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: Lookup SQLite snapshot is stale
+              description: The lookup snapshot has not published a successful build for at least 45 minutes, so search and lookup-backed endpoints may drift stale.
+
+          - alert: CompetitionPlayerSummaryLatencyHigh
+            expr: |
+              histogram_quantile(
+                0.95,
+                sum by (le) (
+                  rate(
+                    fastapi_request_duration_seconds_bucket{
+                      path="/api/ripple/public/player/{player_id}/summary"
+                    }[5m]
+                  )
+                )
+              ) > 0.75
+                and sum(
+                  rate(
+                    fastapi_requests_total{
+                      path="/api/ripple/public/player/{player_id}/summary"
+                    }[5m]
+                  )
+                ) > 0.05
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: Competition player summary latency is elevated
+              description: The public competition player summary endpoint has sustained P95 latency above 750ms for 15 minutes.
+
           - alert: CeleryTaskFailures
             expr: |
               sum(rate(celery_task_failures_total[5m]))

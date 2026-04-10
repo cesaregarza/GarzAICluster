@@ -206,6 +206,9 @@ monitoring:
     - name: core
       configMapName: grafana-dashboard-core
       dataKey: splattop-overview.json
+    - name: observability
+      configMapName: grafana-dashboard-observability
+      dataKey: hot-paths-and-snapshots.json
     - name: splatgpt
       configMapName: grafana-dashboard-splatgpt
       dataKey: splatgpt-operations.json
