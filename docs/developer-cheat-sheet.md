@@ -26,6 +26,18 @@ uv run python scripts/validate_prometheus_config.py --values helm/splattop/value
 trufflehog filesystem --no-update --only-verified --fail .
 ```
 
+## Observability Assets
+
+- Grafana dashboard JSON lives in `helm/splattop/files/grafana/dashboards/`.
+- Dashboard mounting is wired in `helm/splattop/templates/monitoring-grafana-configmaps.yaml`.
+- Alert rules live in `helm/splattop/templates/monitoring-prometheus-rules-configmap.yaml`.
+- The `Hot Paths & Snapshots` dashboard is the first place to look for:
+  - lookup snapshot freshness/build outcomes,
+  - main `/player/{id}` pipeline timings and payload sizes,
+  - public `comp.splat.top` player summary/history/results latency and cache behavior.
+- After touching alerts or dashboards, rerun:
+  - `uv run python scripts/validate_prometheus_config.py --values helm/splattop/values-prod.yaml`
+
 ## Coordinating with App Repo
 
 - Rebuild images only if you touch code/dockerfiles; config-only changes never trigger builds.
