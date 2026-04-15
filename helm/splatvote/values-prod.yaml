@@ -62,5 +62,3 @@ ingress:
     secretName: vote-tls-secret
     certificate:
       enabled: true
-      dnsNames:
-      - vote.splat.top

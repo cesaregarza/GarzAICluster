@@ -36,5 +36,3 @@ ingress:
     secretName: blog-tls-secret
     certificate:
       enabled: true
-      dnsNames:
-      - blog.splat.top

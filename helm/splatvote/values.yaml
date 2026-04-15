@@ -102,3 +102,7 @@ ingress:
   tls:
     enabled: false
     secretName: vote-tls-secret
+    certificate:
+      enabled: false
+      # Defaults to ingress hostnames when empty.
+      dnsNames: []
