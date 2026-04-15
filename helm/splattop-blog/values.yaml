@@ -74,4 +74,5 @@ ingress:
     secretName: blog-tls-secret
     certificate:
       enabled: false
+      # Defaults to ingress hostnames when empty.
       dnsNames: []

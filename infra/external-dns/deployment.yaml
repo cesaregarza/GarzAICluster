@@ -30,6 +30,7 @@ spec:
           args:
             - --source=ingress
             - --source=service
+            # Add one domain filter per public zone/TLD that this cluster should manage.
             - --domain-filter=splat.top
             - --provider=cloudflare
             - --policy=sync

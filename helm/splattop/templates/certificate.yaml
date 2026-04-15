@@ -1,4 +1,16 @@
 {{- if and .Values.ingress.enabled .Values.ingress.tls.enabled .Values.ingress.tls.certificate.enabled }}
+{{- $dnsNames := .Values.ingress.tls.certificate.dnsNames | default (list) -}}
+{{- if eq (len $dnsNames) 0 -}}
+{{- range .Values.ingress.hosts -}}
+{{- if .host -}}
+{{- $dnsNames = append $dnsNames .host -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $commonName := .Values.ingress.tls.certificate.commonName | default "" -}}
+{{- if and (eq $commonName "") (gt (len $dnsNames) 0) -}}
+{{- $commonName = first $dnsNames -}}
+{{- end }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -11,9 +23,13 @@ spec:
   issuerRef:
     name: {{ .Values.ingress.tls.certificate.issuerName }}
     kind: {{ .Values.ingress.tls.certificate.issuerKind }}
-  commonName: {{ .Values.ingress.tls.certificate.commonName }}
+  {{- if $commonName }}
+  commonName: {{ $commonName | quote }}
+  {{- end }}
+  {{- if gt (len $dnsNames) 0 }}
   dnsNames:
-    {{- range .Values.ingress.tls.certificate.dnsNames }}
-    - {{ . }}
+    {{- range $dnsNames }}
+    - {{ . | quote }}
     {{- end }}
+  {{- end }}
 {{- end }}

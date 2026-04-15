@@ -1,4 +1,12 @@
 {{- if and .Values.ingress.enabled .Values.ingress.tls.enabled .Values.ingress.tls.certificate.enabled }}
+{{- $dnsNames := .Values.ingress.tls.certificate.dnsNames | default (list) -}}
+{{- if eq (len $dnsNames) 0 -}}
+{{- range .Values.ingress.hosts -}}
+{{- if .host -}}
+{{- $dnsNames = append $dnsNames .host -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -10,8 +18,10 @@ spec:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
+  {{- if gt (len $dnsNames) 0 }}
   dnsNames:
-    {{- range .Values.ingress.tls.certificate.dnsNames }}
-    - {{ . }}
+    {{- range $dnsNames }}
+    - {{ . | quote }}
     {{- end }}
+  {{- end }}
 {{- end }}
