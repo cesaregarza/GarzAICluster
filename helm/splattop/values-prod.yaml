@@ -7,7 +7,7 @@ global:
   environment: production
 
 # FastAPI backend configuration
-  appImageTag: v2.0.26
+  appImageTag: v2.0.27
 fastapi:
   replicas: 2
   env:
@@ -46,7 +46,7 @@ react:
 
 # Celery worker configuration
   image:
-    tag: v2.0.26
+    tag: v2.0.27
 celeryWorker:
   env:
     COMP_LEADERBOARD_ENABLED: "true"
