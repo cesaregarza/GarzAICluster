@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-04-15T22:13:42Z",
-  "gitSha": "4e845a137c14fe42025cbedbbbbffcf3abd09b8a",
-  "releaseVersion": "2.0.27",
+  "generatedAt": "2026-04-16T03:23:08Z",
+  "gitSha": "ff7ca956dd6ba6a805d82120a91cb656109c3d15",
+  "releaseVersion": "2.0.28",
   "components": {
     "react": {
       "image": "registry.digitalocean.com/sendouq/react",
-      "tag": "v2.0.27",
-      "digest": "sha256:894ded750c48303c1ce9adeb4a8e724685d84c7d10ee1f70aa65b8c11f53a411"
+      "tag": "v2.0.28",
+      "digest": "sha256:c97d3fc89c891397178ce5ade2ca5373051f129dd2e708b54f7fec69cb2d667b"
     }
   }
 }
