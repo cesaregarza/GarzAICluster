@@ -1,0 +1,19 @@
+{{- if .Values.teamsFrontend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "splattop-teams.fullname" . }}-frontend
+  labels:
+    {{- include "splattop-teams.labels" . | nindent 4 }}
+    app.kubernetes.io/component: teams-frontend
+spec:
+  type: {{ .Values.teamsFrontend.service.type }}
+  ports:
+    - port: {{ .Values.teamsFrontend.service.port }}
+      targetPort: {{ .Values.teamsFrontend.containerPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "splattop-teams.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: teams-frontend
+{{- end }}

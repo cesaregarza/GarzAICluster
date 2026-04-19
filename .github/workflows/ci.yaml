@@ -12,6 +12,17 @@ permissions:
 jobs:
   helm-and-kubeconform:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        chart:
+          - name: splattop
+            path: helm/splattop
+            release: splattop
+            prod_values: helm/splattop/values-prod.yaml
+          - name: splattop-teams
+            path: helm/splattop-teams
+            release: splattop-teams
+            prod_values: helm/splattop-teams/values-prod.yaml
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,13 +40,13 @@ jobs:
           kubeconform -v
 
       - name: Helm lint
-        run: helm lint helm/splattop
+        run: helm lint "${{ matrix.chart.path }}"
 
       - name: Render manifests (default + prod)
         run: |
           mkdir -p rendered
-          helm template splattop helm/splattop > rendered/default.yaml
-          helm template splattop helm/splattop -f helm/splattop/values-prod.yaml > rendered/prod.yaml
+          helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" > "rendered/${{ matrix.chart.name }}-default.yaml"
+          helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" -f "${{ matrix.chart.prod_values }}" > "rendered/${{ matrix.chart.name }}-prod.yaml"
 
       - name: Run kubeconform
         run: |
@@ -44,7 +55,7 @@ jobs:
             echo "Validating ${file}"
             kubeconform \
               -schema-location default \
-              -skip CiliumNetworkPolicy \
+              -skip CiliumNetworkPolicy,Certificate \
               -strict -summary -exit-on-error "$file"
           done
 
@@ -52,7 +63,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: rendered-manifests
+          name: rendered-manifests-${{ matrix.chart.name }}
           path: rendered
 
   prometheus-rules:

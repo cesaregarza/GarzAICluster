@@ -1,0 +1,57 @@
+{{- if and .Values.teamsApi.enabled .Values.refresh.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "splattop-teams.fullname" . }}-refresh
+  labels:
+    {{- include "splattop-teams.labels" . | nindent 4 }}
+    app.kubernetes.io/component: teams-refresh
+spec:
+  schedule: {{ .Values.refresh.schedule | quote }}
+  concurrencyPolicy: {{ .Values.refresh.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.refresh.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.refresh.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "splattop-teams.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: teams-refresh
+        spec:
+          {{- include "splattop-teams.imagePullSecrets" . | nindent 10 }}
+          restartPolicy: {{ .Values.refresh.restartPolicy }}
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: refresh
+              image: "{{ .Values.teamsApi.image.repository }}:{{ .Values.teamsApi.image.tag | default .Values.global.appImageTag }}"
+              imagePullPolicy: {{ .Values.teamsApi.image.pullPolicy }}
+              command:
+                {{- toYaml .Values.refresh.command | nindent 16 }}
+              env:
+                {{- range $key, $value := .Values.teamsApi.env }}
+                - name: {{ $key }}
+                  value: {{ $value | quote }}
+                {{- end }}
+              envFrom:
+                - secretRef:
+                    name: {{ .Values.global.databaseSecretName }}
+              resources:
+                {{- toYaml .Values.refresh.resources | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 10001
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
+{{- end }}

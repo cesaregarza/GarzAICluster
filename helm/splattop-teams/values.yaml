@@ -1,0 +1,90 @@
+global:
+  environment: development
+  imagePullSecrets:
+    - regcred
+  databaseSecretName: db-secrets
+  appImageTag: v0.1.0
+
+teamsApi:
+  enabled: true
+  replicas: 1
+  image:
+    repository: registry.digitalocean.com/sendouq/teams-api
+    tag: v0.1.0
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8000
+  env:
+    ENV: development
+    API_RL_PER_MIN: "120"
+    CORS_ORIGINS: "*"
+    RANKINGS_DB_SCHEMA: "comp_rankings"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 600m
+      memory: 768Mi
+  health:
+    enabled: true
+    livenessPath: /api/health
+    readinessPath: /api/ready
+
+teamsFrontend:
+  enabled: true
+  replicas: 1
+  containerPort: 8080
+  image:
+    repository: registry.digitalocean.com/sendouq/teams-frontend
+    tag: v0.1.0
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+refresh:
+  enabled: true
+  schedule: "15 3 * * *"
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  concurrencyPolicy: Forbid
+  restartPolicy: Never
+  command:
+    - python
+    - -m
+    - team_jobs.refresh_embeddings
+    - --days
+    - "540"
+    - --keep-runs
+    - "5"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts: []
+  tls:
+    enabled: false
+    secretName: teams-tls-secret
+    certificate:
+      enabled: false
+      dnsNames: []
