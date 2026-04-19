@@ -1,0 +1,58 @@
+{{- if .Values.teamsFrontend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "splattop-teams.fullname" . }}-frontend
+  labels:
+    {{- include "splattop-teams.labels" . | nindent 4 }}
+    app.kubernetes.io/component: teams-frontend
+spec:
+  replicas: {{ .Values.teamsFrontend.replicas }}
+  selector:
+    matchLabels:
+      {{- include "splattop-teams.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: teams-frontend
+  template:
+    metadata:
+      labels:
+        {{- include "splattop-teams.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: teams-frontend
+    spec:
+      {{- include "splattop-teams.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: teams-frontend
+          image: "{{ .Values.teamsFrontend.image.repository }}:{{ .Values.teamsFrontend.image.tag | default .Values.global.appImageTag }}"
+          imagePullPolicy: {{ .Values.teamsFrontend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.teamsFrontend.containerPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.teamsFrontend.containerPort }}
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.teamsFrontend.containerPort }}
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.teamsFrontend.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            capabilities:
+              drop:
+                - ALL
+{{- end }}

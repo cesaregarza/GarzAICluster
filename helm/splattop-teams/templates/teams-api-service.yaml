@@ -1,0 +1,19 @@
+{{- if .Values.teamsApi.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "splattop-teams.fullname" . }}-api
+  labels:
+    {{- include "splattop-teams.labels" . | nindent 4 }}
+    app.kubernetes.io/component: teams-api
+spec:
+  type: {{ .Values.teamsApi.service.type }}
+  ports:
+    - port: {{ .Values.teamsApi.service.port }}
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "splattop-teams.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: teams-api
+{{- end }}

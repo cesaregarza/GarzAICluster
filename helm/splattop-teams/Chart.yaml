@@ -1,0 +1,9 @@
+apiVersion: v2
+name: splattop-teams
+description: Helm chart for SplatTopTeams team search and cluster explorer
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: cesaregarza
+    url: https://github.com/cesaregarza

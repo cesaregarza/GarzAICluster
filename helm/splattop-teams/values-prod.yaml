@@ -1,0 +1,50 @@
+global:
+  environment: production
+  appImageTag: v0.1.0
+
+teamsApi:
+  replicas: 1
+  image:
+    tag: v0.1.0
+    pullPolicy: IfNotPresent
+  env:
+    ENV: production
+    API_RL_PER_MIN: "180"
+    CORS_ORIGINS: "https://teams-int.splat.top"
+    RANKINGS_DB_SCHEMA: "comp_rankings"
+
+teamsFrontend:
+  replicas: 1
+  image:
+    tag: v0.1.0
+    pullPolicy: IfNotPresent
+
+refresh:
+  enabled: true
+  schedule: "15 3 * * *"
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: teams-int.splat.top
+      paths:
+        - path: /api
+          pathType: Prefix
+          serviceName: api
+          servicePort: 8000
+        - path: /
+          pathType: Prefix
+          serviceName: frontend
+          servicePort: 80
+  tls:
+    enabled: true
+    secretName: teams-int-tls-secret
+    certificate:
+      enabled: true
+      dnsNames:
+        - teams-int.splat.top

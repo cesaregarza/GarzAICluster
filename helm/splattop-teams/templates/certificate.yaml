@@ -1,0 +1,17 @@
+{{- if and .Values.ingress.enabled .Values.ingress.tls.enabled (default false .Values.ingress.tls.certificate.enabled) }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "splattop-teams.fullname" . }}-tls
+  labels:
+    {{- include "splattop-teams.labels" . | nindent 4 }}
+spec:
+  secretName: {{ .Values.ingress.tls.secretName }}
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    {{- range .Values.ingress.tls.certificate.dnsNames }}
+    - {{ . | quote }}
+    {{- end }}
+{{- end }}

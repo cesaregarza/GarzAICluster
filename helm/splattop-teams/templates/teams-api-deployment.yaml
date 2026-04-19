@@ -1,0 +1,73 @@
+{{- if .Values.teamsApi.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "splattop-teams.fullname" . }}-api
+  labels:
+    {{- include "splattop-teams.labels" . | nindent 4 }}
+    app.kubernetes.io/component: teams-api
+spec:
+  replicas: {{ .Values.teamsApi.replicas }}
+  selector:
+    matchLabels:
+      {{- include "splattop-teams.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: teams-api
+  template:
+    metadata:
+      labels:
+        {{- include "splattop-teams.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: teams-api
+    spec:
+      {{- include "splattop-teams.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: teams-api
+          image: "{{ .Values.teamsApi.image.repository }}:{{ .Values.teamsApi.image.tag | default .Values.global.appImageTag }}"
+          imagePullPolicy: {{ .Values.teamsApi.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.teamsApi.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.global.databaseSecretName }}
+          {{- if .Values.teamsApi.health.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.teamsApi.health.livenessPath }}
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.teamsApi.health.readinessPath }}
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          {{- end }}
+          resources:
+            {{- toYaml .Values.teamsApi.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
