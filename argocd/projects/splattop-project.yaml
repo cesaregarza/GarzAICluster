@@ -99,6 +99,9 @@ spec:
         name: blog-db-secrets
       - group: ''
         kind: Secret
+        name: teams-refresh-db-secrets
+      - group: ''
+        kind: Secret
         name: blog-tls-secret
       - group: ''
         kind: Secret

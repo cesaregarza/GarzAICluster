@@ -31,3 +31,9 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: teams-refresh-db-secrets
+      jsonPointers:
+        - /data

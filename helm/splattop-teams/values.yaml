@@ -53,6 +53,7 @@ teamsFrontend:
 
 refresh:
   enabled: true
+  targetDatabaseSecretName: ""
   schedule: "15 3 * * *"
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2

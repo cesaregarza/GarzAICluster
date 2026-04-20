@@ -38,6 +38,10 @@ spec:
               envFrom:
                 - secretRef:
                     name: {{ .Values.global.databaseSecretName }}
+                {{- if .Values.refresh.targetDatabaseSecretName }}
+                - secretRef:
+                    name: {{ .Values.refresh.targetDatabaseSecretName }}
+                {{- end }}
               resources:
                 {{- toYaml .Values.refresh.resources | nindent 16 }}
               securityContext:

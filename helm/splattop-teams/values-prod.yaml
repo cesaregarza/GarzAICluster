@@ -5,7 +5,7 @@ global:
 teamsApi:
   replicas: 1
   image:
-    tag: v0.1.1
+    tag: v0.1.2
     pullPolicy: IfNotPresent
   env:
     ENV: production
@@ -21,6 +21,7 @@ teamsFrontend:
 
 refresh:
   enabled: true
+  targetDatabaseSecretName: teams-refresh-db-secrets
   schedule: "15 3 * * *"
 
 ingress:
