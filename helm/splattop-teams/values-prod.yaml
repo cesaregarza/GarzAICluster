@@ -1,11 +1,11 @@
 global:
   environment: production
-  appImageTag: v0.1.5
+  appImageTag: v0.1.6
 
 teamsApi:
   replicas: 1
   image:
-    tag: v0.1.5
+    tag: v0.1.6
     pullPolicy: IfNotPresent
   env:
     ENV: production
@@ -16,7 +16,7 @@ teamsApi:
 teamsFrontend:
   replicas: 1
   image:
-    tag: v0.1.5
+    tag: v0.1.6
     pullPolicy: IfNotPresent
 
 refresh:
