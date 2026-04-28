@@ -119,6 +119,7 @@ spec:
     - kind: allow
       schedule: '0 15 * * 1-5'
       duration: 11h
+      manualSync: true
       applications:
         - '*'
       clusters:
