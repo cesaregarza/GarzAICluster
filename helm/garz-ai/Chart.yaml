@@ -1,0 +1,6 @@
+apiVersion: v2
+name: garz-ai
+description: FastAPI service for public garz.ai pages.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

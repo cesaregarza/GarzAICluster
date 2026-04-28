@@ -8,6 +8,7 @@ Use this checklist when adding a new public hostname or rolling out another DNS 
 - Add one `--domain-filter=<zone>` entry per public zone/TLD that this cluster should manage.
 - Keep the filter list tight. Do not remove the filters entirely unless you intentionally want this cluster to manage every zone available to the Cloudflare token.
 - Make sure the Cloudflare token in `infra/external-dns/cloudflare-api-token.enc.yaml` can edit every added zone.
+- Current managed zones are `splat.top` and `garz.ai`.
 
 ## App ingress and TLS
 
@@ -19,6 +20,7 @@ Use this checklist when adding a new public hostname or rolling out another DNS 
 
 - `helm/splattop-blog/values-prod.yaml`: update `blog.health.hostHeader`, `blog.env.ALLOWED_HOSTS`, and `blog.env.CSRF_TRUSTED_ORIGINS` when the new hostname is canonical.
 - `helm/splattop/values-prod.yaml`: update `monitoring.grafana.serverDomain` and `monitoring.grafana.serverRootUrl` only if the new Grafana host becomes canonical. If it should just redirect, use vanity hosts.
+- `helm/garz-ai`: serves FastAPI-backed garz.ai pages, including JustFlip/Habit Taper legal pages at `justflip.garz.ai` and `habit-taper.garz.ai`.
 
 ## Rollout checks
 
