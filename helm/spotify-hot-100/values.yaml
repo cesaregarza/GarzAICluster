@@ -7,7 +7,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/spotify-hot-100
-  tag: sha-ce9ba3c8237102e1015ec3cc104801db23429565
+  tag: sha-be1a577aba3b78e99e8c28ab98301efce5198da2
   pullPolicy: IfNotPresent
 
 nameOverride: ""
