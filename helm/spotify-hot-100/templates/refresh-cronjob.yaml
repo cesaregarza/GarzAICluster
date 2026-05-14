@@ -1,0 +1,60 @@
+{{- if .Values.refresh.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "spotify-hot-100.fullname" . }}-refresh
+  labels:
+    {{- include "spotify-hot-100.labels" . | nindent 4 }}
+    app.kubernetes.io/component: refresh
+spec:
+  schedule: {{ .Values.refresh.schedule | quote }}
+  suspend: {{ .Values.refresh.suspend }}
+  concurrencyPolicy: {{ .Values.refresh.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.refresh.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.refresh.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.refresh.backoffLimit }}
+      activeDeadlineSeconds: {{ .Values.refresh.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "spotify-hot-100.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: refresh
+        spec:
+          restartPolicy: Never
+          {{- include "spotify-hot-100.imagePullSecrets" . | nindent 10 }}
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: refresh
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - /app/refresh
+              args:
+                - {{ printf "-batch=%v" .Values.refresh.matchBatchSize | quote }}
+                - {{ printf "-match-limit=%v" .Values.refresh.matchLimit | quote }}
+              env:
+                {{- range $key := .Values.secretKeys }}
+                - name: {{ $key }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $.Values.global.runtimeSecretName }}
+                      key: {{ $key }}
+                {{- end }}
+                {{- range $key, $value := .Values.env }}
+                - name: {{ $key }}
+                  value: {{ $value | quote }}
+                {{- end }}
+              resources:
+                {{- toYaml .Values.refresh.resources | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                capabilities:
+                  drop:
+                    - ALL
+{{- end }}

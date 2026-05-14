@@ -1,0 +1,6 @@
+apiVersion: v2
+name: spotify-hot-100
+description: Billboard Hot 100 to Spotify playlist generator
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

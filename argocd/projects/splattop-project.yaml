@@ -107,6 +107,9 @@ spec:
         name: blog-tls-secret
       - group: ''
         kind: Secret
+        name: spotify-hot-100-tls
+      - group: ''
+        kind: Secret
         name: grafana-tls
       - group: ''
         kind: Secret

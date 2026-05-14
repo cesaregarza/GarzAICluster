@@ -1,0 +1,92 @@
+global:
+  imagePullSecrets:
+    - regcred
+  runtimeSecretName: spotify-hot-100-secrets
+
+replicaCount: 1
+
+image:
+  repository: registry.digitalocean.com/sendouq/spotify-hot-100
+  tag: v0.1.0
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+secretKeys:
+  - DATABASE_URL
+  - SPOTIFY_CLIENT_ID
+  - SPOTIFY_CLIENT_SECRET
+  - SESSION_SECRET
+
+env:
+  PORT: "8080"
+  SPOTIFY_REDIRECT_URI: "https://hot100.garz.ai/callback"
+  SESSION_COOKIE_SECURE: "true"
+  SESSION_COOKIE_SAMESITE: "lax"
+  SESSION_COOKIE_MAX_AGE_SECONDS: "2592000"
+  ENABLE_HSTS: "true"
+
+health:
+  enabled: true
+  liveness:
+    path: /healthz
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    path: /readyz
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+refresh:
+  enabled: true
+  # Runs Wednesday morning UTC so the upstream chart CSV has time to publish.
+  schedule: "30 10 * * 3"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  backoffLimit: 1
+  activeDeadlineSeconds: 7200
+  matchLimit: 250
+  matchBatchSize: 100
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - hot100.garz.ai
+  tls:
+    enabled: true
+    secretName: spotify-hot-100-tls
+    certificate:
+      enabled: true
+      issuerName: letsencrypt-prod
+      dnsNames: []
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
