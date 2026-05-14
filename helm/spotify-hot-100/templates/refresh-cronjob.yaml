@@ -25,6 +25,9 @@ spec:
           restartPolicy: Never
           {{- include "spotify-hot-100.imagePullSecrets" . | nindent 10 }}
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
             seccompProfile:
               type: RuntimeDefault
           containers:

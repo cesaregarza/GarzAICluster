@@ -16,6 +16,9 @@ spec:
     spec:
       {{- include "spotify-hot-100.imagePullSecrets" . | nindent 6 }}
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       containers:
