@@ -1,6 +1,6 @@
 global:
   imagePullSecrets:
-  - regcred
+    - regcred
   runtimeSecretName: spotify-hot-100-secrets
 
 replicaCount: 1
@@ -19,10 +19,10 @@ service:
   targetPort: 8080
 
 secretKeys:
-- DATABASE_URL
-- SPOTIFY_CLIENT_ID
-- SPOTIFY_CLIENT_SECRET
-- SESSION_SECRET
+  - DATABASE_URL
+  - SPOTIFY_CLIENT_ID
+  - SPOTIFY_CLIENT_SECRET
+  - SESSION_SECRET
 
 env:
   PORT: "8080"
@@ -74,7 +74,7 @@ ingress:
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
-  - hot100.garz.ai
+    - hot100.garz.ai
   tls:
     enabled: true
     secretName: spotify-hot-100-tls
