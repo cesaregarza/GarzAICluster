@@ -26,7 +26,8 @@ secretKeys:
 
 env:
   PORT: "8080"
-  SPOTIFY_REDIRECT_URI: "https://hot100.garz.ai/callback"
+  SPOTIFY_REDIRECT_URI: "https://chartcapsule.garz.ai/callback"
+  SPOTIFY_OAUTH_ENABLED: "false"
   SESSION_COOKIE_SECURE: "true"
   SESSION_COOKIE_SAMESITE: "lax"
   SESSION_COOKIE_MAX_AGE_SECONDS: "2592000"
@@ -74,7 +75,7 @@ ingress:
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
-    - hot100.garz.ai
+    - chartcapsule.garz.ai
   tls:
     enabled: true
     secretName: spotify-hot-100-tls
