@@ -5,7 +5,7 @@ global:
 
 image:
   repository: registry.digitalocean.com/sendouq/skyquiet-server
-  tag: sha-204b812eed03e6a15c6b27407d610dbd1e85b401
+  tag: sha-d77c69a41f0e72cc3ebafb8a6cd8f86d6b6ddc76
   pullPolicy: IfNotPresent
 
 nameOverride: ""
