@@ -1,0 +1,82 @@
+global:
+  imagePullSecrets:
+    - regcred
+  runtimeSecretName: skyquiet-server-secrets
+
+image:
+  repository: registry.digitalocean.com/sendouq/skyquiet-server
+  tag: sha-204b812eed03e6a15c6b27407d610dbd1e85b401
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+api:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+worker:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+secretKeys:
+  - DATABASE_URL
+  - DEVICE_SECRET_PEPPER
+
+optionalSecretKeys:
+  - EXPO_ACCESS_TOKEN
+
+env:
+  PORT: "8080"
+  DATABASE_SCHEMA: "skyquiet"
+  CURRENT_LOCATION_MAX_AGE_SECONDS: "600"
+  WORKER_POLL_INTERVAL_MS: "60000"
+  LOG_LEVEL: "info"
+
+health:
+  enabled: true
+  liveness:
+    path: /healthz
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    path: /readyz
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - skyquiet.garz.ai
+  tls:
+    enabled: true
+    secretName: skyquiet-server-tls
+    certificate:
+      enabled: true
+      issuerName: letsencrypt-prod
+      dnsNames: []
