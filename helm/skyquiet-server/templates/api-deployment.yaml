@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "skyquiet-server.fullname" . }}-api
+  labels:
+    {{- include "skyquiet-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "skyquiet-server.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        {{- include "skyquiet-server.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+    spec:
+      {{- include "skyquiet-server.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            {{- include "skyquiet-server.env" . | nindent 12 }}
+          {{- if .Values.health.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.health.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.health.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.health.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.health.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.health.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.health.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.health.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.health.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL

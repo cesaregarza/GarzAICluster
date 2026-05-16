@@ -1,0 +1,18 @@
+{{- if and .Values.ingress.enabled .Values.ingress.tls.enabled .Values.ingress.tls.certificate.enabled }}
+{{- $dnsNames := .Values.ingress.tls.certificate.dnsNames | default .Values.ingress.hosts -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "skyquiet-server.fullname" . }}-cert
+  labels:
+    {{- include "skyquiet-server.labels" . | nindent 4 }}
+spec:
+  secretName: {{ .Values.ingress.tls.secretName }}
+  issuerRef:
+    name: {{ .Values.ingress.tls.certificate.issuerName | default "letsencrypt-prod" }}
+    kind: ClusterIssuer
+  dnsNames:
+    {{- range $dnsNames }}
+    - {{ . | quote }}
+    {{- end }}
+{{- end }}
