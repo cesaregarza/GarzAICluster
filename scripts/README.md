@@ -23,6 +23,17 @@ Utilities that were previously bundled with the app repo move here when they are
   sops --encrypt --in-place secrets/bots/my-cool-bot/db-secret.enc.yaml
   ```
 
+- `provision_agent_control_plane_secrets.py` – provisions the Agent Control
+  Plane Postgres schema/role, generates service tokens, and writes encrypted
+  runtime and registry secrets under `secrets/agent-control-plane/`. It loads
+  `.env` and expects `BOT_DB_ADMIN_URL` plus `DO_REGISTRY_READ_TOKEN` unless
+  explicit flags are supplied:
+
+  ```bash
+  SOPS_AGE_KEY_FILE=keys/age-private.txt \
+    uv run python scripts/provision_agent_control_plane_secrets.py
+  ```
+
 - `validate_prometheus_config.py` – renders the Prometheus ConfigMaps from the Helm chart (`helm template --show-only …`) and runs `promtool check config/rules` inside a Docker container. Example (prod values):
 
   ```bash

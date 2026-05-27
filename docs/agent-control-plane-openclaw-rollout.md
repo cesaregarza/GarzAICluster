@@ -17,10 +17,11 @@ not by calling workload containers directly.
 
 1. Publish an immutable Agent Control Plane API image:
    `registry.digitalocean.com/sendouq/agent-platform:sha-fa8c357d9d4f`.
-2. Ensure the registry pull secret `regcred` exists in the
-   `agent-control-plane` namespace.
-3. Create the encrypted runtime secret for `agent-control-plane-secrets`.
-   Required keys for this overlay:
+2. Commit and sync `argocd/applications/agent-control-plane-secrets.yaml` so
+   the `agent-control-plane-secrets` Argo app creates `regcred` and
+   `agent-control-plane-secrets` in the `agent-control-plane` namespace.
+3. Confirm the encrypted runtime secret includes the required keys for this
+   overlay:
    `AGENT_PLATFORM_DATABASE_URL`,
    `AGENT_PLATFORM_OPENCLAW_TOKEN`,
    `AGENT_PLATFORM_INTERNAL_WORKER_TOKEN`,
@@ -38,7 +39,8 @@ not by calling workload containers directly.
 8. Configure the OpenClaw droplet MCP server to run
    `AGENT_PLATFORM_MCP_BACKEND=http uv run python -m audit.api.app.mcp.server`
    with `AGENT_PLATFORM_CONTROL_API_BASE_URL=https://agent-control-plane.garz.ai`
-   and the matching OpenClaw service token.
+   and the matching OpenClaw service token from `agent-control-plane-secrets`.
+   The current OpenClaw droplet IP is `143.198.149.87`.
 
 ## Current MVP Limits
 
