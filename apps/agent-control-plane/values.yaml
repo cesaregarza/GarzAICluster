@@ -70,7 +70,12 @@ networkPolicy:
           protocol: UDP
         - port: 53
           protocol: TCP
-    destinations: []
+    destinations:
+      - ipBlock:
+          cidr: 10.108.0.0/20
+        ports:
+          - port: 25060
+            protocol: TCP
 
 resources:
   requests:
