@@ -21,6 +21,7 @@ not by calling workload containers directly.
    `agent-control-plane` namespace.
 3. Create the encrypted runtime secret for `agent-control-plane-secrets`.
    Required keys for this overlay:
+   `AGENT_PLATFORM_DATABASE_URL`,
    `AGENT_PLATFORM_OPENCLAW_TOKEN`,
    `AGENT_PLATFORM_INTERNAL_WORKER_TOKEN`,
    `AGENT_PLATFORM_APPROVAL_TOKEN`,

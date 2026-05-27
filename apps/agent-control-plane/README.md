@@ -12,6 +12,8 @@ Required before activation:
 - `registry.digitalocean.com/sendouq/agent-platform:<tag>` exists.
 - `regcred` exists in the `agent-control-plane` namespace for DOCR image pulls.
 - `agent-control-plane-secrets` exists in the `agent-control-plane` namespace.
+  It must include `AGENT_PLATFORM_DATABASE_URL` so run state and audit history
+  survive pod restarts.
 - The OpenClaw droplet has an MCP server entry pointing at the public control
   API URL with the matching OpenClaw service token.
 - The callback/approval adapter path is implemented before advertising
