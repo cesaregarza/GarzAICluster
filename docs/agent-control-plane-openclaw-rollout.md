@@ -35,10 +35,8 @@ not by calling workload containers directly.
 6. Apply the AppProject update from `argocd/projects/splattop-project.yaml` so
    Argo may read the `agent-platform` chart source and deploy into the
    `agent-control-plane` namespace.
-7. Move `argocd/candidates/agent-control-plane.yaml` into
-   `argocd/applications/agent-control-plane.yaml`.
-8. Merge and sync `splattop-root`, then sync `agent-control-plane`.
-9. Configure the OpenClaw droplet MCP server to run
+7. Sync `splattop-root`, then sync `agent-control-plane`.
+8. Configure the OpenClaw droplet MCP server to run
    `AGENT_PLATFORM_MCP_BACKEND=http uv run python -m audit.api.app.mcp.server`
    with `AGENT_PLATFORM_CONTROL_API_BASE_URL=https://agent-control-plane.garz.ai`
    and the matching OpenClaw service token from `agent-control-plane-secrets`.

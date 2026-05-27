@@ -1,12 +1,8 @@
 # Agent Control Plane
 
 This directory holds the SplatTopConfig-owned values overlay for the reusable
-`agent-platform` chart.
-
-It is intentionally not active by itself. To deploy it, move or copy the
-candidate Application from `argocd/candidates/agent-control-plane.yaml` into
-`argocd/applications/` after the required image exists and
-`agent-control-plane-secrets` has synced.
+`agent-platform` chart. The live Argo Application is
+`argocd/applications/agent-control-plane.yaml`.
 
 Required before activation:
 
