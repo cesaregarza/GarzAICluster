@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agent-control-plane
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: splattop
+  sources:
+    - repoURL: https://github.com/cesaregarza/agent-platform
+      targetRevision: fa8c357d9d4fb94f364ef2d01b42590a0f571211
+      path: helm/agent-control-plane
+      helm:
+        releaseName: agent-control-plane
+        valueFiles:
+          - $values/apps/agent-control-plane/values.yaml
+    - repoURL: https://github.com/cesaregarza/SplatTopConfig
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: agent-control-plane
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+  revisionHistoryLimit: 10

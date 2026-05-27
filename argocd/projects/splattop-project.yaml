@@ -10,6 +10,7 @@ spec:
 
   sourceRepos:
     - https://github.com/cesaregarza/SplatTopConfig
+    - https://github.com/cesaregarza/agent-platform
 
   destinations:
     - namespace: default
@@ -23,6 +24,8 @@ spec:
     - namespace: vanity-hosts
       server: https://kubernetes.default.svc
     - namespace: garz-ai
+      server: https://kubernetes.default.svc
+    - namespace: agent-control-plane
       server: https://kubernetes.default.svc
     - namespace: argocd
       server: https://kubernetes.default.svc
@@ -114,6 +117,12 @@ spec:
       - group: ''
         kind: Secret
         name: justflip-garz-ai-tls
+      - group: ''
+        kind: Secret
+        name: agent-control-plane-secrets
+      - group: ''
+        kind: Secret
+        name: agent-control-plane-tls
       - group: ''
         kind: ConfigMap
         name: kube-root-ca.crt
