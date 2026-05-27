@@ -19,7 +19,7 @@ secretKeys:
   - AGENT_PLATFORM_AUDIT_WRITE_TOKEN
 
 env:
-  AGENT_PLATFORM_ENVIRONMENT: prod
+  AGENT_PLATFORM_ENVIRONMENT: dev
 
 service:
   type: ClusterIP

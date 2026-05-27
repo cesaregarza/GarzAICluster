@@ -13,6 +13,8 @@ Required before activation:
   `agent-control-plane` namespace.
   It must include `AGENT_PLATFORM_DATABASE_URL` so run state and audit history
   survive pod restarts.
+- `AGENT_PLATFORM_ENVIRONMENT` is moved from `dev` to `prod` after real
+  Discord guild/channel/user policy bindings replace registry placeholders.
 - The OpenClaw droplet has an MCP server entry pointing at the public control
   API URL with the matching OpenClaw service token.
 - The callback/approval adapter path is implemented before advertising

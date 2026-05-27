@@ -32,13 +32,16 @@ not by calling workload containers directly.
    `helm template agent-control-plane ../agent-platform/helm/agent-control-plane -f apps/agent-control-plane/values.yaml`.
 5. Confirm the rendered NetworkPolicy allows DNS plus managed Postgres egress
    to `10.108.0.0/20:25060`.
-6. Sync `argocd-repositories` so Argo has the read-only deploy key for the
+6. Keep `AGENT_PLATFORM_ENVIRONMENT=dev` for the first smoke deployment. Move
+   it to `prod` only after real Discord guild/channel/user policy bindings
+   replace the bundled placeholder bindings.
+7. Sync `argocd-repositories` so Argo has the read-only deploy key for the
    private `agent-platform` chart source.
-7. Apply the AppProject update from `argocd/projects/splattop-project.yaml` so
+8. Apply the AppProject update from `argocd/projects/splattop-project.yaml` so
    Argo may read the `agent-platform` chart source and deploy into the
    `agent-control-plane` namespace.
-8. Sync `splattop-root`, then sync `agent-control-plane`.
-9. Configure the OpenClaw droplet MCP server to run
+9. Sync `splattop-root`, then sync `agent-control-plane`.
+10. Configure the OpenClaw droplet MCP server to run
    `AGENT_PLATFORM_MCP_BACKEND=http uv run python -m audit.api.app.mcp.server`
    with `AGENT_PLATFORM_CONTROL_API_BASE_URL=https://agent-control-plane.garz.ai`
    and the matching OpenClaw service token from `agent-control-plane-secrets`.
