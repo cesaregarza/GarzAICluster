@@ -11,6 +11,7 @@ spec:
   sourceRepos:
     - https://github.com/cesaregarza/SplatTopConfig
     - https://github.com/cesaregarza/agent-platform
+    - git@github.com:cesaregarza/agent-platform.git
 
   destinations:
     - namespace: default
