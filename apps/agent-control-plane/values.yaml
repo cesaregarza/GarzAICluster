@@ -7,7 +7,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-0fd795402345
+  tag: sha-66b5327ebdde
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -38,6 +38,9 @@ callbackAdapter:
   pollSeconds: 2
   batchSize: 10
   leaseSeconds: 60
+  discordThreads:
+    enabled: true
+    autoArchiveMinutes: 1440
 
 service:
   type: ClusterIP
