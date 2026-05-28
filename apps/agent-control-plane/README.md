@@ -14,7 +14,11 @@ Required before activation:
   It must include `AGENT_PLATFORM_DATABASE_URL` so run state and audit history
   survive pod restarts.
 - `AGENT_PLATFORM_ENVIRONMENT=prod` so the live visible capability set is
-  limited to the production-safe `task.echo` and `approval.probe` bindings.
+  limited to the production-safe private-admin `task.echo`, `approval.probe`,
+  and `readonly_sql` bindings.
+- `AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` is present when `readonly_sql` is
+  enabled. It must point at a separate weak read-only role, not the platform
+  state writer role.
 - The OpenClaw droplet has an MCP server entry pointing at the public control
   API URL with the matching OpenClaw service token.
 - The callback adapter deployment uses the same Postgres state as the API and

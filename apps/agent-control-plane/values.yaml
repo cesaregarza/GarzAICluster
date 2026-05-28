@@ -7,7 +7,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-5b4aa80648a0
+  tag: sha-0fd795402345
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -17,6 +17,7 @@ secretKeys:
   - AGENT_PLATFORM_APPROVAL_TOKEN
   - AGENT_PLATFORM_AUDIT_READ_TOKEN
   - AGENT_PLATFORM_AUDIT_WRITE_TOKEN
+  - AGENT_PLATFORM_READONLY_SQL_DATABASE_URL
 
 env:
   AGENT_PLATFORM_ENVIRONMENT: prod
@@ -24,7 +25,7 @@ env:
 localWorker:
   enabled: true
   replicaCount: 1
-  capabilities: task.echo,approval.probe
+  capabilities: task.echo,approval.probe,readonly_sql
   pollSeconds: 2
   batchSize: 1
 

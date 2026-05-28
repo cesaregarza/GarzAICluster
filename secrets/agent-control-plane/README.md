@@ -19,3 +19,14 @@ The script loads `.env`, provisions the dedicated Postgres schema/role using
 `BOT_DB_ADMIN_URL`, and encrypts both secret manifests before writing them. Set
 `AGENT_PLATFORM_DISCORD_BOT_TOKEN` or `OPENCLAW_DISCORD_TOKEN` before running it
 to include the callback adapter's Discord sink token.
+
+Add or rotate only the read-only SQL broker credential without rotating service
+tokens:
+
+```bash
+SOPS_AGE_KEY_FILE=keys/age-private.txt \
+  uv run python scripts/provision_agent_control_plane_readonly_sql.py
+```
+
+That helper creates a separate weak login role and stores
+`AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` in `runtime-secret.enc.yaml`.
