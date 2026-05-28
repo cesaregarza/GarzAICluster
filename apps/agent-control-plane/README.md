@@ -13,10 +13,13 @@ Required before activation:
   `agent-control-plane` namespace.
   It must include `AGENT_PLATFORM_DATABASE_URL` so run state and audit history
   survive pod restarts.
-- `AGENT_PLATFORM_ENVIRONMENT=prod` so the live visible capability set is the
-  production-safe `task.echo` binding only.
+- `AGENT_PLATFORM_ENVIRONMENT=prod` so the live visible capability set is
+  limited to the production-safe `task.echo` and `approval.probe` bindings.
 - The OpenClaw droplet has an MCP server entry pointing at the public control
   API URL with the matching OpenClaw service token.
 - The callback adapter deployment uses the same Postgres state as the API and
   worker, claims delivery by event id, and posts safe released output through
   the configured Discord sink.
+- The approval interaction path is service-only:
+  `POST /v1/openclaw/discord/approval-interactions` maps trusted Discord
+  component payloads to the internal resolver and is not exposed through MCP.

@@ -48,14 +48,20 @@ not by calling workload containers directly.
 
 ## Current MVP Limits
 
-The live values now deploy the local deterministic worker for `task.echo` and a
-callback adapter with Postgres-backed event-id dedupe. The safe smoke target is
-the full no-key path:
+The live values now deploy the local deterministic worker for `task.echo` and
+`approval.probe`, plus a callback adapter with Postgres-backed event-id dedupe.
+The safe smoke targets are the full no-key paths:
 
 ```text
 OpenClaw submit -> API accepts -> worker drains -> output gate releases ->
 callback posts once -> status shows released result only
+
+OpenClaw submit approval.probe -> worker pauses -> approval.requested card posts ->
+trusted Discord interaction resolves approval -> output gate releases ->
+final callback posts once
 ```
 
-Do not advertise external `agent-workloads` capabilities, approval-gated
-capabilities, or broker-backed capabilities to users yet.
+Visible production capabilities must remain limited to `task.echo` and
+`approval.probe` while this approval loop is being proven. Do not advertise
+external `agent-workloads` capabilities or broker-backed capabilities to users
+yet.
