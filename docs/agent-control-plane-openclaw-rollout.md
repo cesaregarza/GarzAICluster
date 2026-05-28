@@ -28,12 +28,16 @@ not by calling workload containers directly.
    `AGENT_PLATFORM_APPROVAL_TOKEN`,
    `AGENT_PLATFORM_AUDIT_READ_TOKEN`, and
    `AGENT_PLATFORM_AUDIT_WRITE_TOKEN`.
+   When `readonly_sql` is enabled, it must also include
+   `AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` for a separate weak read-only
+   database role.
 4. Render the chart locally with
    `helm template agent-control-plane ../agent-platform/helm/agent-control-plane -f apps/agent-control-plane/values.yaml`.
 5. Confirm the rendered NetworkPolicy allows DNS plus managed Postgres egress
    to `10.108.0.0/20:25060`.
 6. Run the live deployment with `AGENT_PLATFORM_ENVIRONMENT=prod`; production
-   policy exposes only the safe no-key `task.echo` capability.
+   policy exposes only the private-admin `task.echo`, `approval.probe`, and
+   bounded `readonly_sql` capabilities.
 7. Sync `argocd-repositories` so Argo has the read-only deploy key for the
    private `agent-platform` chart source.
 8. Apply the AppProject update from `argocd/projects/splattop-project.yaml` so
@@ -48,9 +52,10 @@ not by calling workload containers directly.
 
 ## Current MVP Limits
 
-The live values now deploy the local deterministic worker for `task.echo` and
-`approval.probe`, plus a callback adapter with Postgres-backed event-id dedupe.
-The safe smoke targets are the full no-key paths:
+The live values now deploy the local deterministic worker for `task.echo`,
+`approval.probe`, and bounded `readonly_sql`, plus a callback adapter with
+Postgres-backed event-id dedupe. The safe smoke targets are the full governed
+paths:
 
 ```text
 OpenClaw submit -> API accepts -> worker drains -> output gate releases ->
@@ -59,9 +64,18 @@ callback posts once -> status shows released result only
 OpenClaw submit approval.probe -> worker pauses -> approval.requested card posts ->
 trusted Discord interaction resolves approval -> output gate releases ->
 final callback posts once
+
+OpenClaw submit readonly_sql -> API accepts -> worker receives only the broker
+handle -> read-only broker executes through a weak role -> output gate releases
+summary envelope -> status/callback show no raw rows
 ```
 
-Visible production capabilities must remain limited to `task.echo` and
-`approval.probe` while this approval loop is being proven. Do not advertise
-external `agent-workloads` capabilities or broker-backed capabilities to users
-yet.
+Visible production capabilities must remain limited to `task.echo`,
+`approval.probe`, and private-admin `readonly_sql`. Do not advertise external
+`agent-workloads` capabilities, `db_export`, `db.workspace.*`, or write-capable
+database capabilities to users yet.
+
+OpenClaw status wording should treat `queued`, `running`, and
+`waiting_for_approval` as non-terminal even when the progress text sounds final.
+Before reporting completion, perform a final status read and require
+`succeeded`, `failed`, or `cancelled`.
