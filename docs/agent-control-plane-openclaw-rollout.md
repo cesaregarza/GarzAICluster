@@ -16,7 +16,7 @@ not by calling workload containers directly.
 ## Activation Order
 
 1. Publish an immutable Agent Control Plane API image:
-   `registry.digitalocean.com/sendouq/agent-platform:sha-fa8c357d9d4f`.
+   `registry.digitalocean.com/sendouq/agent-platform:sha-0a0ef55c0d1b`.
 2. Commit and sync `argocd/applications/agent-control-plane-secrets.yaml` so
    the `agent-control-plane-secrets` Argo app creates `regcred` and
    `agent-control-plane-secrets` in the `agent-control-plane` namespace.
@@ -32,9 +32,8 @@ not by calling workload containers directly.
    `helm template agent-control-plane ../agent-platform/helm/agent-control-plane -f apps/agent-control-plane/values.yaml`.
 5. Confirm the rendered NetworkPolicy allows DNS plus managed Postgres egress
    to `10.108.0.0/20:25060`.
-6. Keep `AGENT_PLATFORM_ENVIRONMENT=dev` for the first smoke deployment. Move
-   it to `prod` only after real Discord guild/channel/user policy bindings
-   replace the bundled placeholder bindings.
+6. Run the live deployment with `AGENT_PLATFORM_ENVIRONMENT=prod`; production
+   policy exposes only the safe no-key `task.echo` capability.
 7. Sync `argocd-repositories` so Argo has the read-only deploy key for the
    private `agent-platform` chart source.
 8. Apply the AppProject update from `argocd/projects/splattop-project.yaml` so
@@ -49,14 +48,14 @@ not by calling workload containers directly.
 
 ## Current MVP Limits
 
-The control API can accept and authorize tasks today, but OpenClaw needs two
-more pieces before this is useful for real user-visible work:
+The live values now deploy the local deterministic worker for `task.echo` and a
+callback adapter with Postgres-backed event-id dedupe. The safe smoke target is
+the full no-key path:
 
-- A runner path for queued local deterministic workers, or a background worker
-  service that drains queued jobs.
-- A deterministic adapter that consumes callbacks and renders final result,
-  progress, approval, and artifact events back into OpenClaw/Discord.
+```text
+OpenClaw submit -> API accepts -> worker drains -> output gate releases ->
+callback posts once -> status shows released result only
+```
 
-Until those exist, the safe smoke target is capability listing plus controlled
-task submission/status checks. Do not advertise external `agent-workloads`
-capabilities to users yet.
+Do not advertise external `agent-workloads` capabilities, approval-gated
+capabilities, or broker-backed capabilities to users yet.

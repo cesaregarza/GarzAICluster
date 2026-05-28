@@ -84,6 +84,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--registry-host", default="registry.digitalocean.com")
     parser.add_argument("--registry-email", default=None)
     parser.add_argument("--skip-regcred", action="store_true")
+    parser.add_argument(
+        "--discord-bot-token",
+        default=os.environ.get("AGENT_PLATFORM_DISCORD_BOT_TOKEN")
+        or os.environ.get("OPENCLAW_DISCORD_TOKEN"),
+        help="Optional Discord bot token for the Agent Control Plane callback adapter.",
+    )
     return parser.parse_args()
 
 
@@ -297,6 +303,11 @@ def main() -> None:
         args.database,
         args.db_host,
     )
+    discord_token_line = (
+        f'          AGENT_PLATFORM_DISCORD_BOT_TOKEN: "{args.discord_bot_token}"\n'
+        if args.discord_bot_token
+        else ""
+    )
     runtime_secret = textwrap.dedent(
         f"""\
         apiVersion: v1
@@ -311,6 +322,7 @@ def main() -> None:
           AGENT_PLATFORM_APPROVAL_TOKEN: "{generate_token()}"
           AGENT_PLATFORM_AUDIT_READ_TOKEN: "{generate_token()}"
           AGENT_PLATFORM_AUDIT_WRITE_TOKEN: "{generate_token()}"
+{discord_token_line.rstrip()}
         """
     )
     encrypt_to_file(args.secret_dir / "runtime-secret.enc.yaml", runtime_secret)

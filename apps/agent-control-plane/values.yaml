@@ -7,7 +7,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-c06fd9aa810e
+  tag: sha-0a0ef55c0d1b
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -19,7 +19,24 @@ secretKeys:
   - AGENT_PLATFORM_AUDIT_WRITE_TOKEN
 
 env:
-  AGENT_PLATFORM_ENVIRONMENT: dev
+  AGENT_PLATFORM_ENVIRONMENT: prod
+
+localWorker:
+  enabled: true
+  replicaCount: 1
+  capabilities: task.echo
+  pollSeconds: 2
+  batchSize: 1
+
+callbackAdapter:
+  enabled: true
+  replicaCount: 1
+  sink: discord
+  secretKeys:
+    - AGENT_PLATFORM_DISCORD_BOT_TOKEN
+  pollSeconds: 2
+  batchSize: 10
+  leaseSeconds: 60
 
 service:
   type: ClusterIP
@@ -75,6 +92,11 @@ networkPolicy:
           cidr: 10.108.0.0/20
         ports:
           - port: 25060
+            protocol: TCP
+      - ipBlock:
+          cidr: 0.0.0.0/0
+        ports:
+          - port: 443
             protocol: TCP
 
 resources:
