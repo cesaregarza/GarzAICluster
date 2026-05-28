@@ -220,8 +220,8 @@ def run_sql(admin_url: str, database: str, role: str, password: str, schemas: li
 
 
 def _redact_secret_literals(value: str) -> str:
-    value = re.sub(r"PASSWORD\\s+'[^']+'", "PASSWORD '<redacted>'", value)
-    return re.sub(r"postgres(?:ql)?://\\S+", "postgresql://<redacted>", value)
+    value = re.sub(r"PASSWORD\s+'[^']+'", "PASSWORD '<redacted>'", value)
+    return re.sub(r"postgres(?:ql)?://\S+", "postgresql://<redacted>", value)
 
 
 def set_encrypted_secret(secret_file: Path, database_url: str) -> None:

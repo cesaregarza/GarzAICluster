@@ -34,6 +34,17 @@ Utilities that were previously bundled with the app repo move here when they are
     uv run python scripts/provision_agent_control_plane_secrets.py
   ```
 
+- `provision_agent_control_plane_readonly_sql.py` – creates or rotates only the
+  Agent Control Plane read-only SQL broker role and stores
+  `AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` in the encrypted runtime secret
+  without rotating service tokens. It grants `CONNECT`, schema `USAGE`, and
+  `SELECT` on the configured schemas only:
+
+  ```bash
+  SOPS_AGE_KEY_FILE=keys/age-private.txt \
+    uv run python scripts/provision_agent_control_plane_readonly_sql.py
+  ```
+
 - `validate_prometheus_config.py` – renders the Prometheus ConfigMaps from the Helm chart (`helm template --show-only …`) and runs `promtool check config/rules` inside a Docker container. Example (prod values):
 
   ```bash
