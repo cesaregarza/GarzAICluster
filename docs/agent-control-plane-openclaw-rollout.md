@@ -16,7 +16,7 @@ Control Plane, not by calling workload containers directly.
 ## Activation Order
 
 1. Publish an immutable Mandate API image:
-   `registry.digitalocean.com/sendouq/agent-platform:sha-a96817a45825`.
+   `registry.digitalocean.com/sendouq/agent-platform:sha-a2c2a3effee3`.
 2. Commit and sync `argocd/applications/agent-control-plane-secrets.yaml` so
    the `agent-control-plane-secrets` Argo app creates `regcred` and
    `agent-control-plane-secrets` in the `agent-control-plane` namespace.
