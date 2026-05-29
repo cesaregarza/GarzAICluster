@@ -1,7 +1,7 @@
-# Agent Control Plane
+# Mandate Agent Control Plane
 
 This directory holds the SplatTopConfig-owned values overlay for the reusable
-`agent-platform` chart. The live Argo Application is
+Mandate `agent-platform` chart. The live Argo Application is
 `argocd/applications/agent-control-plane.yaml`.
 
 Required before activation:

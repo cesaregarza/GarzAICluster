@@ -1,22 +1,22 @@
-# Agent Control Plane OpenClaw Rollout
+# Mandate OpenClaw Rollout
 
-The current OpenClaw deployment should integrate through Agent Control Plane,
-not by calling workload containers directly.
+The current OpenClaw deployment should integrate through Mandate, the Agent
+Control Plane, not by calling workload containers directly.
 
 ## Target Shape
 
-- `agent-platform` owns the reusable control-plane API chart.
+- `agent-platform` owns the reusable Mandate control-plane API chart.
 - `SplatTopConfig` owns the live values overlay, Argo Application, namespace,
   image tag, runtime secret, DNS, and TLS.
-- The OpenClaw droplet mounts the Agent Control Plane MCP shim and sees only the
+- The OpenClaw droplet mounts the Mandate MCP shim and sees only the
   `platform_*` tools.
 - `agent-workloads` supplies external worker and broker implementations only
-  after Agent Control Plane has an external-worker dispatch contract.
+  after Mandate has an external-worker dispatch contract.
 
 ## Activation Order
 
-1. Publish an immutable Agent Control Plane API image:
-   `registry.digitalocean.com/sendouq/agent-platform:sha-0a0ef55c0d1b`.
+1. Publish an immutable Mandate API image:
+   `registry.digitalocean.com/sendouq/agent-platform:sha-b9ef11e223b3`.
 2. Commit and sync `argocd/applications/agent-control-plane-secrets.yaml` so
    the `agent-control-plane-secrets` Argo app creates `regcred` and
    `agent-control-plane-secrets` in the `agent-control-plane` namespace.
