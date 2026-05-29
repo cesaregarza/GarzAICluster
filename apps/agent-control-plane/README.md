@@ -15,7 +15,8 @@ Required before activation:
   survive pod restarts.
 - `AGENT_PLATFORM_ENVIRONMENT=prod` so the live visible capability set is
   limited to the production-safe private-admin `task.echo`, `approval.probe`,
-  and `readonly_sql` bindings.
+  `readonly_sql`, `audit.digest`, `mandate.ops.inspect`, and
+  `mandate.deploy.smoke` bindings.
 - `AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` is present when `readonly_sql` is
   enabled. It must point at a separate weak read-only role, not the platform
   state writer role.

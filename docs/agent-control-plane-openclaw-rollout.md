@@ -16,7 +16,7 @@ Control Plane, not by calling workload containers directly.
 ## Activation Order
 
 1. Publish an immutable Mandate API image:
-   `registry.digitalocean.com/sendouq/agent-platform:sha-b9ef11e223b3`.
+   `registry.digitalocean.com/sendouq/agent-platform:sha-a41c1897db49`.
 2. Commit and sync `argocd/applications/agent-control-plane-secrets.yaml` so
    the `agent-control-plane-secrets` Argo app creates `regcred` and
    `agent-control-plane-secrets` in the `agent-control-plane` namespace.
@@ -36,8 +36,8 @@ Control Plane, not by calling workload containers directly.
 5. Confirm the rendered NetworkPolicy allows DNS plus managed Postgres egress
    to `10.108.0.0/20:25060`.
 6. Run the live deployment with `AGENT_PLATFORM_ENVIRONMENT=prod`; production
-   policy exposes only the private-admin `task.echo`, `approval.probe`, and
-   bounded `readonly_sql` capabilities.
+   policy exposes only private-admin no-key ops capabilities plus bounded
+   `readonly_sql`.
 7. Sync `argocd-repositories` so Argo has the read-only deploy key for the
    private `agent-platform` chart source.
 8. Apply the AppProject update from `argocd/projects/splattop-project.yaml` so
@@ -53,7 +53,8 @@ Control Plane, not by calling workload containers directly.
 ## Current MVP Limits
 
 The live values now deploy the local deterministic worker for `task.echo`,
-`approval.probe`, and bounded `readonly_sql`, plus a callback adapter with
+`approval.probe`, bounded `readonly_sql`, `audit.digest`,
+`mandate.ops.inspect`, and `mandate.deploy.smoke`, plus a callback adapter with
 Postgres-backed event-id dedupe. The safe smoke targets are the full governed
 paths:
 
@@ -68,10 +69,17 @@ final callback posts once
 OpenClaw submit readonly_sql -> API accepts -> worker receives only the broker
 handle -> read-only broker executes through a weak role -> output gate releases
 summary envelope -> status/callback show no raw rows
+
+OpenClaw submit mandate.ops.inspect -> API accepts -> worker reads only the
+Mandate audit summary query -> output gate releases operational health summary
+
+OpenClaw submit mandate.deploy.smoke -> API accepts -> worker verifies the
+admission/dispatch/lease/release path -> final callback posts once
 ```
 
 Visible production capabilities must remain limited to `task.echo`,
-`approval.probe`, and private-admin `readonly_sql`. Do not advertise external
+`approval.probe`, private-admin `readonly_sql`, `audit.digest`,
+`mandate.ops.inspect`, and `mandate.deploy.smoke`. Do not advertise external
 `agent-workloads` capabilities, `db_export`, `db.workspace.*`, or write-capable
 database capabilities to users yet.
 

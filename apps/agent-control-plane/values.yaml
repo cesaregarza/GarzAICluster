@@ -7,7 +7,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-b9ef11e223b3
+  tag: sha-a41c1897db49
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -25,7 +25,7 @@ env:
 localWorker:
   enabled: true
   replicaCount: 1
-  capabilities: task.echo,approval.probe,readonly_sql
+  capabilities: task.echo,approval.probe,readonly_sql,audit.digest,mandate.ops.inspect,mandate.deploy.smoke
   pollSeconds: 2
   batchSize: 1
 
