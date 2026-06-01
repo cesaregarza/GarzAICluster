@@ -10,15 +10,23 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-e42fe7c037ac
+  tag: sha-f2fe619bc951
   pullPolicy: IfNotPresent
 
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
   AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
-  AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe
+  AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe,agent_workloads.readonly_query
   AGENT_WORKLOADS_SCHEMA: agent_workloads
   AGENT_WORKLOADS_POLL_SECONDS: "2"
+  AGENT_WORKLOADS_READONLY_QUERY_MAX_PASSES: "3"
+  AGENT_WORKLOADS_READONLY_QUERY_MAX_ROWS: "50"
+
+secretKeys:
+  - MANDATE_WORKER_TOKEN
+  - AGENT_WORKLOADS_DATABASE_URL
+  - OPENAI_CODEX_AUTH_JSON
+  - XSCRAPER_READONLY_DATABASE_URL
 
 resources:
   requests:
@@ -63,4 +71,9 @@ networkPolicy:
           cidr: 10.108.0.0/20
         ports:
           - port: 25060
+            protocol: TCP
+      - ipBlock:
+          cidr: 0.0.0.0/0
+        ports:
+          - port: 443
             protocol: TCP

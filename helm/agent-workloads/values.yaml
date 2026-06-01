@@ -43,13 +43,17 @@ args: []
 secretKeys:
   - MANDATE_WORKER_TOKEN
   - AGENT_WORKLOADS_DATABASE_URL
+  - OPENAI_CODEX_AUTH_JSON
+  - XSCRAPER_READONLY_DATABASE_URL
 
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
   AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
-  AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe
+  AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe,agent_workloads.readonly_query
   AGENT_WORKLOADS_SCHEMA: agent_workloads
   AGENT_WORKLOADS_POLL_SECONDS: "2"
+  AGENT_WORKLOADS_READONLY_QUERY_MAX_PASSES: "3"
+  AGENT_WORKLOADS_READONLY_QUERY_MAX_ROWS: "50"
 
 resources:
   requests:

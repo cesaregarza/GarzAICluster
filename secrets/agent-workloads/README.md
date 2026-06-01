@@ -5,7 +5,8 @@ Encrypted secrets consumed by the `agent-workloads-secrets` Argo CD app.
 - `runtime-secret.enc.yaml`: Mandate worker-service token and the dedicated
   Agent Workloads Postgres workspace URL. It can also hold either
   `OPENAI_API_KEY` or `OPENAI_CODEX_AUTH_JSON` for broker workloads that call
-  the OpenAI/Codex Responses API.
+  the OpenAI/Codex Responses API. The XScraper/X Power readonly query profile
+  also requires `XSCRAPER_READONLY_DATABASE_URL`.
 - `regcred.enc.yaml`: DOCR pull credentials for
   `registry.digitalocean.com/sendouq/agent-workloads-worker`.
 
