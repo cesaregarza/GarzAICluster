@@ -55,6 +55,8 @@ networkPolicy:
             app.kubernetes.io/instance: agent-control-plane
             app.kubernetes.io/component: api
         ports:
+          - port: 80
+            protocol: TCP
           - port: 8000
             protocol: TCP
       - ipBlock:
