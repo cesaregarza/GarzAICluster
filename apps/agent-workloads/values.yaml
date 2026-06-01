@@ -10,7 +10,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-6b182ac97ab7
+  tag: sha-f27b2bb1cb86
   pullPolicy: IfNotPresent
 
 env:
@@ -21,6 +21,7 @@ env:
   AGENT_WORKLOADS_POLL_SECONDS: "2"
   AGENT_WORKLOADS_READONLY_QUERY_MAX_PASSES: "3"
   AGENT_WORKLOADS_READONLY_QUERY_MAX_ROWS: "50"
+  AGENT_WORKLOADS_READONLY_QUERY_CONNECT_TIMEOUT_SECONDS: "5"
   OPENAI_SQL_BROKER_MODEL: gpt-5.3-codex-spark
   OPENAI_SQL_BROKER_REASONING_EFFORT: low
   OPENAI_SQL_BROKER_TIMEOUT_SECONDS: "45"
@@ -72,6 +73,11 @@ networkPolicy:
             protocol: TCP
       - ipBlock:
           cidr: 10.108.0.0/20
+        ports:
+          - port: 25060
+            protocol: TCP
+      - ipBlock:
+          cidr: 159.203.109.0/32
         ports:
           - port: 25060
             protocol: TCP
