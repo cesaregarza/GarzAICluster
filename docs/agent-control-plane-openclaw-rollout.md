@@ -5,9 +5,13 @@ Control Plane, not by calling workload containers directly.
 
 ## Target Shape
 
-- `agent-platform` owns the reusable Mandate control-plane API chart.
+- `agent-platform` owns the reusable Mandate control-plane API chart at
+  `helm/mandate`.
 - `SplatTopConfig` owns the live values overlay, Argo Application, namespace,
   image tag, runtime secret, DNS, and TLS.
+- The live Kubernetes release, namespace, and hostname remain
+  `agent-control-plane` for continuity, even though the deployed runtime is
+  Mandate.
 - The OpenClaw droplet mounts the Mandate MCP shim and sees only the
   `platform_*` tools.
 - `agent-workloads` supplies external worker and broker implementations only
@@ -16,7 +20,7 @@ Control Plane, not by calling workload containers directly.
 ## Activation Order
 
 1. Publish an immutable Mandate API image:
-   `registry.digitalocean.com/sendouq/agent-platform:sha-756c9a87eaac`.
+   `registry.digitalocean.com/sendouq/agent-platform:sha-bd9fed031321`.
 2. Commit and sync `argocd/applications/agent-control-plane-secrets.yaml` so
    the `agent-control-plane-secrets` Argo app creates `regcred` and
    `agent-control-plane-secrets` in the `agent-control-plane` namespace.
@@ -32,7 +36,7 @@ Control Plane, not by calling workload containers directly.
    `AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` for a separate weak read-only
    database role.
 4. Render the chart locally with
-   `helm template agent-control-plane ../agent-platform/helm/agent-control-plane -f apps/agent-control-plane/values.yaml`.
+   `helm template agent-control-plane ../agent-platform/helm/mandate -f apps/agent-control-plane/values.yaml`.
 5. Confirm the rendered NetworkPolicy allows DNS plus managed Postgres egress
    to `10.108.0.0/20:25060`.
 6. Run the live deployment with `AGENT_PLATFORM_ENVIRONMENT=prod`; production
@@ -45,7 +49,7 @@ Control Plane, not by calling workload containers directly.
    `agent-control-plane` namespace.
 9. Sync `splattop-root`, then sync `agent-control-plane`.
 10. Configure the OpenClaw droplet MCP server to run
-   `AGENT_PLATFORM_MCP_BACKEND=http uv run python -m audit.api.app.mcp.server`
+   `AGENT_PLATFORM_MCP_BACKEND=http uv run python -m mandate.adapters.mcp.server`
    with `AGENT_PLATFORM_CONTROL_API_BASE_URL=https://agent-control-plane.garz.ai`
    and the matching OpenClaw service token from `agent-control-plane-secrets`.
    The current OpenClaw droplet IP is `143.198.149.87`.

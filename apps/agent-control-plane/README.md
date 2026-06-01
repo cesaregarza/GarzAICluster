@@ -1,8 +1,12 @@
 # Mandate Agent Control Plane
 
 This directory holds the SplatTopConfig-owned values overlay for the reusable
-Mandate `agent-platform` chart. The live Argo Application is
+Mandate chart from `agent-platform/helm/mandate`. The live Argo Application is
 `argocd/applications/agent-control-plane.yaml`.
+
+The Kubernetes namespace, Helm release, public hostname, and secret names still
+use `agent-control-plane` for continuity. The deployed chart and runtime are
+Mandate.
 
 Required before activation:
 

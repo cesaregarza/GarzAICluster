@@ -3,11 +3,14 @@ global:
     - regcred
   runtimeSecretName: agent-control-plane-secrets
 
+nameOverride: agent-control-plane
+fullnameOverride: agent-control-plane
+
 replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-756c9a87eaac
+  tag: sha-bd9fed031321
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -21,6 +24,15 @@ secretKeys:
 
 env:
   AGENT_PLATFORM_ENVIRONMENT: prod
+  AGENT_PLATFORM_POSTGRES_POOL_MIN_SIZE: "0"
+  AGENT_PLATFORM_POSTGRES_POOL_MAX_SIZE: "2"
+  AGENT_PLATFORM_READONLY_SQL_POOL_MIN_SIZE: "0"
+  AGENT_PLATFORM_READONLY_SQL_POOL_MAX_SIZE: "1"
+
+migrations:
+  enabled: true
+  useHelmHooks: true
+  disableStartupSchemaMigration: true
 
 localWorker:
   enabled: true
@@ -41,6 +53,9 @@ callbackAdapter:
   discordThreads:
     enabled: true
     autoArchiveMinutes: 1440
+
+modelGateway:
+  enabled: false
 
 service:
   type: ClusterIP
