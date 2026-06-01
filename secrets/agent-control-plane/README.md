@@ -3,8 +3,8 @@
 Encrypted secrets consumed by the `agent-control-plane-secrets` Argo CD app.
 
 - `runtime-secret.enc.yaml`: API database URL and service tokens for OpenClaw,
-  internal workers, approval handlers, audit readers/writers, and the
-  callback-adapter-only Discord sink token.
+  internal workers, external worker services, approval handlers, audit
+  readers/writers, and the callback-adapter-only Discord sink token.
 - `regcred.enc.yaml`: DOCR pull credentials for
   `registry.digitalocean.com/sendouq/agent-platform`.
 

@@ -1,0 +1,73 @@
+global:
+  imagePullSecrets: []
+  runtimeSecretName: agent-workloads-secrets
+
+replicaCount: 1
+
+image:
+  repository: registry.digitalocean.com/sendouq/agent-workloads-worker
+  tag: dev
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+
+command:
+  - agent-workloads-worker
+args: []
+
+secretKeys:
+  - MANDATE_WORKER_TOKEN
+  - AGENT_WORKLOADS_DATABASE_URL
+
+env:
+  MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
+  AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
+  AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe
+  AGENT_WORKLOADS_SCHEMA: agent_workloads
+  AGENT_WORKLOADS_POLL_SECONDS: "2"
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 96Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+networkPolicy:
+  enabled: false
+  egress:
+    dns:
+      enabled: false
+      destinations: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    destinations: []

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: agent-workloads
+description: Deployable Mandate worker-service workloads.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agent-workloads
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: splattop
+  source:
+    repoURL: https://github.com/cesaregarza/SplatTopConfig
+    targetRevision: main
+    path: helm/agent-workloads
+    helm:
+      releaseName: agent-workloads
+      valueFiles:
+        - ../../apps/agent-workloads/values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: agent-workloads
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+  revisionHistoryLimit: 10

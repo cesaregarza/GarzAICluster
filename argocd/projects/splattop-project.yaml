@@ -28,6 +28,8 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: agent-control-plane
       server: https://kubernetes.default.svc
+    - namespace: agent-workloads
+      server: https://kubernetes.default.svc
     - namespace: argocd
       server: https://kubernetes.default.svc
 
@@ -124,6 +126,9 @@ spec:
       - group: ''
         kind: Secret
         name: agent-control-plane-tls
+      - group: ''
+        kind: Secret
+        name: agent-workloads-secrets
       - group: ''
         kind: ConfigMap
         name: kube-root-ca.crt

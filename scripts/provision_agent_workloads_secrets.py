@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Provision Agent Control Plane runtime secrets without printing secret values."""
+"""Provision Agent Workloads runtime secrets without printing secret values."""
 
 from __future__ import annotations
 
@@ -20,7 +20,10 @@ from urllib.parse import quote, urlparse, urlunparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SECRET_DIR = REPO_ROOT / "secrets" / "agent-control-plane"
+DEFAULT_SECRET_DIR = REPO_ROOT / "secrets" / "agent-workloads"
+DEFAULT_CONTROL_PLANE_SECRET = (
+    REPO_ROOT / "secrets" / "agent-control-plane" / "runtime-secret.enc.yaml"
+)
 DEFAULT_SOPS_KEY = REPO_ROOT / "keys" / "age-private.txt"
 DEFAULT_SOPS_RECIPIENTS = REPO_ROOT / "keys" / "age-public.txt"
 
@@ -47,35 +50,43 @@ def load_env_file() -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Provision Agent Control Plane Postgres and encrypted Kubernetes secrets."
+        description="Provision Agent Workloads Postgres and encrypted Kubernetes secrets."
     )
-    parser.add_argument("--namespace", default="agent-control-plane")
-    parser.add_argument("--secret-name", default="agent-control-plane-secrets")
+    parser.add_argument("--namespace", default="agent-workloads")
+    parser.add_argument("--secret-name", default="agent-workloads-secrets")
     parser.add_argument("--secret-dir", type=Path, default=DEFAULT_SECRET_DIR)
+    parser.add_argument("--control-plane-secret-file", type=Path, default=DEFAULT_CONTROL_PLANE_SECRET)
     parser.add_argument(
         "--admin-url",
-        default=os.environ.get("AGENT_CONTROL_PLANE_DB_ADMIN_URL")
+        default=os.environ.get("AGENT_WORKLOADS_DB_ADMIN_URL")
         or os.environ.get("BOT_DB_ADMIN_URL"),
-        help="Postgres admin URL. Defaults to AGENT_CONTROL_PLANE_DB_ADMIN_URL or BOT_DB_ADMIN_URL.",
+        help="Postgres admin URL. Defaults to AGENT_WORKLOADS_DB_ADMIN_URL or BOT_DB_ADMIN_URL.",
     )
     parser.add_argument(
         "--database",
-        default=os.environ.get("AGENT_CONTROL_PLANE_DB_NAME")
+        default=os.environ.get("AGENT_WORKLOADS_DB_NAME")
         or os.environ.get("BOT_DB_NAME", "bots"),
     )
     parser.add_argument(
         "--db-host",
-        default=os.environ.get("AGENT_CONTROL_PLANE_DB_HOST") or os.environ.get("BOT_DB_HOST"),
+        default=os.environ.get("AGENT_WORKLOADS_DB_HOST") or os.environ.get("BOT_DB_HOST"),
         help="Host for the emitted app connection string. Defaults to private-<admin host>.",
     )
-    parser.add_argument("--schema", default="agent_control_plane")
-    parser.add_argument("--db-user", default="agent_control_plane_user")
+    parser.add_argument("--schema", default="agent_workloads")
+    parser.add_argument("--db-user", default="agent_workloads_user")
+    parser.add_argument("--read-schema", action="append", dest="read_schemas", default=None)
     parser.add_argument(
         "--db-password",
-        default=os.environ.get("AGENT_CONTROL_PLANE_DB_PASSWORD"),
+        default=os.environ.get("AGENT_WORKLOADS_DB_PASSWORD"),
         help="Existing DB password. Required with --skip-db.",
     )
+    parser.add_argument(
+        "--worker-token",
+        default=os.environ.get("AGENT_PLATFORM_WORKER_SERVICE_TOKEN")
+        or os.environ.get("MANDATE_WORKER_TOKEN"),
+    )
     parser.add_argument("--skip-db", action="store_true")
+    parser.add_argument("--skip-control-plane-token", action="store_true")
     parser.add_argument(
         "--registry-token",
         default=os.environ.get("DO_REGISTRY_READ_TOKEN"),
@@ -84,13 +95,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--registry-host", default="registry.digitalocean.com")
     parser.add_argument("--registry-email", default=None)
     parser.add_argument("--skip-regcred", action="store_true")
-    parser.add_argument(
-        "--discord-bot-token",
-        default=os.environ.get("AGENT_PLATFORM_DISCORD_BOT_TOKEN")
-        or os.environ.get("OPENCLAW_DISCORD_TOKEN"),
-        help="Optional Discord bot token for the Agent Control Plane callback adapter.",
-    )
     return parser.parse_args()
+
+
+def ensure_command(name: str) -> None:
+    if which(name) is None:
+        sys.exit(f"{name} not found in PATH.")
 
 
 def validate_identifier(value: str, label: str) -> str:
@@ -108,11 +118,6 @@ def generate_token() -> str:
     return secrets.token_urlsafe(48)
 
 
-def ensure_command(name: str) -> None:
-    if which(name) is None:
-        sys.exit(f"{name} not found in PATH.")
-
-
 def derive_private_host(host: str, prefix: str = "private-") -> str:
     return host if host.startswith(prefix) else f"{prefix}{host}"
 
@@ -121,7 +126,6 @@ def admin_url_for_db(admin_url: str, database: str) -> str:
     parsed = urlparse(admin_url)
     if not parsed.scheme.startswith("postgres"):
         sys.exit("Admin URL must be a postgres:// or postgresql:// connection string.")
-
     return urlunparse(
         (
             parsed.scheme,
@@ -151,7 +155,6 @@ def build_connection_string(
     port = f":{parsed.port}" if parsed.port else ""
     hostpart = host if ":" not in host else f"[{host}]"
     netloc = f"{quote(username)}:{quote(password)}@{hostpart}{port}"
-
     return urlunparse(
         (
             "postgresql",
@@ -164,7 +167,16 @@ def build_connection_string(
     )
 
 
-def run_sql(admin_url: str, database: str, schema: str, role: str, password: str) -> None:
+def run_sql(
+    admin_url: str,
+    *,
+    database: str,
+    schema: str,
+    role: str,
+    password: str,
+    read_schemas: list[str],
+) -> None:
+    read_schema_values = ", ".join(f"'{schema_name}'" for schema_name in read_schemas)
     sql = textwrap.dedent(
         f"""
         \\set ON_ERROR_STOP on
@@ -176,6 +188,7 @@ def run_sql(admin_url: str, database: str, schema: str, role: str, password: str
             role_password text := '{password}';
             schema_name text := '{schema}';
             db_name text := '{database}';
+            read_schema text;
         BEGIN
             IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
                 EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', role_name, role_password);
@@ -183,37 +196,70 @@ def run_sql(admin_url: str, database: str, schema: str, role: str, password: str
                 EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', role_name, role_password);
             END IF;
 
+            IF EXISTS (
+                SELECT 1
+                FROM pg_catalog.pg_roles rol
+                WHERE rol.rolname = role_name
+                  AND (
+                    rol.rolsuper
+                    OR rol.rolcreatedb
+                    OR rol.rolcreaterole
+                    OR rol.rolreplication
+                    OR rol.rolbypassrls
+                  )
+            ) THEN
+                RAISE EXCEPTION 'agent workload role has forbidden attributes';
+            END IF;
+
             EXECUTE format('ALTER ROLE %I IN DATABASE %I SET search_path = %I', role_name, db_name, schema_name);
+            EXECUTE format('ALTER ROLE %I SET statement_timeout = %L', role_name, '30000ms');
             EXECUTE format('REVOKE ALL ON DATABASE %I FROM %I', db_name, role_name);
             EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', db_name, role_name);
-            EXECUTE format('GRANT CREATE ON DATABASE %I TO %I', db_name, role_name);
 
             EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', schema_name);
             EXECUTE format('ALTER SCHEMA %I OWNER TO %I', schema_name, role_name);
             EXECUTE format('GRANT USAGE, CREATE ON SCHEMA %I TO %I', schema_name, role_name);
+            EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA %I TO %I', schema_name, role_name);
+            EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %I TO %I', schema_name, role_name);
+            EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL PRIVILEGES ON TABLES TO %I', schema_name, role_name);
+            EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL PRIVILEGES ON SEQUENCES TO %I', schema_name, role_name);
 
             EXECUTE format('REVOKE ALL ON SCHEMA public FROM %I', role_name);
             EXECUTE format('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM %I', role_name);
             EXECUTE format('REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM %I', role_name);
-            EXECUTE format('REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM %I', role_name);
 
-            EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA %I TO %I', schema_name, role_name);
-            EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %I TO %I', schema_name, role_name);
-            EXECUTE format('GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA %I TO %I', schema_name, role_name);
-            EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL PRIVILEGES ON TABLES TO %I', schema_name, role_name);
-            EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL PRIVILEGES ON SEQUENCES TO %I', schema_name, role_name);
-            EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL PRIVILEGES ON FUNCTIONS TO %I', schema_name, role_name);
+            FOREACH read_schema IN ARRAY ARRAY[{read_schema_values}]::text[]
+            LOOP
+                IF read_schema <> schema_name AND EXISTS (
+                    SELECT 1 FROM information_schema.schemata s
+                    WHERE s.schema_name = read_schema
+                ) THEN
+                    EXECUTE format('REVOKE CREATE ON SCHEMA %I FROM %I', read_schema, role_name);
+                    EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', read_schema, role_name);
+                    EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO %I', read_schema, role_name);
+                    EXECUTE format('GRANT SELECT ON ALL SEQUENCES IN SCHEMA %I TO %I', read_schema, role_name);
+                    EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT ON TABLES TO %I', read_schema, role_name);
+                    EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT ON SEQUENCES TO %I', read_schema, role_name);
+                END IF;
+            END LOOP;
         END
         $$;
         """
     )
-    subprocess.run(["psql", admin_url, "-q"], input=sql.encode(), check=True, capture_output=True)
+    result = subprocess.run(
+        ["psql", admin_url_for_db(admin_url, database), "-q"],
+        input=sql,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        sys.stderr.write(_redact_secret_literals(result.stderr))
+        sys.exit("Agent Workloads Postgres provisioning failed.")
 
 
 def encrypt_to_file(path: Path, plaintext: str) -> None:
     ensure_command("sops")
     path.parent.mkdir(parents=True, exist_ok=True)
-
     env = os.environ.copy()
     if "SOPS_AGE_KEY_FILE" not in env and DEFAULT_SOPS_KEY.exists():
         env["SOPS_AGE_KEY_FILE"] = str(DEFAULT_SOPS_KEY)
@@ -256,10 +302,32 @@ def encrypt_to_file(path: Path, plaintext: str) -> None:
             capture_output=True,
         )
         if result.returncode != 0:
-            sys.stderr.write(result.stderr.decode())
+            sys.stderr.write(_redact_secret_literals(result.stderr.decode()))
             sys.exit(f"sops encryption failed for {path}.")
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+def set_control_plane_worker_token(secret_file: Path, worker_token: str) -> None:
+    ensure_command("sops")
+    env = os.environ.copy()
+    if "SOPS_AGE_KEY_FILE" not in env and DEFAULT_SOPS_KEY.exists():
+        env["SOPS_AGE_KEY_FILE"] = str(DEFAULT_SOPS_KEY)
+    result = subprocess.run(
+        [
+            "sops",
+            "--set",
+            '["stringData"]["AGENT_PLATFORM_WORKER_SERVICE_TOKEN"] '
+            f'"{worker_token}"',
+            str(secret_file),
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        sys.stderr.write(_redact_secret_literals(result.stderr.decode()))
+        sys.exit(f"sops update failed for {secret_file}.")
 
 
 def dockerconfigjson(registry_host: str, token: str, email: str | None) -> str:
@@ -274,27 +342,40 @@ def dockerconfigjson(registry_host: str, token: str, email: str | None) -> str:
     return json.dumps({"auths": {registry_host: entry}}, separators=(",", ":"), sort_keys=True)
 
 
+def _redact_secret_literals(value: str) -> str:
+    value = re.sub(r"PASSWORD\s+'[^']+'", "PASSWORD '<redacted>'", value)
+    return re.sub(r"postgres(?:ql)?://\S+", "postgresql://<redacted>", value)
+
+
 def main() -> None:
     load_env_file()
     args = parse_args()
 
     schema = validate_identifier(args.schema, "schema")
     db_user = validate_identifier(args.db_user, "db-user")
+    read_schemas = [
+        validate_identifier(schema_name, "read-schema")
+        for schema_name in (args.read_schemas or [])
+    ]
     if not args.admin_url:
-        sys.exit("Provide --admin-url or set AGENT_CONTROL_PLANE_DB_ADMIN_URL/BOT_DB_ADMIN_URL.")
+        sys.exit("Provide --admin-url or set AGENT_WORKLOADS_DB_ADMIN_URL/BOT_DB_ADMIN_URL.")
     if args.skip_db and not args.db_password:
-        sys.exit("Provide --db-password or AGENT_CONTROL_PLANE_DB_PASSWORD when using --skip-db.")
+        sys.exit("Provide --db-password or AGENT_WORKLOADS_DB_PASSWORD when using --skip-db.")
     if not args.skip_regcred and not args.registry_token:
         sys.exit("Provide --registry-token or set DO_REGISTRY_READ_TOKEN.")
 
-    parsed_admin = urlparse(args.admin_url)
-    if not parsed_admin.hostname:
-        sys.exit("Unable to determine host from admin URL.")
-
     db_password = args.db_password or generate_password()
+    worker_token = args.worker_token or generate_token()
     if not args.skip_db:
         ensure_command("psql")
-        run_sql(admin_url_for_db(args.admin_url, args.database), args.database, schema, db_user, db_password)
+        run_sql(
+            args.admin_url,
+            database=args.database,
+            schema=schema,
+            role=db_user,
+            password=db_password,
+            read_schemas=read_schemas,
+        )
 
     database_url = build_connection_string(
         args.admin_url,
@@ -302,11 +383,6 @@ def main() -> None:
         db_password,
         args.database,
         args.db_host,
-    )
-    discord_token_line = (
-        f'          AGENT_PLATFORM_DISCORD_BOT_TOKEN: "{args.discord_bot_token}"\n'
-        if args.discord_bot_token
-        else ""
     )
     runtime_secret = textwrap.dedent(
         f"""\
@@ -316,17 +392,14 @@ def main() -> None:
           name: {args.secret_name}
           namespace: {args.namespace}
         stringData:
-          AGENT_PLATFORM_DATABASE_URL: "{database_url}"
-          AGENT_PLATFORM_OPENCLAW_TOKEN: "{generate_token()}"
-          AGENT_PLATFORM_INTERNAL_WORKER_TOKEN: "{generate_token()}"
-          AGENT_PLATFORM_WORKER_SERVICE_TOKEN: "{generate_token()}"
-          AGENT_PLATFORM_APPROVAL_TOKEN: "{generate_token()}"
-          AGENT_PLATFORM_AUDIT_READ_TOKEN: "{generate_token()}"
-          AGENT_PLATFORM_AUDIT_WRITE_TOKEN: "{generate_token()}"
-{discord_token_line.rstrip()}
+          MANDATE_WORKER_TOKEN: "{worker_token}"
+          AGENT_WORKLOADS_DATABASE_URL: "{database_url}"
         """
     )
     encrypt_to_file(args.secret_dir / "runtime-secret.enc.yaml", runtime_secret)
+
+    if not args.skip_control_plane_token:
+        set_control_plane_worker_token(args.control_plane_secret_file, worker_token)
 
     if not args.skip_regcred:
         dockerconfig_b64 = base64.b64encode(
@@ -346,7 +419,7 @@ def main() -> None:
         )
         encrypt_to_file(args.secret_dir / "regcred.enc.yaml", regcred_secret)
 
-    print(f"Provisioned Postgres schema '{schema}' and encrypted Agent Control Plane secrets.")
+    print(f"Provisioned Postgres schema '{schema}' and encrypted Agent Workloads secrets.")
 
 
 if __name__ == "__main__":

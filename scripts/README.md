@@ -45,6 +45,19 @@ Utilities that were previously bundled with the app repo move here when they are
     uv run python scripts/provision_agent_control_plane_readonly_sql.py
   ```
 
+- `provision_agent_workloads_secrets.py` – provisions the Agent Workloads
+  workspace schema/role, writes the worker-service token into both the
+  Agent Workloads runtime secret and the Agent Control Plane runtime secret,
+  and encrypts the namespace registry pull secret:
+
+  ```bash
+  SOPS_AGE_KEY_FILE=keys/age-private.txt \
+    uv run python scripts/provision_agent_workloads_secrets.py
+  ```
+
+  Use `--read-schema <schema>` only when a workload needs explicit read-only
+  source-schema access in addition to owning the `agent_workloads` schema.
+
 - `validate_prometheus_config.py` – renders the Prometheus ConfigMaps from the Helm chart (`helm template --show-only …`) and runs `promtool check config/rules` inside a Docker container. Example (prod values):
 
   ```bash

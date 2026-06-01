@@ -1,0 +1,64 @@
+global:
+  imagePullSecrets:
+    - regcred
+  runtimeSecretName: agent-workloads-secrets
+
+nameOverride: agent-workloads
+fullnameOverride: agent-workloads
+
+replicaCount: 1
+
+image:
+  repository: registry.digitalocean.com/sendouq/agent-workloads-worker
+  tag: dev
+  pullPolicy: IfNotPresent
+
+env:
+  MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
+  AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
+  AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe
+  AGENT_WORKLOADS_SCHEMA: agent_workloads
+  AGENT_WORKLOADS_POLL_SECONDS: "2"
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 96Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+networkPolicy:
+  enabled: true
+  egress:
+    dns:
+      enabled: true
+      destinations:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    destinations:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: agent-control-plane
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: agent-control-plane
+            app.kubernetes.io/instance: agent-control-plane
+            app.kubernetes.io/component: api
+        ports:
+          - port: 8000
+            protocol: TCP
+      - ipBlock:
+          cidr: 10.108.0.0/20
+        ports:
+          - port: 25060
+            protocol: TCP
