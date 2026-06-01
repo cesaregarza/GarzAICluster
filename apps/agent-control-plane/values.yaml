@@ -10,7 +10,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-f24b33acd936
+  tag: sha-8aacce2a6cb6
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -45,8 +45,10 @@ localWorker:
 callbackAdapter:
   enabled: true
   replicaCount: 1
-  sink: discord
+  sink: http
   secretKeys:
+    - AGENT_PLATFORM_OPENCLAW_CALLBACK_URL
+    - AGENT_PLATFORM_OPENCLAW_CALLBACK_TOKEN
     - AGENT_PLATFORM_DISCORD_BOT_TOKEN
   pollSeconds: 2
   batchSize: 10

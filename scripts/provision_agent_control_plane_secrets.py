@@ -90,6 +90,19 @@ def parse_args() -> argparse.Namespace:
         or os.environ.get("OPENCLAW_DISCORD_TOKEN"),
         help="Optional Discord bot token for the Agent Control Plane callback adapter.",
     )
+    parser.add_argument(
+        "--openclaw-callback-url",
+        default=os.environ.get("AGENT_PLATFORM_OPENCLAW_CALLBACK_URL"),
+        help="Optional OpenClaw callback hook URL for the callback adapter.",
+    )
+    parser.add_argument(
+        "--openclaw-callback-token",
+        default=os.environ.get("AGENT_PLATFORM_OPENCLAW_CALLBACK_TOKEN"),
+        help=(
+            "Optional OpenClaw callback hook token. A token is generated when "
+            "--openclaw-callback-url is set and this value is omitted."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -308,6 +321,19 @@ def main() -> None:
         if args.discord_bot_token
         else ""
     )
+    openclaw_callback_token = (
+        args.openclaw_callback_token
+        or (generate_token() if args.openclaw_callback_url else None)
+    )
+    openclaw_callback_lines = ""
+    if args.openclaw_callback_url:
+        openclaw_callback_lines += (
+            f'          AGENT_PLATFORM_OPENCLAW_CALLBACK_URL: "{args.openclaw_callback_url}"\n'
+        )
+    if openclaw_callback_token:
+        openclaw_callback_lines += (
+            f'          AGENT_PLATFORM_OPENCLAW_CALLBACK_TOKEN: "{openclaw_callback_token}"\n'
+        )
     runtime_secret = textwrap.dedent(
         f"""\
         apiVersion: v1
@@ -324,6 +350,7 @@ def main() -> None:
           AGENT_PLATFORM_AUDIT_READ_TOKEN: "{generate_token()}"
           AGENT_PLATFORM_AUDIT_WRITE_TOKEN: "{generate_token()}"
 {discord_token_line.rstrip()}
+{openclaw_callback_lines.rstrip()}
         """
     )
     encrypt_to_file(args.secret_dir / "runtime-secret.enc.yaml", runtime_secret)

@@ -27,8 +27,9 @@ Required before activation:
 - The OpenClaw droplet has an MCP server entry pointing at the public control
   API URL with the matching OpenClaw service token.
 - The callback adapter deployment uses the same Postgres state as the API and
-  worker, claims delivery by event id, and posts safe released output through
-  the configured Discord sink.
+  worker, claims delivery by event id, and posts safe terminal output to the
+  OpenClaw droplet hook. The callback-only Discord token remains mounted so
+  approval cards can still be rendered by deterministic service code.
 - The approval interaction path is service-only:
   `POST /v1/openclaw/discord/approval-interactions` maps trusted Discord
   component payloads to the internal resolver and is not exposed through MCP.

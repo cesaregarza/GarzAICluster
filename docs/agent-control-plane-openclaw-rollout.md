@@ -20,7 +20,7 @@ Control Plane, not by calling workload containers directly.
 ## Activation Order
 
 1. Publish an immutable Mandate API image:
-   `registry.digitalocean.com/sendouq/agent-platform:sha-bd9fed031321`.
+   `registry.digitalocean.com/sendouq/agent-platform:sha-8aacce2a6cb6`.
 2. Commit and sync `argocd/applications/agent-control-plane-secrets.yaml` so
    the `agent-control-plane-secrets` Argo app creates `regcred` and
    `agent-control-plane-secrets` in the `agent-control-plane` namespace.
@@ -35,6 +35,11 @@ Control Plane, not by calling workload containers directly.
    When `readonly_sql` is enabled, it must also include
    `AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` for a separate weak read-only
    database role.
+   When the callback adapter uses the OpenClaw hook sink, it must also include
+   `AGENT_PLATFORM_OPENCLAW_CALLBACK_URL` and
+   `AGENT_PLATFORM_OPENCLAW_CALLBACK_TOKEN`. Keep
+   `AGENT_PLATFORM_DISCORD_BOT_TOKEN` mounted only for deterministic approval
+   cards.
 4. Render the chart locally with
    `helm template agent-control-plane ../agent-platform/helm/mandate -f apps/agent-control-plane/values.yaml`.
 5. Confirm the rendered NetworkPolicy allows DNS plus managed Postgres egress
@@ -59,12 +64,16 @@ Control Plane, not by calling workload containers directly.
 The live values now deploy the local deterministic worker for `task.echo`,
 `approval.probe`, bounded `readonly_sql`, `audit.digest`,
 `mandate.ops.inspect`, and `mandate.deploy.smoke`, plus a callback adapter with
-Postgres-backed event-id dedupe. The safe smoke targets are the full governed
-paths:
+Postgres-backed event-id dedupe. Terminal callbacks are handed back to OpenClaw
+through the droplet hook so OpenClaw owns the user-facing follow-up turn.
+Approval cards still use deterministic Discord service code. Routine accepted
+and progress callbacks are accepted by the hook but do not trigger an OpenClaw
+turn. The safe smoke targets are the full governed paths:
 
 ```text
 OpenClaw submit -> API accepts -> worker drains -> output gate releases ->
-callback posts once -> status shows released result only
+OpenClaw hook accepts terminal callback once -> OpenClaw replies in Discord ->
+status shows released result only
 
 OpenClaw submit approval.probe -> worker pauses -> approval.requested card posts ->
 trusted Discord interaction resolves approval -> output gate releases ->
