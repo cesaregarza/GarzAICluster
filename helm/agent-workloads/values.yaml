@@ -105,6 +105,8 @@ opencodeProposer:
     AGENT_WORKLOADS_OPENCODE_WORKSPACE_DIR: /workspace/job
     AGENT_WORKLOADS_OPENCODE_PROPOSALS_DIR: /workspace/proposals
     AGENT_WORKLOADS_OPENCODE_TIMEOUT_SECONDS: "600"
+    HOME: /tmp
+    TMPDIR: /tmp
   initWorkspace:
     enabled: true
     command:
@@ -115,6 +117,7 @@ opencodeProposer:
       mkdir -p /workspace/job /workspace/proposals
       cd /workspace/job
       git init -q
+      git config --global --add safe.directory /workspace/job
       git config --local user.email mandate-opencode@garz.ai
       git config --local user.name "Mandate OpenCode"
       printf '# Mandate OpenCode Workspace\n\n' > README.md
