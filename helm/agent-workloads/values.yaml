@@ -113,12 +113,13 @@ opencodeProposer:
     script: |
       set -eu
       mkdir -p /workspace/job /workspace/proposals
-      git init -q /workspace/job
-      git -C /workspace/job config --local user.email mandate-opencode@garz.ai
-      git -C /workspace/job config --local user.name "Mandate OpenCode"
-      printf '# Mandate OpenCode Workspace\n\n' > /workspace/job/README.md
-      git -C /workspace/job add README.md
-      git -C /workspace/job commit -q -m 'Initialize workspace'
+      cd /workspace/job
+      git init -q
+      git config --local user.email mandate-opencode@garz.ai
+      git config --local user.name "Mandate OpenCode"
+      printf '# Mandate OpenCode Workspace\n\n' > README.md
+      git add README.md
+      git commit -q -m 'Initialize workspace'
   resources:
     requests:
       cpu: 100m
