@@ -10,7 +10,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-fe0a7f0e442f
+  tag: sha-e3338cadfad
   pullPolicy: IfNotPresent
 
 env:
@@ -95,7 +95,7 @@ opencodeProposer:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-fe0a7f0e442f
+    tag: sha-e3338cadfad
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
