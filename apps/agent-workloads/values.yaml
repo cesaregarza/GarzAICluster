@@ -10,7 +10,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-dc83e097c53c
+  tag: sha-0c37af99f1e0
   pullPolicy: IfNotPresent
 
 env:
