@@ -10,7 +10,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-0a7aada88319
+  tag: sha-6cbf1626340a
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -22,6 +22,9 @@ secretKeys:
   - AGENT_PLATFORM_AUDIT_READ_TOKEN
   - AGENT_PLATFORM_AUDIT_WRITE_TOKEN
   - AGENT_PLATFORM_READONLY_SQL_DATABASE_URL
+  - AGENT_PLATFORM_MODEL_GATEWAY_TOKEN_SECRET
+  - AGENT_PLATFORM_MODEL_GATEWAY_CODEX_AUTH_JSON
+  - AGENT_PLATFORM_WORKLOAD_IDENTITY_HMAC_SECRET
 
 env:
   AGENT_PLATFORM_ENVIRONMENT: prod
@@ -29,6 +32,20 @@ env:
   AGENT_PLATFORM_POSTGRES_POOL_MAX_SIZE: "2"
   AGENT_PLATFORM_READONLY_SQL_POOL_MIN_SIZE: "0"
   AGENT_PLATFORM_READONLY_SQL_POOL_MAX_SIZE: "1"
+  AGENT_PLATFORM_MODEL_GATEWAY_BACKEND: codex_chatgpt_responses
+  AGENT_PLATFORM_MODEL_GATEWAY_TIMEOUT_SECONDS: "90"
+  AGENT_PLATFORM_WORKLOAD_IDENTITY_MODE: hmac
+  AGENT_PLATFORM_WORKLOAD_IDENTITY_ISSUER: kubernetes
+  AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE: mandate-api
+  AGENT_PLATFORM_WORKLOAD_IDENTITY_REQUIRED_SCOPES: worker_service
+  AGENT_PLATFORM_WORKLOAD_IDENTITY_ALLOWED_SUBJECTS_JSON: '{"worker_service":["opencode.proposer"]}'
+  AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_EVIDENCE: deployment_attestation
+  AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_EGRESS_JAIL: "true"
+  AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_NO_AMBIENT_CREDENTIALS: "true"
+  AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_MODEL_GATEWAY: "true"
+  AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_COST_CUTOFF: "true"
+  AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_CONSEQUENCE_ENFORCEMENT: "true"
+  AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_AUDIT: "true"
 
 migrations:
   enabled: true
@@ -58,7 +75,8 @@ callbackAdapter:
     autoArchiveMinutes: 1440
 
 modelGateway:
-  enabled: false
+  enabled: true
+  replicaCount: 1
 
 service:
   type: ClusterIP
@@ -97,6 +115,13 @@ networkPolicy:
         podSelector:
           matchLabels:
             app.kubernetes.io/name: agent-workloads
+            app.kubernetes.io/instance: agent-workloads
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: agent-workloads
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: opencode-proposer
             app.kubernetes.io/instance: agent-workloads
     ports:
       - port: 8000

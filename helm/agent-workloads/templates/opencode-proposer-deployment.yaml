@@ -1,0 +1,86 @@
+{{- if .Values.opencodeProposer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent-workloads.opencodeProposerName" . }}
+  labels:
+    {{- include "agent-workloads.opencodeProposerLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.opencodeProposer.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "agent-workloads.opencodeProposerSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "agent-workloads.opencodeProposerSelectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: opencode-proposer
+        {{- with .Values.opencodeProposer.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.opencodeProposer.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "agent-workloads.serviceAccountName" . }}
+      {{- include "agent-workloads.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.opencodeProposer.initWorkspace.enabled }}
+      initContainers:
+        - name: init-workspace
+          image: "{{ .Values.opencodeProposer.image.repository }}:{{ .Values.opencodeProposer.image.tag }}"
+          imagePullPolicy: {{ .Values.opencodeProposer.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.opencodeProposer.initWorkspace.command | nindent 12 }}
+          args:
+            - {{ .Values.opencodeProposer.initWorkspace.script | quote }}
+          env:
+            - name: HOME
+              value: /tmp
+            - name: TMPDIR
+              value: /tmp
+          resources:
+            {{- toYaml .Values.opencodeProposer.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: job-workspace
+              mountPath: /workspace/job
+            - name: proposals
+              mountPath: /workspace/proposals
+      {{- end }}
+      containers:
+        - name: opencode-proposer
+          image: "{{ .Values.opencodeProposer.image.repository }}:{{ .Values.opencodeProposer.image.tag }}"
+          imagePullPolicy: {{ .Values.opencodeProposer.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.opencodeProposer.command | nindent 12 }}
+          {{- with .Values.opencodeProposer.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- include "agent-workloads.envFromValues" (dict "root" . "values" .Values.opencodeProposer) | nindent 12 }}
+          resources:
+            {{- toYaml .Values.opencodeProposer.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: job-workspace
+              mountPath: /workspace/job
+            - name: proposals
+              mountPath: /workspace/proposals
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: job-workspace
+          emptyDir: {}
+        - name: proposals
+          emptyDir: {}
+{{- end }}

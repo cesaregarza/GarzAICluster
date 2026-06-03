@@ -46,6 +46,8 @@ secretKeys:
   - OPENAI_CODEX_AUTH_JSON
   - XSCRAPER_READONLY_DATABASE_URL
 
+secretEnv: {}
+
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
   AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
@@ -79,3 +81,61 @@ networkPolicy:
         - port: 53
           protocol: TCP
     destinations: []
+
+opencodeProposer:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: registry.digitalocean.com/sendouq/opencode-proposer
+    tag: dev
+    pullPolicy: IfNotPresent
+  podAnnotations: {}
+  podLabels:
+    mandate.cesaregarza.io/egress-profile: broker-jailed
+  command:
+    - agent-workloads-worker
+  args: []
+  secretKeys: []
+  secretEnv: {}
+  env:
+    MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
+    MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
+    AGENT_WORKLOADS_WORKER_ID: opencode.proposer
+    AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_propose
+    AGENT_WORKLOADS_OPENCODE_WORKSPACE_DIR: /workspace/job
+    AGENT_WORKLOADS_OPENCODE_PROPOSALS_DIR: /workspace/proposals
+    AGENT_WORKLOADS_OPENCODE_TIMEOUT_SECONDS: "600"
+  initWorkspace:
+    enabled: true
+    command:
+      - /bin/sh
+      - -c
+    script: |
+      set -eu
+      mkdir -p /workspace/job /workspace/proposals
+      cd /workspace/job
+      git init -q
+      git config user.email mandate-opencode@garz.ai
+      git config user.name "Mandate OpenCode"
+      printf '# Mandate OpenCode Workspace\n\n' > README.md
+      git add README.md
+      git commit -q -m 'Initialize workspace'
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  networkPolicy:
+    enabled: false
+    egress:
+      dns:
+        enabled: false
+        destinations: []
+        ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+      destinations: []

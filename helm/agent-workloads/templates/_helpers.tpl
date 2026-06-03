@@ -72,16 +72,57 @@ Service account name.
 Runtime environment.
 */}}
 {{- define "agent-workloads.runtimeEnv" -}}
-{{- $root := . }}
-{{- range $key := .Values.secretKeys }}
+{{- include "agent-workloads.envFromValues" (dict "root" . "values" .Values) }}
+{{- end }}
+
+{{/*
+Runtime environment for a values subtree.
+*/}}
+{{- define "agent-workloads.envFromValues" -}}
+{{- $root := .root }}
+{{- $values := .values }}
+{{- range $key := $values.secretKeys }}
 - name: {{ $key }}
   valueFrom:
     secretKeyRef:
       name: {{ $root.Values.global.runtimeSecretName }}
       key: {{ $key }}
 {{- end }}
-{{- range $key, $value := .Values.env }}
+{{- range $envName, $secretKey := $values.secretEnv }}
+- name: {{ $envName }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $root.Values.global.runtimeSecretName }}
+      key: {{ $secretKey }}
+{{- end }}
+{{- range $key, $value := $values.env }}
 - name: {{ $key }}
   value: {{ $value | quote }}
 {{- end }}
+{{- end }}
+
+{{/*
+OpenCode proposer object name.
+*/}}
+{{- define "agent-workloads.opencodeProposerName" -}}
+{{- printf "%s-opencode-proposer" (include "agent-workloads.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+OpenCode proposer selector labels.
+*/}}
+{{- define "agent-workloads.opencodeProposerSelectorLabels" -}}
+app.kubernetes.io/name: opencode-proposer
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+OpenCode proposer labels.
+*/}}
+{{- define "agent-workloads.opencodeProposerLabels" -}}
+helm.sh/chart: {{ include "agent-workloads.chart" . }}
+{{ include "agent-workloads.opencodeProposerSelectorLabels" . }}
+app.kubernetes.io/part-of: {{ include "agent-workloads.name" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/component: opencode-proposer
 {{- end }}

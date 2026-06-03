@@ -6,7 +6,9 @@ Encrypted secrets consumed by the `agent-workloads-secrets` Argo CD app.
   Agent Workloads Postgres workspace URL. It can also hold either
   `OPENAI_API_KEY` or `OPENAI_CODEX_AUTH_JSON` for broker workloads that call
   the OpenAI/Codex Responses API. The XScraper/X Power readonly query profile
-  also requires `XSCRAPER_READONLY_DATABASE_URL`.
+  also requires `XSCRAPER_READONLY_DATABASE_URL`. The OpenCode proposer uses a
+  separate `OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN`; expose it only to the
+  `opencode.proposer` deployment as `MANDATE_WORKLOAD_IDENTITY_TOKEN`.
 - `regcred.enc.yaml`: DOCR pull credentials for
   `registry.digitalocean.com/sendouq/agent-workloads-worker`.
 
@@ -44,3 +46,8 @@ platform API access; `OPENAI_CODEX_AUTH_JSON` is supported for the same
 ChatGPT/Codex auth shape used by OpenClaw. For long-lived broker deployments,
 prefer an API key unless a separate process is keeping the Codex `auth.json`
 fresh; a SOPS/Kubernetes Secret value is static after sync.
+
+The OpenCode proposer must not receive `OPENAI_CODEX_AUTH_JSON`,
+`OPENAI_API_KEY`, database URLs, or the shared `MANDATE_WORKER_TOKEN`. It
+authenticates to Mandate with `OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN`, then
+Mandate returns a job-scoped model-gateway token in the claim response.
