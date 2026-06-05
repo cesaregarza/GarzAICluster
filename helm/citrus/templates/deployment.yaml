@@ -6,6 +6,8 @@ metadata:
     {{- include "citrus.labels" . | nindent 4 }}
     app: citrus-web
 spec:
+  strategy:
+    type: Recreate
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
