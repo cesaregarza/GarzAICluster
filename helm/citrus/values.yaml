@@ -6,7 +6,7 @@ replicaCount: 2
 
 image:
   repository: registry.digitalocean.com/sendouq/citrus
-  tag: latest
+  tag: latest # allow-latest
   pullPolicy: IfNotPresent
 
 nameOverride: ""
