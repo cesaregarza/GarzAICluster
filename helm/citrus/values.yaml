@@ -23,8 +23,6 @@ application:
     DJANGO_DEBUG: "False"
     ALLOWED_HOSTS: "citrus-grace.com,www.citrus-grace.com,dev.citrus-grace.com"
 
-healthCheck:
-  hostHeader: dev.citrus-grace.com
 
 service:
   name: citrus-service
