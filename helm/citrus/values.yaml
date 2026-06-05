@@ -2,7 +2,7 @@ global:
   imagePullSecrets:
     - regcred
 
-replicaCount: 2
+replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/citrus
@@ -41,10 +41,12 @@ persistence:
 ingress:
   enabled: true
   name: citrus-ingress
-  className: nginx
+  className: ""
   annotations:
     external-dns.alpha.kubernetes.io/controller: "manual"
+    kubernetes.io/ingress.class: "legacy-nginx"
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    acme.cert-manager.io/http01-ingress-class: "legacy-nginx"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
     - citrus-grace.com
