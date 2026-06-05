@@ -1,0 +1,63 @@
+global:
+  imagePullSecrets:
+    - regcred
+
+replicaCount: 2
+
+image:
+  repository: registry.digitalocean.com/sendouq/citrus
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+application:
+  configMapName: django-config
+  secretName: django-secrets
+  command: >
+    python manage.py migrate --noinput &&
+    python manage.py collectstatic --noinput &&
+    gunicorn Mycore.wsgi:application --bind 0.0.0.0:8000
+  configData:
+    DJANGO_DEBUG: "False"
+    ALLOWED_HOSTS: "citrus-grace.com,www.citrus-grace.com,dev.citrus-grace.com"
+
+service:
+  name: citrus-service
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+persistence:
+  enabled: true
+  name: django-media-pvc
+  storageClassName: ""
+  size: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  mountPath: /citrus/media
+
+ingress:
+  enabled: true
+  name: citrus-ingress
+  className: nginx
+  annotations:
+    external-dns.alpha.kubernetes.io/controller: "manual"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - citrus-grace.com
+    - www.citrus-grace.com
+    - dev.citrus-grace.com
+  tls:
+    enabled: true
+    secretName: citrus-grace-tls
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 1Gi

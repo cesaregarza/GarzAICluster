@@ -16,6 +16,8 @@ spec:
   destinations:
     - namespace: default
       server: https://kubernetes.default.svc
+    - namespace: citrus
+      server: https://kubernetes.default.svc
     - namespace: splatvote-prod
       server: https://kubernetes.default.svc
     - namespace: monitoring
