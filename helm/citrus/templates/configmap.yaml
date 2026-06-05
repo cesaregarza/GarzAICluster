@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.application.configMapName }}
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.application.configData }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
