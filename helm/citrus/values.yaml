@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/citrus
-  tag: d3a07b0bef56cbe923a9cf7f2816083133ac2fcb # allow-latest
+  tag: 964a18c0b4a2c6c206e0bfb0ad3d2d97c7201b54 # allow-latest
   pullPolicy: IfNotPresent
 
 nameOverride: ""
