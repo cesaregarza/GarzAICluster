@@ -1,6 +1,6 @@
 global:
   imagePullSecrets:
-    - regcred
+  - regcred
 
 replicaCount: 2
 
@@ -9,6 +9,8 @@ image:
   tag: latest # allow-latest
   pullPolicy: IfNotPresent
 
+  image:
+    tag: df1e9422281400b5d12ab447c767ef2d5e09f7ba
 nameOverride: ""
 fullnameOverride: ""
 
@@ -35,7 +37,7 @@ persistence:
   storageClassName: ""
   size: 10Gi
   accessModes:
-    - ReadWriteOnce
+  - ReadWriteOnce
   mountPath: /citrus/media
 
 ingress:
@@ -47,9 +49,9 @@ ingress:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
-    - citrus-grace.com
-    - www.citrus-grace.com
-    - dev.citrus-grace.com
+  - citrus-grace.com
+  - www.citrus-grace.com
+  - dev.citrus-grace.com
   tls:
     enabled: true
     secretName: citrus-grace-tls
