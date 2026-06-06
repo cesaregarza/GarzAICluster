@@ -10,10 +10,10 @@ Mandate.
 
 Required before activation:
 
-- `registry.digitalocean.com/sendouq/agent-platform:<tag>` exists.
-  The current pin is a known main image with workload-import support; after the
-  CES-34 platform auth hardening merges, bump this tag/revision again so missing
-  prod issuer or subject allowlist configuration fails closed in the live API.
+- `registry.digitalocean.com/sendouq/agent-platform:<tag>` exists. The current
+  pin is a published main image that includes workload-import support and the
+  CES-34 platform auth hardening, so missing prod issuer or subject allowlist
+  configuration fails closed in the live API.
 - `agent-control-plane-secrets` has created `regcred` in the
   `agent-control-plane` namespace for DOCR image pulls.
 - `agent-control-plane-secrets` has created `agent-control-plane-secrets` in the

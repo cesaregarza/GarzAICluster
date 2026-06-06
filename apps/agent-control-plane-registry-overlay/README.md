@@ -13,10 +13,9 @@ The ConfigMap mounts three files into the Mandate pod:
   Discord actor/channel binding.
 
 The current pins come from the latest successful `agent-workloads` main release
-artifact (`sha-5dd0c7e75e9e`). The CES-34 worker-loop hardening changes the
-future workload `code_digest`; after that source PR merges and publishes from
-main, refresh this overlay from the new release artifact before claiming the
-hardened loop is deployed.
+artifact (`sha-5a6571fc7cb3`). That release includes the CES-34 worker-loop
+hardening, and this overlay uses the machine-generated manifest/image/code
+digests from the release artifact.
 
 The imported manifest is data, not dispatch authority. Mandate still loads the
 overlay through the registry validators, and dispatch still requires the policy
