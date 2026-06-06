@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-control-plane-registry-overlay
+  namespace: agent-control-plane
+  labels:
+    app.kubernetes.io/name: agent-control-plane
+    app.kubernetes.io/component: registry-overlay
+data:
+  workload_imports.yaml: |
+    schema_version: workload-imports.v1
+    imports:
+      - id: data.workspace_probe
+        manifest_path: registries/imports/agent-data.workspace_probe.json
+        manifest_digest: sha256:1aec5e45812552f48127f82af9c68de2aa3017cf4ca8efc4ca60381a27489c64
+        image_digest: sha256:9b7f7d8d71c4d95cf171bf3c519a05c41dcc01c1fcca6a262491d978fbe3e7f0
+        expected_source:
+          repo: agent-workloads
+          repo_url: https://github.com/cesaregarza/agent-workloads
+          path: agents/db-workspace-probe/agent.yaml
+        agent:
+          execution_posture: capability_worker
+          network_access: database_only
+          service_account_ref: agent-workloads-worker
+          identity_audience: mandate-api
+          capacity_tier: 4
+          concurrency: 1
+          max_runtime_seconds: 120
+          model_call: true
+        capabilities:
+          agent_workloads.db_probe:
+            description: Imported reversible staging database workspace probe.
+            output_schema: agent_workloads_db_probe_result_v1
+          agent_workloads.readonly_query:
+            description: Imported governed readonly SQL query worker.
+            output_schema: agent_workloads_readonly_query_result_v1
+            model_lease:
+              required: true
+              allowed_tier: fast
+              allowed_profiles:
+                - openai.gpt-5.4-mini
+              max_prompt_tokens: 12000
+              max_completion_tokens: 1200
+              max_total_tokens: 13200
+              max_cost_usd: 0.05
+            session_authority_budget:
+              max_operations: 4
+              session_taint: prod_authority
+  policy.prod.yaml: |
+    defaults:
+      max_cost_usd_per_job: 0.0
+      max_runtime_seconds_per_job: 60
+      aggregate_budget:
+        platform_daily_usd: 25.0
+        per_capability_daily_usd_default: 5.0
+        per_capability_daily_usd: {}
+        per_user_daily_tokens: 200000
+
+    bindings:
+      - id: private-admin-controlled-capabilities
+        description: Production-safe private admin binding for no-key probes,
+          bounded read-only SQL, and the first imported worker-service probe.
+        guild_id: "614277943706910722"
+        channel_id: "1480483954694819940"
+        users:
+          admins:
+            - "94265880216612864"
+          authorized:
+            - "94265880216612864"
+        capabilities:
+          allow:
+            - task.echo
+            - approval.probe
+            - readonly_sql
+            - audit.digest
+            - mandate.ops.inspect
+            - mandate.deploy.smoke
+            - agent_workloads.db_probe
+          approval_overrides:
+            approval.probe: admin_confirm
+  agent-data.workspace_probe.json: |
+    {
+      "capabilities": [
+        "agent_workloads.db_probe",
+        "agent_workloads.readonly_query"
+      ],
+      "capability_metadata": {
+        "agent_workloads.db_probe": {
+          "consequence_class": "reversible_staging"
+        },
+        "agent_workloads.readonly_query": {
+          "consequence_class": "read_only"
+        }
+      },
+      "code_digest": "sha256:3017975de59ee41535327a7cca7557ee7f8e7f8a3696b214321cd83424f52887",
+      "digest": "sha256:1aec5e45812552f48127f82af9c68de2aa3017cf4ca8efc4ca60381a27489c64",
+      "display_name": "Agent Workloads Data Worker",
+      "evals": {
+        "optional": [],
+        "required": [
+          "eval.test_agent_probes"
+        ]
+      },
+      "id": "data.workspace_probe",
+      "image": {
+        "digest": "sha256:9b7f7d8d71c4d95cf171bf3c519a05c41dcc01c1fcca6a262491d978fbe3e7f0",
+        "repository": "registry.digitalocean.com/sendouq/agent-workloads-worker"
+      },
+      "loop": {
+        "contract": "worker_service_v1",
+        "kind": "worker_service",
+        "protocol": "mandate_worker_service_pull_v1"
+      },
+      "schema_version": "agent-workload.v1",
+      "source": {
+        "path": "agents/db-workspace-probe/agent.yaml",
+        "repo": "agent-workloads",
+        "repo_url": "https://github.com/cesaregarza/agent-workloads"
+      },
+      "workload_type": "agent"
+    }

@@ -46,6 +46,17 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Image reference for a values image subtree.
+*/}}
+{{- define "agent-workloads.imageRef" -}}
+{{- if .digest -}}
+{{- printf "%s@%s" .repository .digest -}}
+{{- else -}}
+{{- printf "%s:%s" .repository .tag -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Image pull secrets.
 */}}
 {{- define "agent-workloads.imagePullSecrets" -}}

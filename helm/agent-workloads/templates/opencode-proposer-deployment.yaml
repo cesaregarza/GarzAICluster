@@ -30,7 +30,7 @@ spec:
       {{- if .Values.opencodeProposer.initWorkspace.enabled }}
       initContainers:
         - name: init-workspace
-          image: "{{ .Values.opencodeProposer.image.repository }}:{{ .Values.opencodeProposer.image.tag }}"
+          image: "{{ include "agent-workloads.imageRef" .Values.opencodeProposer.image }}"
           imagePullPolicy: {{ .Values.opencodeProposer.image.pullPolicy }}
           command:
             {{- toYaml .Values.opencodeProposer.initWorkspace.command | nindent 12 }}
@@ -55,7 +55,7 @@ spec:
       {{- end }}
       containers:
         - name: opencode-proposer
-          image: "{{ .Values.opencodeProposer.image.repository }}:{{ .Values.opencodeProposer.image.tag }}"
+          image: "{{ include "agent-workloads.imageRef" .Values.opencodeProposer.image }}"
           imagePullPolicy: {{ .Values.opencodeProposer.image.pullPolicy }}
           command:
             {{- toYaml .Values.opencodeProposer.command | nindent 12 }}

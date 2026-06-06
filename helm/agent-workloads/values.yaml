@@ -7,6 +7,7 @@ replicaCount: 1
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
   tag: dev
+  digest: ""
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -19,6 +20,8 @@ serviceAccount:
 
 podAnnotations: {}
 podLabels: {}
+extraVolumes: []
+extraVolumeMounts: []
 
 podSecurityContext:
   runAsNonRoot: true
@@ -88,6 +91,7 @@ opencodeProposer:
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
     tag: dev
+    digest: ""
     pullPolicy: IfNotPresent
   podAnnotations: {}
   podLabels:

@@ -2,12 +2,17 @@
 
 Encrypted secrets consumed by the `agent-workloads-secrets` Argo CD app.
 
-- `runtime-secret.enc.yaml`: Mandate worker-service token and the dedicated
-  Agent Workloads Postgres workspace URL. It can also hold either
-  `OPENAI_API_KEY` or `OPENAI_CODEX_AUTH_JSON` for broker workloads that call
-  the OpenAI/Codex Responses API. The XScraper/X Power readonly query profile
-  also requires `XSCRAPER_READONLY_DATABASE_URL`. The OpenCode proposer uses a
-  separate `OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN`; expose it only to the
+- `runtime-secret.enc.yaml`: the dedicated Agent Workloads Postgres workspace
+  URL and workload-identity tokens. The first live `data.workspace_probe`
+  deployment mounts `DATA_WORKSPACE_PROBE_WORKLOAD_IDENTITY_TOKEN` as a file at
+  `MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE`; do not expose the shared
+  `MANDATE_WORKER_TOKEN` to that long-running prod worker. It can also hold
+  either `OPENAI_API_KEY` or `OPENAI_CODEX_AUTH_JSON` for separate trusted
+  broker workloads that call the OpenAI/Codex Responses API. The XScraper/X
+  Power readonly query profile also requires `XSCRAPER_READONLY_DATABASE_URL`,
+  but `agent_workloads.readonly_query` is not granted in the first live
+  `db_probe` rollout. The OpenCode proposer uses a separate
+  `OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN`; expose it only to the
   `opencode.proposer` deployment as `MANDATE_WORKLOAD_IDENTITY_TOKEN`.
 - `regcred.enc.yaml`: DOCR pull credentials for
   `registry.digitalocean.com/sendouq/agent-workloads-worker`.
@@ -51,3 +56,8 @@ The OpenCode proposer must not receive `OPENAI_CODEX_AUTH_JSON`,
 `OPENAI_API_KEY`, database URLs, or the shared `MANDATE_WORKER_TOKEN`. It
 authenticates to Mandate with `OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN`, then
 Mandate returns a job-scoped model-gateway token in the claim response.
+
+The `data.workspace_probe` worker should receive only
+`AGENT_WORKLOADS_DATABASE_URL` plus its mounted workload-identity token for the
+first live path. Provider credentials and readonly source-database credentials
+belong in later, separately granted worker or broker rollouts.

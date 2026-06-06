@@ -10,7 +10,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-3b0a32bec6a0
+  tag: sha-caefcded7554
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -160,3 +160,21 @@ resources:
   limits:
     cpu: 500m
     memory: 512Mi
+
+extraVolumes:
+  - name: registry-overlay
+    configMap:
+      name: agent-control-plane-registry-overlay
+
+extraVolumeMounts:
+  - name: registry-overlay
+    mountPath: /app/registries/workload_imports.yaml
+    subPath: workload_imports.yaml
+    readOnly: true
+  - name: registry-overlay
+    mountPath: /app/registries/policy.prod.yaml
+    subPath: policy.prod.yaml
+    readOnly: true
+  - name: registry-overlay
+    mountPath: /app/registries/imports
+    readOnly: true
