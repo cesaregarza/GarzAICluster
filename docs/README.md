@@ -14,3 +14,12 @@ Supplemental references:
 
 - `docs/config_repo_split_plan.md` (in the app repo) – migration backlog until cutover completes.
 - GitHub issues labeled `config-repo` – track outstanding automation (CI PR bump bot, policy enforcement, etc.).
+
+Historical Mandate/OpenClaw rollout evidence relocated from the generic
+`agent-platform` repository:
+
+- `historical/agent-platform/openclaw-mcp-rollout-2026-05-27.md` – dated
+  rollout record for the first OpenClaw MCP integration.
+- `historical/agent-platform/openclaw-mvp-deployment.md` – original
+  OpenClaw/Mandate MVP deployment notes before the generic platform copy was
+  reduced to reusable guidance.
