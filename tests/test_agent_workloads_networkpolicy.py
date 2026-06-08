@@ -53,6 +53,18 @@ def _find_doc(
     raise AssertionError(f"{kind}/{name} not rendered")
 
 
+def _env_by_name(container: dict[str, Any]) -> dict[str, Any]:
+    return {entry["name"]: entry for entry in container.get("env", [])}
+
+
+def _container_by_name(deployment: dict[str, Any], name: str) -> dict[str, Any]:
+    containers = deployment["spec"]["template"]["spec"]["containers"]
+    for container in containers:
+        if container["name"] == name:
+            return container
+    raise AssertionError(f"container {name} not rendered")
+
+
 class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -91,6 +103,110 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
         self.assertIn((80, "TCP"), ports)
         self.assertIn((8000, "TCP"), ports)
         self.assertIn((25060, "TCP"), ports)
+        self.assertIn((53, "UDP"), ports)
+        self.assertIn((53, "TCP"), ports)
+
+    def test_opencode_apply_executor_runs_without_model_or_provider_credentials(
+        self,
+    ) -> None:
+        deployment = _find_doc(
+            self.docs,
+            kind="Deployment",
+            name="agent-workloads-opencode-proposer",
+        )
+        pod_spec = deployment["spec"]["template"]["spec"]
+        containers = {container["name"] for container in pod_spec["containers"]}
+        self.assertEqual(
+            containers,
+            {"opencode-proposer", "opencode-apply-executor"},
+        )
+
+        proposer = _container_by_name(deployment, "opencode-proposer")
+        apply_executor = _container_by_name(deployment, "opencode-apply-executor")
+        proposer_env = _env_by_name(proposer)
+        apply_env = _env_by_name(apply_executor)
+
+        self.assertIn("MANDATE_MODEL_GATEWAY_BASE_URL", proposer_env)
+        self.assertNotIn("MANDATE_MODEL_GATEWAY_BASE_URL", apply_env)
+        for forbidden in (
+            "OPENAI_API_KEY",
+            "OPENAI_CODEX_AUTH_JSON",
+            "DATABASE_URL",
+            "GITHUB_TOKEN",
+            "GH_TOKEN",
+            "GIT_SSH_COMMAND",
+        ):
+            self.assertNotIn(forbidden, apply_env)
+
+        self.assertEqual(
+            apply_env["MANDATE_WORKLOAD_IDENTITY_TOKEN"]["valueFrom"]["secretKeyRef"],
+            {
+                "name": "agent-workloads-secrets",
+                "key": "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
+            },
+        )
+        self.assertEqual(
+            apply_env["AGENT_WORKLOADS_WORKER_ID"]["value"],
+            "opencode.apply_executor",
+        )
+        self.assertEqual(
+            apply_env["AGENT_WORKLOADS_WORKER_CAPABILITIES"]["value"],
+            "agent_workloads.opencode_apply",
+        )
+        self.assertEqual(
+            apply_executor["image"],
+            "registry.digitalocean.com/sendouq/opencode-apply-executor"
+            "@sha256:92ca9f53912c56bd680f214eeba73feacc56b339b66c58f0ff42ed4876600312",
+        )
+
+        apply_mounts = {
+            mount["name"]: mount["mountPath"]
+            for mount in apply_executor["volumeMounts"]
+        }
+        proposer_mounts = {
+            mount["name"]: mount["mountPath"]
+            for mount in proposer["volumeMounts"]
+        }
+        self.assertEqual(apply_mounts["apply-tmp"], "/tmp")
+        self.assertEqual(proposer_mounts["proposer-tmp"], "/tmp")
+        self.assertNotIn("proposer-tmp", apply_mounts)
+        self.assertNotIn("apply-tmp", proposer_mounts)
+        self.assertEqual(apply_mounts["apply-workspace"], "/workspace/job")
+        self.assertEqual(proposer_mounts["job-workspace"], "/workspace/job")
+        self.assertEqual(apply_mounts["proposals"], "/workspace/proposals")
+        self.assertEqual(proposer_mounts["proposals"], "/workspace/proposals")
+
+    def test_opencode_pod_network_policy_is_broker_jailed(self) -> None:
+        policy = _find_doc(
+            self.docs,
+            kind="NetworkPolicy",
+            name="agent-workloads-opencode-proposer",
+        )
+
+        egress = policy["spec"]["egress"]
+        ip_blocks = {
+            target["ipBlock"]["cidr"]
+            for rule in egress
+            for target in rule.get("to", [])
+            if "ipBlock" in target
+        }
+        namespace_targets = {
+            target["namespaceSelector"]["matchLabels"]["kubernetes.io/metadata.name"]
+            for rule in egress
+            for target in rule.get("to", [])
+            if "namespaceSelector" in target
+        }
+        ports = {
+            (port["port"], port.get("protocol", "TCP"))
+            for rule in egress
+            for port in rule.get("ports", [])
+        }
+
+        self.assertEqual(ip_blocks, set())
+        self.assertIn("agent-control-plane", namespace_targets)
+        self.assertIn("kube-system", namespace_targets)
+        self.assertIn((80, "TCP"), ports)
+        self.assertIn((8000, "TCP"), ports)
         self.assertIn((53, "UDP"), ports)
         self.assertIn((53, "TCP"), ports)
 

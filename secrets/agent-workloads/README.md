@@ -13,7 +13,9 @@ Encrypted secrets consumed by the `agent-workloads-secrets` Argo CD app.
   but `agent_workloads.readonly_query` is not granted in the first live
   `db_probe` rollout. The OpenCode proposer uses a separate
   `OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN`; expose it only to the
-  `opencode.proposer` deployment as `MANDATE_WORKLOAD_IDENTITY_TOKEN`.
+  `opencode.proposer` worker as `MANDATE_WORKLOAD_IDENTITY_TOKEN`. The OpenCode
+  apply executor uses `OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN`; expose
+  it only to the `opencode.apply_executor` worker.
 - `regcred.enc.yaml`: DOCR pull credentials for
   `registry.digitalocean.com/sendouq/agent-workloads-worker`.
 
@@ -56,6 +58,11 @@ The OpenCode proposer must not receive `OPENAI_CODEX_AUTH_JSON`,
 `OPENAI_API_KEY`, database URLs, or the shared `MANDATE_WORKER_TOKEN`. It
 authenticates to Mandate with `OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN`, then
 Mandate returns a job-scoped model-gateway token in the claim response.
+
+The OpenCode apply executor must not receive model provider credentials, Git
+credentials, database URLs, or the shared `MANDATE_WORKER_TOKEN`. It
+authenticates to Mandate with `OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN`
+and consumes only claim-projected approval/designated-action state.
 
 The `data.workspace_probe` worker should receive only
 `AGENT_WORKLOADS_DATABASE_URL` plus its mounted workload-identity token for the

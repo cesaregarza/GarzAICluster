@@ -102,8 +102,8 @@ opencodeProposer:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-5a6571fc7cb3
-    digest: sha256:afcdd7b36aff7bca91d23f90683fb2b3db5226b2a6c8b1616f345db2d1f55579
+    tag: sha-85e8efb8d8e2
+    digest: sha256:2278b7c4d55e42788825fb3bce5d2ae3bb675d285f913558de586cc7ba389646
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
@@ -154,3 +154,31 @@ opencodeProposer:
               protocol: TCP
             - port: 8000
               protocol: TCP
+
+opencodeApplyExecutor:
+  enabled: true
+  image:
+    repository: registry.digitalocean.com/sendouq/opencode-apply-executor
+    tag: sha-85e8efb8d8e2
+    digest: sha256:92ca9f53912c56bd680f214eeba73feacc56b339b66c58f0ff42ed4876600312
+    pullPolicy: IfNotPresent
+  secretEnv:
+    MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN
+  env:
+    MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
+    AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
+    AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_apply
+    AGENT_WORKLOADS_POLL_SECONDS: "2"
+    AGENT_WORKLOADS_ENVIRONMENT: production
+    AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_DIR: /workspace/job
+    AGENT_WORKLOADS_OPENCODE_APPLY_PROPOSALS_DIR: /workspace/proposals
+    AGENT_WORKLOADS_OPENCODE_APPLY_DEFAULT_BRANCH: main
+    HOME: /tmp
+    TMPDIR: /tmp
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
