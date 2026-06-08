@@ -10,13 +10,16 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-29cfce71ff32
+  tag: sha-5a6571fc7cb3
+  digest: sha256:c12fc7e698bd0833cd55934130be758a335586f69f1f38a8a956f8f761c23bdb
   pullPolicy: IfNotPresent
 
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
   AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
-  AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe,agent_workloads.readonly_query
+  AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe
+  MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE: /var/run/mandate/workload-identity/token
+  AGENT_WORKLOADS_ENVIRONMENT: production
   AGENT_WORKLOADS_SCHEMA: agent_workloads
   AGENT_WORKLOADS_POLL_SECONDS: "2"
   AGENT_WORKLOADS_READONLY_QUERY_MAX_PASSES: "3"
@@ -27,13 +30,22 @@ env:
   OPENAI_SQL_BROKER_TIMEOUT_SECONDS: "45"
 
 secretKeys:
-  - MANDATE_WORKER_TOKEN
   - AGENT_WORKLOADS_DATABASE_URL
-  - OPENAI_CODEX_AUTH_JSON
-  - XSCRAPER_READONLY_DATABASE_URL
 
-secretEnv:
-  MANDATE_WORKLOAD_IDENTITY_TOKEN: DATA_WORKSPACE_PROBE_WORKLOAD_IDENTITY_TOKEN
+secretEnv: {}
+
+extraVolumes:
+  - name: workload-identity-token
+    secret:
+      secretName: agent-workloads-secrets
+      items:
+        - key: DATA_WORKSPACE_PROBE_WORKLOAD_IDENTITY_TOKEN
+          path: token
+
+extraVolumeMounts:
+  - name: workload-identity-token
+    mountPath: /var/run/mandate/workload-identity
+    readOnly: true
 
 resources:
   requests:
@@ -95,7 +107,8 @@ opencodeProposer:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-29cfce71ff32
+    tag: sha-5a6571fc7cb3
+    digest: sha256:afcdd7b36aff7bca91d23f90683fb2b3db5226b2a6c8b1616f345db2d1f55579
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN

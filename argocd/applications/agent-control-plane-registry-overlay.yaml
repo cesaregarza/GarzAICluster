@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agent-control-plane-registry-overlay
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: splattop
+  source:
+    repoURL: https://github.com/cesaregarza/SplatTopConfig
+    targetRevision: main
+    path: apps/agent-control-plane-registry-overlay
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: agent-control-plane
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+  revisionHistoryLimit: 10
