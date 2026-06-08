@@ -96,11 +96,6 @@ networkPolicy:
         ports:
           - port: 25060
             protocol: TCP
-      - ipBlock:
-          cidr: 0.0.0.0/0
-        ports:
-          - port: 443
-            protocol: TCP
 
 opencodeProposer:
   enabled: true
