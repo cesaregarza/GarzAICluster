@@ -28,6 +28,9 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         cls.control_plane_values = _load_yaml(
             REPO_ROOT / "apps" / "agent-control-plane" / "values.yaml"
         )
+        cls.control_plane_application = _load_yaml(
+            REPO_ROOT / "argocd" / "applications" / "agent-control-plane.yaml"
+        )
 
     def test_opencode_proposer_import_is_overlay_pinned_and_proposal_only(self) -> None:
         imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
@@ -215,6 +218,23 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             "AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_AUDIT",
         ):
             self.assertEqual(env[key], "true")
+
+    def test_control_plane_pin_understands_opencode_executor_imports(self) -> None:
+        self.assertEqual(
+            self.control_plane_values["image"]["tag"],
+            "sha-77925be310da",
+        )
+
+        sources = self.control_plane_application["spec"]["sources"]
+        mandate_source = next(
+            source
+            for source in sources
+            if source["repoURL"] == "git@github.com:cesaregarza/agent-platform.git"
+        )
+        self.assertEqual(
+            mandate_source["targetRevision"],
+            "77925be310da0753175c8b5024e66c913df81930",
+        )
 
 
 if __name__ == "__main__":

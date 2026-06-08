@@ -28,6 +28,14 @@ hardening, the OpenCode proposer image, and the OpenCode apply executor image,
 and this overlay uses the
 machine-generated manifest/image/code digests from the release artifact.
 
+The Agent Control Plane is pinned to agent-platform
+`77925be310da0753175c8b5024e66c913df81930` / image tag
+`sha-77925be310da`, which includes the OpenCode proposer governance,
+DesignatedAction minting, executor-action lease projections, and workload-import
+`executor` field support required by this overlay. Do not sync the apply
+executor import against older control-plane images; workload imports validate
+atomically.
+
 The imported manifest is data, not dispatch authority. Mandate still loads the
 overlay through the registry validators, and dispatch still requires the policy
 grant, admission, a matching workload identity claim, lease projection, output
