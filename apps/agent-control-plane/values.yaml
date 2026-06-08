@@ -176,5 +176,9 @@ extraVolumeMounts:
     subPath: policy.prod.yaml
     readOnly: true
   - name: registry-overlay
+    mountPath: /app/registries/evals.yaml
+    subPath: evals.yaml
+    readOnly: true
+  - name: registry-overlay
     mountPath: /app/registries/imports
     readOnly: true
