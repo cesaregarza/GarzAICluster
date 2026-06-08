@@ -6,20 +6,26 @@ worker-service paths.
 The ConfigMap mounts registry overlay files into the Mandate pod:
 
 - `workload_imports.yaml` imports deployment-pinned workload manifests and image
-  digests for `data.workspace_probe` and `opencode.proposer`.
+  digests for `data.workspace_probe`, `opencode.proposer`, and
+  `opencode.apply_executor`.
 - `agent-data.workspace_probe.json` is the generated `WorkloadManifestV1`
   captured from the release artifact.
 - `agent-opencode.proposer.json` is the generated immutable manifest for the
   OpenCode proposer image.
+- `agent-opencode.apply_executor.json` is the generated immutable manifest for
+  the OpenCode apply executor image.
 - `evals.yaml` keeps the standard Mandate eval registry plus the deployment
-  `eval.opencode_proposer_smoke` suite required by the imported manifest.
-- `policy.prod.yaml` grants `agent_workloads.db_probe` and the non-consequential
-  `agent_workloads.opencode_propose` proposal capability to the private admin
-  Discord actor/channel binding.
+  `eval.opencode_proposer_smoke` and `eval.opencode_apply_smoke` suites
+  required by the imported manifests.
+- `policy.prod.yaml` grants `agent_workloads.db_probe`, the non-consequential
+  `agent_workloads.opencode_propose` proposal capability, and the
+  admin-confirmed consequential `agent_workloads.opencode_apply` executor
+  capability to the private admin Discord actor/channel binding.
 
 The current pins come from the latest successful `agent-workloads` main release
-artifact (`sha-5a6571fc7cb3`). That release includes the CES-34 worker-loop
-hardening and the OpenCode proposer image, and this overlay uses the
+artifact (`sha-85e8efb8d8e2`). That release includes the CES-34 worker-loop
+hardening, the OpenCode proposer image, and the OpenCode apply executor image,
+and this overlay uses the
 machine-generated manifest/image/code digests from the release artifact.
 
 The imported manifest is data, not dispatch authority. Mandate still loads the
@@ -35,5 +41,13 @@ the readonly database and model-call gates are explicitly reviewed.
 `agent_workloads.opencode_propose` is granted as proposal-only
 `reversible_staging` authority. It receives only a per-job model-gateway leased
 token through the worker claim response, and its diff is released as a
-metadata-only `opencode_proposal` artifact. This overlay does not add an apply
-path or consequential authority.
+metadata-only `opencode_proposal` artifact.
+
+`agent_workloads.opencode_apply` is consequential authority and remains behind
+`admin_confirm`. The apply worker is a separate `executor: true`
+`capability_worker`, not a hosted harness. It receives no model gateway URL,
+provider credentials, Git credentials, or database credentials. It consumes only
+Mandate-projected approval resume state, `DesignatedAction`, and
+`ExecutorActionLease`, re-hashes the proposal patch bytes, and prepares a local
+non-default branch/commit. Remote push and PR creation remain deferred to a
+future Git broker.

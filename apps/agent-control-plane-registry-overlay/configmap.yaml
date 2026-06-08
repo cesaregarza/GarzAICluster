@@ -48,8 +48,8 @@ data:
               session_taint: prod_authority
       - id: opencode.proposer
         manifest_path: registries/imports/agent-opencode.proposer.json
-        manifest_digest: sha256:a9cb5036952c2e2928fce6e2ef867fb56e7b45a9708a850ab57d4b41dbf529b0
-        image_digest: sha256:afcdd7b36aff7bca91d23f90683fb2b3db5226b2a6c8b1616f345db2d1f55579
+        manifest_digest: sha256:99a20b0fb445ecdbd35efd779926c9cd0006f38be2d2e0e78952972b27e7a8d8
+        image_digest: sha256:2278b7c4d55e42788825fb3bce5d2ae3bb675d285f913558de586cc7ba389646
         expected_source:
           repo: agent-workloads
           repo_url: https://github.com/cesaregarza/agent-workloads
@@ -93,6 +93,31 @@ data:
             artifacts:
               allowed: true
               broker_required: false
+      - id: opencode.apply_executor
+        manifest_path: registries/imports/agent-opencode.apply_executor.json
+        manifest_digest: sha256:2bcab60d70a8e6fc693c590e8621f74f42f34b6bc4e95fa78dc2e635fc27b3aa
+        image_digest: sha256:92ca9f53912c56bd680f214eeba73feacc56b339b66c58f0ff42ed4876600312
+        expected_source:
+          repo: agent-workloads
+          repo_url: https://github.com/cesaregarza/agent-workloads
+          path: agents/opencode-apply-executor/agent.yaml
+        agent:
+          execution_posture: capability_worker
+          network_access: broker_only
+          service_account_ref: opencode-apply-executor
+          identity_audience: mandate-api
+          executor: true
+          capacity_tier: 4
+          concurrency: 1
+          max_runtime_seconds: 300
+        capabilities:
+          agent_workloads.opencode_apply:
+            description: Imported OpenCode apply executor for approved proposal diffs.
+            output_schema: agent_workloads_opencode_apply_result_v1
+            approval_mode: admin_confirm
+            session_authority_budget:
+              max_operations: 1
+              session_taint: prod_authority
   policy.prod.yaml: |
     defaults:
       max_cost_usd_per_job: 0.25
@@ -101,6 +126,7 @@ data:
         platform_daily_usd: 25.0
         per_capability_daily_usd_default: 5.0
         per_capability_daily_usd:
+          agent_workloads.opencode_apply: 1.0
           agent_workloads.opencode_propose: 1.0
         per_user_daily_tokens: 200000
 
@@ -124,9 +150,11 @@ data:
             - mandate.ops.inspect
             - mandate.deploy.smoke
             - agent_workloads.db_probe
+            - agent_workloads.opencode_apply
             - agent_workloads.opencode_propose
           approval_overrides:
             approval.probe: admin_confirm
+            agent_workloads.opencode_apply: admin_confirm
   evals.yaml: |
     eval_suites:
       - id: eval.task_echo_smoke
@@ -234,8 +262,22 @@ data:
           min_success_rate: 1.0
           max_policy_violations: 0
           max_raw_secret_outputs: 0
+      - id: eval.opencode_apply_smoke
+        owner: deployment-overlay
+        description: Deployment smoke suite for the imported OpenCode apply
+          executor designation path.
+        applies_to:
+          - opencode.apply_executor
+        dataset: registries/imports/opencode_apply_smoke.jsonl
+        cadence: every_worker_change
+        gates:
+          min_success_rate: 1.0
+          max_policy_violations: 0
+          max_raw_secret_outputs: 0
   opencode_proposer_smoke.jsonl: |
     {"case_id":"opencode_proposal_artifact","capability":"agent_workloads.opencode_propose","input":{"text":"Draft a bounded proposal."},"expected":{"status":"succeeded","artifact_class":"opencode_proposal"}}
+  opencode_apply_smoke.jsonl: |
+    {"case_id":"opencode_apply_designation","capability":"agent_workloads.opencode_apply","input":{"text":"Apply an approved OpenCode proposal."},"expected":{"approval_mode":"admin_confirm","artifact_class":"opencode_apply_result"}}
   agent-data.workspace_probe.json: |
     {
       "capabilities": [
@@ -287,8 +329,8 @@ data:
           "consequence_class": "reversible_staging"
         }
       },
-      "code_digest": "sha256:d20f282c159db6a5a9039c50f745825ee58e27836e35637e87fd6edfa9db7e20",
-      "digest": "sha256:a9cb5036952c2e2928fce6e2ef867fb56e7b45a9708a850ab57d4b41dbf529b0",
+      "code_digest": "sha256:3b8af5d0d717e853c5eba1229a3410091de6211f8bbab78341ce1e8f7cb3adb3",
+      "digest": "sha256:99a20b0fb445ecdbd35efd779926c9cd0006f38be2d2e0e78952972b27e7a8d8",
       "display_name": "OpenCode Proposer",
       "evals": {
         "optional": [],
@@ -298,7 +340,7 @@ data:
       },
       "id": "opencode.proposer",
       "image": {
-        "digest": "sha256:afcdd7b36aff7bca91d23f90683fb2b3db5226b2a6c8b1616f345db2d1f55579",
+        "digest": "sha256:2278b7c4d55e42788825fb3bce5d2ae3bb675d285f913558de586cc7ba389646",
         "repository": "registry.digitalocean.com/sendouq/opencode-proposer"
       },
       "loop": {
@@ -309,6 +351,43 @@ data:
       "schema_version": "agent-workload.v1",
       "source": {
         "path": "agents/opencode-proposer/agent.yaml",
+        "repo": "agent-workloads",
+        "repo_url": "https://github.com/cesaregarza/agent-workloads"
+      },
+      "workload_type": "agent"
+    }
+  agent-opencode.apply_executor.json: |
+    {
+      "capabilities": [
+        "agent_workloads.opencode_apply"
+      ],
+      "capability_metadata": {
+        "agent_workloads.opencode_apply": {
+          "consequence_class": "consequential"
+        }
+      },
+      "code_digest": "sha256:a68f94ea12e81751fcbad8b64a05bf6fdc01d4360349c8e38badb2dbc7665bba",
+      "digest": "sha256:2bcab60d70a8e6fc693c590e8621f74f42f34b6bc4e95fa78dc2e635fc27b3aa",
+      "display_name": "OpenCode Apply Executor",
+      "evals": {
+        "optional": [],
+        "required": [
+          "eval.opencode_apply_smoke"
+        ]
+      },
+      "id": "opencode.apply_executor",
+      "image": {
+        "digest": "sha256:92ca9f53912c56bd680f214eeba73feacc56b339b66c58f0ff42ed4876600312",
+        "repository": "registry.digitalocean.com/sendouq/opencode-apply-executor"
+      },
+      "loop": {
+        "contract": "worker_service_v1",
+        "kind": "worker_service",
+        "protocol": "mandate_worker_service_pull_v1"
+      },
+      "schema_version": "agent-workload.v1",
+      "source": {
+        "path": "agents/opencode-apply-executor/agent.yaml",
         "repo": "agent-workloads",
         "repo_url": "https://github.com/cesaregarza/agent-workloads"
       },
