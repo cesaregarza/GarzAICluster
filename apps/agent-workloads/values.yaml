@@ -10,8 +10,8 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-5a6571fc7cb3
-  digest: sha256:c12fc7e698bd0833cd55934130be758a335586f69f1f38a8a956f8f761c23bdb
+  tag: sha-4489ed92101c
+  digest: sha256:cb73d7112d60d137925e741dc630973697a747953c19afab15ec20a2fbd3eb07
   pullPolicy: IfNotPresent
 
 env:
@@ -102,8 +102,8 @@ opencodeProposer:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-85e8efb8d8e2
-    digest: sha256:2278b7c4d55e42788825fb3bce5d2ae3bb675d285f913558de586cc7ba389646
+    tag: sha-4489ed92101c
+    digest: sha256:9bdf1fc1efb762fec027be2cf75dd8a6f28dbda3cc7b3e70c72ca82aed579e97
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
@@ -159,8 +159,8 @@ opencodeApplyExecutor:
   enabled: true
   image:
     repository: registry.digitalocean.com/sendouq/opencode-apply-executor
-    tag: sha-85e8efb8d8e2
-    digest: sha256:92ca9f53912c56bd680f214eeba73feacc56b339b66c58f0ff42ed4876600312
+    tag: sha-4489ed92101c
+    digest: sha256:7db3062f3a97fb584606e05484136f4d62b16b1f6072f18a1341e5c64da83353
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN
