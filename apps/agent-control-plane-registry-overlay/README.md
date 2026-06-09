@@ -23,7 +23,7 @@ The ConfigMap mounts registry overlay files into the Mandate pod:
   capability to the private admin Discord actor/channel binding.
 
 The current pins come from the latest successful `agent-workloads` main release
-artifact (`sha-4489ed92101c`). That release includes the CES-92 OpenCode
+artifact (`sha-505f7689c65a`). That release includes the CES-92 OpenCode
 proposer reliability fixes, the OpenCode proposer image, and the OpenCode apply
 executor image, and this overlay uses the machine-generated
 manifest/image/code digests from the release artifact.

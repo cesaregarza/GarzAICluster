@@ -10,8 +10,8 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-4489ed92101c
-  digest: sha256:cb73d7112d60d137925e741dc630973697a747953c19afab15ec20a2fbd3eb07
+  tag: sha-505f7689c65a
+  digest: sha256:b8bde05369d837f30f64f51d3a70d6129a9e4b8c2cf701035fd0e7193040ba1d
   pullPolicy: IfNotPresent
 
 env:
@@ -102,8 +102,8 @@ opencodeProposer:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-4489ed92101c
-    digest: sha256:9bdf1fc1efb762fec027be2cf75dd8a6f28dbda3cc7b3e70c72ca82aed579e97
+    tag: sha-505f7689c65a
+    digest: sha256:4d7537a0153894afea89c48444bb833f53ec20417730f47de4681cf01322c79b
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
@@ -159,8 +159,8 @@ opencodeApplyExecutor:
   enabled: true
   image:
     repository: registry.digitalocean.com/sendouq/opencode-apply-executor
-    tag: sha-4489ed92101c
-    digest: sha256:7db3062f3a97fb584606e05484136f4d62b16b1f6072f18a1341e5c64da83353
+    tag: sha-505f7689c65a
+    digest: sha256:25cf900981fda783b337bdd604b6aee1fa4b61899d8e2d2e8be3a2de2ceb2b5e
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN
@@ -182,3 +182,17 @@ opencodeApplyExecutor:
     limits:
       cpu: 500m
       memory: 512Mi
+
+mandateReleasePins:
+  data.workspace_probe:
+    codeDigest: sha256:32e2fd891161ab286f4515e2a232e06ada4f9172f140c986871a822b60cd8141
+    manifestDigest: sha256:bbcd495331dc1fb9749c299cd81fbfecb24606b9c89bc4cb002956b073880467
+    imageDigest: sha256:b8bde05369d837f30f64f51d3a70d6129a9e4b8c2cf701035fd0e7193040ba1d
+  opencode.apply_executor:
+    codeDigest: sha256:9648a4a0d3ef973de7e24c51775df3ae2930d00595467e537df97fb397d63b18
+    manifestDigest: sha256:66afbb6a937b40feea2dff6fca54d3784b8c7793dedd26501f49b3b1b0c026da
+    imageDigest: sha256:25cf900981fda783b337bdd604b6aee1fa4b61899d8e2d2e8be3a2de2ceb2b5e
+  opencode.proposer:
+    codeDigest: sha256:ba73587f099115e1e884debdbbcec2627f0ae5f462f00dd01667ff8cba21353c
+    manifestDigest: sha256:13d0cd4ff2ea938aeb6af1d60b4e45856f0ab40e8c31e37147ba081116b0b36b
+    imageDigest: sha256:4d7537a0153894afea89c48444bb833f53ec20417730f47de4681cf01322c79b

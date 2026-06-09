@@ -156,7 +156,7 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
         self.assertEqual(
             apply_executor["image"],
             "registry.digitalocean.com/sendouq/opencode-apply-executor"
-            "@sha256:7db3062f3a97fb584606e05484136f4d62b16b1f6072f18a1341e5c64da83353",
+            "@sha256:25cf900981fda783b337bdd604b6aee1fa4b61899d8e2d2e8be3a2de2ceb2b5e",
         )
 
         apply_mounts = {
