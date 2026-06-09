@@ -64,6 +64,13 @@ credentials, database URLs, or the shared `MANDATE_WORKER_TOKEN`. It
 authenticates to Mandate with `OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN`
 and consumes only claim-projected approval/designated-action state.
 
+When `apps/agent-workloads/values.yaml` contains `mandateReleasePins`, CI
+decrypts `runtime-secret.enc.yaml` and checks that each workload identity
+token's `code_digest` claim matches the release pin and the embedded registry
+overlay manifest. The gate does not mint tokens; rotate them with the
+operator-held HMAC signing seed whenever a release changes a workload
+`code_digest`.
+
 The `data.workspace_probe` worker should receive only
 `AGENT_WORKLOADS_DATABASE_URL` plus its mounted workload-identity token for the
 first live path. Provider credentials and readonly source-database credentials
