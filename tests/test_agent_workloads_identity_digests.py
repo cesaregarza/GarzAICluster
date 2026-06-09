@@ -15,6 +15,10 @@ from scripts.check_agent_workloads_identity_digests import (
 
 
 YAML_PARSER = YAML(typ="safe")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DRIFT_GATE_RECIPIENT = (
+    "age1qny3qstwqglwdyau5x7sp3vy0qmd3petzp4f3slf7u3qrudhdq0qf4cjau"
+)
 
 DIGESTS = {
     "data.workspace_probe": {
@@ -42,6 +46,77 @@ TOKEN_KEYS = {
 
 
 class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
+    def test_ci_drift_gate_uses_brokered_sops_key_not_repo_secret(self) -> None:
+        workflow_path = REPO_ROOT / ".github" / "workflows" / "ci.yaml"
+        workflow = YAML_PARSER.load(workflow_path.read_text())
+        workflow_text = workflow_path.read_text()
+        job = workflow["jobs"]["agent-workloads-identity-digest-drift"]
+
+        self.assertNotIn("secrets.SOPS_AGE_KEY", workflow_text)
+        self.assertEqual(job["permissions"]["contents"], "read")
+        self.assertEqual(job["permissions"]["id-token"], "write")
+
+        fetch_step = next(
+            step for step in job["steps"] if step.get("id") == "drift-gate-broker"
+        )
+        self.assertEqual(
+            fetch_step["uses"],
+            "cesaregarza/.github/actions/fetch-broker-credentials@main",
+        )
+        self.assertEqual(
+            fetch_step["with"]["capability"],
+            "sops-drift-gate-decrypt",
+        )
+        self.assertEqual(fetch_step["with"]["export-env"], True)
+
+        check_step = next(
+            step
+            for step in job["steps"]
+            if step.get("run")
+            == "uv run python scripts/check_agent_workloads_identity_digests.py"
+        )
+        self.assertEqual(
+            check_step["env"]["SOPS_AGE_KEY"],
+            "${{ env.SOPS_DRIFT_GATE_AGE_KEY }}",
+        )
+
+    def test_scoped_sops_recipient_only_decrypts_agent_workloads_runtime_secret(
+        self,
+    ) -> None:
+        sops_config = YAML_PARSER.load((REPO_ROOT / ".sops.yaml").read_text())
+        rules = sops_config["creation_rules"]
+        runtime_rule_index = next(
+            index
+            for index, rule in enumerate(rules)
+            if rule["path_regex"] == r"^secrets/agent-workloads/runtime-secret\.enc\.yaml$"
+        )
+        broad_agent_workloads_rule_index = next(
+            index
+            for index, rule in enumerate(rules)
+            if rule["path_regex"] == r"^secrets/agent-workloads/.*\.enc\.yaml$"
+        )
+
+        self.assertLess(runtime_rule_index, broad_agent_workloads_rule_index)
+        self.assertIn(DRIFT_GATE_RECIPIENT, rules[runtime_rule_index]["age"])
+        self.assertNotIn(
+            DRIFT_GATE_RECIPIENT,
+            rules[broad_agent_workloads_rule_index]["age"],
+        )
+
+        runtime_recipients = _sops_age_recipients(
+            REPO_ROOT / "secrets" / "agent-workloads" / "runtime-secret.enc.yaml"
+        )
+        agent_workloads_regcred_recipients = _sops_age_recipients(
+            REPO_ROOT / "secrets" / "agent-workloads" / "regcred.enc.yaml"
+        )
+        control_plane_recipients = _sops_age_recipients(
+            REPO_ROOT / "secrets" / "agent-control-plane" / "runtime-secret.enc.yaml"
+        )
+
+        self.assertIn(DRIFT_GATE_RECIPIENT, runtime_recipients)
+        self.assertNotIn(DRIFT_GATE_RECIPIENT, agent_workloads_regcred_recipients)
+        self.assertNotIn(DRIFT_GATE_RECIPIENT, control_plane_recipients)
+
     def test_gate_skips_without_release_pins(self) -> None:
         root = _fixture_repo(include_pins=False)
 
@@ -230,6 +305,15 @@ def _yaml_text(payload: dict[str, Any]) -> str:
     yaml.default_flow_style = False
     yaml.dump(payload, stream)
     return stream.getvalue()
+
+
+def _sops_age_recipients(path: Path) -> set[str]:
+    loaded = YAML_PARSER.load(path.read_text())
+    return {
+        entry["recipient"]
+        for entry in loaded["sops"]["age"]
+        if isinstance(entry, dict) and isinstance(entry.get("recipient"), str)
+    }
 
 
 if __name__ == "__main__":
