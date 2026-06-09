@@ -43,11 +43,11 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertEqual(
             opencode["manifest_digest"],
-            "sha256:77ec408c5950f5b6bb46ef4ab947e1ee4f982a28fe947bffb64ad05ccddfe0a4",
+            "sha256:13d0cd4ff2ea938aeb6af1d60b4e45856f0ab40e8c31e37147ba081116b0b36b",
         )
         self.assertEqual(
             opencode["image_digest"],
-            "sha256:9bdf1fc1efb762fec027be2cf75dd8a6f28dbda3cc7b3e70c72ca82aed579e97",
+            "sha256:4d7537a0153894afea89c48444bb833f53ec20417730f47de4681cf01322c79b",
         )
         self.assertEqual(opencode["agent"]["execution_posture"], "hosted_harness")
         self.assertIs(opencode["agent"]["model_gateway_token"], True)
@@ -74,11 +74,11 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertEqual(manifest["id"], "opencode.proposer")
         self.assertEqual(
             manifest["digest"],
-            "sha256:77ec408c5950f5b6bb46ef4ab947e1ee4f982a28fe947bffb64ad05ccddfe0a4",
+            "sha256:13d0cd4ff2ea938aeb6af1d60b4e45856f0ab40e8c31e37147ba081116b0b36b",
         )
         self.assertEqual(
             manifest["code_digest"],
-            "sha256:d5159ffe2f3ec5bd292840519aa62d02714bb11f046b69877a3552475e496ea8",
+            "sha256:ba73587f099115e1e884debdbbcec2627f0ae5f462f00dd01667ff8cba21353c",
         )
         self.assertEqual(
             manifest["capability_metadata"]["agent_workloads.opencode_propose"],
@@ -96,11 +96,11 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertEqual(
             opencode_apply["manifest_digest"],
-            "sha256:41b22e533a51b160f84b9d3a361cc49dfba626963458e9f139a9bcfc6b80e6ff",
+            "sha256:66afbb6a937b40feea2dff6fca54d3784b8c7793dedd26501f49b3b1b0c026da",
         )
         self.assertEqual(
             opencode_apply["image_digest"],
-            "sha256:7db3062f3a97fb584606e05484136f4d62b16b1f6072f18a1341e5c64da83353",
+            "sha256:25cf900981fda783b337bdd604b6aee1fa4b61899d8e2d2e8be3a2de2ceb2b5e",
         )
         self.assertEqual(
             opencode_apply["agent"]["execution_posture"],
@@ -126,7 +126,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertEqual(manifest["id"], "opencode.apply_executor")
         self.assertEqual(
             manifest["code_digest"],
-            "sha256:9a2db0c32c32a8508df90b3d1a77763de01ce9aee10bee95f7dcc882dc0569bd",
+            "sha256:9648a4a0d3ef973de7e24c51775df3ae2930d00595467e537df97fb397d63b18",
         )
         self.assertEqual(
             manifest["capability_metadata"]["agent_workloads.opencode_apply"],
