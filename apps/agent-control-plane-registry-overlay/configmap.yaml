@@ -10,114 +10,115 @@ data:
   workload_imports.yaml: |
     schema_version: workload-imports.v1
     imports:
-      - id: data.workspace_probe
-        manifest_path: registries/imports/agent-data.workspace_probe.json
-        manifest_digest: sha256:bbcd495331dc1fb9749c299cd81fbfecb24606b9c89bc4cb002956b073880467
-        image_digest: sha256:b8bde05369d837f30f64f51d3a70d6129a9e4b8c2cf701035fd0e7193040ba1d
-        expected_source:
-          repo: agent-workloads
-          repo_url: https://github.com/cesaregarza/agent-workloads
-          path: agents/db-workspace-probe/agent.yaml
-        agent:
-          execution_posture: capability_worker
-          network_access: database_only
-          service_account_ref: agent-workloads-worker
-          identity_audience: mandate-api
-          capacity_tier: 4
-          concurrency: 1
-          max_runtime_seconds: 120
-          model_call: true
-        capabilities:
-          agent_workloads.db_probe:
-            description: Imported reversible staging database workspace probe.
-            output_schema: agent_workloads_db_probe_result_v1
-          agent_workloads.readonly_query:
-            description: Imported governed readonly SQL query worker.
-            output_schema: agent_workloads_readonly_query_result_v1
-            model_lease:
-              required: true
-              allowed_tier: fast
-              allowed_profiles:
-                - openai.gpt-5.4-mini
-              max_prompt_tokens: 12000
-              max_completion_tokens: 1200
-              max_total_tokens: 13200
-              max_cost_usd: 0.05
-            session_authority_budget:
-              max_operations: 4
-              session_taint: prod_authority
-      - id: opencode.proposer
-        manifest_path: registries/imports/agent-opencode.proposer.json
-        manifest_digest: sha256:13d0cd4ff2ea938aeb6af1d60b4e45856f0ab40e8c31e37147ba081116b0b36b
-        image_digest: sha256:4d7537a0153894afea89c48444bb833f53ec20417730f47de4681cf01322c79b
-        expected_source:
-          repo: agent-workloads
-          repo_url: https://github.com/cesaregarza/agent-workloads
-          path: agents/opencode-proposer/agent.yaml
-        agent:
-          execution_posture: hosted_harness
-          network_access: broker_only
-          service_account_ref: opencode-proposer
-          identity_audience: mandate-api
-          capacity_tier: 4
-          concurrency: 1
-          max_runtime_seconds: 900
-          model_gateway_token: true
-        capabilities:
-          agent_workloads.opencode_propose:
-            description: Imported OpenCode proposer that returns metadata-only proposal artifacts.
-            output_schema: agent_workloads_opencode_proposal_result_v1
-            model_lease:
-              required: true
-              allowed_tier: fast
-              allowed_profiles:
-                - openai.gpt-5.3-codex-spark
-              max_prompt_tokens: 30000
-              max_completion_tokens: 4000
-              max_total_tokens: 34000
-              max_cost_usd: 0.25
-            session_authority_budget:
-              max_operations: 8
-              session_taint: prod_authority
-            disclosure:
-              raw_inputs_returnable: false
-              internal_sources_returnable: false
-              excerpts_allowed: false
-              aggregate_facts_allowed: true
-              citations_allowed: provider_public_only
-              artifact_classes_allowed:
-                - opencode_proposal
-              max_confidentiality_level_out: customer_visible
-              require_output_redaction_pass: true
-              require_result_schema: true
-            artifacts:
-              allowed: true
-              broker_required: false
-      - id: opencode.apply_executor
-        manifest_path: registries/imports/agent-opencode.apply_executor.json
-        manifest_digest: sha256:66afbb6a937b40feea2dff6fca54d3784b8c7793dedd26501f49b3b1b0c026da
-        image_digest: sha256:25cf900981fda783b337bdd604b6aee1fa4b61899d8e2d2e8be3a2de2ceb2b5e
-        expected_source:
-          repo: agent-workloads
-          repo_url: https://github.com/cesaregarza/agent-workloads
-          path: agents/opencode-apply-executor/agent.yaml
-        agent:
-          execution_posture: capability_worker
-          network_access: broker_only
-          service_account_ref: opencode-apply-executor
-          identity_audience: mandate-api
-          executor: true
-          capacity_tier: 4
-          concurrency: 1
-          max_runtime_seconds: 300
-        capabilities:
-          agent_workloads.opencode_apply:
-            description: Imported OpenCode apply executor for approved proposal diffs.
-            output_schema: agent_workloads_opencode_apply_result_v1
-            approval_mode: admin_confirm
-            session_authority_budget:
-              max_operations: 1
-              session_taint: prod_authority
+    - id: data.workspace_probe
+      manifest_path: registries/imports/agent-data.workspace_probe.json
+      manifest_digest: sha256:d9f9c9c021d86c06fe983a3634fe6fb08427530a485259535b9aec6c1df8826a
+      image_digest: sha256:2ebe581a0e07e086ba672f838f5336e93d4aa2785d874b2313090166c4463781
+      expected_source:
+        repo: agent-workloads
+        repo_url: https://github.com/cesaregarza/agent-workloads
+        path: agents/db-workspace-probe/agent.yaml
+      agent:
+        execution_posture: capability_worker
+        network_access: database_only
+        service_account_ref: agent-workloads-worker
+        identity_audience: mandate-api
+        capacity_tier: 4
+        concurrency: 1
+        max_runtime_seconds: 120
+        model_call: true
+      capabilities:
+        agent_workloads.db_probe:
+          description: Imported reversible staging database workspace probe.
+          output_schema: agent_workloads_db_probe_result_v1
+        agent_workloads.readonly_query:
+          description: Imported governed readonly SQL query worker.
+          output_schema: agent_workloads_readonly_query_result_v1
+          model_lease:
+            required: true
+            allowed_tier: fast
+            allowed_profiles:
+            - openai.gpt-5.4-mini
+            max_prompt_tokens: 12000
+            max_completion_tokens: 1200
+            max_total_tokens: 13200
+            max_cost_usd: 0.05
+          session_authority_budget:
+            max_operations: 4
+            session_taint: prod_authority
+    - id: opencode.proposer
+      manifest_path: registries/imports/agent-opencode.proposer.json
+      manifest_digest: sha256:55383ef99c884543ab99dbd22f5940ab91a470baf46921319013dc28af39cf9f
+      image_digest: sha256:6253062090842eaed75edb6bc38957e43c81d925c8c81b81ffe3cae2b69b72fa
+      expected_source:
+        repo: agent-workloads
+        repo_url: https://github.com/cesaregarza/agent-workloads
+        path: agents/opencode-proposer/agent.yaml
+      agent:
+        execution_posture: hosted_harness
+        network_access: broker_only
+        service_account_ref: opencode-proposer
+        identity_audience: mandate-api
+        capacity_tier: 4
+        concurrency: 1
+        max_runtime_seconds: 900
+        model_gateway_token: true
+      capabilities:
+        agent_workloads.opencode_propose:
+          description: Imported OpenCode proposer that returns metadata-only proposal
+            artifacts.
+          output_schema: agent_workloads_opencode_proposal_result_v1
+          model_lease:
+            required: true
+            allowed_tier: fast
+            allowed_profiles:
+            - openai.gpt-5.3-codex-spark
+            max_prompt_tokens: 30000
+            max_completion_tokens: 4000
+            max_total_tokens: 34000
+            max_cost_usd: 0.25
+          session_authority_budget:
+            max_operations: 8
+            session_taint: prod_authority
+          disclosure:
+            raw_inputs_returnable: false
+            internal_sources_returnable: false
+            excerpts_allowed: false
+            aggregate_facts_allowed: true
+            citations_allowed: provider_public_only
+            artifact_classes_allowed:
+            - opencode_proposal
+            max_confidentiality_level_out: customer_visible
+            require_output_redaction_pass: true
+            require_result_schema: true
+          artifacts:
+            allowed: true
+            broker_required: false
+    - id: opencode.apply_executor
+      manifest_path: registries/imports/agent-opencode.apply_executor.json
+      manifest_digest: sha256:1b1d19b34c9b1ff7f49bccc8d8b7e9e113c5eff1e8a42dc3299253d57b8eeafc
+      image_digest: sha256:9e70edfb89ab8d5451e9c9d1b5ab5ab2af5f97fcb16be9277a326719429e7020
+      expected_source:
+        repo: agent-workloads
+        repo_url: https://github.com/cesaregarza/agent-workloads
+        path: agents/opencode-apply-executor/agent.yaml
+      agent:
+        execution_posture: capability_worker
+        network_access: broker_only
+        service_account_ref: opencode-apply-executor
+        identity_audience: mandate-api
+        executor: true
+        capacity_tier: 4
+        concurrency: 1
+        max_runtime_seconds: 300
+      capabilities:
+        agent_workloads.opencode_apply:
+          description: Imported OpenCode apply executor for approved proposal diffs.
+          output_schema: agent_workloads_opencode_apply_result_v1
+          approval_mode: admin_confirm
+          session_authority_budget:
+            max_operations: 1
+            session_taint: prod_authority
   policy.prod.yaml: |
     defaults:
       max_cost_usd_per_job: 0.25
@@ -292,8 +293,8 @@ data:
           "consequence_class": "read_only"
         }
       },
-      "code_digest": "sha256:32e2fd891161ab286f4515e2a232e06ada4f9172f140c986871a822b60cd8141",
-      "digest": "sha256:bbcd495331dc1fb9749c299cd81fbfecb24606b9c89bc4cb002956b073880467",
+      "code_digest": "sha256:c3169393efa20ad342d82a6bec9af40d7fdc9a2b3964327c6467ae238b04b42f",
+      "digest": "sha256:d9f9c9c021d86c06fe983a3634fe6fb08427530a485259535b9aec6c1df8826a",
       "display_name": "Agent Workloads Data Worker",
       "evals": {
         "optional": [],
@@ -303,7 +304,7 @@ data:
       },
       "id": "data.workspace_probe",
       "image": {
-        "digest": "sha256:b8bde05369d837f30f64f51d3a70d6129a9e4b8c2cf701035fd0e7193040ba1d",
+        "digest": "sha256:2ebe581a0e07e086ba672f838f5336e93d4aa2785d874b2313090166c4463781",
         "repository": "registry.digitalocean.com/sendouq/agent-workloads-worker"
       },
       "loop": {
@@ -329,8 +330,8 @@ data:
           "consequence_class": "reversible_staging"
         }
       },
-      "code_digest": "sha256:ba73587f099115e1e884debdbbcec2627f0ae5f462f00dd01667ff8cba21353c",
-      "digest": "sha256:13d0cd4ff2ea938aeb6af1d60b4e45856f0ab40e8c31e37147ba081116b0b36b",
+      "code_digest": "sha256:488d4d9554c2ca0f90226c239e4848ddec834b27089da1adee09e6ef967f11b2",
+      "digest": "sha256:55383ef99c884543ab99dbd22f5940ab91a470baf46921319013dc28af39cf9f",
       "display_name": "OpenCode Proposer",
       "evals": {
         "optional": [],
@@ -340,7 +341,7 @@ data:
       },
       "id": "opencode.proposer",
       "image": {
-        "digest": "sha256:4d7537a0153894afea89c48444bb833f53ec20417730f47de4681cf01322c79b",
+        "digest": "sha256:6253062090842eaed75edb6bc38957e43c81d925c8c81b81ffe3cae2b69b72fa",
         "repository": "registry.digitalocean.com/sendouq/opencode-proposer"
       },
       "loop": {
@@ -366,8 +367,8 @@ data:
           "consequence_class": "consequential"
         }
       },
-      "code_digest": "sha256:9648a4a0d3ef973de7e24c51775df3ae2930d00595467e537df97fb397d63b18",
-      "digest": "sha256:66afbb6a937b40feea2dff6fca54d3784b8c7793dedd26501f49b3b1b0c026da",
+      "code_digest": "sha256:0d01fc44a543cb54f513d459a02be105cd2f929c687f44536eb11996b65c97b7",
+      "digest": "sha256:1b1d19b34c9b1ff7f49bccc8d8b7e9e113c5eff1e8a42dc3299253d57b8eeafc",
       "display_name": "OpenCode Apply Executor",
       "evals": {
         "optional": [],
@@ -377,7 +378,7 @@ data:
       },
       "id": "opencode.apply_executor",
       "image": {
-        "digest": "sha256:25cf900981fda783b337bdd604b6aee1fa4b61899d8e2d2e8be3a2de2ceb2b5e",
+        "digest": "sha256:9e70edfb89ab8d5451e9c9d1b5ab5ab2af5f97fcb16be9277a326719429e7020",
         "repository": "registry.digitalocean.com/sendouq/opencode-apply-executor"
       },
       "loop": {
