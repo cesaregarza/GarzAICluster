@@ -147,6 +147,7 @@ data:
             - mandate.ops.inspect
             - mandate.deploy.smoke
             - agent_workloads.db_probe
+            - agent_workloads.readonly_query
             - agent_workloads.opencode_apply
             - agent_workloads.opencode_propose
           approval_overrides:
