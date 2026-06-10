@@ -28,6 +28,9 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         cls.control_plane_values = _load_yaml(
             REPO_ROOT / "apps" / "agent-control-plane" / "values.yaml"
         )
+        cls.agent_workloads_values = _load_yaml(
+            REPO_ROOT / "apps" / "agent-workloads" / "values.yaml"
+        )
         cls.control_plane_application = _load_yaml(
             REPO_ROOT / "argocd" / "applications" / "agent-control-plane.yaml"
         )
@@ -35,20 +38,17 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
     def test_opencode_proposer_import_is_overlay_pinned_and_proposal_only(self) -> None:
         imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
         imports_by_id = {entry["id"]: entry for entry in imports["imports"]}
+        release_pin = self.agent_workloads_values["mandateReleasePins"][
+            "opencode.proposer"
+        ]
 
         opencode = imports_by_id["opencode.proposer"]
         self.assertEqual(
             opencode["manifest_path"],
             "registries/imports/agent-opencode.proposer.json",
         )
-        self.assertEqual(
-            opencode["manifest_digest"],
-            "sha256:13d0cd4ff2ea938aeb6af1d60b4e45856f0ab40e8c31e37147ba081116b0b36b",
-        )
-        self.assertEqual(
-            opencode["image_digest"],
-            "sha256:4d7537a0153894afea89c48444bb833f53ec20417730f47de4681cf01322c79b",
-        )
+        self.assertEqual(opencode["manifest_digest"], release_pin["manifestDigest"])
+        self.assertEqual(opencode["image_digest"], release_pin["imageDigest"])
         self.assertEqual(opencode["agent"]["execution_posture"], "hosted_harness")
         self.assertIs(opencode["agent"]["model_gateway_token"], True)
         self.assertEqual(opencode["agent"]["network_access"], "broker_only")
@@ -72,14 +72,9 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
 
         manifest = json.loads(self.data["agent-opencode.proposer.json"])
         self.assertEqual(manifest["id"], "opencode.proposer")
-        self.assertEqual(
-            manifest["digest"],
-            "sha256:13d0cd4ff2ea938aeb6af1d60b4e45856f0ab40e8c31e37147ba081116b0b36b",
-        )
-        self.assertEqual(
-            manifest["code_digest"],
-            "sha256:ba73587f099115e1e884debdbbcec2627f0ae5f462f00dd01667ff8cba21353c",
-        )
+        self.assertEqual(manifest["digest"], release_pin["manifestDigest"])
+        self.assertEqual(manifest["code_digest"], release_pin["codeDigest"])
+        self.assertEqual(manifest["image"]["digest"], release_pin["imageDigest"])
         self.assertEqual(
             manifest["capability_metadata"]["agent_workloads.opencode_propose"],
             {"consequence_class": "reversible_staging"},
@@ -88,6 +83,9 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
     def test_opencode_apply_import_is_executor_only_and_admin_confirmed(self) -> None:
         imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
         imports_by_id = {entry["id"]: entry for entry in imports["imports"]}
+        release_pin = self.agent_workloads_values["mandateReleasePins"][
+            "opencode.apply_executor"
+        ]
 
         opencode_apply = imports_by_id["opencode.apply_executor"]
         self.assertEqual(
@@ -95,13 +93,9 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             "registries/imports/agent-opencode.apply_executor.json",
         )
         self.assertEqual(
-            opencode_apply["manifest_digest"],
-            "sha256:66afbb6a937b40feea2dff6fca54d3784b8c7793dedd26501f49b3b1b0c026da",
+            opencode_apply["manifest_digest"], release_pin["manifestDigest"]
         )
-        self.assertEqual(
-            opencode_apply["image_digest"],
-            "sha256:25cf900981fda783b337bdd604b6aee1fa4b61899d8e2d2e8be3a2de2ceb2b5e",
-        )
+        self.assertEqual(opencode_apply["image_digest"], release_pin["imageDigest"])
         self.assertEqual(
             opencode_apply["agent"]["execution_posture"],
             "capability_worker",
@@ -124,10 +118,9 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
 
         manifest = json.loads(self.data["agent-opencode.apply_executor.json"])
         self.assertEqual(manifest["id"], "opencode.apply_executor")
-        self.assertEqual(
-            manifest["code_digest"],
-            "sha256:9648a4a0d3ef973de7e24c51775df3ae2930d00595467e537df97fb397d63b18",
-        )
+        self.assertEqual(manifest["digest"], release_pin["manifestDigest"])
+        self.assertEqual(manifest["code_digest"], release_pin["codeDigest"])
+        self.assertEqual(manifest["image"]["digest"], release_pin["imageDigest"])
         self.assertEqual(
             manifest["capability_metadata"]["agent_workloads.opencode_apply"],
             {"consequence_class": "consequential"},
@@ -220,20 +213,16 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             self.assertEqual(env[key], "true")
 
     def test_control_plane_pin_understands_opencode_executor_imports(self) -> None:
-        self.assertEqual(
-            self.control_plane_values["image"]["tag"],
-            "sha-77925be310da",
-        )
-
         sources = self.control_plane_application["spec"]["sources"]
         mandate_source = next(
             source
             for source in sources
             if source["repoURL"] == "git@github.com:cesaregarza/agent-platform.git"
         )
+        target_revision = mandate_source["targetRevision"]
         self.assertEqual(
-            mandate_source["targetRevision"],
-            "77925be310da0753175c8b5024e66c913df81930",
+            self.control_plane_values["image"]["tag"],
+            f"sha-{target_revision[:12]}",
         )
 
 

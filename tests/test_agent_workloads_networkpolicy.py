@@ -69,6 +69,9 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.docs = _render_agent_workloads_prod()
+        cls.values = YAML_PARSER.load(
+            (REPO_ROOT / "apps" / "agent-workloads" / "values.yaml").read_text()
+        )
 
     def test_workspace_probe_network_policy_is_database_only(self) -> None:
         policy = _find_doc(
@@ -153,10 +156,10 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             apply_env["AGENT_WORKLOADS_WORKER_CAPABILITIES"]["value"],
             "agent_workloads.opencode_apply",
         )
+        apply_image = self.values["opencodeApplyExecutor"]["image"]
         self.assertEqual(
             apply_executor["image"],
-            "registry.digitalocean.com/sendouq/opencode-apply-executor"
-            "@sha256:25cf900981fda783b337bdd604b6aee1fa4b61899d8e2d2e8be3a2de2ceb2b5e",
+            f"{apply_image['repository']}@{apply_image['digest']}",
         )
 
         apply_mounts = {
