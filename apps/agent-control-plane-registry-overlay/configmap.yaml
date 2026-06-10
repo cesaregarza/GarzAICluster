@@ -126,7 +126,6 @@ data:
         per_capability_daily_usd:
           agent_workloads.opencode_apply: 1.0
           agent_workloads.opencode_propose: 1.0
-        per_user_daily_tokens: 200000
 
     bindings:
       - id: private-admin-controlled-capabilities
