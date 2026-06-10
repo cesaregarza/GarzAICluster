@@ -3,6 +3,22 @@
 This app installs the prod deployment overlay for live `agent-workloads`
 worker-service paths.
 
+## Sync rolls the control plane automatically (CES-108)
+
+The control plane builds its `RegistrySnapshot` once at boot and never
+re-reads the mounted overlay, so every overlay change requires a restart of
+all four control-plane Deployments to take effect. A `PostSync` hook Job
+(`restart-hook.yaml`, ServiceAccount/Role scoped to exactly those four
+Deployments in `restart-rbac.yaml`) performs the `rollout restart` and then
+waits on `rollout status` for each — **a config the deployed image cannot
+boot fails the sync loudly** instead of crash-looping in silence. No manual
+`kubectl rollout restart` step is needed for overlay-only changes.
+
+Note: the hook fires on every sync of this app, including no-op re-syncs;
+restarts are rolling and the app is manual-sync, so syncs are deliberate.
+Workload-identity token re-mints (the `agent-workloads-secrets` app) still
+require a manual worker rollout — see CES-108 for the recorded follow-up.
+
 The ConfigMap mounts registry overlay files into the Mandate pod:
 
 - `workload_imports.yaml` imports deployment-pinned workload manifests and image
