@@ -13,7 +13,7 @@ image:
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
   AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
-  AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe
+  AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe,agent_workloads.readonly_query
   MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE: /var/run/mandate/workload-identity/token
   AGENT_WORKLOADS_ENVIRONMENT: production
   AGENT_WORKLOADS_SCHEMA: agent_workloads
@@ -26,6 +26,7 @@ env:
   OPENAI_SQL_BROKER_TIMEOUT_SECONDS: '45'
 secretKeys:
 - AGENT_WORKLOADS_DATABASE_URL
+- XSCRAPER_READONLY_DATABASE_URL
 secretEnv: {}
 extraVolumes:
 - name: workload-identity-token
