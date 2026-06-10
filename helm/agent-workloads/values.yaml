@@ -7,6 +7,7 @@ replicaCount: 1
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
   tag: dev
+  digest: ""
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -19,6 +20,8 @@ serviceAccount:
 
 podAnnotations: {}
 podLabels: {}
+extraVolumes: []
+extraVolumeMounts: []
 
 podSecurityContext:
   runAsNonRoot: true
@@ -88,6 +91,7 @@ opencodeProposer:
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
     tag: dev
+    digest: ""
     pullPolicy: IfNotPresent
   podAnnotations: {}
   podLabels:
@@ -142,3 +146,48 @@ opencodeProposer:
           - port: 53
             protocol: TCP
       destinations: []
+
+opencodeApplyExecutor:
+  enabled: false
+  image:
+    repository: registry.digitalocean.com/sendouq/opencode-apply-executor
+    tag: dev
+    digest: ""
+    pullPolicy: IfNotPresent
+  command:
+    - agent-workloads-worker
+  args: []
+  secretKeys: []
+  secretEnv: {}
+  env:
+    MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
+    AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
+    AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_apply
+    AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_DIR: /workspace/job
+    AGENT_WORKLOADS_OPENCODE_APPLY_PROPOSALS_DIR: /workspace/proposals
+    AGENT_WORKLOADS_OPENCODE_APPLY_DEFAULT_BRANCH: main
+    HOME: /tmp
+    TMPDIR: /tmp
+  initWorkspace:
+    enabled: true
+    command:
+      - /bin/sh
+      - -c
+    script: |
+      set -eu
+      mkdir -p /workspace/job /workspace/proposals
+      cd /workspace/job
+      git init -q
+      git config --global --add safe.directory /workspace/job
+      git config --local user.email mandate-opencode@garz.ai
+      git config --local user.name "Mandate OpenCode"
+      printf '# Mandate OpenCode Workspace\n\n' > README.md
+      git add README.md
+      git commit -q -m 'Initialize workspace'
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

@@ -1,3 +1,5 @@
+> **Relocated from `agent-platform` per CES-50 (2026-06-06).** This is deployment-owned historical operational evidence — a dated record of an actual rollout. The generic Mandate package keeps only a pointer to this file; the full trail lives here.
+
 # OpenClaw MCP Rollout - 2026-05-27
 
 This document records the rollout that connected the live OpenClaw droplet to

@@ -1,3 +1,5 @@
+> **Relocated from `agent-platform` per CES-50 (2026-06-06).** Original deployment-specific MVP notes. The generic deployment *pattern* stays in `agent-platform/docs/runbooks/openclaw-mvp-deployment.md`; the cluster-specific historical detail lives here.
+
 # OpenClaw MVP Deployment
 
 This is the deployment path for making the current OpenClaw instance talk to

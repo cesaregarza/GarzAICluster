@@ -3,6 +3,7 @@ name: no-latest
 on:
   pull_request:
     paths:
+      - 'apps/**'
       - 'helm/**'
       - 'argocd/**'
 
@@ -19,7 +20,7 @@ jobs:
       - name: Block :latest tags (allow override with # allow-latest)
         run: |
           set -euo pipefail
-          matches=$(git grep -nE '(^\s*tag:\s*"?latest"?\s*$)|(image:\s*[^\s]+:latest)' -- 'helm' 'argocd' || true)
+          matches=$(git grep -nE '(^\s*tag:\s*"?latest"?\s*$)|(image:\s*[^\s]+:latest)' -- 'apps' 'helm' 'argocd' || true)
           if [ -z "$matches" ]; then
             exit 0
           fi

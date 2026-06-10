@@ -1,0 +1,241 @@
+from __future__ import annotations
+
+import json
+import unittest
+from pathlib import Path
+from typing import Any
+
+from ruamel.yaml import YAML
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+YAML_PARSER = YAML(typ="safe")
+
+
+def _load_yaml(path: Path) -> dict[str, Any]:
+    loaded = YAML_PARSER.load(path.read_text())
+    if not isinstance(loaded, dict):
+        raise AssertionError(f"YAML mapping expected: {path}")
+    return loaded
+
+
+class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        configmap = _load_yaml(
+            REPO_ROOT / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
+        )
+        cls.data = configmap["data"]
+        cls.control_plane_values = _load_yaml(
+            REPO_ROOT / "apps" / "agent-control-plane" / "values.yaml"
+        )
+        cls.control_plane_application = _load_yaml(
+            REPO_ROOT / "argocd" / "applications" / "agent-control-plane.yaml"
+        )
+
+    def test_opencode_proposer_import_is_overlay_pinned_and_proposal_only(self) -> None:
+        imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
+        imports_by_id = {entry["id"]: entry for entry in imports["imports"]}
+
+        opencode = imports_by_id["opencode.proposer"]
+        self.assertEqual(
+            opencode["manifest_path"],
+            "registries/imports/agent-opencode.proposer.json",
+        )
+        self.assertEqual(
+            opencode["manifest_digest"],
+            "sha256:13d0cd4ff2ea938aeb6af1d60b4e45856f0ab40e8c31e37147ba081116b0b36b",
+        )
+        self.assertEqual(
+            opencode["image_digest"],
+            "sha256:4d7537a0153894afea89c48444bb833f53ec20417730f47de4681cf01322c79b",
+        )
+        self.assertEqual(opencode["agent"]["execution_posture"], "hosted_harness")
+        self.assertIs(opencode["agent"]["model_gateway_token"], True)
+        self.assertEqual(opencode["agent"]["network_access"], "broker_only")
+
+        capability = opencode["capabilities"]["agent_workloads.opencode_propose"]
+        self.assertEqual(capability["model_lease"]["allowed_tier"], "fast")
+        self.assertEqual(
+            capability["model_lease"]["allowed_profiles"],
+            ["openai.gpt-5.3-codex-spark"],
+        )
+        self.assertEqual(capability["model_lease"]["max_cost_usd"], 0.25)
+        self.assertEqual(capability["session_authority_budget"]["max_operations"], 8)
+        self.assertEqual(
+            capability["disclosure"]["artifact_classes_allowed"],
+            ["opencode_proposal"],
+        )
+        self.assertEqual(
+            capability["artifacts"],
+            {"allowed": True, "broker_required": False},
+        )
+
+        manifest = json.loads(self.data["agent-opencode.proposer.json"])
+        self.assertEqual(manifest["id"], "opencode.proposer")
+        self.assertEqual(
+            manifest["digest"],
+            "sha256:13d0cd4ff2ea938aeb6af1d60b4e45856f0ab40e8c31e37147ba081116b0b36b",
+        )
+        self.assertEqual(
+            manifest["code_digest"],
+            "sha256:ba73587f099115e1e884debdbbcec2627f0ae5f462f00dd01667ff8cba21353c",
+        )
+        self.assertEqual(
+            manifest["capability_metadata"]["agent_workloads.opencode_propose"],
+            {"consequence_class": "reversible_staging"},
+        )
+
+    def test_opencode_apply_import_is_executor_only_and_admin_confirmed(self) -> None:
+        imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
+        imports_by_id = {entry["id"]: entry for entry in imports["imports"]}
+
+        opencode_apply = imports_by_id["opencode.apply_executor"]
+        self.assertEqual(
+            opencode_apply["manifest_path"],
+            "registries/imports/agent-opencode.apply_executor.json",
+        )
+        self.assertEqual(
+            opencode_apply["manifest_digest"],
+            "sha256:66afbb6a937b40feea2dff6fca54d3784b8c7793dedd26501f49b3b1b0c026da",
+        )
+        self.assertEqual(
+            opencode_apply["image_digest"],
+            "sha256:25cf900981fda783b337bdd604b6aee1fa4b61899d8e2d2e8be3a2de2ceb2b5e",
+        )
+        self.assertEqual(
+            opencode_apply["agent"]["execution_posture"],
+            "capability_worker",
+        )
+        self.assertEqual(opencode_apply["agent"]["network_access"], "broker_only")
+        self.assertIs(opencode_apply["agent"]["executor"], True)
+        self.assertNotIn("model_gateway_token", opencode_apply["agent"])
+
+        capability = opencode_apply["capabilities"]["agent_workloads.opencode_apply"]
+        self.assertEqual(capability["approval_mode"], "admin_confirm")
+        self.assertEqual(
+            capability["output_schema"],
+            "agent_workloads_opencode_apply_result_v1",
+        )
+        self.assertEqual(capability["session_authority_budget"]["max_operations"], 1)
+        self.assertEqual(
+            capability["session_authority_budget"]["session_taint"],
+            "prod_authority",
+        )
+
+        manifest = json.loads(self.data["agent-opencode.apply_executor.json"])
+        self.assertEqual(manifest["id"], "opencode.apply_executor")
+        self.assertEqual(
+            manifest["code_digest"],
+            "sha256:9648a4a0d3ef973de7e24c51775df3ae2930d00595467e537df97fb397d63b18",
+        )
+        self.assertEqual(
+            manifest["capability_metadata"]["agent_workloads.opencode_apply"],
+            {"consequence_class": "consequential"},
+        )
+        self.assertEqual(manifest["evals"]["required"], ["eval.opencode_apply_smoke"])
+
+    def test_opencode_policy_and_eval_overlay_are_mounted(self) -> None:
+        policy = YAML_PARSER.load(self.data["policy.prod.yaml"])
+        binding = next(
+            item
+            for item in policy["bindings"]
+            if item["id"] == "private-admin-controlled-capabilities"
+        )
+        self.assertIn(
+            "agent_workloads.opencode_propose",
+            binding["capabilities"]["allow"],
+        )
+        self.assertIn(
+            "agent_workloads.opencode_apply",
+            binding["capabilities"]["allow"],
+        )
+        self.assertEqual(
+            binding["capabilities"]["approval_overrides"][
+                "agent_workloads.opencode_apply"
+            ],
+            "admin_confirm",
+        )
+        self.assertEqual(policy["defaults"]["max_cost_usd_per_job"], 0.25)
+        self.assertEqual(
+            policy["defaults"]["aggregate_budget"]["per_capability_daily_usd"][
+                "agent_workloads.opencode_propose"
+            ],
+            1.0,
+        )
+        self.assertEqual(
+            policy["defaults"]["aggregate_budget"]["per_capability_daily_usd"][
+                "agent_workloads.opencode_apply"
+            ],
+            1.0,
+        )
+
+        evals = YAML_PARSER.load(self.data["evals.yaml"])
+        evals_by_id = {entry["id"]: entry for entry in evals["eval_suites"]}
+        self.assertIn("eval.task_echo_smoke", evals_by_id)
+        self.assertEqual(
+            evals_by_id["eval.opencode_proposer_smoke"]["dataset"],
+            "registries/imports/opencode_proposer_smoke.jsonl",
+        )
+        self.assertEqual(
+            evals_by_id["eval.opencode_apply_smoke"]["dataset"],
+            "registries/imports/opencode_apply_smoke.jsonl",
+        )
+        self.assertIn("opencode_proposer_smoke.jsonl", self.data)
+        self.assertIn("opencode_apply_smoke.jsonl", self.data)
+
+        mounts = {
+            mount["mountPath"]: mount
+            for mount in self.control_plane_values["extraVolumeMounts"]
+        }
+        self.assertEqual(
+            mounts["/app/registries/evals.yaml"]["subPath"],
+            "evals.yaml",
+        )
+
+    def test_hosted_harness_safe_floor_and_token_handoff_are_configured(self) -> None:
+        values = self.control_plane_values
+        self.assertIn(
+            "AGENT_PLATFORM_MODEL_GATEWAY_TOKEN_SECRET",
+            values["secretKeys"],
+        )
+        subjects = json.loads(
+            values["env"]["AGENT_PLATFORM_WORKLOAD_IDENTITY_ALLOWED_SUBJECTS_JSON"]
+        )
+        self.assertIn("opencode.proposer", subjects["worker_service"])
+        self.assertIn("opencode.apply_executor", subjects["worker_service"])
+
+        env = values["env"]
+        self.assertEqual(
+            env["AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_EVIDENCE"],
+            "deployment_attestation",
+        )
+        for key in (
+            "AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_EGRESS_JAIL",
+            "AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_NO_AMBIENT_CREDENTIALS",
+            "AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_MODEL_GATEWAY",
+            "AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_COST_CUTOFF",
+            "AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_CONSEQUENCE_ENFORCEMENT",
+            "AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_AUDIT",
+        ):
+            self.assertEqual(env[key], "true")
+
+    def test_control_plane_pin_understands_opencode_executor_imports(self) -> None:
+        self.assertEqual(
+            self.control_plane_values["image"]["tag"],
+            "sha-77925be310da",
+        )
+
+        sources = self.control_plane_application["spec"]["sources"]
+        mandate_source = next(
+            source
+            for source in sources
+            if source["repoURL"] == "git@github.com:cesaregarza/agent-platform.git"
+        )
+        self.assertEqual(
+            mandate_source["targetRevision"],
+            "77925be310da0753175c8b5024e66c913df81930",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

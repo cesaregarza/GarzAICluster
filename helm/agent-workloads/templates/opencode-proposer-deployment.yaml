@@ -27,10 +27,11 @@ spec:
       {{- include "agent-workloads.imagePullSecrets" . | nindent 6 }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      {{- if .Values.opencodeProposer.initWorkspace.enabled }}
+      {{- if or .Values.opencodeProposer.initWorkspace.enabled (and .Values.opencodeApplyExecutor.enabled .Values.opencodeApplyExecutor.initWorkspace.enabled) }}
       initContainers:
+        {{- if .Values.opencodeProposer.initWorkspace.enabled }}
         - name: init-workspace
-          image: "{{ .Values.opencodeProposer.image.repository }}:{{ .Values.opencodeProposer.image.tag }}"
+          image: "{{ include "agent-workloads.imageRef" .Values.opencodeProposer.image }}"
           imagePullPolicy: {{ .Values.opencodeProposer.image.pullPolicy }}
           command:
             {{- toYaml .Values.opencodeProposer.initWorkspace.command | nindent 12 }}
@@ -46,16 +47,42 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           volumeMounts:
-            - name: tmp
+            - name: proposer-tmp
               mountPath: /tmp
             - name: job-workspace
               mountPath: /workspace/job
             - name: proposals
               mountPath: /workspace/proposals
+        {{- end }}
+        {{- if and .Values.opencodeApplyExecutor.enabled .Values.opencodeApplyExecutor.initWorkspace.enabled }}
+        - name: init-apply-workspace
+          image: "{{ include "agent-workloads.imageRef" .Values.opencodeApplyExecutor.image }}"
+          imagePullPolicy: {{ .Values.opencodeApplyExecutor.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.opencodeApplyExecutor.initWorkspace.command | nindent 12 }}
+          args:
+            - {{ .Values.opencodeApplyExecutor.initWorkspace.script | quote }}
+          env:
+            - name: HOME
+              value: /tmp
+            - name: TMPDIR
+              value: /tmp
+          resources:
+            {{- toYaml .Values.opencodeApplyExecutor.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: apply-tmp
+              mountPath: /tmp
+            - name: apply-workspace
+              mountPath: /workspace/job
+            - name: proposals
+              mountPath: /workspace/proposals
+        {{- end }}
       {{- end }}
       containers:
         - name: opencode-proposer
-          image: "{{ .Values.opencodeProposer.image.repository }}:{{ .Values.opencodeProposer.image.tag }}"
+          image: "{{ include "agent-workloads.imageRef" .Values.opencodeProposer.image }}"
           imagePullPolicy: {{ .Values.opencodeProposer.image.pullPolicy }}
           command:
             {{- toYaml .Values.opencodeProposer.command | nindent 12 }}
@@ -70,16 +97,44 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           volumeMounts:
-            - name: tmp
+            - name: proposer-tmp
               mountPath: /tmp
             - name: job-workspace
               mountPath: /workspace/job
             - name: proposals
               mountPath: /workspace/proposals
+        {{- if .Values.opencodeApplyExecutor.enabled }}
+        - name: opencode-apply-executor
+          image: "{{ include "agent-workloads.imageRef" .Values.opencodeApplyExecutor.image }}"
+          imagePullPolicy: {{ .Values.opencodeApplyExecutor.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.opencodeApplyExecutor.command | nindent 12 }}
+          {{- with .Values.opencodeApplyExecutor.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- include "agent-workloads.envFromValues" (dict "root" . "values" .Values.opencodeApplyExecutor) | nindent 12 }}
+          resources:
+            {{- toYaml .Values.opencodeApplyExecutor.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: apply-tmp
+              mountPath: /tmp
+            - name: apply-workspace
+              mountPath: /workspace/job
+            - name: proposals
+              mountPath: /workspace/proposals
+        {{- end }}
       volumes:
-        - name: tmp
+        - name: proposer-tmp
+          emptyDir: {}
+        - name: apply-tmp
           emptyDir: {}
         - name: job-workspace
+          emptyDir: {}
+        - name: apply-workspace
           emptyDir: {}
         - name: proposals
           emptyDir: {}

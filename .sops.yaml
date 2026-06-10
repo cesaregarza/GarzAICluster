@@ -1,5 +1,5 @@
 # SOPS configuration for this repo.
-# Public key lives in keys/age-public.txt; private key is stored in GitHub Actions secret / cluster secret.
+# Public key lives in keys/age-public.txt; private key is stored in the operator vault.
 creation_rules:
   - path_regex: ^k8s/.*\.enc\.yaml$
     encrypted_regex: '^(data|stringData)$'
@@ -28,6 +28,11 @@ creation_rules:
   - path_regex: ^secrets/agent-control-plane/.*\.enc\.yaml$
     encrypted_regex: '^(data|stringData)$'
     age: age16yxsawhpecdrhas2q3z246q3tjq8889m552lqhjcgf8jnt7naszqqgz8vt
+  - path_regex: ^secrets/agent-workloads/runtime-secret\.enc\.yaml$
+    encrypted_regex: '^(data|stringData)$'
+    age: >-
+      age16yxsawhpecdrhas2q3z246q3tjq8889m552lqhjcgf8jnt7naszqqgz8vt,
+      age1qny3qstwqglwdyau5x7sp3vy0qmd3petzp4f3slf7u3qrudhdq0qf4cjau
   - path_regex: ^secrets/agent-workloads/.*\.enc\.yaml$
     encrypted_regex: '^(data|stringData)$'
     age: age16yxsawhpecdrhas2q3z246q3tjq8889m552lqhjcgf8jnt7naszqqgz8vt

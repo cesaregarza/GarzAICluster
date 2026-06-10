@@ -10,6 +10,69 @@ permissions:
   contents: read
 
 jobs:
+  python-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run Python contract tests
+        run: uv run python -m unittest discover -s tests
+
+  agent-workloads-identity-digest-drift:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install sops
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors --connect-timeout 20 \
+            --output /tmp/sops \
+            https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
+          sudo install -m 0755 /tmp/sops /usr/local/bin/sops
+          sops --version
+
+      - name: Fetch drift-gate SOPS age key
+        id: drift-gate-broker
+        uses: cesaregarza/.github/actions/fetch-broker-credentials@main
+        with:
+          broker-url: https://credentials.garz.ai
+          audience: https://credentials.garz.ai/v1
+          capability: sops-drift-gate-decrypt
+          export-env: true
+
+      - name: Check agent-workloads identity digest drift
+        env:
+          SOPS_AGE_KEY: ${{ env.SOPS_DRIFT_GATE_AGE_KEY }}
+        run: uv run python scripts/check_agent_workloads_identity_digests.py
+
   helm-and-kubeconform:
     runs-on: ubuntu-latest
     strategy:
@@ -38,7 +101,10 @@ jobs:
 
       - name: Install kubeconform
         run: |
-          curl -L -o kubeconform.tar.gz https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          curl --fail --location --retry 5 --retry-all-errors --connect-timeout 20 \
+            --output kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          gzip -t kubeconform.tar.gz
           tar -xzf kubeconform.tar.gz
           sudo mv kubeconform /usr/local/bin/kubeconform
           kubeconform -v
