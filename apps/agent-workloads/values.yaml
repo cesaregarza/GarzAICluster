@@ -1,19 +1,15 @@
 global:
   imagePullSecrets:
-    - regcred
+  - regcred
   runtimeSecretName: agent-workloads-secrets
-
 nameOverride: agent-workloads
 fullnameOverride: agent-workloads
-
 replicaCount: 1
-
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-505f7689c65a
-  digest: sha256:b8bde05369d837f30f64f51d3a70d6129a9e4b8c2cf701035fd0e7193040ba1d
+  tag: sha-f2c21aeda7e6
+  digest: sha256:6bef75286dd8fe43658de378f3fc7f8173b24ae898f4086efc21bad8ed88fc1e
   pullPolicy: IfNotPresent
-
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
   AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
@@ -21,32 +17,27 @@ env:
   MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE: /var/run/mandate/workload-identity/token
   AGENT_WORKLOADS_ENVIRONMENT: production
   AGENT_WORKLOADS_SCHEMA: agent_workloads
-  AGENT_WORKLOADS_POLL_SECONDS: "2"
-  AGENT_WORKLOADS_READONLY_QUERY_MAX_PASSES: "3"
-  AGENT_WORKLOADS_READONLY_QUERY_MAX_ROWS: "50"
-  AGENT_WORKLOADS_READONLY_QUERY_CONNECT_TIMEOUT_SECONDS: "5"
+  AGENT_WORKLOADS_POLL_SECONDS: '2'
+  AGENT_WORKLOADS_READONLY_QUERY_MAX_PASSES: '3'
+  AGENT_WORKLOADS_READONLY_QUERY_MAX_ROWS: '50'
+  AGENT_WORKLOADS_READONLY_QUERY_CONNECT_TIMEOUT_SECONDS: '5'
   OPENAI_SQL_BROKER_MODEL: gpt-5.3-codex-spark
   OPENAI_SQL_BROKER_REASONING_EFFORT: low
-  OPENAI_SQL_BROKER_TIMEOUT_SECONDS: "45"
-
+  OPENAI_SQL_BROKER_TIMEOUT_SECONDS: '45'
 secretKeys:
-  - AGENT_WORKLOADS_DATABASE_URL
-
+- AGENT_WORKLOADS_DATABASE_URL
 secretEnv: {}
-
 extraVolumes:
-  - name: workload-identity-token
-    secret:
-      secretName: agent-workloads-secrets
-      items:
-        - key: DATA_WORKSPACE_PROBE_WORKLOAD_IDENTITY_TOKEN
-          path: token
-
+- name: workload-identity-token
+  secret:
+    secretName: agent-workloads-secrets
+    items:
+    - key: DATA_WORKSPACE_PROBE_WORKLOAD_IDENTITY_TOKEN
+      path: token
 extraVolumeMounts:
-  - name: workload-identity-token
-    mountPath: /var/run/mandate/workload-identity
-    readOnly: true
-
+- name: workload-identity-token
+  mountPath: /var/run/mandate/workload-identity
+  readOnly: true
 resources:
   requests:
     cpu: 25m
@@ -54,56 +45,54 @@ resources:
   limits:
     cpu: 250m
     memory: 256Mi
-
 networkPolicy:
   enabled: true
   egress:
     dns:
       enabled: true
       destinations:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - port: 53
-          protocol: UDP
-        - port: 53
-          protocol: TCP
-    destinations:
       - namespaceSelector:
           matchLabels:
-            kubernetes.io/metadata.name: agent-control-plane
+            kubernetes.io/metadata.name: kube-system
         podSelector:
           matchLabels:
-            app.kubernetes.io/name: agent-control-plane
-            app.kubernetes.io/instance: agent-control-plane
-            app.kubernetes.io/component: api
-        ports:
-          - port: 80
-            protocol: TCP
-          - port: 8000
-            protocol: TCP
-      - ipBlock:
-          cidr: 10.108.0.0/20
-        ports:
-          - port: 25060
-            protocol: TCP
-      - ipBlock:
-          cidr: 159.203.109.0/32
-        ports:
-          - port: 25060
-            protocol: TCP
-
+            k8s-app: kube-dns
+      ports:
+      - port: 53
+        protocol: UDP
+      - port: 53
+        protocol: TCP
+    destinations:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: agent-control-plane
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: agent-control-plane
+          app.kubernetes.io/instance: agent-control-plane
+          app.kubernetes.io/component: api
+      ports:
+      - port: 80
+        protocol: TCP
+      - port: 8000
+        protocol: TCP
+    - ipBlock:
+        cidr: 10.108.0.0/20
+      ports:
+      - port: 25060
+        protocol: TCP
+    - ipBlock:
+        cidr: 159.203.109.0/32
+      ports:
+      - port: 25060
+        protocol: TCP
 opencodeProposer:
   enabled: true
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-505f7689c65a
-    digest: sha256:4d7537a0153894afea89c48444bb833f53ec20417730f47de4681cf01322c79b
+    tag: sha-f2c21aeda7e6
+    digest: sha256:a4935c1546b44659b0f178f5758c391261b797392897d60a25d64af2a6146411
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
@@ -112,17 +101,17 @@ opencodeProposer:
     MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
     AGENT_WORKLOADS_WORKER_ID: opencode.proposer
     AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_propose
-    AGENT_WORKLOADS_POLL_SECONDS: "2"
+    AGENT_WORKLOADS_POLL_SECONDS: '2'
     AGENT_WORKLOADS_ENVIRONMENT: production
     AGENT_WORKLOADS_OPENCODE_WORKSPACE_DIR: /workspace/job
     AGENT_WORKLOADS_OPENCODE_PROPOSALS_DIR: /workspace/proposals
-    AGENT_WORKLOADS_OPENCODE_TIMEOUT_SECONDS: "600"
+    AGENT_WORKLOADS_OPENCODE_TIMEOUT_SECONDS: '600'
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
     limits:
-      cpu: "1"
+      cpu: '1'
       memory: 1Gi
   networkPolicy:
     enabled: true
@@ -130,37 +119,36 @@ opencodeProposer:
       dns:
         enabled: true
         destinations:
-          - namespaceSelector:
-              matchLabels:
-                kubernetes.io/metadata.name: kube-system
-            podSelector:
-              matchLabels:
-                k8s-app: kube-dns
-        ports:
-          - port: 53
-            protocol: UDP
-          - port: 53
-            protocol: TCP
-      destinations:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: agent-control-plane
+              kubernetes.io/metadata.name: kube-system
           podSelector:
             matchLabels:
-              app.kubernetes.io/name: agent-control-plane
-              app.kubernetes.io/instance: agent-control-plane
-          ports:
-            - port: 80
-              protocol: TCP
-            - port: 8000
-              protocol: TCP
-
+              k8s-app: kube-dns
+        ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+      destinations:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: agent-control-plane
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: agent-control-plane
+            app.kubernetes.io/instance: agent-control-plane
+        ports:
+        - port: 80
+          protocol: TCP
+        - port: 8000
+          protocol: TCP
 opencodeApplyExecutor:
   enabled: true
   image:
     repository: registry.digitalocean.com/sendouq/opencode-apply-executor
-    tag: sha-505f7689c65a
-    digest: sha256:25cf900981fda783b337bdd604b6aee1fa4b61899d8e2d2e8be3a2de2ceb2b5e
+    tag: sha-f2c21aeda7e6
+    digest: sha256:bdb57a8680ebdc7d1452a5dbad695e86f1c674362919619e1015f8418d9bae3d
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN
@@ -168,7 +156,7 @@ opencodeApplyExecutor:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
     AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_apply
-    AGENT_WORKLOADS_POLL_SECONDS: "2"
+    AGENT_WORKLOADS_POLL_SECONDS: '2'
     AGENT_WORKLOADS_ENVIRONMENT: production
     AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_DIR: /workspace/job
     AGENT_WORKLOADS_OPENCODE_APPLY_PROPOSALS_DIR: /workspace/proposals
@@ -182,17 +170,16 @@ opencodeApplyExecutor:
     limits:
       cpu: 500m
       memory: 512Mi
-
 mandateReleasePins:
   data.workspace_probe:
-    codeDigest: sha256:32e2fd891161ab286f4515e2a232e06ada4f9172f140c986871a822b60cd8141
-    manifestDigest: sha256:bbcd495331dc1fb9749c299cd81fbfecb24606b9c89bc4cb002956b073880467
-    imageDigest: sha256:b8bde05369d837f30f64f51d3a70d6129a9e4b8c2cf701035fd0e7193040ba1d
+    codeDigest: sha256:c3169393efa20ad342d82a6bec9af40d7fdc9a2b3964327c6467ae238b04b42f
+    manifestDigest: sha256:6bf3c246730dd2c81626b11b4a9176098f3034f7ea677c1f2a444455599f3323
+    imageDigest: sha256:6bef75286dd8fe43658de378f3fc7f8173b24ae898f4086efc21bad8ed88fc1e
   opencode.apply_executor:
-    codeDigest: sha256:9648a4a0d3ef973de7e24c51775df3ae2930d00595467e537df97fb397d63b18
-    manifestDigest: sha256:66afbb6a937b40feea2dff6fca54d3784b8c7793dedd26501f49b3b1b0c026da
-    imageDigest: sha256:25cf900981fda783b337bdd604b6aee1fa4b61899d8e2d2e8be3a2de2ceb2b5e
+    codeDigest: sha256:0d01fc44a543cb54f513d459a02be105cd2f929c687f44536eb11996b65c97b7
+    manifestDigest: sha256:42500c2329fc6f2d773bed7ffb4b7c20cdf8f3accf3fa2e0812a0b38b283cf1a
+    imageDigest: sha256:bdb57a8680ebdc7d1452a5dbad695e86f1c674362919619e1015f8418d9bae3d
   opencode.proposer:
-    codeDigest: sha256:ba73587f099115e1e884debdbbcec2627f0ae5f462f00dd01667ff8cba21353c
-    manifestDigest: sha256:13d0cd4ff2ea938aeb6af1d60b4e45856f0ab40e8c31e37147ba081116b0b36b
-    imageDigest: sha256:4d7537a0153894afea89c48444bb833f53ec20417730f47de4681cf01322c79b
+    codeDigest: sha256:488d4d9554c2ca0f90226c239e4848ddec834b27089da1adee09e6ef967f11b2
+    manifestDigest: sha256:ce6f4d0fb6667dbc6b720b86f569d19e6ac13afd3e51bc53c07d08804ffc3d8e
+    imageDigest: sha256:a4935c1546b44659b0f178f5758c391261b797392897d60a25d64af2a6146411
