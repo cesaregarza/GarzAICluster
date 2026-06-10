@@ -68,6 +68,10 @@ spec:
       kind: Job
     - group: batch
       kind: CronJob
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
     - group: networking.k8s.io
       kind: Ingress
     - group: networking.k8s.io
