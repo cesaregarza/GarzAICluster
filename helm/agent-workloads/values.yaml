@@ -85,6 +85,12 @@ networkPolicy:
           protocol: TCP
     destinations: []
 
+# Optional git bundle (base64) materializing the opencode workspace seed; when
+# set, init containers clone the pinned base commit from it offline — no
+# network egress and no credential in the pod (ADR 0012 rule 1).
+workspaceSeedBundle:
+  base64: ""
+
 opencodeProposer:
   enabled: false
   replicaCount: 1

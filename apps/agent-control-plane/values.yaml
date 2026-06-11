@@ -10,7 +10,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-7a0b3b0b1631
+  tag: sha-ed344f204b28
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -28,6 +28,7 @@ secretKeys:
 
 env:
   AGENT_PLATFORM_ENVIRONMENT: prod
+  AGENT_PLATFORM_OUTPUT_GATE_BACKEND: patch_aware
   AGENT_PLATFORM_POSTGRES_POOL_MIN_SIZE: "0"
   AGENT_PLATFORM_POSTGRES_POOL_MAX_SIZE: "2"
   AGENT_PLATFORM_READONLY_SQL_POOL_MIN_SIZE: "0"
