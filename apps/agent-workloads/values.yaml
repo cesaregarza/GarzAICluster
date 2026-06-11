@@ -127,6 +127,7 @@ opencodeProposer:
     script: |
       set -eu
       pin="d2e2cbef3a3130a6acaf7e794a63d50793167777"
+      find /workspace/job -mindepth 1 -delete
       git clone /seed-bundle/sandbox.bundle /workspace/job
       cd /workspace/job
       git config --global --add safe.directory /workspace/job
@@ -208,6 +209,7 @@ opencodeApplyExecutor:
     script: |
       set -eu
       pin="d2e2cbef3a3130a6acaf7e794a63d50793167777"
+      find /workspace/job -mindepth 1 -delete
       git clone /seed-bundle/sandbox.bundle /workspace/job
       cd /workspace/job
       git config --global --add safe.directory /workspace/job
