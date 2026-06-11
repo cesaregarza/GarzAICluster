@@ -87,6 +87,11 @@ networkPolicy:
       ports:
       - port: 25060
         protocol: TCP
+# Git bundle of cesaregarza/mandate-sandbox @ pin d2e2cbef3a3130a6acaf7e794a63d50793167777
+# (private repo; bundle = offline credential-less seed source, mounted via ConfigMap).
+# Regenerate: git -C <sandbox-clone> bundle create sandbox.bundle main && base64 -w0
+workspaceSeedBundle:
+  base64: IyB2MiBnaXQgYnVuZGxlCmQyZTJjYmVmM2EzMTMwYTZhY2FmN2U3OTRhNjNkNTA3OTMxNjc3NzcgcmVmcy9oZWFkcy9tYWluCgpQQUNLAAAAAgAAAAORQHicfZPJrqtGFEXnfEXNrVzTN9JL9Mpg+guUwdh4hoGiB5vGGL4+Tl4GGUTZwyVt6ehor2nIMiDxNGZIhhYSEnMiJ5JZeqcY/CFkiu8pL7JkFmMxIeJ5KvoBJNkYD1keD1sMfrAkTXMkSe3+RX/OYzaMX10/ZI9m/crLqZjvX0nf/gEoQaQoTmBZHuxIiiSJD23LacoGoJWTPt/Bj39qP/+3lj/ysczBb3/lcNQMB3iaB3xDc2BwPh3/5gQgwDKqyQHCgwwhOiDzadWcJp9kKkbCPHPnooEQDpuBoK0z/qJ3vFdR77pO8tOV/U5VkwA3B/Fi10F8eKJeX59YLRULspGvKVvefD/Hm5tcRkvRFScSknKN48sYodt9xEdeenKIAL4th0cDditjl9P7aiWhxFmajTTJVlkl0059LGf366am++dbFi5Fpe3CZDqm1DL4jwtJANv1MPT42Eaww+ID5WTbxE2bvrbU/8ZasxWpmiTzLEzrWHRFy5SQxraedq3n6dUtJ8AgRkxXC+GyJub1agmkR/Lm07FrHyXFcy7omnMnh0O0EdSJLF05NuQs9nBlhrY6hx77+eQ+oOlqerkT7yksZY7n98E5lZav77qcl0a5HtsKarB5NciaZPehQ1wo97LbTt59ZCQCINFhwmBsmKuOyLM9bY0ivNuLqtJCk1FKPfWmg/CqMOXrttom3fvZ5NWme0acUM+3PQF0KjWC4HLJl5fpW5GxD4X8hL5P7LPvpqauX72uNa7Tqmxnj2FLrxncnGvx1sVTLqsXmgAeTgzVLlU5wvTIz91he++8W9IO6qFmhZkWuSndpG3oi620305VhUvkp7CxKjsNXvvPDcpNLBrWnKrOC4OaK3EHRUPyhmO47o/J+96mVyflthL7Uk+/dpykXs6X/bJFYp1Yiu8SYFaESpNJXlwWXXIHXAjzFrkaVQvzk53rKN9rXBUw8vh47QPdD7rFdlXjPLyRlvZ2QhFgdT7WzadOw1nl0SGS81gnwO+fOYXELyeOjvLfRhBGV05l3IBf4v0JzgJGGqUCeJwzNDAwMzFRCHJ1dPF11ctNYUj9dWGi3szc46/3vV1yZO1Z7rQdT5QB+BsQYL4FeJxTVshNzEtJLEnVLQbSSfkVXL4QvkJ+QWpecn5KqgJUQkFXIT2/LLUoLzVFoaAovyC/ODFHP7GgIKdSoSSxKD21REHD2TVY19DAVB9MG5lrcgEAQHsftwQVocG6EFZbspuJ7gS5xCZ+WWpK
 opencodeProposer:
   enabled: true
   replicaCount: 1
@@ -106,7 +111,34 @@ opencodeProposer:
     AGENT_WORKLOADS_ENVIRONMENT: production
     AGENT_WORKLOADS_OPENCODE_WORKSPACE_DIR: /workspace/job
     AGENT_WORKLOADS_OPENCODE_PROPOSALS_DIR: /workspace/proposals
+    AGENT_WORKLOADS_OPENCODE_WORKSPACE_SEED_PATH: /workspace/seed/workspace-seed.json
     AGENT_WORKLOADS_OPENCODE_TIMEOUT_SECONDS: '600'
+  initWorkspace:
+    enabled: true
+    command:
+    - /bin/sh
+    - -c
+    # Credential-less, OFFLINE materialization of the allowlisted sandbox repo at
+    # a pinned base commit (ADR 0012 rules 1+3, CES-105 slice 0 interim): the
+    # repo arrives as a git bundle via ConfigMap (workspaceSeedBundle below), so
+    # the pod needs no Git credential and no network egress. The seed file lives
+    # OUTSIDE the git workspace so the clean-workspace check stays meaningful.
+    # Refresh flow: update mandate-sandbox -> regenerate bundle + pin here.
+    script: |
+      set -eu
+      pin="d2e2cbef3a3130a6acaf7e794a63d50793167777"
+      git clone /seed-bundle/sandbox.bundle /workspace/job
+      cd /workspace/job
+      git config --global --add safe.directory /workspace/job
+      git checkout -B main "$pin"
+      git remote remove origin
+      git config --local user.email mandate-opencode@garz.ai
+      git config --local user.name "Mandate OpenCode"
+      head="$(git rev-parse --verify HEAD)"
+      test "$head" = "$pin"
+      tree="$(git rev-parse --verify 'HEAD^{tree}')"
+      mkdir -p /workspace/proposals
+      printf '{"schema_version":"agent_workloads_opencode_workspace_seed_v1","base_repo":"https://github.com/cesaregarza/mandate-sandbox","base_ref_name":"main","base_commit_sha":"%s","base_tree_sha":"%s"}\n' "$head" "$tree" > /workspace/seed/workspace-seed.json
   resources:
     requests:
       cpu: 100m
@@ -161,9 +193,33 @@ opencodeApplyExecutor:
     AGENT_WORKLOADS_ENVIRONMENT: production
     AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_DIR: /workspace/job
     AGENT_WORKLOADS_OPENCODE_APPLY_PROPOSALS_DIR: /workspace/proposals
+    AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_SEED_PATH: /workspace/seed/apply-workspace-seed.json
     AGENT_WORKLOADS_OPENCODE_APPLY_DEFAULT_BRANCH: main
     HOME: /tmp
     TMPDIR: /tmp
+  initWorkspace:
+    enabled: true
+    command:
+    - /bin/sh
+    - -c
+    # Same pinned offline materialization as the proposer init (see comment
+    # there); the apply workspace validates against its own independently
+    # computed seed file.
+    script: |
+      set -eu
+      pin="d2e2cbef3a3130a6acaf7e794a63d50793167777"
+      git clone /seed-bundle/sandbox.bundle /workspace/job
+      cd /workspace/job
+      git config --global --add safe.directory /workspace/job
+      git checkout -B main "$pin"
+      git remote remove origin
+      git config --local user.email mandate-opencode@garz.ai
+      git config --local user.name "Mandate OpenCode"
+      head="$(git rev-parse --verify HEAD)"
+      test "$head" = "$pin"
+      tree="$(git rev-parse --verify 'HEAD^{tree}')"
+      mkdir -p /workspace/proposals
+      printf '{"schema_version":"agent_workloads_opencode_workspace_seed_v1","base_repo":"https://github.com/cesaregarza/mandate-sandbox","base_ref_name":"main","base_commit_sha":"%s","base_tree_sha":"%s"}\n' "$head" "$tree" > /workspace/seed/apply-workspace-seed.json
   resources:
     requests:
       cpu: 50m

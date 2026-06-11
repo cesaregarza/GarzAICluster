@@ -53,6 +53,13 @@ spec:
               mountPath: /workspace/job
             - name: proposals
               mountPath: /workspace/proposals
+            - name: workspace-seed
+              mountPath: /workspace/seed
+            {{- if .Values.workspaceSeedBundle.base64 }}
+            - name: seed-bundle
+              mountPath: /seed-bundle
+              readOnly: true
+            {{- end }}
         {{- end }}
         {{- if and .Values.opencodeApplyExecutor.enabled .Values.opencodeApplyExecutor.initWorkspace.enabled }}
         - name: init-apply-workspace
@@ -78,6 +85,13 @@ spec:
               mountPath: /workspace/job
             - name: proposals
               mountPath: /workspace/proposals
+            - name: workspace-seed
+              mountPath: /workspace/seed
+            {{- if .Values.workspaceSeedBundle.base64 }}
+            - name: seed-bundle
+              mountPath: /seed-bundle
+              readOnly: true
+            {{- end }}
         {{- end }}
       {{- end }}
       containers:
@@ -103,6 +117,9 @@ spec:
               mountPath: /workspace/job
             - name: proposals
               mountPath: /workspace/proposals
+            - name: workspace-seed
+              mountPath: /workspace/seed
+              readOnly: true
         {{- if .Values.opencodeApplyExecutor.enabled }}
         - name: opencode-apply-executor
           image: "{{ include "agent-workloads.imageRef" .Values.opencodeApplyExecutor.image }}"
@@ -126,6 +143,9 @@ spec:
               mountPath: /workspace/job
             - name: proposals
               mountPath: /workspace/proposals
+            - name: workspace-seed
+              mountPath: /workspace/seed
+              readOnly: true
         {{- end }}
       volumes:
         - name: proposer-tmp
@@ -138,4 +158,12 @@ spec:
           emptyDir: {}
         - name: proposals
           emptyDir: {}
+        - name: workspace-seed
+          emptyDir:
+            sizeLimit: 8Mi
+        {{- if .Values.workspaceSeedBundle.base64 }}
+        - name: seed-bundle
+          configMap:
+            name: {{ include "agent-workloads.opencodeProposerName" . }}-seed-bundle
+        {{- end }}
 {{- end }}
