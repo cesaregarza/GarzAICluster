@@ -101,7 +101,7 @@ opencodeProposer:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
     AGENT_WORKLOADS_WORKER_ID: opencode.proposer
-    AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_propose
+    AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_propose,agent_workloads.opencode_task
     AGENT_WORKLOADS_POLL_SECONDS: '2'
     AGENT_WORKLOADS_ENVIRONMENT: production
     AGENT_WORKLOADS_OPENCODE_WORKSPACE_DIR: /workspace/job
