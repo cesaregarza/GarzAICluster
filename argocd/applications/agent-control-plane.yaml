@@ -11,7 +11,7 @@ spec:
   project: splattop
   sources:
     - repoURL: git@github.com:cesaregarza/agent-platform.git
-      targetRevision: d262325757333caacb363db6a8f334850e6c6118
+      targetRevision: 7a0b3b0b16310372ad2e8735ffed6ebf927b7688
       path: helm/mandate
       helm:
         releaseName: agent-control-plane
