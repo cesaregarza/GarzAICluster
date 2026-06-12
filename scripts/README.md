@@ -66,6 +66,22 @@ Utilities that were previously bundled with the app repo move here when they are
 
   Add `--allow-missing` if you want the script to exit successfully when monitoring is disabled for a given values file.
 
+- `check_agent_control_plane_registry_compat.py` – materializes the live
+  Agent Control Plane registry overlay into a checked-out `agent-platform`
+  source tree and builds the pinned revision's
+  `RegistrySnapshot.from_repo(environment="prod")`. Use this when a registry
+  overlay or policy change must be proven compatible with the deployed Mandate
+  binary:
+
+  ```bash
+  uv run python scripts/check_agent_control_plane_registry_compat.py \
+    --agent-platform-repo ../agent-platform
+  ```
+
+  The `agent-platform` checkout must be at the exact `targetRevision` declared
+  in `argocd/applications/agent-control-plane.yaml`. Use
+  `--print-target-revision` to retrieve that SHA for automation.
+
 - `bootstrap_bot.py` – scaffolds a bot entry (apps/bots YAML), secrets folder (README/kustomization/ksops), and copies the DB CA into the shared chart. Examples:
 
   ```bash

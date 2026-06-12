@@ -19,6 +19,23 @@ restarts are rolling and the app is manual-sync, so syncs are deliberate.
 Workload-identity token re-mints (the `agent-workloads-secrets` app) still
 require a manual worker rollout — see CES-108 for the recorded follow-up.
 
+## Deployed-version compatibility gate (CES-126)
+
+Config repo CI runs `agent-control-plane-deployed-registry-compat` before an
+overlay or policy PR can merge. The job reads the `agent-platform`
+`targetRevision` from `argocd/applications/agent-control-plane.yaml`, checks out
+that exact source revision, materializes this ConfigMap into its `registries/`
+directory, and builds `RegistrySnapshot.from_repo(environment="prod")` using the
+pinned code. A PR that the currently selected control-plane binary cannot boot
+therefore fails in CI with the Mandate `RegistryError` instead of crash-looping
+after Argo sync.
+
+The job is only a compatibility gate. It does not grant dispatch authority and
+does not treat this overlay as authority by itself; Mandate still enforces
+registry validation, policy grants, admission, leases, brokers, output gates,
+and audit at runtime. Keep the status check required in GitHub branch
+protection, next to `agent-workloads-identity-digest-drift`.
+
 The ConfigMap mounts registry overlay files into the Mandate pod:
 
 - `workload_imports.yaml` imports deployment-pinned workload manifests and image
