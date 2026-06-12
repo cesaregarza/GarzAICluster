@@ -10,7 +10,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-ed344f204b28
+  tag: sha-55c0d8586ea9
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -183,3 +183,6 @@ extraVolumeMounts:
   - name: registry-overlay
     mountPath: /app/registries/imports
     readOnly: true
+
+postgresSweep:
+  enabled: true
