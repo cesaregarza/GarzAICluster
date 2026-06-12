@@ -46,3 +46,7 @@ Required before activation:
 - The approval interaction path is service-only:
   `POST /v1/openclaw/discord/approval-interactions` maps trusted Discord
   component payloads to the internal resolver and is not exposed through MCP.
+- Model-gateway kill switch and per-job/lease revocation files are mounted from
+  `agent-control-plane-model-gateway-controls` as a directory so operator edits
+  project without pod restarts. See
+  [model-gateway controls](../../docs/model-gateway-controls.md).
