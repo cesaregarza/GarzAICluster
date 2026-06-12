@@ -115,6 +115,67 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             capability["session_authority_budget"]["session_taint"],
             "prod_authority",
         )
+        self.assertEqual(
+            capability["artifacts"],
+            {"allowed": True, "broker_required": False},
+        )
+        self.assertEqual(
+            capability["disclosure"]["artifact_classes_allowed"],
+            ["opencode_apply_result"],
+        )
+        self.assertEqual(
+            capability["disclosure"]["max_confidentiality_level_out"],
+            "customer_visible",
+        )
+        self.assertIs(
+            capability["disclosure"]["require_output_redaction_pass"],
+            True,
+        )
+        self.assertIs(capability["disclosure"]["require_result_schema"], True)
+        self.assertEqual(
+            capability["result_contract"]["output_schema"],
+            "agent_workloads_opencode_apply_result_v1",
+        )
+        released_fields = set(capability["result_contract"]["released_result_fields"])
+        self.assertGreaterEqual(
+            released_fields,
+            {
+                "output_text",
+                "operation_status",
+                "action_id",
+                "branch",
+                "commit_sha",
+                "applied_diff_sha256",
+                "proposal_diff_sha256",
+                "changed_files",
+                "base_repo",
+                "base_ref_name",
+                "base_commit_sha",
+                "base_tree_sha",
+            },
+        )
+        self.assertTrue(
+            released_fields.isdisjoint(
+                {
+                    "diff",
+                    "patch",
+                    "unified_diff",
+                    "remote_ref",
+                    "pull_request_url",
+                    "pr_url",
+                    "delivery_status",
+                }
+            )
+        )
+        self.assertEqual(
+            capability["disclosure_summary"]["artifact_classes_allowed"],
+            ["opencode_apply_result"],
+        )
+        self.assertIn(
+            "Remote ref and PR URL arrive only through the deliverer callback after "
+            "confirmed write.",
+            capability["negative_affordances"],
+        )
 
         manifest = json.loads(self.data["agent-opencode.apply_executor.json"])
         self.assertEqual(manifest["id"], "opencode.apply_executor")
