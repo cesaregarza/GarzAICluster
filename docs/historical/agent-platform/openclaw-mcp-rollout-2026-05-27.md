@@ -202,7 +202,7 @@ Wrapper behavior:
 
 1. `cd /home/openclaw/agent-platform`
 2. source `/home/openclaw/.openclaw/agent-platform-mcp.env`
-3. run `python -m audit.api.app.mcp.server`
+3. run `python -m mandate.adapters.mcp.server`
 
 Installed runtime environment file:
 
