@@ -7,8 +7,8 @@ fullnameOverride: agent-workloads
 replicaCount: 1
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-abd8ff8c93a4
-  digest: sha256:fcdd2d18691bae697c35582b9cb9a76e93baab0def179e2cab565c41e26ecbcb
+  tag: sha-e1d416456444
+  digest: sha256:816aa54c1145d56bb711e30eb8f4426cb692562d3eeeabe5ec8288a8b584466a
   pullPolicy: IfNotPresent
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
@@ -87,9 +87,6 @@ networkPolicy:
       ports:
       - port: 25060
         protocol: TCP
-# Git bundle of cesaregarza/mandate-sandbox @ pin d2e2cbef3a3130a6acaf7e794a63d50793167777
-# (private repo; bundle = offline credential-less seed source, mounted via ConfigMap).
-# Regenerate: git -C <sandbox-clone> bundle create sandbox.bundle main && base64 -w0
 workspaceSeedBundle:
   base64: IyB2MiBnaXQgYnVuZGxlCmQyZTJjYmVmM2EzMTMwYTZhY2FmN2U3OTRhNjNkNTA3OTMxNjc3NzcgcmVmcy9oZWFkcy9tYWluCgpQQUNLAAAAAgAAAAORQHicfZPJrqtGFEXnfEXNrVzTN9JL9Mpg+guUwdh4hoGiB5vGGL4+Tl4GGUTZwyVt6ehor2nIMiDxNGZIhhYSEnMiJ5JZeqcY/CFkiu8pL7JkFmMxIeJ5KvoBJNkYD1keD1sMfrAkTXMkSe3+RX/OYzaMX10/ZI9m/crLqZjvX0nf/gEoQaQoTmBZHuxIiiSJD23LacoGoJWTPt/Bj39qP/+3lj/ysczBb3/lcNQMB3iaB3xDc2BwPh3/5gQgwDKqyQHCgwwhOiDzadWcJp9kKkbCPHPnooEQDpuBoK0z/qJ3vFdR77pO8tOV/U5VkwA3B/Fi10F8eKJeX59YLRULspGvKVvefD/Hm5tcRkvRFScSknKN48sYodt9xEdeenKIAL4th0cDditjl9P7aiWhxFmajTTJVlkl0059LGf366am++dbFi5Fpe3CZDqm1DL4jwtJANv1MPT42Eaww+ID5WTbxE2bvrbU/8ZasxWpmiTzLEzrWHRFy5SQxraedq3n6dUtJ8AgRkxXC+GyJub1agmkR/Lm07FrHyXFcy7omnMnh0O0EdSJLF05NuQs9nBlhrY6hx77+eQ+oOlqerkT7yksZY7n98E5lZav77qcl0a5HtsKarB5NciaZPehQ1wo97LbTt59ZCQCINFhwmBsmKuOyLM9bY0ivNuLqtJCk1FKPfWmg/CqMOXrttom3fvZ5NWme0acUM+3PQF0KjWC4HLJl5fpW5GxD4X8hL5P7LPvpqauX72uNa7Tqmxnj2FLrxncnGvx1sVTLqsXmgAeTgzVLlU5wvTIz91he++8W9IO6qFmhZkWuSndpG3oi620305VhUvkp7CxKjsNXvvPDcpNLBrWnKrOC4OaK3EHRUPyhmO47o/J+96mVyflthL7Uk+/dpykXs6X/bJFYp1Yiu8SYFaESpNJXlwWXXIHXAjzFrkaVQvzk53rKN9rXBUw8vh47QPdD7rFdlXjPLyRlvZ2QhFgdT7WzadOw1nl0SGS81gnwO+fOYXELyeOjvLfRhBGV05l3IBf4v0JzgJGGqUCeJwzNDAwMzFRCHJ1dPF11ctNYUj9dWGi3szc46/3vV1yZO1Z7rQdT5QB+BsQYL4FeJxTVshNzEtJLEnVLQbSSfkVXL4QvkJ+QWpecn5KqgJUQkFXIT2/LLUoLzVFoaAovyC/ODFHP7GgIKdSoSSxKD21REHD2TVY19DAVB9MG5lrcgEAQHsftwQVocG6EFZbspuJ7gS5xCZ+WWpK
 opencodeProposer:
@@ -97,8 +94,8 @@ opencodeProposer:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-abd8ff8c93a4
-    digest: sha256:81444f7e3daaeeed497f9b560a41def95e84533fa0977cabdc9b442ec5bcf4b1
+    tag: sha-e1d416456444
+    digest: sha256:09f4d7339a19c45d4dbea57cba6e7fdfa4a65e0fb47de5320113eeef49584199
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
@@ -118,12 +115,6 @@ opencodeProposer:
     command:
     - /bin/sh
     - -c
-    # Credential-less, OFFLINE materialization of the allowlisted sandbox repo at
-    # a pinned base commit (ADR 0012 rules 1+3, CES-105 slice 0 interim): the
-    # repo arrives as a git bundle via ConfigMap (workspaceSeedBundle below), so
-    # the pod needs no Git credential and no network egress. The seed file lives
-    # OUTSIDE the git workspace so the clean-workspace check stays meaningful.
-    # Refresh flow: update mandate-sandbox -> regenerate bundle + pin here.
     script: |
       set -eu
       pin="d2e2cbef3a3130a6acaf7e794a63d50793167777"
@@ -181,8 +172,8 @@ opencodeApplyExecutor:
   enabled: true
   image:
     repository: registry.digitalocean.com/sendouq/opencode-apply-executor
-    tag: sha-abd8ff8c93a4
-    digest: sha256:025982c97a128f376431e95be128e4b94275d2b6edb1655f838cce5521425200
+    tag: sha-e1d416456444
+    digest: sha256:7d6ef6f8dde71467b7a097cfda30f726dc3c0aa084ebd3dcd6ea2cfe1c656c65
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN
@@ -203,9 +194,6 @@ opencodeApplyExecutor:
     command:
     - /bin/sh
     - -c
-    # Same pinned offline materialization as the proposer init (see comment
-    # there); the apply workspace validates against its own independently
-    # computed seed file.
     script: |
       set -eu
       pin="d2e2cbef3a3130a6acaf7e794a63d50793167777"
@@ -231,14 +219,14 @@ opencodeApplyExecutor:
       memory: 512Mi
 mandateReleasePins:
   data.workspace_probe:
-    codeDigest: sha256:6bea28a32333cd3e819fecd1fe8dadc3af12fb2cdb0e7dde881456c77f3001b7
-    manifestDigest: sha256:874866d562fb9c82a343b23e51b9ce1b9a128df828286872ed858740949cda1f
-    imageDigest: sha256:fcdd2d18691bae697c35582b9cb9a76e93baab0def179e2cab565c41e26ecbcb
+    codeDigest: sha256:cda67786a4cbd8c053ad6460089faf7e5b8d5719c8372ea10b65e0f71e7be40e
+    manifestDigest: sha256:3dc0e342f30f0613a9aa791fb90c821ed4498165d3aa8a60a4cb569aab358201
+    imageDigest: sha256:816aa54c1145d56bb711e30eb8f4426cb692562d3eeeabe5ec8288a8b584466a
   opencode.apply_executor:
-    codeDigest: sha256:264912b168423786308ee81d24d825ed83b2c5f86ba1b7e4549e43e42d5d1937
-    manifestDigest: sha256:747376173013235ad7649d07c9b0cff2bad0aa21f822e70df0c0aebd919a7bb6
-    imageDigest: sha256:025982c97a128f376431e95be128e4b94275d2b6edb1655f838cce5521425200
+    codeDigest: sha256:18127634708dfa03227062b2de481c108edeaf5939389634d598893b3142af12
+    manifestDigest: sha256:78b974103ba305be15f6e0171ad823a0f08f1866803aa4697efd50b9f40d56f8
+    imageDigest: sha256:7d6ef6f8dde71467b7a097cfda30f726dc3c0aa084ebd3dcd6ea2cfe1c656c65
   opencode.proposer:
-    codeDigest: sha256:0ed8843eec3b5f556465826455aaee182f404f61331b48402bb07dab05c7d716
-    manifestDigest: sha256:d2aee22398c6d58b7248d3fc8b6bd9a3e9a6968f2fa8ed1a63e1ff8d8513d46d
-    imageDigest: sha256:81444f7e3daaeeed497f9b560a41def95e84533fa0977cabdc9b442ec5bcf4b1
+    codeDigest: sha256:1804f5f5f8689ca4dfa9a2fbbfb0ba9d7f692aae5591a95e17896d1111826a2a
+    manifestDigest: sha256:e5e82433971a571c7ca55c7bf7014b367d3ab8813a4d71e20e9030d6658be12a
+    imageDigest: sha256:09f4d7339a19c45d4dbea57cba6e7fdfa4a65e0fb47de5320113eeef49584199
