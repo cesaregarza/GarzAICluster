@@ -109,6 +109,31 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
         self.assertIn((53, "UDP"), ports)
         self.assertIn((53, "TCP"), ports)
 
+    def test_workspace_probe_workload_identity_uses_dedicated_token_secret(self) -> None:
+        deployment = _find_doc(
+            self.docs,
+            kind="Deployment",
+            name="agent-workloads",
+        )
+        volumes = {
+            volume["name"]: volume
+            for volume in deployment["spec"]["template"]["spec"]["volumes"]
+        }
+
+        token_volume = volumes["workload-identity-token"]["secret"]
+        self.assertEqual(
+            token_volume,
+            {
+                "secretName": "agent-workloads-workload-identity-tokens",
+                "items": [
+                    {
+                        "key": "MANDATE_WORKLOAD_IDENTITY_TOKEN",
+                        "path": "token",
+                    }
+                ],
+            },
+        )
+
     def test_opencode_apply_executor_runs_without_model_or_provider_credentials(
         self,
     ) -> None:
@@ -144,8 +169,17 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
         self.assertEqual(
             apply_env["MANDATE_WORKLOAD_IDENTITY_TOKEN"]["valueFrom"]["secretKeyRef"],
             {
-                "name": "agent-workloads-secrets",
+                "name": "agent-workloads-workload-identity-tokens",
                 "key": "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
+            },
+        )
+        self.assertEqual(
+            proposer_env["MANDATE_WORKLOAD_IDENTITY_TOKEN"]["valueFrom"][
+                "secretKeyRef"
+            ],
+            {
+                "name": "agent-workloads-workload-identity-tokens",
+                "key": "OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN",
             },
         )
         self.assertEqual(
