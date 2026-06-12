@@ -197,6 +197,54 @@ data:
           description: Imported OpenCode apply executor for approved proposal diffs.
           output_schema: agent_workloads_opencode_apply_result_v1
           approval_mode: admin_confirm
+          result_contract:
+            output_schema: agent_workloads_opencode_apply_result_v1
+            released_result_fields:
+            - output_text
+            - operation_status
+            - action_id
+            - branch
+            - commit_sha
+            - applied_diff_sha256
+            - proposal_diff_sha256
+            - changed_files
+            - base_repo
+            - base_ref_name
+            - base_commit_sha
+            - base_tree_sha
+          disclosure:
+            raw_inputs_returnable: false
+            internal_sources_returnable: false
+            excerpts_allowed: false
+            aggregate_facts_allowed: false
+            citations_allowed: none
+            artifact_classes_allowed:
+            - opencode_apply_result
+            max_confidentiality_level_out: customer_visible
+            require_output_redaction_pass: true
+            require_result_schema: true
+          artifacts:
+            allowed: true
+            broker_required: false
+          disclosure_summary:
+            summary: OpenCode apply releases local apply metadata for the governed
+              delivery arc.
+            released_result: Local apply status, designation id, commit, patch digests,
+              changed files, and immutable base repo/ref/commit/tree metadata only.
+            released_artifacts: Apply result artifact metadata only; diff bytes and
+              remote delivery claims are withheld.
+            artifact_classes_allowed:
+            - opencode_apply_result
+            withheld:
+            - proposal and applied diff bytes
+            - remote ref and draft PR URL until deliverer confirmation
+            - raw task inputs
+            - internal sources and broker internals
+          negative_affordances:
+          - Does not push, open, merge, or claim a remote PR.
+          - Remote ref and PR URL arrive only through the deliverer callback after
+            confirmed write.
+          - Must not be used as a fallback when no capability matches.
           session_authority_budget:
             max_operations: 1
             session_taint: prod_authority
