@@ -34,6 +34,11 @@ TOKEN_KEYS_BY_AGENT_ID = {
     "opencode.proposer": "OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN",
     "opencode.apply_executor": "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
 }
+IMAGE_PATHS_BY_AGENT_ID = {
+    "data.workspace_probe": ("image",),
+    "opencode.proposer": ("opencodeProposer", "image"),
+    "opencode.apply_executor": ("opencodeApplyExecutor", "image"),
+}
 
 YAML_PARSER = YAML(typ="safe")
 
@@ -100,6 +105,11 @@ def check_agent_workloads_identity_digests(
     overlay_pins = _load_overlay_pins(repo_root / overlay_configmap_path)
     for agent_id in sorted(expected_agents):
         _assert_pin_matches_overlay(agent_id, release_pins[agent_id], overlay_pins[agent_id])
+        _assert_values_image_digest_matches_pin(
+            agent_id,
+            values,
+            release_pins[agent_id],
+        )
 
     _assert_runtime_secret_excludes_tokens(repo_root / runtime_secret_path)
     secret_path = repo_root / token_secret_path
@@ -130,7 +140,7 @@ def check_agent_workloads_identity_digests(
         token_claims_by_agent=token_claims_by_agent,
     )
 
-    return "agent-workloads workload identity code_digests match release pins."
+    return "agent-workloads deployed images and workload identity code_digests match release pins."
 
 
 def _load_overlay_pins(configmap_path: Path) -> dict[str, dict[str, str]]:
@@ -185,6 +195,41 @@ def _assert_pin_matches_overlay(
                 f"{agent_id} mandateReleasePins.{key} differs from registry overlay: "
                 f"expected {expected}, got {actual}"
             )
+
+
+def _assert_values_image_digest_matches_pin(
+    agent_id: str,
+    values: dict[str, Any],
+    release_pin: Any,
+) -> None:
+    if not isinstance(release_pin, dict):
+        raise DriftGateError(f"{agent_id} mandateReleasePins entry must be a mapping")
+    expected = release_pin.get("imageDigest")
+    _validate_digest(expected, f"{agent_id} mandateReleasePins.imageDigest")
+
+    image_path = IMAGE_PATHS_BY_AGENT_ID[agent_id]
+    image = _nested_mapping(values, image_path, f"{agent_id} values image")
+    actual = image.get("digest")
+    _validate_digest(actual, f"{agent_id} values image.digest")
+    if actual != expected:
+        raise DriftGateError(
+            f"{agent_id} values image.digest differs from mandateReleasePins.imageDigest: "
+            f"expected {expected}, got {actual}"
+        )
+
+
+def _nested_mapping(
+    mapping: dict[str, Any],
+    path: tuple[str, ...],
+    label: str,
+) -> dict[str, Any]:
+    current: Any = mapping
+    for key in path:
+        if not isinstance(current, dict) or not isinstance(current.get(key), dict):
+            dotted = ".".join(path)
+            raise DriftGateError(f"{label} must be a mapping at {dotted}")
+        current = current[key]
+    return current
 
 
 def _assert_runtime_secret_excludes_tokens(secret_path: Path) -> None:
