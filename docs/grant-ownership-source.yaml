@@ -1,0 +1,11 @@
+schema_version: grant-ownership-source.v1
+generated_from:
+  repo: cesaregarza/agent-workloads
+  path: scripts/apply_splattop_release_artifacts.py
+deployment_owned_capability_keys:
+- artifacts
+- disclosure
+- model_lease
+preserve_existing_capability_keys:
+- approval_mode
+session_taint_key: session_taint
