@@ -170,6 +170,16 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         with self.assertRaisesRegex(DriftGateError, "mandateReleasePins.codeDigest"):
             _check(root)
 
+    def test_gate_rejects_values_image_digest_release_pin_mismatch(self) -> None:
+        root = _fixture_repo()
+        values_path = root / "apps" / "agent-workloads" / "values.yaml"
+        values = YAML_PARSER.load(values_path.read_text())
+        values["opencodeProposer"]["image"]["digest"] = "sha256:" + "8" * 64
+        _write_yaml(values_path, values)
+
+        with self.assertRaisesRegex(DriftGateError, "values image.digest"):
+            _check(root)
+
     def test_gate_rejects_stale_workload_identity_token_code_digest(self) -> None:
         root = _fixture_repo(
             token_digests={
@@ -227,7 +237,24 @@ def _fixture_repo(
     root = Path(tempfile.mkdtemp())
     values_path = root / "apps" / "agent-workloads" / "values.yaml"
     values_path.parent.mkdir(parents=True)
-    values: dict[str, Any] = {"image": {"tag": "sha-test"}}
+    values: dict[str, Any] = {
+        "image": {
+            "tag": "sha-test",
+            "digest": DIGESTS["data.workspace_probe"]["imageDigest"],
+        },
+        "opencodeProposer": {
+            "image": {
+                "tag": "sha-test",
+                "digest": DIGESTS["opencode.proposer"]["imageDigest"],
+            }
+        },
+        "opencodeApplyExecutor": {
+            "image": {
+                "tag": "sha-test",
+                "digest": DIGESTS["opencode.apply_executor"]["imageDigest"],
+            }
+        },
+    }
     if include_pins:
         values["mandateReleasePins"] = DIGESTS
     _write_yaml(values_path, values)
