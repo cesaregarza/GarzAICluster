@@ -9,6 +9,7 @@ generated_from:
   preserve_existing_capability_keys:
   - approval_mode
   session_authority_budget_preserved_keys:
+  - max_operations
   - session_taint
 consumers:
 - scripts/set_grant.py
@@ -77,9 +78,10 @@ capabilities:
         remint_required: false
         digest_moves: false
         deployment_owned_subkeys:
+        - max_operations
         - session_taint
         release_owned_subkeys: '*'
-        source: SESSION_TAINT_KEY
+        source: SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS
   agent_workloads.opencode_propose:
     agent_id: opencode.proposer
     source:
@@ -142,9 +144,10 @@ capabilities:
         remint_required: false
         digest_moves: false
         deployment_owned_subkeys:
+        - max_operations
         - session_taint
         release_owned_subkeys: '*'
-        source: SESSION_TAINT_KEY
+        source: SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS
   agent_workloads.opencode_task:
     agent_id: opencode.proposer
     source:
@@ -207,9 +210,10 @@ capabilities:
         remint_required: false
         digest_moves: false
         deployment_owned_subkeys:
+        - max_operations
         - session_taint
         release_owned_subkeys: '*'
-        source: SESSION_TAINT_KEY
+        source: SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS
       task_contract:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
@@ -278,6 +282,7 @@ capabilities:
         remint_required: false
         digest_moves: false
         deployment_owned_subkeys:
+        - max_operations
         - session_taint
         release_owned_subkeys: '*'
-        source: SESSION_TAINT_KEY
+        source: SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS

@@ -44,6 +44,7 @@ class ApplierContract:
     deployment_owned_capability_keys: tuple[str, ...]
     preserve_existing_capability_keys: tuple[str, ...]
     session_taint_key: str
+    session_authority_budget_preserved_keys: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -104,6 +105,20 @@ def load_applier_contract(
     source_path = repo_root / OWNERSHIP_SOURCE_PATH
     if source_path.exists():
         source = _load_yaml(source_path)
+        preserved_keys = tuple(
+            sorted(
+                str(key)
+                for key in source.get("session_authority_budget_preserved_keys")
+                or [_required_str(source.get("session_taint_key"), "session_taint_key")]
+            )
+        )
+        session_taint_key = _required_str(
+            source.get("session_taint_key") or "session_taint",
+            "session_taint_key",
+        )
+        if session_taint_key not in preserved_keys:
+            preserved_keys = tuple(sorted((*preserved_keys, session_taint_key)))
+
         return ApplierContract(
             deployment_owned_capability_keys=tuple(
                 sorted(
@@ -121,10 +136,8 @@ def load_applier_contract(
                     )
                 )
             ),
-            session_taint_key=_required_str(
-                source.get("session_taint_key"),
-                "session_taint_key",
-            ),
+            session_taint_key=session_taint_key,
+            session_authority_budget_preserved_keys=preserved_keys,
         )
 
     return extract_applier_contract(find_agent_workloads_repo(repo_root=repo_root))
@@ -136,6 +149,7 @@ def extract_applier_contract(agent_workloads_repo: Path) -> ApplierContract:
     wanted = {
         "DEPLOYMENT_OWNED_CAPABILITY_KEYS",
         "PRESERVE_EXISTING_CAPABILITY_KEYS",
+        "SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS",
         "SESSION_TAINT_KEY",
     }
     values: dict[str, Any] = {}
@@ -150,6 +164,15 @@ def extract_applier_contract(agent_workloads_repo: Path) -> ApplierContract:
         deployment_owned = tuple(sorted(values["DEPLOYMENT_OWNED_CAPABILITY_KEYS"]))
         preserve_existing = tuple(sorted(values["PRESERVE_EXISTING_CAPABILITY_KEYS"]))
         session_taint_key = str(values["SESSION_TAINT_KEY"])
+        preserved_keys = tuple(
+            sorted(
+                str(key)
+                for key in values.get(
+                    "SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS",
+                    {session_taint_key},
+                )
+            )
+        )
     except KeyError as exc:
         raise GrantOwnershipError(
             f"{source_path} is missing expected applier contract constant {exc.args[0]}"
@@ -159,6 +182,7 @@ def extract_applier_contract(agent_workloads_repo: Path) -> ApplierContract:
         deployment_owned_capability_keys=deployment_owned,
         preserve_existing_capability_keys=preserve_existing,
         session_taint_key=session_taint_key,
+        session_authority_budget_preserved_keys=preserved_keys,
     )
 
 
@@ -225,7 +249,9 @@ def build_ownership_map(
             "preserve_existing_capability_keys": list(
                 contract.preserve_existing_capability_keys
             ),
-            "session_authority_budget_preserved_keys": [contract.session_taint_key],
+            "session_authority_budget_preserved_keys": list(
+                contract.session_authority_budget_preserved_keys
+            ),
         },
         "consumers": [
             "scripts/set_grant.py",
@@ -337,6 +363,9 @@ def write_ownership_outputs(
                 contract.preserve_existing_capability_keys
             ),
             "session_taint_key": contract.session_taint_key,
+            "session_authority_budget_preserved_keys": list(
+                contract.session_authority_budget_preserved_keys
+            ),
         },
     )
     ownership = build_ownership_map(
@@ -544,9 +573,11 @@ def _ownership_for_key(key: str, contract: ApplierContract) -> dict[str, Any]:
             "deploy_consequence": CONTROL_PLANE_RESTART,
             "remint_required": False,
             "digest_moves": False,
-            "deployment_owned_subkeys": [contract.session_taint_key],
+            "deployment_owned_subkeys": list(
+                contract.session_authority_budget_preserved_keys
+            ),
             "release_owned_subkeys": "*",
-            "source": "SESSION_TAINT_KEY",
+            "source": "SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS",
         }
     return {
         "owner": RELEASE_OWNER,
