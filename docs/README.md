@@ -7,8 +7,10 @@ These documents capture the canonical workflows for the SplatTop config reposito
 3. `argo-operations.md` – AppProject guardrails, policy enforcement, and day-to-day Argo duties.
 4. `domains-and-hostnames.md` – public hostname rollout checklist, including multi-zone external-dns changes.
 5. `secrets-strategy.md` – SOPS + Age plan, rotation, and CI/Dev ergonomics.
-6. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
-7. `k8s/secrets.template.yaml` → `k8s/secrets.enc.yaml` – example flow for encrypted secrets.
+6. `mandate-apply.md` – local declarative enablement planner for Mandate
+   workload capability wiring.
+7. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
+8. `k8s/secrets.template.yaml` → `k8s/secrets.enc.yaml` – example flow for encrypted secrets.
 
 Supplemental references:
 

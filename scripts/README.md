@@ -82,6 +82,22 @@ Utilities that were previously bundled with the app repo move here when they are
   in `argocd/applications/agent-control-plane.yaml`. Use
   `--print-target-revision` to retrieve that SHA for automation.
 
+- `mandate_apply.py` – plans or writes a local CES-123
+  `MandateWorkloadEnablement` document into deployment-owned files only. Dry-run
+  is the default; `--write` edits files for a normal PR. It never reads or
+  writes secret values, never mutates live Kubernetes objects, and reports SOPS
+  or NetworkPolicy work as operator gaps:
+
+  ```bash
+  uv run python scripts/mandate_apply.py enablement.yaml --repo-root .
+  uv run python scripts/mandate_apply.py enablement.yaml \
+    --repo-root . \
+    --write \
+    --output-pr-body .git/mandate-apply-pr-body.md
+  ```
+
+  See `docs/mandate-apply.md` for the document schema and boundaries.
+
 - `bootstrap_bot.py` – scaffolds a bot entry (apps/bots YAML), secrets folder (README/kustomization/ksops), and copies the DB CA into the shared chart. Examples:
 
   ```bash
