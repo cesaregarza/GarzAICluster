@@ -50,6 +50,11 @@ TOKEN_METADATA_PATH = Path(
     "secrets/agent-workloads/workload-identity-tokens.metadata.yaml"
 )
 DIGEST_SPEC_VERSION = "agent-workloads-code-digest-v1"
+SHARED_ACTION_PIN = "a1d2fb4a6b288066574b1ac53074ac62e920a07f"
+OLD_MUTABLE_BROKER_ACTION = (
+    "cesaregarza/.github/actions/" "fetch-broker-credentials" "@main"
+)
+REPO_SOPS_SECRET_CONTEXT = "secrets." "SOPS_AGE_KEY"
 
 
 class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
@@ -59,32 +64,27 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         workflow_text = workflow_path.read_text()
         job = workflow["jobs"]["agent-workloads-identity-digest-drift"]
 
-        self.assertNotIn("secrets.SOPS_AGE_KEY", workflow_text)
+        self.assertNotIn(REPO_SOPS_SECRET_CONTEXT, workflow_text)
+        self.assertNotIn(OLD_MUTABLE_BROKER_ACTION, workflow_text)
         self.assertEqual(job["permissions"]["contents"], "read")
         self.assertEqual(job["permissions"]["id-token"], "write")
-
-        fetch_step = next(
-            step for step in job["steps"] if step.get("id") == "drift-gate-broker"
-        )
-        self.assertEqual(
-            fetch_step["uses"],
-            "cesaregarza/.github/actions/fetch-broker-credentials@main",
-        )
-        self.assertEqual(
-            fetch_step["with"]["capability"],
-            "sops-drift-gate-decrypt",
-        )
-        self.assertEqual(fetch_step["with"]["export-env"], True)
 
         check_step = next(
             step
             for step in job["steps"]
-            if step.get("run")
-            == "uv run python scripts/check_agent_workloads_identity_digests.py"
+            if step.get("uses", "").startswith(
+                "cesaregarza/.github/actions/"
+                "agent-workloads-identity-digest-drift-gate@"
+            )
         )
         self.assertEqual(
-            check_step["env"]["SOPS_AGE_KEY"],
-            "${{ env.SOPS_DRIFT_GATE_AGE_KEY }}",
+            check_step["uses"],
+            "cesaregarza/.github/actions/"
+            f"agent-workloads-identity-digest-drift-gate@{SHARED_ACTION_PIN}",
+        )
+        self.assertNotIn(
+            "@main",
+            check_step["uses"],
         )
 
     def test_plaintext_secret_guard_allows_non_secret_metadata_ledgers(self) -> None:

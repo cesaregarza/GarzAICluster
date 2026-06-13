@@ -15,9 +15,43 @@ from ruamel.yaml import YAML
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "check_agent_control_plane_registry_compat.py"
 YAML_PARSER = YAML()
+SHARED_ACTION_PIN = "a1d2fb4a6b288066574b1ac53074ac62e920a07f"
+OLD_MUTABLE_BROKER_ACTION = (
+    "cesaregarza/.github/actions/" "fetch-broker-credentials" "@main"
+)
 
 
 class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
+    def test_ci_compat_gate_uses_pinned_shared_action_not_mutable_broker_action(
+        self,
+    ) -> None:
+        workflow_path = REPO_ROOT / ".github" / "workflows" / "ci.yaml"
+        workflow = YAML_PARSER.load(workflow_path.read_text())
+        workflow_text = workflow_path.read_text()
+        job = workflow["jobs"]["agent-control-plane-deployed-registry-compat"]
+
+        self.assertNotIn(
+            OLD_MUTABLE_BROKER_ACTION,
+            workflow_text,
+        )
+        self.assertEqual(job["permissions"]["contents"], "read")
+        self.assertEqual(job["permissions"]["id-token"], "write")
+
+        check_step = next(
+            step
+            for step in job["steps"]
+            if step.get("uses", "").startswith(
+                "cesaregarza/.github/actions/"
+                "agent-control-plane-registry-compat-gate@"
+            )
+        )
+        self.assertEqual(
+            check_step["uses"],
+            "cesaregarza/.github/actions/"
+            f"agent-control-plane-registry-compat-gate@{SHARED_ACTION_PIN}",
+        )
+        self.assertNotIn("@main", check_step["uses"])
+
     def test_missing_per_user_daily_tokens_fails_against_old_pin_and_passes_after_bump(
         self,
     ) -> None:
