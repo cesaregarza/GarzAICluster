@@ -31,9 +31,9 @@ secretEnv: {}
 extraVolumes:
 - name: workload-identity-token
   secret:
-    secretName: agent-workloads-secrets
+    secretName: agent-workloads-workload-identity-tokens
     items:
-    - key: DATA_WORKSPACE_PROBE_WORKLOAD_IDENTITY_TOKEN
+    - key: MANDATE_WORKLOAD_IDENTITY_TOKEN
       path: token
 extraVolumeMounts:
 - name: workload-identity-token
@@ -99,6 +99,7 @@ opencodeProposer:
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
+  secretEnvSecretName: agent-workloads-workload-identity-tokens
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
@@ -177,6 +178,7 @@ opencodeApplyExecutor:
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN
+  secretEnvSecretName: agent-workloads-workload-identity-tokens
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor

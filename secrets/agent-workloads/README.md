@@ -3,19 +3,25 @@
 Encrypted secrets consumed by the `agent-workloads-secrets` Argo CD app.
 
 - `runtime-secret.enc.yaml`: the dedicated Agent Workloads Postgres workspace
-  URL and workload-identity tokens. The first live `data.workspace_probe`
-  deployment mounts `DATA_WORKSPACE_PROBE_WORKLOAD_IDENTITY_TOKEN` as a file at
+  URL, shared worker token, optional model auth, and readonly source database
+  URL. It must not contain workload-identity token keys. The XScraper/X Power
+  readonly query profile also requires `XSCRAPER_READONLY_DATABASE_URL`, but
+  `agent_workloads.readonly_query` is not granted in the first live `db_probe`
+  rollout.
+- `workload-identity-tokens.enc.yaml`: the three `mwit_v1` workload-identity
+  tokens for `data.workspace_probe`, `opencode.proposer`, and
+  `opencode.apply_executor`. The first live `data.workspace_probe` deployment
+  mounts `MANDATE_WORKLOAD_IDENTITY_TOKEN` as a file at
   `MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE`; do not expose the shared
-  `MANDATE_WORKER_TOKEN` to that long-running prod worker. It can also hold
-  either `OPENAI_API_KEY` or `OPENAI_CODEX_AUTH_JSON` for separate trusted
-  broker workloads that call the OpenAI/Codex Responses API. The XScraper/X
-  Power readonly query profile also requires `XSCRAPER_READONLY_DATABASE_URL`,
-  but `agent_workloads.readonly_query` is not granted in the first live
-  `db_probe` rollout. The OpenCode proposer uses a separate
-  `OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN`; expose it only to the
-  `opencode.proposer` worker as `MANDATE_WORKLOAD_IDENTITY_TOKEN`. The OpenCode
-  apply executor uses `OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN`; expose
-  it only to the `opencode.apply_executor` worker.
+  `MANDATE_WORKER_TOKEN` to that long-running prod worker. The OpenCode
+  proposer receives only `OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN` as
+  `MANDATE_WORKLOAD_IDENTITY_TOKEN`. The OpenCode apply executor receives only
+  `OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN` as
+  `MANDATE_WORKLOAD_IDENTITY_TOKEN`.
+- `workload-identity-tokens.metadata.yaml`: non-secret ledger for the encrypted
+  token file. It records the expected token key, agent id, `code_digest`,
+  manifest digest, `iat`/`exp`, issuer/subject/audience/scope, digest spec
+  version, source commit, and ciphertext hash for each token.
 - `regcred.enc.yaml`: DOCR pull credentials for
   `registry.digitalocean.com/sendouq/agent-workloads-worker`.
 
@@ -56,20 +62,35 @@ fresh; a SOPS/Kubernetes Secret value is static after sync.
 
 The OpenCode proposer must not receive `OPENAI_CODEX_AUTH_JSON`,
 `OPENAI_API_KEY`, database URLs, or the shared `MANDATE_WORKER_TOKEN`. It
-authenticates to Mandate with `OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN`, then
-Mandate returns a job-scoped model-gateway token in the claim response.
+authenticates to Mandate with the proposer token from
+`workload-identity-tokens.enc.yaml`, then Mandate returns a job-scoped
+model-gateway token in the claim response.
 
 The OpenCode apply executor must not receive model provider credentials, Git
 credentials, database URLs, or the shared `MANDATE_WORKER_TOKEN`. It
-authenticates to Mandate with `OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN`
-and consumes only claim-projected approval/designated-action state.
+authenticates to Mandate with the apply-executor token from
+`workload-identity-tokens.enc.yaml` and consumes only claim-projected
+approval/designated-action state.
 
 When `apps/agent-workloads/values.yaml` contains `mandateReleasePins`, CI
-decrypts `runtime-secret.enc.yaml` and checks that each workload identity
-token's `code_digest` claim matches the release pin and the embedded registry
-overlay manifest. The gate does not mint tokens; rotate them with the
+decrypts `workload-identity-tokens.enc.yaml` and checks that each workload
+identity token's `code_digest` claim matches the release pin and the embedded
+registry overlay manifest. It also rejects token keys left in
+`runtime-secret.enc.yaml` and verifies the metadata ledger against the token
+Secret ciphertext. The gate does not mint tokens; rotate them with the
 operator-held HMAC signing seed whenever a release changes a workload
 `code_digest`.
+
+Token rotations should regenerate `workload-identity-tokens.enc.yaml` as a whole
+file, then regenerate `workload-identity-tokens.metadata.yaml` from the encrypted
+file. Do not patch individual ciphertext values by hand; the metadata
+`ciphertext_sha256` is the reviewable link between the ledger and the encrypted
+token Secret.
+
+The drift-gate automation receives only the scoped Age key that can decrypt
+`workload-identity-tokens.enc.yaml`. It must not decrypt
+`runtime-secret.enc.yaml`, database URLs, Codex auth JSON, registry credentials,
+or any control-plane Secret.
 
 The `data.workspace_probe` worker should receive only
 `AGENT_WORKLOADS_DATABASE_URL` plus its mounted workload-identity token for the

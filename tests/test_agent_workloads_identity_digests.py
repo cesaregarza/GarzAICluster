@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -39,10 +40,16 @@ DIGESTS = {
 }
 
 TOKEN_KEYS = {
-    "data.workspace_probe": "DATA_WORKSPACE_PROBE_WORKLOAD_IDENTITY_TOKEN",
+    "data.workspace_probe": "MANDATE_WORKLOAD_IDENTITY_TOKEN",
     "opencode.proposer": "OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN",
     "opencode.apply_executor": "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
 }
+RUNTIME_SECRET_PATH = Path("secrets/agent-workloads/runtime-secret.enc.yaml")
+TOKEN_SECRET_PATH = Path("secrets/agent-workloads/workload-identity-tokens.enc.yaml")
+TOKEN_METADATA_PATH = Path(
+    "secrets/agent-workloads/workload-identity-tokens.metadata.yaml"
+)
+DIGEST_SPEC_VERSION = "agent-workloads-code-digest-v1"
 
 
 class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
@@ -80,15 +87,23 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
             "${{ env.SOPS_DRIFT_GATE_AGE_KEY }}",
         )
 
-    def test_scoped_sops_recipient_only_decrypts_agent_workloads_runtime_secret(
+    def test_plaintext_secret_guard_allows_non_secret_metadata_ledgers(self) -> None:
+        workflow_text = (
+            REPO_ROOT / ".github" / "workflows" / "deny-plaintext-secrets.yaml"
+        ).read_text()
+
+        self.assertIn('[[ "$base" == *.metadata.yaml ]]', workflow_text)
+
+    def test_scoped_sops_recipient_only_decrypts_workload_identity_token_secret(
         self,
     ) -> None:
         sops_config = YAML_PARSER.load((REPO_ROOT / ".sops.yaml").read_text())
         rules = sops_config["creation_rules"]
-        runtime_rule_index = next(
+        token_rule_index = next(
             index
             for index, rule in enumerate(rules)
-            if rule["path_regex"] == r"^secrets/agent-workloads/runtime-secret\.enc\.yaml$"
+            if rule["path_regex"]
+            == r"^secrets/agent-workloads/workload-identity-tokens\.enc\.yaml$"
         )
         broad_agent_workloads_rule_index = next(
             index
@@ -96,8 +111,8 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
             if rule["path_regex"] == r"^secrets/agent-workloads/.*\.enc\.yaml$"
         )
 
-        self.assertLess(runtime_rule_index, broad_agent_workloads_rule_index)
-        self.assertIn(DRIFT_GATE_RECIPIENT, rules[runtime_rule_index]["age"])
+        self.assertLess(token_rule_index, broad_agent_workloads_rule_index)
+        self.assertIn(DRIFT_GATE_RECIPIENT, rules[token_rule_index]["age"])
         self.assertNotIn(
             DRIFT_GATE_RECIPIENT,
             rules[broad_agent_workloads_rule_index]["age"],
@@ -106,6 +121,12 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         runtime_recipients = _sops_age_recipients(
             REPO_ROOT / "secrets" / "agent-workloads" / "runtime-secret.enc.yaml"
         )
+        token_recipients = _sops_age_recipients(
+            REPO_ROOT
+            / "secrets"
+            / "agent-workloads"
+            / "workload-identity-tokens.enc.yaml"
+        )
         agent_workloads_regcred_recipients = _sops_age_recipients(
             REPO_ROOT / "secrets" / "agent-workloads" / "regcred.enc.yaml"
         )
@@ -113,35 +134,27 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
             REPO_ROOT / "secrets" / "agent-control-plane" / "runtime-secret.enc.yaml"
         )
 
-        self.assertIn(DRIFT_GATE_RECIPIENT, runtime_recipients)
+        self.assertIn(DRIFT_GATE_RECIPIENT, token_recipients)
+        self.assertNotIn(DRIFT_GATE_RECIPIENT, runtime_recipients)
         self.assertNotIn(DRIFT_GATE_RECIPIENT, agent_workloads_regcred_recipients)
         self.assertNotIn(DRIFT_GATE_RECIPIENT, control_plane_recipients)
+        runtime_text = (
+            REPO_ROOT / "secrets" / "agent-workloads" / "runtime-secret.enc.yaml"
+        ).read_text()
+        for token_key in TOKEN_KEYS.values():
+            self.assertNotIn(token_key, runtime_text)
 
     def test_gate_skips_without_release_pins(self) -> None:
         root = _fixture_repo(include_pins=False)
 
-        result = check_agent_workloads_identity_digests(
-            repo_root=root,
-            values_path=Path("apps/agent-workloads/values.yaml"),
-            overlay_configmap_path=Path(
-                "apps/agent-control-plane-registry-overlay/configmap.yaml"
-            ),
-            runtime_secret_path=Path("secrets/agent-workloads/runtime-secret.enc.yaml"),
-        )
+        result = _check(root)
 
         self.assertIn("gate inactive", result)
 
     def test_gate_accepts_matching_release_pins_overlay_and_tokens(self) -> None:
         root = _fixture_repo()
 
-        result = check_agent_workloads_identity_digests(
-            repo_root=root,
-            values_path=Path("apps/agent-workloads/values.yaml"),
-            overlay_configmap_path=Path(
-                "apps/agent-control-plane-registry-overlay/configmap.yaml"
-            ),
-            runtime_secret_path=Path("secrets/agent-workloads/runtime-secret.enc.yaml"),
-        )
+        result = _check(root)
 
         self.assertIn("match release pins", result)
 
@@ -155,16 +168,7 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         _write_yaml(values_path, values)
 
         with self.assertRaisesRegex(DriftGateError, "mandateReleasePins.codeDigest"):
-            check_agent_workloads_identity_digests(
-                repo_root=root,
-                values_path=Path("apps/agent-workloads/values.yaml"),
-                overlay_configmap_path=Path(
-                    "apps/agent-control-plane-registry-overlay/configmap.yaml"
-                ),
-                runtime_secret_path=Path(
-                    "secrets/agent-workloads/runtime-secret.enc.yaml"
-                ),
-            )
+            _check(root)
 
     def test_gate_rejects_stale_workload_identity_token_code_digest(self) -> None:
         root = _fixture_repo(
@@ -175,35 +179,42 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(DriftGateError, "code_digest mismatch"):
-            check_agent_workloads_identity_digests(
-                repo_root=root,
-                values_path=Path("apps/agent-workloads/values.yaml"),
-                overlay_configmap_path=Path(
-                    "apps/agent-control-plane-registry-overlay/configmap.yaml"
-                ),
-                runtime_secret_path=Path(
-                    "secrets/agent-workloads/runtime-secret.enc.yaml"
-                ),
-            )
+            _check(root)
 
     def test_gate_rejects_malformed_identity_token(self) -> None:
         root = _fixture_repo()
-        secret_path = root / "secrets" / "agent-workloads" / "runtime-secret.enc.yaml"
+        secret_path = root / TOKEN_SECRET_PATH
         secret = YAML_PARSER.load(secret_path.read_text())
         secret["stringData"]["OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN"] = "not-a-token"
         _write_yaml(secret_path, secret)
+        _write_metadata(root)
 
         with self.assertRaisesRegex(DriftGateError, "not an mwit_v1 token"):
-            check_agent_workloads_identity_digests(
-                repo_root=root,
-                values_path=Path("apps/agent-workloads/values.yaml"),
-                overlay_configmap_path=Path(
-                    "apps/agent-control-plane-registry-overlay/configmap.yaml"
-                ),
-                runtime_secret_path=Path(
-                    "secrets/agent-workloads/runtime-secret.enc.yaml"
-                ),
-            )
+            _check(root)
+
+    def test_gate_rejects_token_keys_left_in_runtime_secret(self) -> None:
+        root = _fixture_repo()
+        runtime_secret_path = root / RUNTIME_SECRET_PATH
+        runtime_secret = YAML_PARSER.load(runtime_secret_path.read_text())
+        runtime_secret["stringData"]["OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN"] = (
+            _mwit_token("opencode.proposer", DIGESTS["opencode.proposer"]["codeDigest"])
+        )
+        _write_yaml(runtime_secret_path, runtime_secret)
+
+        with self.assertRaisesRegex(DriftGateError, "runtime secret must not contain"):
+            _check(root)
+
+    def test_gate_rejects_stale_token_metadata_ciphertext_hash(self) -> None:
+        root = _fixture_repo()
+        metadata_path = root / TOKEN_METADATA_PATH
+        metadata = YAML_PARSER.load(metadata_path.read_text())
+        metadata["tokens"]["opencode.proposer"]["ciphertext_sha256"] = (
+            "sha256:" + "9" * 64
+        )
+        _write_yaml(metadata_path, metadata)
+
+        with self.assertRaisesRegex(DriftGateError, "ciphertext_sha256 mismatch"):
+            _check(root)
 
 
 def _fixture_repo(
@@ -227,22 +238,50 @@ def _fixture_repo(
     configmap_path.parent.mkdir(parents=True)
     _write_yaml(configmap_path, _configmap())
 
-    secret_path = root / "secrets" / "agent-workloads" / "runtime-secret.enc.yaml"
-    secret_path.parent.mkdir(parents=True)
+    runtime_secret_path = root / RUNTIME_SECRET_PATH
+    runtime_secret_path.parent.mkdir(parents=True)
+    _write_yaml(
+        runtime_secret_path,
+        {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {"name": "agent-workloads-secrets"},
+            "stringData": {
+                "MANDATE_WORKER_TOKEN": "worker-token",
+                "AGENT_WORKLOADS_DATABASE_URL": "postgresql://example.invalid/db",
+            },
+        },
+    )
+
+    token_secret_path = root / TOKEN_SECRET_PATH
     token_digests = token_digests or {
         agent_id: pins["codeDigest"] for agent_id, pins in DIGESTS.items()
     }
-    secret = {
+    token_secret = {
         "apiVersion": "v1",
         "kind": "Secret",
-        "metadata": {"name": "agent-workloads-secrets"},
+        "metadata": {"name": "agent-workloads-workload-identity-tokens"},
         "stringData": {
-            TOKEN_KEYS[agent_id]: _mwit_token(code_digest)
+            TOKEN_KEYS[agent_id]: _mwit_token(agent_id, code_digest)
             for agent_id, code_digest in token_digests.items()
         },
     }
-    _write_yaml(secret_path, secret)
+    _write_yaml(token_secret_path, token_secret)
+    _write_metadata(root)
     return root
+
+
+def _check(root: Path) -> str:
+    return check_agent_workloads_identity_digests(
+        repo_root=root,
+        values_path=Path("apps/agent-workloads/values.yaml"),
+        overlay_configmap_path=Path(
+            "apps/agent-control-plane-registry-overlay/configmap.yaml"
+        ),
+        runtime_secret_path=RUNTIME_SECRET_PATH,
+        token_secret_path=TOKEN_SECRET_PATH,
+        token_metadata_path=TOKEN_METADATA_PATH,
+    )
 
 
 def _configmap() -> dict[str, Any]:
@@ -278,14 +317,43 @@ def _configmap() -> dict[str, Any]:
     }
 
 
-def _mwit_token(code_digest: str) -> str:
+def _write_metadata(root: Path) -> None:
+    token_secret_path = root / TOKEN_SECRET_PATH
+    ciphertext_hash = "sha256:" + hashlib.sha256(token_secret_path.read_bytes()).hexdigest()
+    metadata = {
+        "schema_version": "agent-workloads-workload-identity-tokens.metadata.v1",
+        "token_secret_path": TOKEN_SECRET_PATH.as_posix(),
+        "tokens": {
+            agent_id: {
+                "agent_id": agent_id,
+                "token_key": TOKEN_KEYS[agent_id],
+                "code_digest": pins["codeDigest"],
+                "manifest_digest": pins["manifestDigest"],
+                "iat": 1700000000,
+                "exp": 4102444800,
+                "iss": "kubernetes",
+                "sub": agent_id,
+                "aud": "mandate-api",
+                "scp": ["worker_service"],
+                "digest_spec_version": DIGEST_SPEC_VERSION,
+                "source_commit": "fixture",
+                "ciphertext_sha256": ciphertext_hash,
+            }
+            for agent_id, pins in DIGESTS.items()
+        },
+    }
+    _write_yaml(root / TOKEN_METADATA_PATH, metadata)
+
+
+def _mwit_token(agent_id: str, code_digest: str) -> str:
     payload = {
         "aud": "mandate-api",
         "code_digest": code_digest,
         "exp": 4102444800,
+        "iat": 1700000000,
         "iss": "kubernetes",
         "scp": ["worker_service"],
-        "sub": "system:serviceaccount:agent-workloads:worker",
+        "sub": agent_id,
     }
     encoded = base64.urlsafe_b64encode(
         json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
