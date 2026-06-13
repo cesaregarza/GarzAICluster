@@ -17,7 +17,7 @@ normal publish, re-pin, and re-mint flow.
 - Source: `cesaregarza/agent-workloads/scripts/apply_splattop_release_artifacts.py`
 - Deployment-owned capability roots: `artifacts`, `disclosure`, `model_lease`
 - Preserved existing capability roots: `approval_mode`
-- Session authority preserved subkeys: `session_authority_budget.session_taint`
+- Session authority preserved subkeys: `session_authority_budget.max_operations`, `session_authority_budget.session_taint`
 
 ## Consumers
 

@@ -92,6 +92,28 @@ class GrantOwnershipTests(unittest.TestCase):
         self.assertIn("overlay-only: CP restart required, no re-mint", body)
         self.assertIn("No workload manifest, image, or code digest moves.", body)
 
+    def test_set_grant_allows_session_authority_max_operations_overlay_edit(
+        self,
+    ) -> None:
+        root = _fixture_repo()
+        pr_body = root / "grant-edit-pr.md"
+
+        result = apply_grant_edit(
+            repo_root=root,
+            capability_id="agent_workloads.opencode_propose",
+            key_path="session_authority_budget.max_operations",
+            raw_value="16",
+            pr_body_path=pr_body,
+        )
+
+        capability = _capability(root, "agent_workloads.opencode_propose")
+        self.assertEqual(capability["session_authority_budget"]["max_operations"], 16)
+        self.assertEqual(result.action, "set")
+        self.assertEqual(result.new_value, 16)
+        body = pr_body.read_text()
+        self.assertIn("overlay-only: CP restart required, no re-mint", body)
+        self.assertIn("No workload manifest, image, or code digest moves.", body)
+
     def test_set_grant_refuses_release_owned_output_schema(self) -> None:
         root = _fixture_repo()
 

@@ -75,7 +75,7 @@ data:
             - openai.gpt-5.3-codex-spark
             max_cost_usd: 0.25
           session_authority_budget:
-            max_operations: 8
+            max_operations: 30
             session_taint: prod_authority
           disclosure:
             raw_inputs_returnable: false
