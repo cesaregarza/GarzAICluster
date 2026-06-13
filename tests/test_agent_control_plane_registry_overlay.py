@@ -66,7 +66,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             ["openai.gpt-5.3-codex-spark"],
         )
         self.assertEqual(capability["model_lease"]["max_cost_usd"], 0.25)
-        self.assertEqual(capability["session_authority_budget"]["max_operations"], 16)
+        self.assertEqual(capability["session_authority_budget"]["max_operations"], 30)
         self.assertEqual(
             capability["disclosure"]["artifact_classes_allowed"],
             ["opencode_proposal"],
