@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-control-plane-model-gateway-controls
+  namespace: agent-control-plane
+  labels:
+    app.kubernetes.io/name: agent-control-plane
+    app.kubernetes.io/component: model-gateway-controls
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    mandate.cesaregarza.io/operator-editable: "true"
+    mandate.cesaregarza.io/purpose: model-gateway-kill-switch-and-revocations
+data:
+  # Leave the kill-switch key absent during normal operation. Creating
+  # data.kill-switch makes the configured file appear in the mounted directory
+  # and causes the model gateway to fail closed with model_gateway_kill_switch_active.
+  revocations.txt: |
+    # Add one revoked id per line. Accepted prefixes: job:, job_id:, lease:, lease_id:.
