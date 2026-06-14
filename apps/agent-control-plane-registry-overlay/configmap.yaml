@@ -12,8 +12,8 @@ data:
     imports:
     - id: data.workspace_probe
       manifest_path: registries/imports/agent-data.workspace_probe.json
-      manifest_digest: sha256:7fb2fc05d9d609987b26e8d1082d534989ec58e2d373f30c770e0223ba22f65d
-      image_digest: sha256:ac24cb307f3b12e1acfba1f6e63002966c7970e7930e59e7f374c1e1cf5b6ffb
+      manifest_digest: sha256:9212130b326f64eea445653bf139c9d18c5199b501f00f0ba0930085cdc926a2
+      image_digest: sha256:4506b6b5f84f26c5c7a548b0fb6767f127524f3dabeaa0bba3e2965a99f7f5cb
       expected_source:
         repo: agent-workloads
         repo_url: https://github.com/cesaregarza/agent-workloads
@@ -48,8 +48,8 @@ data:
             session_taint: prod_authority
     - id: opencode.proposer
       manifest_path: registries/imports/agent-opencode.proposer.json
-      manifest_digest: sha256:3a1c4c1c7bd12fcd08840602c987e9272ab15276ab295e323734ba00f346f56f
-      image_digest: sha256:dd33c8c9c43d61605866f1acebe8b5e0eb3c11749a0347f82bff52fe2045f905
+      manifest_digest: sha256:1c6d0e701ba429d4bbbaca7db40f279fa5895a04a7895065a51c6354a49da1bf
+      image_digest: sha256:5a8f65b9006b1c66bd5d885aef95fc3fbc23a41bbea1784e0e78397580b5acad
       expected_source:
         repo: agent-workloads
         repo_url: https://github.com/cesaregarza/agent-workloads
@@ -177,8 +177,8 @@ data:
             broker_required: false
     - id: opencode.apply_executor
       manifest_path: registries/imports/agent-opencode.apply_executor.json
-      manifest_digest: sha256:9633ba4b5c12147d558f77de32f8be6111aaab82f2a710fe7be4c607085cf298
-      image_digest: sha256:e6d6e13993ffd55a472e369cc971e4de663c4f749c1332a4ecebcc6df7d5de6e
+      manifest_digest: sha256:74f53456f96067ada8666a75cd00b7662acb3c06f48f24ecab5a6bf1ef015de9
+      image_digest: sha256:bd3147695724fff4f6a868084e65573e061a560935ff3aef504dc916aa5523f7
       expected_source:
         repo: agent-workloads
         repo_url: https://github.com/cesaregarza/agent-workloads
@@ -424,7 +424,7 @@ data:
         }
       },
       "code_digest": "sha256:c58a45c779220a8b6671fb84b65bd19405af8f7d06e90e10b6252a4f7005ce42",
-      "digest": "sha256:7fb2fc05d9d609987b26e8d1082d534989ec58e2d373f30c770e0223ba22f65d",
+      "digest": "sha256:9212130b326f64eea445653bf139c9d18c5199b501f00f0ba0930085cdc926a2",
       "display_name": "Agent Workloads Data Worker",
       "evals": {
         "optional": [],
@@ -434,7 +434,7 @@ data:
       },
       "id": "data.workspace_probe",
       "image": {
-        "digest": "sha256:ac24cb307f3b12e1acfba1f6e63002966c7970e7930e59e7f374c1e1cf5b6ffb",
+        "digest": "sha256:4506b6b5f84f26c5c7a548b0fb6767f127524f3dabeaa0bba3e2965a99f7f5cb",
         "repository": "registry.digitalocean.com/sendouq/agent-workloads-worker"
       },
       "loop": {
@@ -465,7 +465,7 @@ data:
         }
       },
       "code_digest": "sha256:9f5ab7f2e7726a0c6e4423284e381ce0172f5e1840c6f76d4c8c02b6b35826f9",
-      "digest": "sha256:3a1c4c1c7bd12fcd08840602c987e9272ab15276ab295e323734ba00f346f56f",
+      "digest": "sha256:1c6d0e701ba429d4bbbaca7db40f279fa5895a04a7895065a51c6354a49da1bf",
       "display_name": "OpenCode Proposer",
       "evals": {
         "optional": [],
@@ -475,7 +475,7 @@ data:
       },
       "id": "opencode.proposer",
       "image": {
-        "digest": "sha256:dd33c8c9c43d61605866f1acebe8b5e0eb3c11749a0347f82bff52fe2045f905",
+        "digest": "sha256:5a8f65b9006b1c66bd5d885aef95fc3fbc23a41bbea1784e0e78397580b5acad",
         "repository": "registry.digitalocean.com/sendouq/opencode-proposer"
       },
       "loop": {
@@ -502,7 +502,7 @@ data:
         }
       },
       "code_digest": "sha256:7f00ce7a63646eee642ec04f0bf7fc81adadbbf8991a7682e59c17920c55f868",
-      "digest": "sha256:9633ba4b5c12147d558f77de32f8be6111aaab82f2a710fe7be4c607085cf298",
+      "digest": "sha256:74f53456f96067ada8666a75cd00b7662acb3c06f48f24ecab5a6bf1ef015de9",
       "display_name": "OpenCode Apply Executor",
       "evals": {
         "optional": [],
@@ -512,7 +512,7 @@ data:
       },
       "id": "opencode.apply_executor",
       "image": {
-        "digest": "sha256:e6d6e13993ffd55a472e369cc971e4de663c4f749c1332a4ecebcc6df7d5de6e",
+        "digest": "sha256:bd3147695724fff4f6a868084e65573e061a560935ff3aef504dc916aa5523f7",
         "repository": "registry.digitalocean.com/sendouq/opencode-apply-executor"
       },
       "loop": {
