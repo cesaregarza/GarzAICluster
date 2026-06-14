@@ -7,8 +7,8 @@ fullnameOverride: agent-workloads
 replicaCount: 1
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-9608331febf1
-  digest: sha256:599b85b84baa092086331a0796087d367b93414a2ce23b43ab3fdc3e6e2da1d6
+  tag: sha-37790c3ab89d
+  digest: sha256:2ca9df7f43137618ca5cd465a510db12135dd440e18f635af70fe7d104ba6fe9
   pullPolicy: IfNotPresent
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
@@ -94,8 +94,8 @@ opencodeProposer:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-9608331febf1
-    digest: sha256:36e20928a02011e86f1dfb9618880f745b7b1bff1a7c922e889cee7fd2216ba0
+    tag: sha-37790c3ab89d
+    digest: sha256:7bb7cea76405b6d7f51d76177bbca9114aae3b6e86768196392a2d26af927f3f
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
@@ -173,8 +173,8 @@ opencodeApplyExecutor:
   enabled: true
   image:
     repository: registry.digitalocean.com/sendouq/opencode-apply-executor
-    tag: sha-9608331febf1
-    digest: sha256:7b5d3edbe6efb3c3a6d1ed8fbb54d76245fcdb62b69d538045881a412dd0ea58
+    tag: sha-37790c3ab89d
+    digest: sha256:da2baad71b0d1f04f0141bab6b07aa8da09cdd83f2db449de55816e26275c551
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN
@@ -221,14 +221,14 @@ opencodeApplyExecutor:
       memory: 512Mi
 mandateReleasePins:
   data.workspace_probe:
-    codeDigest: sha256:77f5e2fd8bb51bab4c5566a4c31bbd67f26b788fd18ee6dd93d50de102cd66d9
-    manifestDigest: sha256:d695d33f8200f68d25d7907c4f7b4573de6f2dd6bff5fce066241fbd14cd071d
-    imageDigest: sha256:599b85b84baa092086331a0796087d367b93414a2ce23b43ab3fdc3e6e2da1d6
+    codeDigest: sha256:15f65e465c8a4a1263ce2a992c340419186e6ed25390b07d42de5afde91b7bb4
+    manifestDigest: sha256:db209179f19dd5d313fa75b90c5a9d7e3e24b1649b5ddd62e384ce4a707fb215
+    imageDigest: sha256:2ca9df7f43137618ca5cd465a510db12135dd440e18f635af70fe7d104ba6fe9
   opencode.apply_executor:
-    codeDigest: sha256:6b7fb30f423f41bb51be8058573c8b6bc0122d4b69066b10428c94574c0661ac
-    manifestDigest: sha256:e177b45b87c4d1e160c1f78c99b7f5d088e20ab62dc11f67c072fd60f442f52c
-    imageDigest: sha256:7b5d3edbe6efb3c3a6d1ed8fbb54d76245fcdb62b69d538045881a412dd0ea58
+    codeDigest: sha256:3783f59b2dfc7c2bf54688ffc9469d846f63b55ecad015df6b12aaeaadf6a3fe
+    manifestDigest: sha256:5e003a2e3e8b1fd94d9be09ba341d5612c225f5e1fe4fd9e7241b8ff7ff79481
+    imageDigest: sha256:da2baad71b0d1f04f0141bab6b07aa8da09cdd83f2db449de55816e26275c551
   opencode.proposer:
-    codeDigest: sha256:c8ac25d7749370375013c685cc8adf6faeabdb548d71170dc61646ab30638a56
-    manifestDigest: sha256:80bf5e9a8e455965a873dfc29554160ecdf0f13e68d16ff14f219e199f33655b
-    imageDigest: sha256:36e20928a02011e86f1dfb9618880f745b7b1bff1a7c922e889cee7fd2216ba0
+    codeDigest: sha256:1cc9b4bb5af9c2d12779a0c6a4ef9849f23b3cf547eff4eb5720a267968efc69
+    manifestDigest: sha256:1b6230bfcaf21d3d8c3e03fbee2c377eb9df981f4c06b3cad2c947a4971db062
+    imageDigest: sha256:7bb7cea76405b6d7f51d76177bbca9114aae3b6e86768196392a2d26af927f3f
