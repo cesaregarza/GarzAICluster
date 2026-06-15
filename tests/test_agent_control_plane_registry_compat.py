@@ -15,14 +15,24 @@ from ruamel.yaml import YAML
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "check_agent_control_plane_registry_compat.py"
 YAML_PARSER = YAML()
-SHARED_ACTION_PIN = "a1d2fb4a6b288066574b1ac53074ac62e920a07f"
 OLD_MUTABLE_BROKER_ACTION = (
-    "cesaregarza/.github/actions/" "fetch-broker-credentials" "@main"
+    "cesaregarza/"
+    ".github/actions/"
+    "fetch-broker-credentials"
+    "@main"
+)
+SHARED_ACTION_REPO = "cesaregarza/" ".github/actions/"
+LOCAL_COMPAT_GATE_ACTION = (
+    REPO_ROOT
+    / ".github"
+    / "actions"
+    / "agent-control-plane-registry-compat-gate"
+    / "action.yml"
 )
 
 
 class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
-    def test_ci_compat_gate_uses_pinned_shared_action_not_mutable_broker_action(
+    def test_ci_compat_gate_uses_local_action_not_mutable_broker_action(
         self,
     ) -> None:
         workflow_path = REPO_ROOT / ".github" / "workflows" / "ci.yaml"
@@ -34,6 +44,7 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
             OLD_MUTABLE_BROKER_ACTION,
             workflow_text,
         )
+        self.assertNotIn(SHARED_ACTION_REPO, workflow_text)
         self.assertEqual(job["permissions"]["contents"], "read")
         self.assertEqual(job["permissions"]["id-token"], "write")
 
@@ -41,16 +52,27 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
             step
             for step in job["steps"]
             if step.get("uses", "").startswith(
-                "cesaregarza/.github/actions/"
-                "agent-control-plane-registry-compat-gate@"
+                "./.github/actions/agent-control-plane-registry-compat-gate"
             )
         )
         self.assertEqual(
             check_step["uses"],
-            "cesaregarza/.github/actions/"
-            f"agent-control-plane-registry-compat-gate@{SHARED_ACTION_PIN}",
+            "./.github/actions/agent-control-plane-registry-compat-gate",
         )
         self.assertNotIn("@main", check_step["uses"])
+
+    def test_local_compat_gate_fetches_exact_brokered_read_token_shape(self) -> None:
+        action_text = LOCAL_COMPAT_GATE_ACTION.read_text(encoding="utf-8")
+
+        self.assertIn("mandate-contracts-read", action_text)
+        self.assertIn("ACTIONS_ID_TOKEN_REQUEST_URL", action_text)
+        self.assertIn(
+            '(.secrets | keys) == ["MANDATE_CONTRACTS_READ_TOKEN"]',
+            action_text,
+        )
+        self.assertIn("MANDATE_CONTRACTS_READ_TOKEN", action_text)
+        self.assertIn("repository: cesaregarza/agent-platform", action_text)
+        self.assertNotIn("secrets-" "json", action_text)
 
     def test_missing_per_user_daily_tokens_fails_against_old_pin_and_passes_after_bump(
         self,

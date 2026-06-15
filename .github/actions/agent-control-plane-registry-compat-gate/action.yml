@@ -1,0 +1,144 @@
+name: Agent control-plane deployed registry compatibility gate
+description: Validate config repo registry overlays against the pinned deployed agent-platform revision.
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install config repo dependencies
+      shell: bash
+      run: uv sync
+
+    - name: Read pinned agent-platform revision
+      id: mandate-revision
+      shell: bash
+      run: |
+        set -euo pipefail
+        revision="$(uv run python scripts/check_agent_control_plane_registry_compat.py --print-target-revision)"
+        [[ -n "$revision" ]] || { echo "::error::target revision command returned empty output" >&2; exit 1; }
+        echo "revision=${revision}" >> "$GITHUB_OUTPUT"
+
+    - name: Fetch Mandate read token
+      id: broker
+      shell: bash
+      env:
+        BROKER_URL: https://credentials.garz.ai
+        BROKER_AUDIENCE: https://credentials.garz.ai/v1
+        BROKER_CAPABILITY: mandate-contracts-read
+      run: |
+        set -euo pipefail
+
+        die() {
+          echo "::error::$*" >&2
+          exit 1
+        }
+
+        need() {
+          command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
+        }
+
+        mask_value() {
+          local value="$1"
+          [[ -n "$value" ]] || return 0
+
+          value="${value//'%'/'%25'}"
+          value="${value//$'\r'/'%0D'}"
+          value="${value//$'\n'/'%0A'}"
+          printf '::add-mask::%s\n' "$value"
+        }
+
+        random_delim() {
+          if command -v uuidgen >/dev/null 2>&1; then
+            printf 'BROKER_%s' "$(uuidgen | tr '[:lower:]' '[:upper:]')"
+          else
+            printf 'BROKER_%s' "$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+          fi
+        }
+
+        write_multiline_file() {
+          local file="$1"
+          local name="$2"
+          local value="$3"
+          local delim
+
+          while :; do
+            delim="$(random_delim)"
+            if ! grep -qxF "$delim" <<< "$value"; then
+              break
+            fi
+          done
+
+          {
+            printf '%s<<%s\n' "$name" "$delim"
+            printf '%s\n' "$value"
+            printf '%s\n' "$delim"
+          } >> "$file"
+        }
+
+        need curl
+        need jq
+
+        [[ "$BROKER_URL" == https://* ]] || die "broker-url must use https://"
+        [[ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]] ||
+          die "ACTIONS_ID_TOKEN_REQUEST_URL is not set. Did the job grant permissions: id-token: write?"
+        [[ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]] ||
+          die "ACTIONS_ID_TOKEN_REQUEST_TOKEN is not set. Did the job grant permissions: id-token: write?"
+
+        audience_q="$(jq -rn --arg value "$BROKER_AUDIENCE" '$value | @uri')"
+        token_json="$(
+          curl --silent --show-error --fail-with-body \
+            --connect-timeout 10 --max-time 60 \
+            --retry 3 --retry-all-errors \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience_q}"
+        )"
+        oidc_token="$(jq -er '.value | select(type == "string" and length > 0)' <<< "$token_json")" ||
+          die "GitHub OIDC token response did not include a token"
+        mask_value "$oidc_token"
+
+        request_body="$(jq -nc --arg capability "$BROKER_CAPABILITY" '{capabilities: [$capability]}')"
+        response="$(
+          curl --silent --show-error --fail-with-body \
+            --connect-timeout 10 --max-time 60 \
+            --retry 3 --retry-all-errors \
+            -X POST \
+            -H "Authorization: Bearer $oidc_token" \
+            -H "Content-Type: application/json" \
+            --data-binary "$request_body" \
+            "${BROKER_URL%/}/v1/capabilities"
+        )"
+
+        jq -e --arg capability "$BROKER_CAPABILITY" '
+          .capabilities == [$capability]
+          and (.secrets | type == "object")
+          and ((.secrets | keys) == ["MANDATE_CONTRACTS_READ_TOKEN"])
+          and (.secrets.MANDATE_CONTRACTS_READ_TOKEN | type == "string" and length > 0)
+        ' <<< "$response" >/dev/null ||
+          die "Broker response must contain exactly MANDATE_CONTRACTS_READ_TOKEN for the requested capability"
+
+        token="$(jq -r '.secrets.MANDATE_CONTRACTS_READ_TOKEN' <<< "$response")"
+        mask_value "$token"
+        write_multiline_file "$GITHUB_OUTPUT" "token" "$token"
+
+    - name: Check out pinned agent-platform source
+      uses: actions/checkout@v4
+      with:
+        repository: cesaregarza/agent-platform
+        ref: ${{ steps.mandate-revision.outputs.revision }}
+        path: agent-platform
+        token: ${{ steps.broker.outputs.token }}
+
+    - name: Install pinned agent-platform
+      shell: bash
+      run: uv pip install -e agent-platform
+
+    - name: Check deployed registry compatibility
+      shell: bash
+      run: uv run python scripts/check_agent_control_plane_registry_compat.py --agent-platform-repo agent-platform
