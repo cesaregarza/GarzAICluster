@@ -10,7 +10,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-e71f8bf6d037
+  tag: sha-10dcea284c52
   pullPolicy: IfNotPresent
 
 secretKeys:
