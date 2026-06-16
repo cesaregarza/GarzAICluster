@@ -24,6 +24,7 @@ spec:
       {{- end }}
     spec:
       serviceAccountName: {{ include "agent-workloads.serviceAccountName" . }}
+      enableServiceLinks: false
       {{- include "agent-workloads.imagePullSecrets" . | nindent 6 }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}

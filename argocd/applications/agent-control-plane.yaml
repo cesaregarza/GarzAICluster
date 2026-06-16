@@ -11,7 +11,7 @@ spec:
   project: splattop
   sources:
     - repoURL: git@github.com:cesaregarza/agent-platform.git
-      targetRevision: 55c0d8586ea959216629e6098056211f19c88d60
+      targetRevision: e71f8bf6d0376c995dd26f4ebd6995c63bdcfb2f
       path: helm/mandate
       helm:
         releaseName: agent-control-plane
@@ -20,6 +20,9 @@ spec:
     - repoURL: https://github.com/cesaregarza/SplatTopConfig
       targetRevision: main
       ref: values
+    - repoURL: https://github.com/cesaregarza/SplatTopConfig
+      targetRevision: main
+      path: apps/agent-control-plane-runtime-controls
   destination:
     server: https://kubernetes.default.svc
     namespace: agent-control-plane

@@ -7,8 +7,8 @@ fullnameOverride: agent-workloads
 replicaCount: 1
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-14d53cce0612
-  digest: sha256:9cab38590aada4c4ef34b774383b78537f78f02c80103b2ea08267ff9267488b
+  tag: sha-2e410dc4264a
+  digest: sha256:4506b6b5f84f26c5c7a548b0fb6767f127524f3dabeaa0bba3e2965a99f7f5cb
   pullPolicy: IfNotPresent
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
@@ -31,9 +31,9 @@ secretEnv: {}
 extraVolumes:
 - name: workload-identity-token
   secret:
-    secretName: agent-workloads-secrets
+    secretName: agent-workloads-workload-identity-tokens
     items:
-    - key: DATA_WORKSPACE_PROBE_WORKLOAD_IDENTITY_TOKEN
+    - key: MANDATE_WORKLOAD_IDENTITY_TOKEN
       path: token
 extraVolumeMounts:
 - name: workload-identity-token
@@ -94,11 +94,12 @@ opencodeProposer:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-14d53cce0612
-    digest: sha256:a0f95e5c80f472c5be37238c285baa72e25744aa55b813bb67654f433c75003c
+    tag: sha-2e410dc4264a
+    digest: sha256:5a8f65b9006b1c66bd5d885aef95fc3fbc23a41bbea1784e0e78397580b5acad
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
+  secretEnvSecretName: agent-workloads-workload-identity-tokens
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
@@ -172,11 +173,12 @@ opencodeApplyExecutor:
   enabled: true
   image:
     repository: registry.digitalocean.com/sendouq/opencode-apply-executor
-    tag: sha-14d53cce0612
-    digest: sha256:28729ab578a0d07e84b3f4080f270107d78cb3e6ad1d9e5be12be3c5aa488ce7
+    tag: sha-2e410dc4264a
+    digest: sha256:bd3147695724fff4f6a868084e65573e061a560935ff3aef504dc916aa5523f7
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN
+  secretEnvSecretName: agent-workloads-workload-identity-tokens
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
@@ -219,14 +221,14 @@ opencodeApplyExecutor:
       memory: 512Mi
 mandateReleasePins:
   data.workspace_probe:
-    codeDigest: sha256:cda67786a4cbd8c053ad6460089faf7e5b8d5719c8372ea10b65e0f71e7be40e
-    manifestDigest: sha256:133015e202f0fcc316fbb4dd700a0de057eff0a85aa19a9941d05600abc02055
-    imageDigest: sha256:9cab38590aada4c4ef34b774383b78537f78f02c80103b2ea08267ff9267488b
+    codeDigest: sha256:c58a45c779220a8b6671fb84b65bd19405af8f7d06e90e10b6252a4f7005ce42
+    manifestDigest: sha256:9212130b326f64eea445653bf139c9d18c5199b501f00f0ba0930085cdc926a2
+    imageDigest: sha256:4506b6b5f84f26c5c7a548b0fb6767f127524f3dabeaa0bba3e2965a99f7f5cb
   opencode.apply_executor:
-    codeDigest: sha256:18127634708dfa03227062b2de481c108edeaf5939389634d598893b3142af12
-    manifestDigest: sha256:2d7ea0220f1b32bf80c286e7b18047a052e8dbc4620e0c59e60e5822d1a81058
-    imageDigest: sha256:28729ab578a0d07e84b3f4080f270107d78cb3e6ad1d9e5be12be3c5aa488ce7
+    codeDigest: sha256:7f00ce7a63646eee642ec04f0bf7fc81adadbbf8991a7682e59c17920c55f868
+    manifestDigest: sha256:74f53456f96067ada8666a75cd00b7662acb3c06f48f24ecab5a6bf1ef015de9
+    imageDigest: sha256:bd3147695724fff4f6a868084e65573e061a560935ff3aef504dc916aa5523f7
   opencode.proposer:
-    codeDigest: sha256:1804f5f5f8689ca4dfa9a2fbbfb0ba9d7f692aae5591a95e17896d1111826a2a
-    manifestDigest: sha256:597f4e692b60e61fa6c0758c1e46ba28ba8a0c8ccfc76c5488fad100049deb81
-    imageDigest: sha256:a0f95e5c80f472c5be37238c285baa72e25744aa55b813bb67654f433c75003c
+    codeDigest: sha256:9f5ab7f2e7726a0c6e4423284e381ce0172f5e1840c6f76d4c8c02b6b35826f9
+    manifestDigest: sha256:1c6d0e701ba429d4bbbaca7db40f279fa5895a04a7895065a51c6354a49da1bf
+    imageDigest: sha256:5a8f65b9006b1c66bd5d885aef95fc3fbc23a41bbea1784e0e78397580b5acad

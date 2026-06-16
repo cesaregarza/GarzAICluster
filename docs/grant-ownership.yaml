@@ -1,0 +1,288 @@
+schema_version: grant-ownership.v1
+generated_from:
+  repo: cesaregarza/agent-workloads
+  path: scripts/apply_splattop_release_artifacts.py
+  deployment_owned_capability_keys:
+  - artifacts
+  - disclosure
+  - model_lease
+  preserve_existing_capability_keys:
+  - approval_mode
+  session_authority_budget_preserved_keys:
+  - max_operations
+  - session_taint
+consumers:
+- scripts/set_grant.py
+- mandate doctor deployment-layout checks
+policy_overlay:
+  owner: deployment_overlay
+  file: apps/agent-control-plane-registry-overlay/configmap.yaml
+  embedded_file: policy.prod.yaml
+  deploy_consequence: control_plane_restart
+  remint_required: false
+  digest_moves: false
+  editable_paths:
+  - defaults.aggregate_budget
+  - bindings[].capabilities.allow
+  - bindings[].capabilities.approval_overrides
+capabilities:
+  agent_workloads.db_probe:
+    agent_id: data.workspace_probe
+    source:
+      repo: agent-workloads
+      repo_url: https://github.com/cesaregarza/agent-workloads
+      path: agents/db-workspace-probe/agent.yaml
+    config_path: apps/agent-control-plane-registry-overlay/configmap.yaml:data.workload_imports.yaml.imports[id=data.workspace_probe].capabilities.agent_workloads.db_probe
+    keys:
+      description:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      output_schema:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+  agent_workloads.readonly_query:
+    agent_id: data.workspace_probe
+    source:
+      repo: agent-workloads
+      repo_url: https://github.com/cesaregarza/agent-workloads
+      path: agents/db-workspace-probe/agent.yaml
+    config_path: apps/agent-control-plane-registry-overlay/configmap.yaml:data.workload_imports.yaml.imports[id=data.workspace_probe].capabilities.agent_workloads.readonly_query
+    keys:
+      description:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      model_lease:
+        owner: deployment_overlay
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
+      output_schema:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      session_authority_budget:
+        owner: mixed
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        deployment_owned_subkeys:
+        - max_operations
+        - session_taint
+        release_owned_subkeys: '*'
+        source: SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS
+  agent_workloads.opencode_propose:
+    agent_id: opencode.proposer
+    source:
+      repo: agent-workloads
+      repo_url: https://github.com/cesaregarza/agent-workloads
+      path: agents/opencode-proposer/agent.yaml
+    config_path: apps/agent-control-plane-registry-overlay/configmap.yaml:data.workload_imports.yaml.imports[id=opencode.proposer].capabilities.agent_workloads.opencode_propose
+    keys:
+      artifacts:
+        owner: deployment_overlay
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
+      description:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      disclosure:
+        owner: deployment_overlay
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
+      disclosure_summary:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      model_lease:
+        owner: deployment_overlay
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
+      negative_affordances:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      output_schema:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      result_contract:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      session_authority_budget:
+        owner: mixed
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        deployment_owned_subkeys:
+        - max_operations
+        - session_taint
+        release_owned_subkeys: '*'
+        source: SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS
+  agent_workloads.opencode_task:
+    agent_id: opencode.proposer
+    source:
+      repo: agent-workloads
+      repo_url: https://github.com/cesaregarza/agent-workloads
+      path: agents/opencode-proposer/agent.yaml
+    config_path: apps/agent-control-plane-registry-overlay/configmap.yaml:data.workload_imports.yaml.imports[id=opencode.proposer].capabilities.agent_workloads.opencode_task
+    keys:
+      artifacts:
+        owner: deployment_overlay
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
+      description:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      disclosure:
+        owner: deployment_overlay
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
+      disclosure_summary:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      model_lease:
+        owner: deployment_overlay
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
+      negative_affordances:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      output_schema:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      result_contract:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      session_authority_budget:
+        owner: mixed
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        deployment_owned_subkeys:
+        - max_operations
+        - session_taint
+        release_owned_subkeys: '*'
+        source: SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS
+      task_contract:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+  agent_workloads.opencode_apply:
+    agent_id: opencode.apply_executor
+    source:
+      repo: agent-workloads
+      repo_url: https://github.com/cesaregarza/agent-workloads
+      path: agents/opencode-apply-executor/agent.yaml
+    config_path: apps/agent-control-plane-registry-overlay/configmap.yaml:data.workload_imports.yaml.imports[id=opencode.apply_executor].capabilities.agent_workloads.opencode_apply
+    keys:
+      approval_mode:
+        owner: deployment_overlay
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        source: PRESERVE_EXISTING_CAPABILITY_KEYS
+      artifacts:
+        owner: deployment_overlay
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
+      description:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      disclosure:
+        owner: deployment_overlay
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
+      disclosure_summary:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      negative_affordances:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      output_schema:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      result_contract:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      session_authority_budget:
+        owner: mixed
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        deployment_owned_subkeys:
+        - max_operations
+        - session_taint
+        release_owned_subkeys: '*'
+        source: SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS

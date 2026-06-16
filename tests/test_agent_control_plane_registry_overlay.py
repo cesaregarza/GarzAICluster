@@ -34,6 +34,12 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         cls.control_plane_application = _load_yaml(
             REPO_ROOT / "argocd" / "applications" / "agent-control-plane.yaml"
         )
+        cls.model_gateway_controls = _load_yaml(
+            REPO_ROOT
+            / "apps"
+            / "agent-control-plane-runtime-controls"
+            / "configmap.yaml"
+        )
 
     def test_opencode_proposer_import_is_overlay_pinned_and_proposal_only(self) -> None:
         imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
@@ -60,7 +66,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             ["openai.gpt-5.3-codex-spark"],
         )
         self.assertEqual(capability["model_lease"]["max_cost_usd"], 0.25)
-        self.assertEqual(capability["session_authority_budget"]["max_operations"], 8)
+        self.assertEqual(capability["session_authority_budget"]["max_operations"], 100)
         self.assertEqual(
             capability["disclosure"]["artifact_classes_allowed"],
             ["opencode_proposal"],
@@ -272,6 +278,57 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             "AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_AUDIT",
         ):
             self.assertEqual(env[key], "true")
+
+    def test_model_gateway_kill_switch_and_revocation_files_are_wired(self) -> None:
+        values = self.control_plane_values
+        env = values["env"]
+        self.assertEqual(
+            env["AGENT_PLATFORM_MODEL_GATEWAY_KILL_SWITCH_FILE"],
+            "/app/model-gateway-controls/kill-switch",
+        )
+        self.assertEqual(
+            env["AGENT_PLATFORM_MODEL_GATEWAY_REVOCATION_FILE"],
+            "/app/model-gateway-controls/revocations.txt",
+        )
+
+        volumes = {volume["name"]: volume for volume in values["extraVolumes"]}
+        self.assertEqual(
+            volumes["model-gateway-controls"]["configMap"]["name"],
+            "agent-control-plane-model-gateway-controls",
+        )
+
+        mounts = {mount["name"]: mount for mount in values["extraVolumeMounts"]}
+        controls_mount = mounts["model-gateway-controls"]
+        self.assertEqual(controls_mount["mountPath"], "/app/model-gateway-controls")
+        self.assertTrue(controls_mount["readOnly"])
+        self.assertNotIn("subPath", controls_mount)
+
+        configmap = self.model_gateway_controls
+        self.assertEqual(configmap["kind"], "ConfigMap")
+        self.assertEqual(
+            configmap["metadata"]["name"],
+            "agent-control-plane-model-gateway-controls",
+        )
+        self.assertEqual(configmap["metadata"]["namespace"], "agent-control-plane")
+        self.assertEqual(
+            configmap["metadata"]["annotations"][
+                "mandate.cesaregarza.io/operator-editable"
+            ],
+            "true",
+        )
+        self.assertNotIn("kill-switch", configmap["data"])
+        self.assertIn("revocations.txt", configmap["data"])
+
+        raw_sources = [
+            source
+            for source in self.control_plane_application["spec"]["sources"]
+            if source.get("path") == "apps/agent-control-plane-runtime-controls"
+        ]
+        self.assertEqual(len(raw_sources), 1)
+        self.assertEqual(
+            raw_sources[0]["repoURL"],
+            "https://github.com/cesaregarza/SplatTopConfig",
+        )
 
     def test_control_plane_pin_understands_opencode_executor_imports(self) -> None:
         sources = self.control_plane_application["spec"]["sources"]

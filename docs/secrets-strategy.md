@@ -41,6 +41,19 @@ The config repo never stores plaintext secrets. We use SOPS with Age encryption 
   - Use `git-secrets`/`trufflehog` to scan PRs.
 - `.sops.yaml` currently targets files matching `k8s/.*\.enc\.yaml` and `secrets/bots/.*\.enc\.yaml`; extend the rule set as more encrypted artifacts appear and add CI checks to ensure no plaintext equivalents are committed.
 
+## Scoped Automation Recipients
+
+The agent-workloads identity drift gate uses a scoped Age recipient for only
+`secrets/agent-workloads/workload-identity-tokens.enc.yaml`. That key can verify
+workload identity token claims, but it must not decrypt runtime database URLs,
+Codex auth JSON, registry credentials, or control-plane Secrets.
+
+Recipient trust is anchored in `.sops.yaml` on protected `main`. Automation must
+not source recipient rules from an untrusted PR branch when deciding what a
+scoped broker credential may decrypt. A PR can propose SOPS rule changes, but the
+broker capability and its allowlist should follow the reviewed main-branch rule
+set until the PR is merged.
+
 ## ESO / External Secrets (Optional)
 
 - If we adopt External Secrets Operator later:

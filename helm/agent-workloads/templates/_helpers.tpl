@@ -92,6 +92,7 @@ Runtime environment for a values subtree.
 {{- define "agent-workloads.envFromValues" -}}
 {{- $root := .root }}
 {{- $values := .values }}
+{{- $secretEnvSecretName := default $root.Values.global.runtimeSecretName $values.secretEnvSecretName }}
 {{- range $key := $values.secretKeys }}
 - name: {{ $key }}
   valueFrom:
@@ -103,7 +104,7 @@ Runtime environment for a values subtree.
 - name: {{ $envName }}
   valueFrom:
     secretKeyRef:
-      name: {{ $root.Values.global.runtimeSecretName }}
+      name: {{ $secretEnvSecretName }}
       key: {{ $secretKey }}
 {{- end }}
 {{- range $key, $value := $values.env }}

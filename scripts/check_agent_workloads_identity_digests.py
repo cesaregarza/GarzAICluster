@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import re
@@ -20,12 +21,23 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 VALUES_PATH = Path("apps/agent-workloads/values.yaml")
 OVERLAY_CONFIGMAP_PATH = Path("apps/agent-control-plane-registry-overlay/configmap.yaml")
 RUNTIME_SECRET_PATH = Path("secrets/agent-workloads/runtime-secret.enc.yaml")
+TOKEN_SECRET_PATH = Path("secrets/agent-workloads/workload-identity-tokens.enc.yaml")
+TOKEN_METADATA_PATH = Path(
+    "secrets/agent-workloads/workload-identity-tokens.metadata.yaml"
+)
 SHA256_DIGEST_RE = re.compile(r"^sha256:[a-fA-F0-9]{64}$")
 TOKEN_PREFIX = "mwit_v1"
+DIGEST_SPEC_VERSION = "agent-workloads-code-digest-v1"
+TOKEN_METADATA_SCHEMA_VERSION = "agent-workloads-workload-identity-tokens.metadata.v1"
 TOKEN_KEYS_BY_AGENT_ID = {
-    "data.workspace_probe": "DATA_WORKSPACE_PROBE_WORKLOAD_IDENTITY_TOKEN",
+    "data.workspace_probe": "MANDATE_WORKLOAD_IDENTITY_TOKEN",
     "opencode.proposer": "OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN",
     "opencode.apply_executor": "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
+}
+IMAGE_PATHS_BY_AGENT_ID = {
+    "data.workspace_probe": ("image",),
+    "opencode.proposer": ("opencodeProposer", "image"),
+    "opencode.apply_executor": ("opencodeApplyExecutor", "image"),
 }
 
 YAML_PARSER = YAML(typ="safe")
@@ -46,6 +58,8 @@ def main() -> int:
     parser.add_argument("--values-path", type=Path, default=VALUES_PATH)
     parser.add_argument("--overlay-configmap-path", type=Path, default=OVERLAY_CONFIGMAP_PATH)
     parser.add_argument("--runtime-secret-path", type=Path, default=RUNTIME_SECRET_PATH)
+    parser.add_argument("--token-secret-path", type=Path, default=TOKEN_SECRET_PATH)
+    parser.add_argument("--token-metadata-path", type=Path, default=TOKEN_METADATA_PATH)
     args = parser.parse_args()
 
     try:
@@ -54,6 +68,8 @@ def main() -> int:
             values_path=args.values_path,
             overlay_configmap_path=args.overlay_configmap_path,
             runtime_secret_path=args.runtime_secret_path,
+            token_secret_path=args.token_secret_path,
+            token_metadata_path=args.token_metadata_path,
         )
     except DriftGateError as exc:
         print(f"agent-workloads identity digest gate failed: {exc}", file=sys.stderr)
@@ -68,6 +84,8 @@ def check_agent_workloads_identity_digests(
     values_path: Path,
     overlay_configmap_path: Path,
     runtime_secret_path: Path,
+    token_secret_path: Path,
+    token_metadata_path: Path,
 ) -> str:
     values = _load_yaml(repo_root / values_path)
     release_pins = values.get("mandateReleasePins")
@@ -87,20 +105,42 @@ def check_agent_workloads_identity_digests(
     overlay_pins = _load_overlay_pins(repo_root / overlay_configmap_path)
     for agent_id in sorted(expected_agents):
         _assert_pin_matches_overlay(agent_id, release_pins[agent_id], overlay_pins[agent_id])
+        _assert_values_image_digest_matches_pin(
+            agent_id,
+            values,
+            release_pins[agent_id],
+        )
 
-    secret = _load_runtime_secret(repo_root / runtime_secret_path, cwd=repo_root)
+    _assert_runtime_secret_excludes_tokens(repo_root / runtime_secret_path)
+    secret_path = repo_root / token_secret_path
+    secret = _load_secret(
+        secret_path,
+        cwd=repo_root,
+        label="workload identity token secret",
+    )
+    token_claims_by_agent: dict[str, dict[str, Any]] = {}
     for agent_id in sorted(expected_agents):
         token_key = TOKEN_KEYS_BY_AGENT_ID[agent_id]
         token = _secret_value(secret, token_key)
-        token_code_digest = _workload_identity_code_digest(token, token_key)
+        claims = _workload_identity_claims(token, token_key)
+        token_code_digest = str(claims["code_digest"])
         expected_code_digest = overlay_pins[agent_id]["codeDigest"]
         if token_code_digest != expected_code_digest:
             raise DriftGateError(
                 f"{token_key} code_digest mismatch: expected {expected_code_digest}, "
                 f"got {token_code_digest}"
             )
+        token_claims_by_agent[agent_id] = claims
 
-    return "agent-workloads workload identity code_digests match release pins."
+    _assert_token_metadata_matches(
+        metadata_path=repo_root / token_metadata_path,
+        token_secret_path=secret_path,
+        configured_token_secret_path=token_secret_path,
+        overlay_pins=overlay_pins,
+        token_claims_by_agent=token_claims_by_agent,
+    )
+
+    return "agent-workloads deployed images and workload identity code_digests match release pins."
 
 
 def _load_overlay_pins(configmap_path: Path) -> dict[str, dict[str, str]]:
@@ -157,11 +197,55 @@ def _assert_pin_matches_overlay(
             )
 
 
-def _load_runtime_secret(secret_path: Path, *, cwd: Path) -> dict[str, Any]:
+def _assert_values_image_digest_matches_pin(
+    agent_id: str,
+    values: dict[str, Any],
+    release_pin: Any,
+) -> None:
+    if not isinstance(release_pin, dict):
+        raise DriftGateError(f"{agent_id} mandateReleasePins entry must be a mapping")
+    expected = release_pin.get("imageDigest")
+    _validate_digest(expected, f"{agent_id} mandateReleasePins.imageDigest")
+
+    image_path = IMAGE_PATHS_BY_AGENT_ID[agent_id]
+    image = _nested_mapping(values, image_path, f"{agent_id} values image")
+    actual = image.get("digest")
+    _validate_digest(actual, f"{agent_id} values image.digest")
+    if actual != expected:
+        raise DriftGateError(
+            f"{agent_id} values image.digest differs from mandateReleasePins.imageDigest: "
+            f"expected {expected}, got {actual}"
+        )
+
+
+def _nested_mapping(
+    mapping: dict[str, Any],
+    path: tuple[str, ...],
+    label: str,
+) -> dict[str, Any]:
+    current: Any = mapping
+    for key in path:
+        if not isinstance(current, dict) or not isinstance(current.get(key), dict):
+            dotted = ".".join(path)
+            raise DriftGateError(f"{label} must be a mapping at {dotted}")
+        current = current[key]
+    return current
+
+
+def _assert_runtime_secret_excludes_tokens(secret_path: Path) -> None:
+    raw = secret_path.read_text(encoding="utf-8")
+    for token_key in TOKEN_KEYS_BY_AGENT_ID.values():
+        if token_key in raw:
+            raise DriftGateError(
+                f"runtime secret must not contain workload identity token key {token_key}"
+            )
+
+
+def _load_secret(secret_path: Path, *, cwd: Path, label: str) -> dict[str, Any]:
     raw = secret_path.read_text(encoding="utf-8")
     loaded = YAML_PARSER.load(raw)
     if not isinstance(loaded, dict):
-        raise DriftGateError(f"runtime secret must be a YAML mapping: {secret_path}")
+        raise DriftGateError(f"{label} must be a YAML mapping: {secret_path}")
     if "sops" not in loaded:
         return loaded
 
@@ -176,12 +260,12 @@ def _load_runtime_secret(secret_path: Path, *, cwd: Path) -> dict[str, Any]:
             check=False,
         )
     except FileNotFoundError as exc:
-        raise DriftGateError("sops is required to decrypt runtime secret") from exc
+        raise DriftGateError(f"sops is required to decrypt {label}") from exc
     if result.returncode != 0:
-        raise DriftGateError("could not decrypt runtime secret with sops")
+        raise DriftGateError(f"could not decrypt {label} with sops")
     decrypted = YAML_PARSER.load(result.stdout)
     if not isinstance(decrypted, dict):
-        raise DriftGateError("decrypted runtime secret must be a YAML mapping")
+        raise DriftGateError(f"decrypted {label} must be a YAML mapping")
     return decrypted
 
 
@@ -201,10 +285,10 @@ def _secret_value(secret: dict[str, Any], token_key: str) -> str:
             except (ValueError, UnicodeDecodeError) as exc:
                 raise DriftGateError(f"{token_key} data value is not valid base64") from exc
 
-    raise DriftGateError(f"runtime secret missing {token_key}")
+    raise DriftGateError(f"workload identity token secret missing {token_key}")
 
 
-def _workload_identity_code_digest(token: str, token_key: str) -> str:
+def _workload_identity_claims(token: str, token_key: str) -> dict[str, Any]:
     parts = token.split(".")
     if len(parts) != 3 or parts[0] != TOKEN_PREFIX:
         raise DriftGateError(f"{token_key} is not an {TOKEN_PREFIX} token")
@@ -215,7 +299,7 @@ def _workload_identity_code_digest(token: str, token_key: str) -> str:
     if not isinstance(payload, dict):
         raise DriftGateError(f"{token_key} token payload must be a mapping")
 
-    for claim in ("iss", "sub", "aud", "exp"):
+    for claim in ("iss", "sub", "aud", "iat", "exp"):
         if claim not in payload:
             raise DriftGateError(f"{token_key} token payload missing {claim}")
     scopes = payload.get("scp")
@@ -223,7 +307,61 @@ def _workload_identity_code_digest(token: str, token_key: str) -> str:
         raise DriftGateError(f"{token_key} token payload missing worker_service scope")
     code_digest = payload.get("code_digest")
     _validate_digest(code_digest, f"{token_key} code_digest")
-    return str(code_digest)
+    return payload
+
+
+def _assert_token_metadata_matches(
+    *,
+    metadata_path: Path,
+    token_secret_path: Path,
+    configured_token_secret_path: Path,
+    overlay_pins: dict[str, dict[str, str]],
+    token_claims_by_agent: dict[str, dict[str, Any]],
+) -> None:
+    metadata = _load_yaml(metadata_path)
+    if metadata.get("schema_version") != TOKEN_METADATA_SCHEMA_VERSION:
+        raise DriftGateError(
+            "workload identity token metadata has unexpected schema_version"
+        )
+    if metadata.get("token_secret_path") != configured_token_secret_path.as_posix():
+        raise DriftGateError("workload identity token metadata token_secret_path mismatch")
+    tokens = metadata.get("tokens")
+    if not isinstance(tokens, dict):
+        raise DriftGateError("workload identity token metadata tokens must be a mapping")
+    expected_agents = set(TOKEN_KEYS_BY_AGENT_ID)
+    if set(tokens) != expected_agents:
+        raise DriftGateError(
+            "workload identity token metadata must cover exactly "
+            f"{', '.join(sorted(expected_agents))}; got {', '.join(sorted(tokens))}"
+        )
+
+    ciphertext_sha256 = "sha256:" + hashlib.sha256(token_secret_path.read_bytes()).hexdigest()
+    for agent_id in sorted(expected_agents):
+        entry = tokens[agent_id]
+        if not isinstance(entry, dict):
+            raise DriftGateError(f"{agent_id} token metadata entry must be a mapping")
+        claims = token_claims_by_agent[agent_id]
+        expected = {
+            "agent_id": agent_id,
+            "token_key": TOKEN_KEYS_BY_AGENT_ID[agent_id],
+            "code_digest": overlay_pins[agent_id]["codeDigest"],
+            "manifest_digest": overlay_pins[agent_id]["manifestDigest"],
+            "iss": claims["iss"],
+            "sub": claims["sub"],
+            "aud": claims["aud"],
+            "iat": claims.get("iat"),
+            "exp": claims["exp"],
+            "digest_spec_version": DIGEST_SPEC_VERSION,
+            "ciphertext_sha256": ciphertext_sha256,
+        }
+        for key, value in expected.items():
+            if entry.get(key) != value:
+                raise DriftGateError(f"{agent_id} token metadata {key} mismatch")
+        if entry.get("scp") != claims["scp"]:
+            raise DriftGateError(f"{agent_id} token metadata scp mismatch")
+        source_commit = entry.get("source_commit")
+        if not isinstance(source_commit, str) or not source_commit:
+            raise DriftGateError(f"{agent_id} token metadata source_commit is required")
 
 
 def _base64_url_decode(encoded: str) -> bytes:

@@ -66,6 +66,38 @@ Utilities that were previously bundled with the app repo move here when they are
 
   Add `--allow-missing` if you want the script to exit successfully when monitoring is disabled for a given values file.
 
+- `check_agent_control_plane_registry_compat.py` – materializes the live
+  Agent Control Plane registry overlay into a checked-out `agent-platform`
+  source tree and builds the pinned revision's
+  `RegistrySnapshot.from_repo(environment="prod")`. Use this when a registry
+  overlay or policy change must be proven compatible with the deployed Mandate
+  binary:
+
+  ```bash
+  uv run python scripts/check_agent_control_plane_registry_compat.py \
+    --agent-platform-repo ../agent-platform
+  ```
+
+  The `agent-platform` checkout must be at the exact `targetRevision` declared
+  in `argocd/applications/agent-control-plane.yaml`. Use
+  `--print-target-revision` to retrieve that SHA for automation.
+
+- `mandate_apply.py` – plans or writes a local CES-123
+  `MandateWorkloadEnablement` document into deployment-owned files only. Dry-run
+  is the default; `--write` edits files for a normal PR. It never reads or
+  writes secret values, never mutates live Kubernetes objects, and reports SOPS
+  or NetworkPolicy work as operator gaps:
+
+  ```bash
+  uv run python scripts/mandate_apply.py enablement.yaml --repo-root .
+  uv run python scripts/mandate_apply.py enablement.yaml \
+    --repo-root . \
+    --write \
+    --output-pr-body .git/mandate-apply-pr-body.md
+  ```
+
+  See `docs/mandate-apply.md` for the document schema and boundaries.
+
 - `bootstrap_bot.py` – scaffolds a bot entry (apps/bots YAML), secrets folder (README/kustomization/ksops), and copies the DB CA into the shared chart. Examples:
 
   ```bash

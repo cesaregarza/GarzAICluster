@@ -10,7 +10,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-55c0d8586ea9
+  tag: sha-e71f8bf6d037
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -35,6 +35,8 @@ env:
   AGENT_PLATFORM_READONLY_SQL_POOL_MAX_SIZE: "1"
   AGENT_PLATFORM_MODEL_GATEWAY_BACKEND: codex_chatgpt_responses
   AGENT_PLATFORM_MODEL_GATEWAY_TIMEOUT_SECONDS: "90"
+  AGENT_PLATFORM_MODEL_GATEWAY_KILL_SWITCH_FILE: /app/model-gateway-controls/kill-switch
+  AGENT_PLATFORM_MODEL_GATEWAY_REVOCATION_FILE: /app/model-gateway-controls/revocations.txt
   AGENT_PLATFORM_WORKLOAD_IDENTITY_MODE: hmac
   AGENT_PLATFORM_WORKLOAD_IDENTITY_ISSUER: kubernetes
   AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE: mandate-api
@@ -166,6 +168,9 @@ extraVolumes:
   - name: registry-overlay
     configMap:
       name: agent-control-plane-registry-overlay
+  - name: model-gateway-controls
+    configMap:
+      name: agent-control-plane-model-gateway-controls
 
 extraVolumeMounts:
   - name: registry-overlay
@@ -182,6 +187,9 @@ extraVolumeMounts:
     readOnly: true
   - name: registry-overlay
     mountPath: /app/registries/imports
+    readOnly: true
+  - name: model-gateway-controls
+    mountPath: /app/model-gateway-controls
     readOnly: true
 
 postgresSweep:
