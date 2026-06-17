@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -17,6 +18,10 @@ DEFAULT_RELEASE_NAME = "garz-observability"
 DEFAULT_VALUES_FILE = "helm/garz-observability/values-prod.yaml"
 PROMTOOL_IMAGE = "prom/prometheus:v2.52.0"
 INDENT = "  "
+SECRET_FILE_RE = re.compile(
+    r"^\s*(?:credentials_file|bearer_token_file|password_file|ca_file|cert_file|key_file):\s*['\"]?([^'\"\s]+)['\"]?\s*$",
+    re.MULTILINE,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -186,6 +191,8 @@ def run_promtool_config(config_text: str) -> None:
         cfg_dir = Path(tempdir)
         config_path = cfg_dir / "prometheus.yml"
         config_path.write_text(config_text)
+        secrets_dir = cfg_dir / "secrets"
+        _write_placeholder_secret_files(config_text, secrets_dir)
 
         subprocess.run(
             [
@@ -197,6 +204,8 @@ def run_promtool_config(config_text: str) -> None:
                 "--entrypoint=promtool",
                 "-v",
                 f"{cfg_dir}:/etc/prometheus/conf",
+                "-v",
+                f"{secrets_dir}:/etc/prometheus/secrets:ro",
                 PROMTOOL_IMAGE,
                 "check",
                 "config",
@@ -204,6 +213,18 @@ def run_promtool_config(config_text: str) -> None:
             ],
             check=True,
         )
+
+
+def _write_placeholder_secret_files(config_text: str, secrets_dir: Path) -> None:
+    """Create placeholder files for promtool checks of secret-file references."""
+
+    for raw_path in SECRET_FILE_RE.findall(config_text):
+        if not raw_path.startswith("/etc/prometheus/secrets/"):
+            continue
+        relative_path = Path(raw_path).relative_to("/etc/prometheus/secrets")
+        target = secrets_dir / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("placeholder\n")
 
 
 def run_promtool_rules(rule_files: dict[str, str]) -> None:

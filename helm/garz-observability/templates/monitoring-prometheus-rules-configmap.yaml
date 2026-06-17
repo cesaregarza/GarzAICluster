@@ -1,6 +1,7 @@
 {{- if and .Values.monitoring.prometheus.enabled .Values.monitoring.prometheus.rules.enabled }}
 {{- $fullName := include "garzObservability.fullname" . -}}
 {{- $rulesConfigMapName := default (printf "%s-prometheus-rules" $fullName) .Values.monitoring.prometheus.rules.configMapName -}}
+{{- $agentControlPlane := .Values.monitoring.prometheus.agentControlPlane -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -63,6 +64,143 @@ data:
             annotations:
               summary: Grafana is unreachable
               description: Grafana metrics endpoint has been unreachable for 5 minutes.
+
+      {{ if $agentControlPlane.enabled }}
+      - name: mandate-agent-control-plane
+        rules:
+          # SLO: metrics observability. The control-plane API should emit one
+          # scrapeable /metrics target continuously; missing samples for 5m
+          # mean operators lose the live signal used by CES-108/CES-113.
+          - alert: MandateAgentControlPlaneMetricsDown
+            expr: |
+              (
+                sum(
+                  up{
+                    job="kubernetes-pods",
+                    namespace={{ $agentControlPlane.namespace | quote }},
+                    app_kubernetes_io_name={{ $agentControlPlane.serviceName | quote }},
+                    app_kubernetes_io_component={{ $agentControlPlane.component | quote }}
+                  }
+                )
+                or vector(0)
+              ) == 0
+            for: 5m
+            labels:
+              severity: critical
+              service: mandate
+              slo: metrics-observability
+            annotations:
+              summary: Mandate control-plane metrics are unreachable
+              description: Prometheus has no healthy annotated scrape target for the Mandate API pod for 5 minutes. Check CES-113 pod annotations, monitoring egress, and API readiness.
+
+          # SLO: callback delivery latency. Callback events should leave the
+          # outbox quickly; no callback-adapter replica for 5m means delivery
+          # cannot make progress.
+          - alert: MandateCallbackAdapterDown
+            expr: |
+              (
+                max(
+                  kube_deployment_status_replicas_available{
+                    namespace={{ $agentControlPlane.namespace | quote }},
+                    deployment=~"{{ $agentControlPlane.serviceName }}-callback-adapter"
+                  }
+                )
+                or vector(0)
+              ) < {{ $agentControlPlane.alerts.callbackAdapterMinAvailableReplicas }}
+            for: 5m
+            labels:
+              severity: critical
+              service: mandate
+              slo: callback-delivery-latency
+            annotations:
+              summary: Mandate callback adapter has no available replica
+              description: The callback adapter deployment has fewer than {{ $agentControlPlane.alerts.callbackAdapterMinAvailableReplicas }} available replica for 5 minutes; callback delivery is stalled.
+
+          # SLO: callback delivery latency. Warn when pending callback work
+          # exceeds the configured backlog threshold for 10m.
+          - alert: MandateCallbackOutboxBacklog
+            expr: |
+              max(
+                mandate_callback_outbox_events_total{
+                  namespace={{ $agentControlPlane.namespace | quote }}
+                }
+              ) > {{ $agentControlPlane.alerts.outboxDepthThreshold }}
+            for: 10m
+            labels:
+              severity: warning
+              service: mandate
+              slo: callback-delivery-latency
+            annotations:
+              summary: Mandate callback outbox backlog is elevated
+              description: Callback outbox rows exceeded {{ $agentControlPlane.alerts.outboxDepthThreshold }} for 10 minutes; the callback adapter may be stalled or downstream delivery may be failing.
+
+          # SLO: time-to-claim. Ready jobs should be claimed within 5 minutes
+          # at this scale; older ready jobs indicate dispatch or worker health
+          # has regressed.
+          - alert: MandateOldestReadyJobAgeHigh
+            expr: |
+              max(
+                mandate_control_oldest_ready_job_age_seconds{
+                  namespace={{ $agentControlPlane.namespace | quote }}
+                }
+              ) > {{ $agentControlPlane.alerts.oldestReadyJobAgeSecondsThreshold }}
+            for: 10m
+            labels:
+              severity: warning
+              service: mandate
+              slo: time-to-claim
+            annotations:
+              summary: Mandate ready job age is high
+              description: The oldest ready job has been ready for more than {{ $agentControlPlane.alerts.oldestReadyJobAgeSecondsThreshold }} seconds for 10 minutes; workers may be down, under-provisioned, or blocked by admission.
+
+          # SLO: journey success rate. Dead-lettered callback delivery growth
+          # means a released or failed terminal state did not reliably reach
+          # the host surface.
+          - alert: MandateDeadLetteredCallbackDeliveries
+            expr: |
+              (
+                max_over_time(
+                  mandate_callback_deliveries_by_status{
+                    namespace={{ $agentControlPlane.namespace | quote }},
+                    status="dead_lettered"
+                  }[15m]
+                )
+                  -
+                min_over_time(
+                  mandate_callback_deliveries_by_status{
+                    namespace={{ $agentControlPlane.namespace | quote }},
+                    status="dead_lettered"
+                  }[15m]
+                )
+              ) > {{ $agentControlPlane.alerts.deadLetteredDeliveryGrowthThreshold }}
+            for: 0m
+            labels:
+              severity: critical
+              service: mandate
+              slo: journey-success-rate
+            annotations:
+              summary: Mandate callback deliveries are dead-lettering
+              description: Dead-lettered callback deliveries increased over 15 minutes; released or failed terminal state delivery may be missing from the host channel.
+
+          # SLO: journey success rate. Failed migrations can leave runtime code
+          # and storage contracts incompatible before jobs can complete.
+          - alert: MandateMigrationJobFailed
+            expr: |
+              max(
+                kube_job_status_failed{
+                  namespace={{ $agentControlPlane.namespace | quote }},
+                  job_name=~"{{ $agentControlPlane.serviceName }}-migrate.*"
+                }
+              ) > 0
+            for: 5m
+            labels:
+              severity: critical
+              service: mandate
+              slo: journey-success-rate
+            annotations:
+              summary: Mandate migration job failed
+              description: A Mandate migration job in {{ $agentControlPlane.namespace }} reported failure for 5 minutes; stop promotion until the schema state is understood.
+      {{ end }}
 
   splattop-app-alerts.yaml: |
     groups:

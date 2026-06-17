@@ -113,6 +113,7 @@ ingress:
   className: nginx
   annotations:
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
     - agent-control-plane.garz.ai
@@ -148,6 +149,12 @@ networkPolicy:
           matchLabels:
             app.kubernetes.io/name: opencode-proposer
             app.kubernetes.io/instance: agent-workloads
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/component: prometheus
     ports:
       - port: 8000
         protocol: TCP

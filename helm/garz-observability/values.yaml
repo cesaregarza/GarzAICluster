@@ -78,6 +78,16 @@ monitoring:
     rules:
       enabled: false
       configMapName: prometheus-rules
+    agentControlPlane:
+      enabled: false
+      namespace: agent-control-plane
+      serviceName: agent-control-plane
+      component: api
+      alerts:
+        callbackAdapterMinAvailableReplicas: 1
+        outboxDepthThreshold: 100
+        oldestReadyJobAgeSecondsThreshold: 300
+        deadLetteredDeliveryGrowthThreshold: 0
 
   # Grafana configuration
   grafana:
@@ -190,6 +200,11 @@ monitoring:
 
         receivers:
           - name: dev-log
+    discord:
+      enabled: false
+      webhookSecretName: alertmanager-discord-webhook
+      webhookSecretKey: webhook-url
+      webhookMountPath: /etc/alertmanager/secrets/discord-webhook
     resources:
       requests:
         cpu: 50m
