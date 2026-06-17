@@ -89,7 +89,10 @@ class GrantOwnershipTests(unittest.TestCase):
         self.assertEqual(result.action, "unset")
         self.assertEqual(result.old_value, 4000)
         body = pr_body.read_text()
-        self.assertIn("overlay-only: CP restart required, no re-mint", body)
+        self.assertIn(
+            "overlay-only: verify CP rollout after sync, no re-mint",
+            body,
+        )
         self.assertIn("No workload manifest, image, or code digest moves.", body)
 
     def test_set_grant_allows_session_authority_max_operations_overlay_edit(
@@ -111,7 +114,10 @@ class GrantOwnershipTests(unittest.TestCase):
         self.assertEqual(result.action, "set")
         self.assertEqual(result.new_value, 16)
         body = pr_body.read_text()
-        self.assertIn("overlay-only: CP restart required, no re-mint", body)
+        self.assertIn(
+            "overlay-only: verify CP rollout after sync, no re-mint",
+            body,
+        )
         self.assertIn("No workload manifest, image, or code digest moves.", body)
 
     def test_set_grant_refuses_release_owned_output_schema(self) -> None:

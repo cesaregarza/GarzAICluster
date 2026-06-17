@@ -3,24 +3,29 @@
 This app installs the prod deployment overlay for live `agent-workloads`
 worker-service paths.
 
-## Sync rolls the control plane automatically (CES-108)
+## Sync rollout path (CES-108)
 
 The control plane builds its `RegistrySnapshot` once at boot and never
 re-reads the mounted overlay, so every overlay change requires a restart of
 all four control-plane Deployments to take effect. A `PostSync` hook Job
 (`restart-hook.yaml`, ServiceAccount/Role scoped to exactly those four
-Deployments in `restart-rbac.yaml`) performs the `rollout restart` and then
-waits on `rollout status` for each — **a config the deployed image cannot
-boot fails the sync loudly** instead of crash-looping in silence. No manual
-`kubectl rollout restart` step is needed for overlay-only changes.
+Deployments in `restart-rbac.yaml`) is intended to perform the `rollout
+restart` and then wait on `rollout status` for each — **a config the deployed
+image cannot boot fails the sync loudly** instead of crash-looping in silence.
+Until CES-108 live verification confirms that hook fires in prod, operators
+must confirm the Deployments rolled after overlay sync and run a manual
+`kubectl rollout restart` if they did not.
 
 Note: the hook fires on every sync of this app, including no-op re-syncs;
 restarts are rolling and the app is manual-sync, so syncs are deliberate.
 The Argo Application intentionally does not set `ApplyOutOfSyncOnly=true`:
 selective syncs do not execute hooks, which skips the restart Job and leaves
 the control plane serving the previous boot-cached registry snapshot.
-Workload-identity token re-mints (the `agent-workloads-secrets` app) still
-require a manual worker rollout — see CES-108 for the recorded follow-up.
+Workload-identity token re-mints update the `agent-workloads-secrets` app and
+roll the workload Deployments, not the control-plane Deployments. That worker
+rollout path stays separate from this overlay hook. The control-plane-read HMAC
+verify seed lives under `agent-control-plane-secrets`; rotating it is a rare
+operator action and remains outside the registry-overlay restart hook.
 
 ## Deployed-version compatibility gate (CES-126)
 

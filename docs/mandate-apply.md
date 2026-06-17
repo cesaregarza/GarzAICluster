@@ -52,8 +52,11 @@ uv run python scripts/mandate_apply.py enablement.yaml \
 - `apps/agent-workloads/values.yaml`: add the capability to a known worker's
   `AGENT_WORKLOADS_WORKER_CAPABILITIES` claim list.
 
-All of these changes still require the normal PR, CI, merge, Argo sync, and
-control-plane restart path. The enablement document is not dispatch authority.
+All of these changes still require the normal PR, CI, merge, and Argo sync
+path. The CES-108 PostSync hook is intended to roll the control-plane
+Deployments after registry-overlay sync; until live verification closes, confirm
+the rollout or restart manually for overlay-only changes. The enablement
+document is not dispatch authority.
 
 ## What It Refuses Or Names
 

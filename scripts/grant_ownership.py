@@ -283,9 +283,12 @@ def render_ownership_markdown(ownership: dict[str, Any]) -> str:
         "the deployment registry overlay. Do not hand-edit it; run",
         "`scripts/generate_grant_ownership.py` instead.",
         "",
-        "Changing a deployment-owned key edits the GarzAICluster registry overlay and",
-        "requires a control-plane restart. It does not move workload image, manifest,",
-        "or code digests, and it does not require workload identity token re-minting.",
+        "Changing a deployment-owned key edits the GarzAICluster registry overlay.",
+        "The CES-108 PostSync hook is intended to roll the control-plane Deployments",
+        "after registry-overlay sync. Until CES-108 live verification closes, confirm",
+        "the rollout after sync and run a manual restart if it did not fire. It does",
+        "not move workload image, manifest, or code digests, and it does not require",
+        "workload identity token re-minting.",
         "",
         "Changing a workload-release-owned key belongs in `agent-workloads`",
         "`agents/<id>/agent.yaml`; that moves the workload code digest and requires the",
@@ -314,8 +317,9 @@ def render_ownership_markdown(ownership: dict[str, Any]) -> str:
             "## Policy Overlay",
             "",
             "The `policy.prod.yaml` embedded in the registry overlay is deployment-owned.",
-            "Policy grants, approval overrides, and aggregate budget caps require a",
-            "control-plane restart and do not require re-minting.",
+            "Policy grants, approval overrides, and aggregate budget caps follow the",
+            "same registry-overlay rollout-verification path and do not require",
+            "re-minting.",
             "",
             "## Capability Keys",
             "",
@@ -473,7 +477,7 @@ def apply_grant_edit(
 
 def render_grant_edit_pr_body(result: GrantEditResult) -> str:
     if result.deploy_consequence == CONTROL_PLANE_RESTART:
-        consequence = "overlay-only: CP restart required, no re-mint"
+        consequence = "overlay-only: verify CP rollout after sync, no re-mint"
     else:
         consequence = result.deploy_consequence
     lines = [
@@ -492,8 +496,10 @@ def render_grant_edit_pr_body(result: GrantEditResult) -> str:
         "- No workload manifest, image, or code digest moves.",
         "- No workload identity token re-mint is required.",
         "- No live ConfigMap mutation or runtime bypass is introduced.",
-        "- The registry overlay remains the source of deployment authority and the "
-        "control plane must reload its frozen snapshot after merge.",
+        "- The registry overlay remains the source of deployment authority. The "
+        "CES-108 hook is intended to roll the control plane after sync; until live "
+        "verification closes, confirm the rollout or restart manually so the frozen "
+        "snapshot reloads.",
         "",
         "Refs CES-117.",
         "",
