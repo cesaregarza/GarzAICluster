@@ -10,7 +10,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-aafdb130d70e
+  tag: sha-3e7c69c956e3
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -52,7 +52,8 @@ env:
 
 migrations:
   enabled: true
-  useHelmHooks: true
+  useHelmHooks: false
+  useArgoHooks: true
   disableStartupSchemaMigration: true
 
 localWorker:
