@@ -136,6 +136,25 @@ data:
               summary: Alertmanager is unreachable
               description: Prometheus could not scrape the Alertmanager endpoints for 5 minutes.
 
+          - alert: MandateSyntheticLiveVerifyFailed
+            expr: |
+              max by (namespace, owner_name) (
+                kube_job_status_failed{namespace="agent-control-plane"}
+                  * on (namespace, job_name) group_left(owner_name)
+                    kube_job_owner{
+                      namespace="agent-control-plane",
+                      owner_kind="CronJob",
+                      owner_name="agent-control-plane-synthetic-live-verify"
+                    }
+              ) > 0
+            for: 2m
+            labels:
+              severity: critical
+              service: mandate
+            annotations:
+              summary: Mandate synthetic live verify failed
+              description: The scheduled Mandate synthetic live verify CronJob has a failed Job; inspect the agent-control-plane synthetic-live-verify logs before the next deploy.
+
           - alert: GrafanaDown
             expr: sum(up{job="grafana"}) == 0
             for: 5m
