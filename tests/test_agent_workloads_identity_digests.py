@@ -56,19 +56,16 @@ OLD_MUTABLE_BROKER_ACTION = (
     "fetch-broker-credentials"
     "@main"
 )
-SHARED_ACTION_REPO = "cesaregarza/" ".github/actions/"
-LOCAL_DRIFT_GATE_ACTION = (
-    REPO_ROOT
-    / ".github"
-    / "actions"
-    / "agent-workloads-identity-digest-drift-gate"
-    / "action.yml"
+SHARED_ACTION_REF = "a1d2fb4a6b288066574b1ac53074ac62e920a07f"
+SHARED_DRIFT_GATE_ACTION = (
+    "cesaregarza/.github/actions/agent-workloads-identity-digest-drift-gate"
+    f"@{SHARED_ACTION_REF}"
 )
 REPO_SOPS_SECRET_CONTEXT = "secrets." "SOPS_AGE_KEY"
 
 
 class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
-    def test_ci_drift_gate_uses_local_brokered_sops_key_not_repo_secret(self) -> None:
+    def test_ci_drift_gate_uses_pinned_shared_brokered_sops_key(self) -> None:
         workflow_path = REPO_ROOT / ".github" / "workflows" / "ci.yaml"
         workflow = YAML_PARSER.load(workflow_path.read_text())
         workflow_text = workflow_path.read_text()
@@ -76,7 +73,6 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
         self.assertNotIn(REPO_SOPS_SECRET_CONTEXT, workflow_text)
         self.assertNotIn(OLD_MUTABLE_BROKER_ACTION, workflow_text)
-        self.assertNotIn(SHARED_ACTION_REPO, workflow_text)
         self.assertEqual(job["permissions"]["contents"], "read")
         self.assertEqual(job["permissions"]["id-token"], "write")
 
@@ -84,27 +80,25 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
             step
             for step in job["steps"]
             if step.get("uses", "").startswith(
-                "./.github/actions/agent-workloads-identity-digest-drift-gate"
+                "cesaregarza/.github/actions/agent-workloads-identity-digest-drift-gate"
             )
         )
-        self.assertEqual(
-            check_step["uses"],
-            "./.github/actions/agent-workloads-identity-digest-drift-gate",
-        )
+        self.assertEqual(check_step["uses"], SHARED_DRIFT_GATE_ACTION)
         self.assertNotIn(
             "@main",
             check_step["uses"],
         )
 
-    def test_local_drift_gate_fetches_exact_brokered_sops_key_shape(self) -> None:
-        action_text = LOCAL_DRIFT_GATE_ACTION.read_text(encoding="utf-8")
-
-        self.assertIn("sops-drift-gate-decrypt", action_text)
-        self.assertIn("ACTIONS_ID_TOKEN_REQUEST_URL", action_text)
-        self.assertIn('(.secrets | keys) == ["SOPS_DRIFT_GATE_AGE_KEY"]', action_text)
-        self.assertIn("SOPS_DRIFT_GATE_AGE_KEY", action_text)
-        self.assertNotIn(REPO_SOPS_SECRET_CONTEXT, action_text)
-        self.assertNotIn("secrets-" "json", action_text)
+    def test_local_drift_gate_copy_is_deleted(self) -> None:
+        self.assertFalse(
+            (
+                REPO_ROOT
+                / ".github"
+                / "actions"
+                / "agent-workloads-identity-digest-drift-gate"
+                / "action.yml"
+            ).exists()
+        )
 
     def test_plaintext_secret_guard_allows_non_secret_metadata_ledgers(self) -> None:
         workflow_text = (

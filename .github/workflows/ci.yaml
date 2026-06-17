@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check agent-workloads identity digest drift
-        uses: ./.github/actions/agent-workloads-identity-digest-drift-gate
+        uses: cesaregarza/.github/actions/agent-workloads-identity-digest-drift-gate@a1d2fb4a6b288066574b1ac53074ac62e920a07f
 
   agent-control-plane-deployed-registry-compat:
     runs-on: ubuntu-latest
@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check deployed registry compatibility
-        uses: ./.github/actions/agent-control-plane-registry-compat-gate
+        uses: cesaregarza/.github/actions/agent-control-plane-registry-compat-gate@a1d2fb4a6b288066574b1ac53074ac62e920a07f
 
   helm-and-kubeconform:
     runs-on: ubuntu-latest
