@@ -50,3 +50,8 @@ Required before activation:
   `agent-control-plane-model-gateway-controls` as a directory so operator edits
   project without pod restarts. See
   [model-gateway controls](../../docs/model-gateway-controls.md).
+- `syntheticLiveVerify.enabled=true` runs the CES-154 scheduled deployment
+  smoke probe every five minutes through the normal `/v1/tasks` path. The probe
+  uses the dedicated `mandate-live-probe` actor, which is policy-granted only
+  for `mandate.deploy.smoke`; failed Jobs alert through the production
+  Prometheus/Alertmanager route.

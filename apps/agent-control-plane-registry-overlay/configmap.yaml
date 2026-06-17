@@ -286,6 +286,20 @@ data:
           approval_overrides:
             approval.probe: admin_confirm
             agent_workloads.opencode_apply: admin_confirm
+      - id: synthetic-live-verify-probe
+        description: Scheduled no-key deployment smoke probe for CES-154. This
+          binding is intentionally narrower than the private admin binding so
+          CronJob credentials can prove the live submit/worker/output/callback
+          path without gaining operator capabilities.
+        guild_id: "614277943706910722"
+        channel_id: "1480483954694819940"
+        users:
+          admins: []
+          authorized:
+            - mandate-live-probe
+        capabilities:
+          allow:
+            - mandate.deploy.smoke
   evals.yaml: |
     eval_suites:
       - id: eval.task_echo_smoke

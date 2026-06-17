@@ -196,11 +196,21 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
 
     def test_opencode_policy_and_eval_overlay_are_mounted(self) -> None:
         policy = YAML_PARSER.load(self.data["policy.prod.yaml"])
-        binding = next(
-            item
-            for item in policy["bindings"]
-            if item["id"] == "private-admin-controlled-capabilities"
+        bindings_by_id = {item["id"]: item for item in policy["bindings"]}
+        binding = bindings_by_id["private-admin-controlled-capabilities"]
+        synthetic_binding = bindings_by_id["synthetic-live-verify-probe"]
+
+        self.assertEqual(
+            synthetic_binding["users"]["authorized"],
+            ["mandate-live-probe"],
         )
+        self.assertEqual(
+            synthetic_binding["capabilities"]["allow"],
+            ["mandate.deploy.smoke"],
+        )
+        self.assertEqual(synthetic_binding["users"].get("admins"), [])
+        self.assertNotIn("approval_overrides", synthetic_binding["capabilities"])
+
         self.assertIn(
             "agent_workloads.opencode_propose",
             binding["capabilities"]["allow"],
@@ -250,6 +260,49 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertEqual(
             mounts["/app/registries/evals.yaml"]["subPath"],
             "evals.yaml",
+        )
+
+    def test_synthetic_live_verify_uses_dedicated_probe_actor(self) -> None:
+        synthetic = self.control_plane_values["syntheticLiveVerify"]
+
+        self.assertTrue(synthetic["enabled"])
+        self.assertEqual(synthetic["schedule"], "*/5 * * * *")
+        self.assertEqual(synthetic["baseUrl"], "http://agent-control-plane:80")
+        self.assertEqual(
+            synthetic["actor"],
+            {
+                "platform": "synthetic",
+                "guildId": "614277943706910722",
+                "channelId": "1480483954694819940",
+                "userId": "mandate-live-probe",
+                "roles": ["synthetic_probe"],
+            },
+        )
+        self.assertEqual(
+            synthetic["replyTarget"],
+            {
+                "channelId": "1480483954694819940",
+                "messageId": "scheduled-synthetic-live-verify",
+            },
+        )
+
+    def test_prometheus_alerts_on_failed_synthetic_live_verify_job(self) -> None:
+        rules_template = (
+            REPO_ROOT
+            / "helm"
+            / "splattop"
+            / "templates"
+            / "monitoring-prometheus-rules-configmap.yaml"
+        ).read_text()
+
+        self.assertIn("MandateSyntheticLiveVerifyFailed", rules_template)
+        self.assertIn(
+            'owner_name="agent-control-plane-synthetic-live-verify"',
+            rules_template,
+        )
+        self.assertIn(
+            'kube_job_status_failed{namespace="agent-control-plane"}',
+            rules_template,
         )
 
     def test_hosted_harness_safe_floor_and_token_handoff_are_configured(self) -> None:

@@ -194,3 +194,18 @@ extraVolumeMounts:
 
 postgresSweep:
   enabled: true
+
+syntheticLiveVerify:
+  enabled: true
+  schedule: "*/5 * * * *"
+  baseUrl: http://agent-control-plane:80
+  actor:
+    platform: synthetic
+    guildId: "614277943706910722"
+    channelId: "1480483954694819940"
+    userId: mandate-live-probe
+    roles:
+      - synthetic_probe
+  replyTarget:
+    channelId: "1480483954694819940"
+    messageId: scheduled-synthetic-live-verify
