@@ -86,6 +86,14 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             {"consequence_class": "reversible_staging"},
         )
 
+    def test_agent_control_plane_migrations_are_argo_only(self) -> None:
+        migrations = self.control_plane_values["migrations"]
+
+        self.assertIs(migrations["enabled"], True)
+        self.assertIs(migrations["useHelmHooks"], False)
+        self.assertIs(migrations["useArgoHooks"], True)
+        self.assertIs(migrations["disableStartupSchemaMigration"], True)
+
     def test_opencode_apply_import_is_executor_only_and_admin_confirmed(self) -> None:
         imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
         imports_by_id = {entry["id"]: entry for entry in imports["imports"]}
