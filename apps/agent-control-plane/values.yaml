@@ -198,7 +198,7 @@ postgresSweep:
   enabled: true
 
 syntheticLiveVerify:
-  enabled: true
+  enabled: false
   schedule: "*/5 * * * *"
   baseUrl: http://agent-control-plane:80
   actor:

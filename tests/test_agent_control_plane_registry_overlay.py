@@ -262,10 +262,10 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             "evals.yaml",
         )
 
-    def test_synthetic_live_verify_uses_dedicated_probe_actor(self) -> None:
+    def test_synthetic_live_verify_keeps_dedicated_probe_actor_disabled(self) -> None:
         synthetic = self.control_plane_values["syntheticLiveVerify"]
 
-        self.assertTrue(synthetic["enabled"])
+        self.assertFalse(synthetic["enabled"])
         self.assertEqual(synthetic["schedule"], "*/5 * * * *")
         self.assertEqual(synthetic["baseUrl"], "http://agent-control-plane:80")
         self.assertEqual(
