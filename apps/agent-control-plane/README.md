@@ -43,8 +43,9 @@ Required before activation:
   `mctx_v2` assertions.
 - The callback adapter deployment uses the same Postgres state as the API and
   worker, claims delivery by event id, and posts safe terminal output to the
-  OpenClaw droplet hook. The callback-only Discord token remains mounted so
-  approval cards can still be rendered by deterministic service code.
+  OpenClaw droplet's `/mandate-edge/openclaw-callback` plugin route. The
+  callback-only Discord token remains mounted so approval cards can still be
+  rendered by deterministic service code.
 - The approval interaction path is service-only:
   `POST /v1/openclaw/discord/approval-interactions` maps trusted Discord
   component payloads to the internal resolver and is not exposed through MCP.
