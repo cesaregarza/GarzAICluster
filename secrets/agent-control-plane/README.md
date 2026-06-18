@@ -7,8 +7,9 @@ Encrypted secrets consumed by the `agent-control-plane-secrets` Argo CD app.
   readers/writers, the OpenClaw callback hook URL/token, and the
   callback-adapter-only Discord token used for deterministic approval cards.
   It also holds the model-gateway signing secret, Codex ChatGPT `auth.json`,
-  and workload-identity HMAC secret used to lease model access to hosted
-  harness workers such as `opencode.proposer`.
+  workload-identity HMAC secret used to lease model access to hosted harness
+  workers such as `opencode.proposer`, and the trusted-edge HMAC secret shared
+  with the OpenClaw droplet for `mctx_v2` assertions.
 - `regcred.enc.yaml`: DOCR pull credentials for
   `registry.digitalocean.com/sendouq/agent-platform`.
 
@@ -46,3 +47,5 @@ Hosted harness model access currently needs these additional keys:
   only by the Mandate model-gateway pod.
 - `AGENT_PLATFORM_WORKLOAD_IDENTITY_HMAC_SECRET`: verifies scoped
   `mwit_v1` worker assertions from hosted harness pods.
+- `AGENT_PLATFORM_MCP_TRUSTED_CONTEXT_HMAC_SECRET`: verifies per-turn Mandate
+  Edge assertions from the OpenClaw plugin.

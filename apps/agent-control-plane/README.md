@@ -37,8 +37,10 @@ Required before activation:
   `AGENT_PLATFORM_WORKLOAD_IDENTITY_ALLOWED_SUBJECTS_JSON` are explicitly set in
   prod. Missing issuer or subject allowlist fails closed for HMAC workload
   identity claims.
-- The OpenClaw droplet has an MCP server entry pointing at the public control
-  API URL with the matching OpenClaw service token.
+- The OpenClaw droplet has the native `mandate-edge-openclaw` plugin enabled
+  with the public control API URL, the matching OpenClaw service token, and the
+  shared `AGENT_PLATFORM_MCP_TRUSTED_CONTEXT_HMAC_SECRET` used to sign per-turn
+  `mctx_v2` assertions.
 - The callback adapter deployment uses the same Postgres state as the API and
   worker, claims delivery by event id, and posts safe terminal output to the
   OpenClaw droplet hook. The callback-only Discord token remains mounted so
