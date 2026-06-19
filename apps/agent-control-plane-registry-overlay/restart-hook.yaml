@@ -24,7 +24,7 @@ spec:
         - name: rollout-restart
           # CES-108: the control plane boot-caches the registry snapshot; an
           # overlay sync without a rollout leaves stale authority serving.
-          image: rancher/kubectl:v1.33.4@sha256:5c0d769f262a320aef3a37e74188ebd5376e8acf2db85421a9cc138df1fcb6fb
+          image: alpine/k8s:1.33.4@sha256:b0523f0a244ddc4c8e055aa335c040d3d78b3ead5528f4544395f7f9f69c7b68
           command:
             - /bin/sh
             - -ec
