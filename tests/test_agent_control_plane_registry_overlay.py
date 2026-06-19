@@ -34,12 +34,44 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         cls.control_plane_application = _load_yaml(
             REPO_ROOT / "argocd" / "applications" / "agent-control-plane.yaml"
         )
+        cls.registry_overlay_application = _load_yaml(
+            REPO_ROOT
+            / "argocd"
+            / "applications"
+            / "agent-control-plane-registry-overlay.yaml"
+        )
+        cls.registry_overlay_restart_hook = _load_yaml(
+            REPO_ROOT
+            / "apps"
+            / "agent-control-plane-registry-overlay"
+            / "restart-hook.yaml"
+        )
         cls.model_gateway_controls = _load_yaml(
             REPO_ROOT
             / "apps"
             / "agent-control-plane-runtime-controls"
             / "configmap.yaml"
         )
+
+    def test_registry_overlay_restart_hook_runs_without_selective_sync(self) -> None:
+        annotations = self.registry_overlay_restart_hook["metadata"]["annotations"]
+        self.assertEqual(annotations["argocd.argoproj.io/hook"], "PostSync")
+        self.assertEqual(
+            annotations["argocd.argoproj.io/hook-delete-policy"],
+            "BeforeHookCreation",
+        )
+        self.assertEqual(
+            self.registry_overlay_restart_hook["metadata"]["generateName"],
+            "registry-overlay-restart-",
+        )
+
+        sync_options = set(
+            self.registry_overlay_application["spec"]["syncPolicy"].get(
+                "syncOptions", []
+            )
+        )
+        self.assertIn("CreateNamespace=true", sync_options)
+        self.assertNotIn("ApplyOutOfSyncOnly=true", sync_options)
 
     def test_opencode_proposer_import_is_overlay_pinned_and_proposal_only(self) -> None:
         imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
