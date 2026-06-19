@@ -16,6 +16,9 @@ boot fails the sync loudly** instead of crash-looping in silence. No manual
 
 Note: the hook fires on every sync of this app, including no-op re-syncs;
 restarts are rolling and the app is manual-sync, so syncs are deliberate.
+The Argo Application intentionally does not set `ApplyOutOfSyncOnly=true`:
+selective syncs do not execute hooks, which skips the restart Job and leaves
+the control plane serving the previous boot-cached registry snapshot.
 Workload-identity token re-mints (the `agent-workloads-secrets` app) still
 require a manual worker rollout — see CES-108 for the recorded follow-up.
 

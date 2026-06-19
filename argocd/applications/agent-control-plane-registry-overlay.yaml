@@ -19,5 +19,6 @@ spec:
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
-      - ApplyOutOfSyncOnly=true
+      # Do not add ApplyOutOfSyncOnly=true here. Argo CD selective syncs skip
+      # hooks, and this app relies on its PostSync restart hook for CES-108.
   revisionHistoryLimit: 10
