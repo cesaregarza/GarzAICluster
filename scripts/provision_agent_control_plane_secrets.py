@@ -103,6 +103,15 @@ def parse_args() -> argparse.Namespace:
             "--openclaw-callback-url is set and this value is omitted."
         ),
     )
+    parser.add_argument(
+        "--git-delivery-github-token",
+        default=os.environ.get("AGENT_PLATFORM_GIT_DELIVERY_GITHUB_TOKEN"),
+        help=(
+            "Optional fine-grained GitHub token for the pull-based git deliverer. "
+            "Scope it to cesaregarza/mandate-sandbox with Contents and Pull "
+            "Requests read/write."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -334,6 +343,12 @@ def main() -> None:
         openclaw_callback_lines += (
             f'          AGENT_PLATFORM_OPENCLAW_CALLBACK_TOKEN: "{openclaw_callback_token}"\n'
         )
+    git_delivery_line = (
+        "          AGENT_PLATFORM_GIT_DELIVERY_GITHUB_TOKEN: "
+        f'"{args.git_delivery_github_token}"\n'
+        if args.git_delivery_github_token
+        else ""
+    )
     runtime_secret = textwrap.dedent(
         f"""\
         apiVersion: v1
@@ -351,6 +366,7 @@ def main() -> None:
           AGENT_PLATFORM_AUDIT_WRITE_TOKEN: "{generate_token()}"
 {discord_token_line.rstrip()}
 {openclaw_callback_lines.rstrip()}
+{git_delivery_line.rstrip()}
         """
     )
     encrypt_to_file(args.secret_dir / "runtime-secret.enc.yaml", runtime_secret)

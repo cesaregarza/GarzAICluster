@@ -28,6 +28,12 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         cls.control_plane_values = _load_yaml(
             REPO_ROOT / "apps" / "agent-control-plane" / "values.yaml"
         )
+        cls.control_plane_secret = _load_yaml(
+            REPO_ROOT
+            / "secrets"
+            / "agent-control-plane"
+            / "runtime-secret.enc.yaml"
+        )
         cls.agent_workloads_values = _load_yaml(
             REPO_ROOT / "apps" / "agent-workloads" / "values.yaml"
         )
@@ -363,6 +369,35 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             "AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_AUDIT",
         ):
             self.assertEqual(env[key], "true")
+
+    def test_git_deliverer_is_configured_for_mandate_sandbox_only(self) -> None:
+        values = self.control_plane_values
+        deliverer = values["gitDeliverer"]
+
+        self.assertTrue(deliverer["enabled"])
+        self.assertEqual(deliverer["replicaCount"], 1)
+        self.assertEqual(
+            deliverer["secretKeys"],
+            ["AGENT_PLATFORM_GIT_DELIVERY_GITHUB_TOKEN"],
+        )
+        self.assertNotIn(
+            "AGENT_PLATFORM_GIT_DELIVERY_GITHUB_TOKEN",
+            values["secretKeys"],
+        )
+        self.assertEqual(deliverer["targetRepo"], "cesaregarza/mandate-sandbox")
+        self.assertEqual(
+            deliverer["remoteUrl"],
+            "https://github.com/cesaregarza/mandate-sandbox",
+        )
+        self.assertEqual(deliverer["baseRef"], "main")
+        self.assertEqual(
+            deliverer["allowedBaseRepos"],
+            ["https://github.com/cesaregarza/mandate-sandbox"],
+        )
+        self.assertIn(
+            "AGENT_PLATFORM_GIT_DELIVERY_GITHUB_TOKEN",
+            self.control_plane_secret["stringData"],
+        )
 
     def test_model_gateway_kill_switch_and_revocation_files_are_wired(self) -> None:
         values = self.control_plane_values
