@@ -9,7 +9,10 @@ Encrypted secrets consumed by the `agent-control-plane-secrets` Argo CD app.
   It also holds the model-gateway signing secret, Codex ChatGPT `auth.json`,
   workload-identity HMAC secret used to lease model access to hosted harness
   workers such as `opencode.proposer`, and the trusted-edge HMAC secret shared
-  with the OpenClaw droplet for `mctx_v2` assertions.
+  with the OpenClaw droplet for `mctx_v2` assertions. The OpenCode git
+  deliverer also expects `AGENT_PLATFORM_GIT_DELIVERY_GITHUB_TOKEN`, a
+  fine-grained GitHub token restricted to `cesaregarza/mandate-sandbox` with
+  Contents and Pull Requests read/write.
 - `regcred.enc.yaml`: DOCR pull credentials for
   `registry.digitalocean.com/sendouq/agent-platform`.
 
@@ -26,7 +29,8 @@ The script loads `.env`, provisions the dedicated Postgres schema/role using
 `AGENT_PLATFORM_OPENCLAW_CALLBACK_TOKEN`, and
 `AGENT_PLATFORM_DISCORD_BOT_TOKEN` or `OPENCLAW_DISCORD_TOKEN` before running it
 to include the callback adapter's OpenClaw hook credentials and deterministic
-approval-card Discord token.
+approval-card Discord token. Set `AGENT_PLATFORM_GIT_DELIVERY_GITHUB_TOKEN` to
+include the deliverer-scoped GitHub credential.
 
 Add or rotate only the read-only SQL broker credential without rotating service
 tokens:

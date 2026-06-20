@@ -79,6 +79,20 @@ callbackAdapter:
     enabled: true
     autoArchiveMinutes: 1440
 
+gitDeliverer:
+  enabled: true
+  replicaCount: 1
+  secretKeys:
+    - AGENT_PLATFORM_GIT_DELIVERY_GITHUB_TOKEN
+  pollSeconds: 5
+  batchSize: 10
+  claimStaleSeconds: 300
+  targetRepo: cesaregarza/mandate-sandbox
+  remoteUrl: https://github.com/cesaregarza/mandate-sandbox
+  baseRef: main
+  allowedBaseRepos:
+    - https://github.com/cesaregarza/mandate-sandbox
+
 modelGateway:
   enabled: true
   replicaCount: 1
