@@ -10,7 +10,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-cee8a690bc9f
+  tag: sha-532443f0d927
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -96,6 +96,12 @@ gitDeliverer:
 modelGateway:
   enabled: true
   replicaCount: 1
+  codexAuthPersistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    storageClassName: do-block-storage
+    size: 1Gi
 
 service:
   type: ClusterIP
