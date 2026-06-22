@@ -29,6 +29,7 @@ SHA256_DIGEST_RE = re.compile(r"^sha256:[a-fA-F0-9]{64}$")
 TOKEN_PREFIX = "mwit_v1"
 DIGEST_SPEC_VERSION = "agent-workloads-code-digest-v1"
 TOKEN_METADATA_SCHEMA_VERSION = "agent-workloads-workload-identity-tokens.metadata.v1"
+WORKLOAD_IDENTITY_BUNDLE_DIGEST_VERSION = "workload_identity_bundle.v1"
 TOKEN_KEYS_BY_AGENT_ID = {
     "data.workspace_probe": "MANDATE_WORKLOAD_IDENTITY_TOKEN",
     "opencode.proposer": "OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN",
@@ -130,6 +131,12 @@ def check_agent_workloads_identity_digests(
                 f"{token_key} code_digest mismatch: expected {expected_code_digest}, "
                 f"got {token_code_digest}"
             )
+        _assert_token_bundle_claims_match(
+            agent_id=agent_id,
+            token_key=token_key,
+            claims=claims,
+            overlay_pin=overlay_pins[agent_id],
+        )
         token_claims_by_agent[agent_id] = claims
 
     _assert_token_metadata_matches(
@@ -140,7 +147,10 @@ def check_agent_workloads_identity_digests(
         token_claims_by_agent=token_claims_by_agent,
     )
 
-    return "agent-workloads deployed images and workload identity code_digests match release pins."
+    return (
+        "agent-workloads deployed images and workload identity bundle claims "
+        "match release pins."
+    )
 
 
 def _load_overlay_pins(configmap_path: Path) -> dict[str, dict[str, str]]:
@@ -310,6 +320,67 @@ def _workload_identity_claims(token: str, token_key: str) -> dict[str, Any]:
     return payload
 
 
+def _assert_token_bundle_claims_match(
+    *,
+    agent_id: str,
+    token_key: str,
+    claims: dict[str, Any],
+    overlay_pin: dict[str, str],
+) -> None:
+    expected_manifest_digest = overlay_pin["manifestDigest"]
+    actual_manifest_digest = _required_digest_claim(
+        claims,
+        claim="manifest_digest",
+        token_key=token_key,
+    )
+    if actual_manifest_digest != expected_manifest_digest:
+        raise DriftGateError(
+            f"{token_key} manifest_digest mismatch: expected {expected_manifest_digest}, "
+            f"got {actual_manifest_digest}"
+        )
+
+    expected_image_digest = overlay_pin["imageDigest"]
+    actual_image_digest = _required_digest_claim(
+        claims,
+        claim="image_digest",
+        token_key=token_key,
+    )
+    if actual_image_digest != expected_image_digest:
+        raise DriftGateError(
+            f"{token_key} image_digest mismatch: expected {expected_image_digest}, "
+            f"got {actual_image_digest}"
+        )
+
+    expected_bundle_digest = _workload_identity_bundle_digest(
+        code_digest=overlay_pin["codeDigest"],
+        manifest_digest=expected_manifest_digest,
+        image_digest=expected_image_digest,
+    )
+    actual_bundle_digest = _required_digest_claim(
+        claims,
+        claim="bundle_digest",
+        token_key=token_key,
+    )
+    if actual_bundle_digest != expected_bundle_digest:
+        raise DriftGateError(
+            f"{token_key} bundle_digest mismatch for {agent_id}: "
+            f"expected {expected_bundle_digest}, got {actual_bundle_digest}"
+        )
+
+
+def _required_digest_claim(
+    claims: dict[str, Any],
+    *,
+    claim: str,
+    token_key: str,
+) -> str:
+    raw = claims.get(claim)
+    if raw is None:
+        raise DriftGateError(f"{token_key} token payload missing {claim}")
+    _validate_digest(raw, f"{token_key} {claim}")
+    return raw
+
+
 def _assert_token_metadata_matches(
     *,
     metadata_path: Path,
@@ -346,6 +417,12 @@ def _assert_token_metadata_matches(
             "token_key": TOKEN_KEYS_BY_AGENT_ID[agent_id],
             "code_digest": overlay_pins[agent_id]["codeDigest"],
             "manifest_digest": overlay_pins[agent_id]["manifestDigest"],
+            "image_digest": overlay_pins[agent_id]["imageDigest"],
+            "bundle_digest": _workload_identity_bundle_digest(
+                code_digest=overlay_pins[agent_id]["codeDigest"],
+                manifest_digest=overlay_pins[agent_id]["manifestDigest"],
+                image_digest=overlay_pins[agent_id]["imageDigest"],
+            ),
             "iss": claims["iss"],
             "sub": claims["sub"],
             "aud": claims["aud"],
@@ -367,6 +444,22 @@ def _assert_token_metadata_matches(
 def _base64_url_decode(encoded: str) -> bytes:
     padding = "=" * (-len(encoded) % 4)
     return base64.urlsafe_b64decode(f"{encoded}{padding}")
+
+
+def _workload_identity_bundle_digest(
+    *,
+    code_digest: str,
+    manifest_digest: str,
+    image_digest: str,
+) -> str:
+    payload = {
+        "schema_version": WORKLOAD_IDENTITY_BUNDLE_DIGEST_VERSION,
+        "code_digest": code_digest,
+        "manifest_digest": manifest_digest,
+        "image_digest": image_digest,
+    }
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return "sha256:" + hashlib.sha256(serialized).hexdigest()
 
 
 def _required_str(mapping: dict[str, Any], key: str, label: str) -> str:
