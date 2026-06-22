@@ -50,6 +50,7 @@ TOKEN_METADATA_PATH = Path(
     "secrets/agent-workloads/workload-identity-tokens.metadata.yaml"
 )
 DIGEST_SPEC_VERSION = "agent-workloads-code-digest-v1"
+WORKLOAD_IDENTITY_BUNDLE_DIGEST_VERSION = "workload_identity_bundle.v1"
 OLD_MUTABLE_BROKER_ACTION = (
     "cesaregarza/"
     ".github/actions/"
@@ -195,13 +196,66 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
     def test_gate_rejects_stale_workload_identity_token_code_digest(self) -> None:
         root = _fixture_repo(
-            token_digests={
-                **{agent_id: pins["codeDigest"] for agent_id, pins in DIGESTS.items()},
-                "opencode.proposer": "sha256:" + "9" * 64,
+            token_claim_overrides={
+                "opencode.proposer": {"code_digest": "sha256:" + "9" * 64},
             }
         )
 
         with self.assertRaisesRegex(DriftGateError, "code_digest mismatch"):
+            _check(root)
+
+    def test_gate_rejects_missing_workload_identity_token_bundle_digest(self) -> None:
+        root = _fixture_repo(
+            token_claim_overrides={
+                "opencode.proposer": {"bundle_digest": None},
+            }
+        )
+
+        with self.assertRaisesRegex(DriftGateError, "missing bundle_digest"):
+            _check(root)
+
+    def test_gate_rejects_code_only_workload_identity_token(self) -> None:
+        root = _fixture_repo(
+            token_claim_overrides={
+                "opencode.proposer": {
+                    "manifest_digest": None,
+                    "image_digest": None,
+                    "bundle_digest": None,
+                },
+            }
+        )
+
+        with self.assertRaisesRegex(DriftGateError, "missing manifest_digest"):
+            _check(root)
+
+    def test_gate_rejects_stale_workload_identity_token_manifest_digest(self) -> None:
+        root = _fixture_repo(
+            token_claim_overrides={
+                "opencode.proposer": {"manifest_digest": "sha256:" + "9" * 64},
+            }
+        )
+
+        with self.assertRaisesRegex(DriftGateError, "manifest_digest mismatch"):
+            _check(root)
+
+    def test_gate_rejects_stale_workload_identity_token_image_digest(self) -> None:
+        root = _fixture_repo(
+            token_claim_overrides={
+                "opencode.proposer": {"image_digest": "sha256:" + "9" * 64},
+            }
+        )
+
+        with self.assertRaisesRegex(DriftGateError, "image_digest mismatch"):
+            _check(root)
+
+    def test_gate_rejects_stale_workload_identity_token_bundle_digest(self) -> None:
+        root = _fixture_repo(
+            token_claim_overrides={
+                "opencode.proposer": {"bundle_digest": "sha256:" + "9" * 64},
+            }
+        )
+
+        with self.assertRaisesRegex(DriftGateError, "bundle_digest mismatch"):
             _check(root)
 
     def test_gate_rejects_malformed_identity_token(self) -> None:
@@ -220,7 +274,7 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         runtime_secret_path = root / RUNTIME_SECRET_PATH
         runtime_secret = YAML_PARSER.load(runtime_secret_path.read_text())
         runtime_secret["stringData"]["OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN"] = (
-            _mwit_token("opencode.proposer", DIGESTS["opencode.proposer"]["codeDigest"])
+            _mwit_token("opencode.proposer")
         )
         _write_yaml(runtime_secret_path, runtime_secret)
 
@@ -243,7 +297,7 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 def _fixture_repo(
     *,
     include_pins: bool = True,
-    token_digests: dict[str, str] | None = None,
+    token_claim_overrides: dict[str, dict[str, Any]] | None = None,
 ) -> Path:
     import tempfile
 
@@ -294,16 +348,17 @@ def _fixture_repo(
     )
 
     token_secret_path = root / TOKEN_SECRET_PATH
-    token_digests = token_digests or {
-        agent_id: pins["codeDigest"] for agent_id, pins in DIGESTS.items()
-    }
+    token_claim_overrides = token_claim_overrides or {}
     token_secret = {
         "apiVersion": "v1",
         "kind": "Secret",
         "metadata": {"name": "agent-workloads-workload-identity-tokens"},
         "stringData": {
-            TOKEN_KEYS[agent_id]: _mwit_token(agent_id, code_digest)
-            for agent_id, code_digest in token_digests.items()
+            TOKEN_KEYS[agent_id]: _mwit_token(
+                agent_id,
+                claim_overrides=token_claim_overrides.get(agent_id),
+            )
+            for agent_id in DIGESTS
         },
     }
     _write_yaml(token_secret_path, token_secret)
@@ -369,6 +424,8 @@ def _write_metadata(root: Path) -> None:
                 "token_key": TOKEN_KEYS[agent_id],
                 "code_digest": pins["codeDigest"],
                 "manifest_digest": pins["manifestDigest"],
+                "image_digest": pins["imageDigest"],
+                "bundle_digest": _workload_identity_bundle_digest(pins),
                 "iat": 1700000000,
                 "exp": 4102444800,
                 "iss": "kubernetes",
@@ -385,20 +442,44 @@ def _write_metadata(root: Path) -> None:
     _write_yaml(root / TOKEN_METADATA_PATH, metadata)
 
 
-def _mwit_token(agent_id: str, code_digest: str) -> str:
+def _mwit_token(
+    agent_id: str,
+    *,
+    claim_overrides: dict[str, Any] | None = None,
+) -> str:
+    pins = DIGESTS[agent_id]
     payload = {
         "aud": "mandate-api",
-        "code_digest": code_digest,
+        "bundle_digest": _workload_identity_bundle_digest(pins),
+        "code_digest": pins["codeDigest"],
         "exp": 4102444800,
         "iat": 1700000000,
+        "image_digest": pins["imageDigest"],
         "iss": "kubernetes",
+        "manifest_digest": pins["manifestDigest"],
         "scp": ["worker_service"],
         "sub": agent_id,
     }
+    for claim, value in (claim_overrides or {}).items():
+        if value is None:
+            payload.pop(claim, None)
+        else:
+            payload[claim] = value
     encoded = base64.urlsafe_b64encode(
         json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
     ).decode().rstrip("=")
     return f"mwit_v1.{encoded}.signature"
+
+
+def _workload_identity_bundle_digest(pins: dict[str, str]) -> str:
+    payload = {
+        "schema_version": WORKLOAD_IDENTITY_BUNDLE_DIGEST_VERSION,
+        "code_digest": pins["codeDigest"],
+        "manifest_digest": pins["manifestDigest"],
+        "image_digest": pins["imageDigest"],
+    }
+    serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+    return "sha256:" + hashlib.sha256(serialized).hexdigest()
 
 
 def _write_yaml(path: Path, payload: dict[str, Any]) -> None:
