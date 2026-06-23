@@ -1,21 +1,21 @@
 {{- if .Values.monitoring.alertmanager.enabled }}
-{{- $monitoringNamespace := include "splattop.monitoringNamespace" . -}}
+{{- $monitoringNamespace := include "garzObservability.monitoringNamespace" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "splattop.fullname" . }}-alertmanager
+  name: {{ include "garzObservability.fullname" . }}-alertmanager
   namespace: {{ $monitoringNamespace }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "alertmanager" "root" .) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "alertmanager" "root" .) | nindent 4 }}
 spec:
   replicas: {{ .Values.monitoring.alertmanager.replicas }}
   selector:
     matchLabels:
-      {{- include "splattop.componentSelectorLabels" (dict "component" "alertmanager" "root" .) | nindent 6 }}
+      {{- include "garzObservability.componentSelectorLabels" (dict "component" "alertmanager" "root" .) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "splattop.componentSelectorLabels" (dict "component" "alertmanager" "root" .) | nindent 8 }}
+        {{- include "garzObservability.componentSelectorLabels" (dict "component" "alertmanager" "root" .) | nindent 8 }}
     spec:
       securityContext:
         fsGroup: 65534

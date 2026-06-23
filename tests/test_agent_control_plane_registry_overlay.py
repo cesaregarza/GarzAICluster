@@ -328,7 +328,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         rules_template = (
             REPO_ROOT
             / "helm"
-            / "splattop"
+            / "garz-observability"
             / "templates"
             / "monitoring-prometheus-rules-configmap.yaml"
         ).read_text()

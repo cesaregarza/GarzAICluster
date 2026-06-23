@@ -1,26 +1,26 @@
 {{- if .Values.monitoring.grafana.enabled }}
-{{- $fullName := include "splattop.fullname" . -}}
+{{- $fullName := include "garzObservability.fullname" . -}}
 {{- $datasourcesConfigMap := default (printf "%s-grafana-datasources" $fullName) .Values.monitoring.grafana.datasourcesConfigMapName -}}
 {{- $dashboardProvidersConfigMap := default (printf "%s-grafana-dashboard-providers" $fullName) .Values.monitoring.grafana.dashboardProvidersConfigMapName -}}
-{{- $monitoringNamespace := include "splattop.monitoringNamespace" . -}}
+{{- $monitoringNamespace := include "garzObservability.monitoringNamespace" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "splattop.fullname" . }}-grafana
+  name: {{ include "garzObservability.fullname" . }}-grafana
   namespace: {{ $monitoringNamespace }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "grafana" "root" .) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "grafana" "root" .) | nindent 4 }}
 spec:
   strategy:
     type: Recreate
   replicas: {{ .Values.monitoring.grafana.replicas }}
   selector:
     matchLabels:
-      {{- include "splattop.componentSelectorLabels" (dict "component" "grafana" "root" .) | nindent 6 }}
+      {{- include "garzObservability.componentSelectorLabels" (dict "component" "grafana" "root" .) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "splattop.componentSelectorLabels" (dict "component" "grafana" "root" .) | nindent 8 }}
+        {{- include "garzObservability.componentSelectorLabels" (dict "component" "grafana" "root" .) | nindent 8 }}
     spec:
       securityContext:
         fsGroup: 472
@@ -109,7 +109,7 @@ spec:
         - name: grafana-storage
           {{- if .Values.monitoring.grafana.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ include "splattop.fullname" . }}-grafana-storage
+            claimName: {{ include "garzObservability.fullname" . }}-grafana-storage
           {{- else }}
           emptyDir: {}
           {{- end }}

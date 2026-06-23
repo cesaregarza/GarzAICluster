@@ -4,9 +4,9 @@ apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   name: prometheus-egress-kube-apiserver
-  namespace: {{ include "splattop.monitoringNamespace" . }}
+  namespace: {{ include "garzObservability.monitoringNamespace" . }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "monitoring-cnp-prometheus-egress" "root" $root) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "monitoring-cnp-prometheus-egress" "root" $root) | nindent 4 }}
 spec:
   endpointSelector:
     matchLabels:

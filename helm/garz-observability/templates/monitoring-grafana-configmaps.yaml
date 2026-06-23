@@ -1,7 +1,7 @@
 {{- if .Values.monitoring.grafana.enabled }}
 {{- $root := . -}}
-{{- $fullName := include "splattop.fullname" . -}}
-{{- $ns := include "splattop.monitoringNamespace" . -}}
+{{- $fullName := include "garzObservability.fullname" . -}}
+{{- $ns := include "garzObservability.monitoringNamespace" . -}}
 {{- $datasourcesConfigMap := default (printf "%s-grafana-datasources" $fullName) .Values.monitoring.grafana.datasourcesConfigMapName -}}
 {{- $dashboardProvidersConfigMap := default (printf "%s-grafana-dashboard-providers" $fullName) .Values.monitoring.grafana.dashboardProvidersConfigMapName -}}
 apiVersion: v1
@@ -10,7 +10,7 @@ metadata:
   name: {{ $datasourcesConfigMap }}
   namespace: {{ $ns }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "grafana-datasources" "root" .) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "grafana-datasources" "root" .) | nindent 4 }}
 data:
   datasources.yaml: |
     apiVersion: 1
@@ -29,7 +29,7 @@ metadata:
   name: {{ $dashboardProvidersConfigMap }}
   namespace: {{ $ns }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "grafana-dashboard-providers" "root" .) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "grafana-dashboard-providers" "root" .) | nindent 4 }}
 data:
   providers.yaml: |
     apiVersion: 1
@@ -45,7 +45,7 @@ data:
           path: /var/lib/grafana/dashboards/auto
 ---
 {{- $dashboardFiles := dict
-      "core" (dict "file" "files/grafana/dashboards/core.json" "dataKey" "splattop-overview.json")
+      "core" (dict "file" "files/grafana/dashboards/core.json" "dataKey" "garzObservability-overview.json")
       "observability" (dict "file" "files/grafana/dashboards/observability.json" "dataKey" "hot-paths-and-snapshots.json")
       "splatgpt" (dict "file" "files/grafana/dashboards/splatgpt.json" "dataKey" "splatgpt-operations.json")
       "auth-rate" (dict "file" "files/grafana/dashboards/auth-rate.json" "dataKey" "auth-and-rate.json")
@@ -63,7 +63,7 @@ metadata:
   name: {{ default (printf "grafana-dashboard-%s" $dashboard.name) $dashboard.configMapName }}
   namespace: {{ $ns }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" (printf "grafana-dashboard-%s" $dashboard.name) "root" $root) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" (printf "grafana-dashboard-%s" $dashboard.name) "root" $root) | nindent 4 }}
 data:
   {{ default (index $info "dataKey") $dashboard.dataKey }}: |
 {{ ($root.Files.Get (index $info "file")) | indent 4 }}

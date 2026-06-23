@@ -39,12 +39,11 @@ argocd/
    sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
    ```
 
-3. **Required Secrets** in target namespaces (see `/helm/splattop/README.md` for details):
+3. **Required Secrets** in target namespaces:
    - `db-secrets` - Database credentials
    - `regcred` - Container registry credentials
-   - `grafana-admin-credentials` - Grafana admin credentials (if monitoring enabled)
-   - `alertmanager-config` - AlertManager configuration (if monitoring enabled)
-   - Ensure these exist in **every** namespace the application targets today (`default`, `monitoring`). Helm expects them to be present already, so ArgoCD will fail to sync until they are created (use the `make create-secrets-*` helpers or manual `kubectl apply`).
+   - `grafana-admin-credentials` - Grafana admin credentials in `monitoring`
+   - `alertmanager-config` - Alertmanager configuration in `monitoring`
 
 ## Deployment Options
 
@@ -52,6 +51,7 @@ Apply the project and production application manifests:
 
 ```bash
 kubectl apply -f argocd/projects/splattop-project.yaml
+kubectl apply -f argocd/applications/garz-observability.yaml
 kubectl apply -f argocd/applications/splattop-prod.yaml
 ```
 
@@ -88,8 +88,16 @@ kubectl apply -f argocd/applications/splattop-prod.yaml
 - **Sync**: Manual (`spec.syncPolicy.automated: null`)
 - **Prune options**: `PrunePropagationPolicy=foreground`, `PruneLast=true`
 - **Diff options**: `RespectIgnoreDifferences=true`, `ApplyOutOfSyncOnly=true`, `SkipDryRunOnMissingResource=true`
-- **Namespace**: `default` (monitoring resources also apply to `monitoring`)
+- **Namespace**: `default`
 - **Values**: `values-prod.yaml` (production overrides)
+
+#### Observability (`garz-observability.yaml`)
+- **Sync**: Manual (`spec.syncPolicy.automated: null`)
+- **Namespace**: `monitoring`
+- **Values**: `helm/garz-observability/values-prod.yaml`
+- **Cutover**: Sync this app before pruning monitoring resources from
+  `splattop-prod`; the chart preserves live object names/selectors until
+  CES-257 performs the explicit state-preservation migration.
 
 ### Project RBAC
 
@@ -219,7 +227,7 @@ argocd app sync splattop-prod --replace
 
 ### Production
 - Multiple replicas (2x for FastAPI/React)
-- Monitoring stack enabled (Prometheus, Grafana, AlertManager)
+- Observability stack managed by the `garz-observability` Argo app
 - Ingress enabled with TLS
 - Manual sync enforced for safety
 

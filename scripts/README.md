@@ -61,7 +61,7 @@ Utilities that were previously bundled with the app repo move here when they are
 - `validate_prometheus_config.py` – renders the Prometheus ConfigMaps from the Helm chart (`helm template --show-only …`) and runs `promtool check config/rules` inside a Docker container. Example (prod values):
 
   ```bash
-  uv run python scripts/validate_prometheus_config.py --values helm/splattop/values-prod.yaml
+  uv run python scripts/validate_prometheus_config.py --values helm/garz-observability/values-prod.yaml
   ```
 
   Add `--allow-missing` if you want the script to exit successfully when monitoring is disabled for a given values file.

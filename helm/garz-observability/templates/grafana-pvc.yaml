@@ -2,10 +2,10 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "splattop.fullname" . }}-grafana-storage
-  namespace: {{ include "splattop.monitoringNamespace" . }}
+  name: {{ include "garzObservability.fullname" . }}-grafana-storage
+  namespace: {{ include "garzObservability.monitoringNamespace" . }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "grafana" "root" .) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "grafana" "root" .) | nindent 4 }}
 spec:
   accessModes:
     - {{ .Values.monitoring.grafana.persistence.accessMode }}

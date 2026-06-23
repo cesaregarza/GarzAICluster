@@ -12,7 +12,9 @@ from pathlib import Path
 
 CONFIG_TEMPLATE = "templates/monitoring-prometheus-configmap.yaml"
 RULES_TEMPLATE = "templates/monitoring-prometheus-rules-configmap.yaml"
-DEFAULT_VALUES_FILE = "helm/splattop/values-prod.yaml"
+DEFAULT_CHART_DIR = "helm/garz-observability"
+DEFAULT_RELEASE_NAME = "garz-observability"
+DEFAULT_VALUES_FILE = "helm/garz-observability/values-prod.yaml"
 PROMTOOL_IMAGE = "prom/prometheus:v2.52.0"
 INDENT = "  "
 
@@ -21,13 +23,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--chart-dir",
-        default="helm/splattop",
-        help="Path to the Helm chart directory (default: helm/splattop).",
+        default=DEFAULT_CHART_DIR,
+        help=f"Path to the Helm chart directory (default: {DEFAULT_CHART_DIR}).",
     )
     parser.add_argument(
         "--release-name",
-        default="splattop",
-        help="Helm release name used during templating (default: splattop).",
+        default=DEFAULT_RELEASE_NAME,
+        help=(
+            "Helm release name used during templating "
+            f"(default: {DEFAULT_RELEASE_NAME})."
+        ),
     )
     parser.add_argument(
         "-f",

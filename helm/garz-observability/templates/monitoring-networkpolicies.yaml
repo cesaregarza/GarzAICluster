@@ -1,5 +1,5 @@
 {{- $root := . -}}
-{{- $ns := include "splattop.monitoringNamespace" . -}}
+{{- $ns := include "garzObservability.monitoringNamespace" . -}}
 {{- with .Values.monitoring.networkPolicies }}
   {{- if and .defaultDeny.enabled $ns }}
 apiVersion: networking.k8s.io/v1
@@ -8,7 +8,7 @@ metadata:
   name: monitoring-deny-all-ingress
   namespace: {{ $ns }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "monitoring-netpol-default-deny" "root" $root) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "monitoring-netpol-default-deny" "root" $root) | nindent 4 }}
 spec:
   podSelector: {}
   policyTypes:
@@ -22,7 +22,7 @@ metadata:
   name: allow-acme-solver
   namespace: {{ $ns }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "monitoring-netpol-allow-acme" "root" $root) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "monitoring-netpol-allow-acme" "root" $root) | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
@@ -43,7 +43,7 @@ metadata:
   name: grafana-allow-ingress
   namespace: {{ $ns }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "monitoring-netpol-grafana" "root" $root) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "monitoring-netpol-grafana" "root" $root) | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
@@ -101,7 +101,7 @@ metadata:
   name: prometheus-ingress-egress
   namespace: {{ $ns }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "monitoring-netpol-prometheus" "root" $root) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "monitoring-netpol-prometheus" "root" $root) | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
@@ -141,7 +141,7 @@ metadata:
   name: alertmanager-ingress-egress
   namespace: {{ $ns }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "monitoring-netpol-alertmanager" "root" $root) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "monitoring-netpol-alertmanager" "root" $root) | nindent 4 }}
 spec:
   podSelector:
     matchLabels:

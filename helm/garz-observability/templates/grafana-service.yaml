@@ -1,0 +1,18 @@
+{{- if .Values.monitoring.grafana.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "garzObservability.fullname" . }}-grafana
+  namespace: {{ include "garzObservability.monitoringNamespace" . }}
+  labels:
+    {{- include "garzObservability.componentLabels" (dict "component" "grafana" "root" .) | nindent 4 }}
+spec:
+  type: {{ .Values.monitoring.grafana.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.monitoring.grafana.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "garzObservability.componentSelectorLabels" (dict "component" "grafana" "root" .) | nindent 4 }}
+{{- end }}

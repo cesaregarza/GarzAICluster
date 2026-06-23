@@ -1,14 +1,14 @@
 {{- $root := . -}}
 {{- $ingress := .Values.monitoring.grafana.ingress -}}
 {{- if and .Values.monitoring.grafana.enabled $ingress.enabled }}
-{{- $grafanaIngressName := default (printf "%s-grafana" (include "splattop.fullname" .)) $ingress.nameOverride }}
+{{- $grafanaIngressName := default (printf "%s-grafana" (include "garzObservability.fullname" .)) $ingress.nameOverride }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ $grafanaIngressName }}
-  namespace: {{ include "splattop.monitoringNamespace" . }}
+  namespace: {{ include "garzObservability.monitoringNamespace" . }}
   labels:
-    {{- include "splattop.labels" . | nindent 4 }}
+    {{- include "garzObservability.labels" . | nindent 4 }}
   {{- if $ingress.annotations }}
   annotations:
     {{- range $key, $value := $ingress.annotations }}
@@ -38,7 +38,7 @@ spec:
             pathType: {{ $path.pathType }}
             backend:
               service:
-                {{- $svcName := default (printf "%s-%s" (include "splattop.fullname" $root) $path.serviceName) $path.serviceNameOverride }}
+                {{- $svcName := default (printf "%s-%s" (include "garzObservability.fullname" $root) $path.serviceName) $path.serviceNameOverride }}
                 name: {{ $svcName }}
                 port:
                   number: {{ $path.servicePort }}
@@ -51,7 +51,7 @@ spec:
             pathType: {{ $path.pathType }}
             backend:
               service:
-                {{- $svcName := default (printf "%s-%s" (include "splattop.fullname" $root) $path.serviceName) $path.serviceNameOverride }}
+                {{- $svcName := default (printf "%s-%s" (include "garzObservability.fullname" $root) $path.serviceName) $path.serviceNameOverride }}
                 name: {{ $svcName }}
                 port:
                   number: {{ $path.servicePort }}
