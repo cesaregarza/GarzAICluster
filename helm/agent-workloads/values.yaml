@@ -23,6 +23,9 @@ podLabels: {}
 extraVolumes: []
 extraVolumeMounts: []
 
+rolloutChecksums:
+  workloadIdentityTokenSecret: ""
+
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 65532

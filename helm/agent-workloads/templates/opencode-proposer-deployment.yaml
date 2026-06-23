@@ -18,10 +18,12 @@ spec:
         {{- with .Values.opencodeProposer.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.opencodeProposer.podAnnotations }}
       annotations:
+        checksum.garz.ai/agent-workloads-release-pins: {{ include "agent-workloads.releasePinsChecksum" . | quote }}
+        checksum.garz.ai/agent-workloads-token-secret: {{ include "agent-workloads.workloadIdentityTokenSecretChecksum" . | quote }}
+        {{- with .Values.opencodeProposer.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "agent-workloads.serviceAccountName" . }}
       enableServiceLinks: false
