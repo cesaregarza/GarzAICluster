@@ -45,6 +45,16 @@ control-plane restart and do not require re-minting.
 | `agent_workloads.opencode_apply` | `output_schema` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_apply` | `result_contract` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_apply` | `session_authority_budget` | `mixed` | `control_plane_restart` |
+| `agent_workloads.opencode_orchestrate` | `artifacts` | `deployment_overlay` | `control_plane_restart` |
+| `agent_workloads.opencode_orchestrate` | `description` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.opencode_orchestrate` | `disclosure` | `deployment_overlay` | `control_plane_restart` |
+| `agent_workloads.opencode_orchestrate` | `disclosure_summary` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.opencode_orchestrate` | `model_lease` | `deployment_overlay` | `control_plane_restart` |
+| `agent_workloads.opencode_orchestrate` | `negative_affordances` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.opencode_orchestrate` | `output_schema` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.opencode_orchestrate` | `result_contract` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.opencode_orchestrate` | `session_authority_budget` | `mixed` | `control_plane_restart` |
+| `agent_workloads.opencode_orchestrate` | `task_contract` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_propose` | `artifacts` | `deployment_overlay` | `control_plane_restart` |
 | `agent_workloads.opencode_propose` | `description` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_propose` | `disclosure` | `deployment_overlay` | `control_plane_restart` |
