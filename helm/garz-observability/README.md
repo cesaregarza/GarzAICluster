@@ -28,6 +28,19 @@ The `garz-observability` Argo application renders this chart with
 annotation-based `kubernetes-pods` Prometheus scrape config, alert rules,
 Grafana dashboards, Grafana ingress, Alertmanager, network policies, and PDBs.
 
+The Prometheus rule ConfigMap is split by ownership:
+
+- `cluster-mandate-alerts.yaml` owns cluster, Mandate, Prometheus,
+  Alertmanager, and Grafana health alerts.
+- `splattop-app-alerts.yaml` keeps the existing SplatTop application alerts in
+  this chart for now, so the observability extraction has no alert gap. Those
+  app alerts are deliberately named and grouped separately until SplatTop owns a
+  rule-mount path.
+
+The public Grafana host is `grafana.garz.ai`. The previous
+`grafana.splat.top` hostname is kept as a redirect-only vanity host during the
+rename window.
+
 Required pre-existing secrets:
 
 - `grafana-admin-credentials`
