@@ -1,9 +1,11 @@
 nameOverride: splattop
 fullnameOverride: splattop-prod
 
-# Preserve the live selector labels until CES-257 performs the explicit
-# Prometheus/Grafana state-preservation cutover. Changing these labels would
-# force immutable Deployment/StatefulSet selector changes.
+# CES-257 state-preservation decision: keep the live object names and selector
+# labels stable during the observability extraction. The Prometheus TSDB PVC is
+# generated as prometheus-data-splattop-prod-prometheus-0 and Grafana runtime
+# state lives in splattop-prod-grafana-storage; changing these names requires a
+# separate PV retain/re-bind migration.
 legacySelectorLabels:
   name: splattop
   instance: splattop-prod

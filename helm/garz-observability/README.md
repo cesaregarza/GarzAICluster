@@ -8,8 +8,18 @@ for GarzAICluster.
 The chart currently preserves the live `splattop-prod` object name prefix and
 `app.kubernetes.io/name=splattop` / `app.kubernetes.io/instance=splattop-prod`
 selector labels. That lets Argo move ownership out of the SplatTop app chart
-without renaming the Prometheus StatefulSet or Grafana PVC. CES-257 owns the
-explicit state-preserving PV/PVC migration and any later selector cleanup.
+without renaming the Prometheus StatefulSet or Grafana PVC.
+
+CES-257 records the state-preservation choice: do not re-bind storage during the
+extraction. The expected stateful identities are:
+
+- Prometheus StatefulSet: `splattop-prod-prometheus`
+- Prometheus generated TSDB PVC: `prometheus-data-splattop-prod-prometheus-0`
+- Grafana runtime-state PVC: `splattop-prod-grafana-storage`
+
+If a later cleanup renames the chart, release, StatefulSet, selector labels, or
+PVC names, perform an explicit PV retain/re-bind migration first. Do not let a
+Helm rename create replacement volumes implicitly.
 
 ## Production
 
