@@ -26,7 +26,7 @@ def main() -> int:
         "--repo-root",
         type=Path,
         default=Path.cwd(),
-        help="Path to the SplatTopConfig checkout.",
+        help="Path to the GarzAICluster checkout.",
     )
     parser.add_argument(
         "--write",

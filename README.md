@@ -1,4 +1,4 @@
-# SplatTopConfig
+# GarzAICluster
 
 Kubernetes + Argo CD source of truth for SplatTop. Charts, AppSets, secrets workflow, and runbooks live here (not in the app repo).
 
@@ -39,4 +39,4 @@ Kubernetes + Argo CD source of truth for SplatTop. Charts, AppSets, secrets work
 ## Request a bump
 
 Want your bot deployed? Use our one-click form:  
-👉 **[Request a bump](https://github.com/cesaregarza/SplatTopConfig/issues/new?template=bump-bot.yml)**
+👉 **[Request a bump](https://github.com/cesaregarza/GarzAICluster/issues/new?template=bump-bot.yml)**

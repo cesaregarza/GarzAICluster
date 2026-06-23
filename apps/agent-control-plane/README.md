@@ -1,6 +1,6 @@
 # Mandate Agent Control Plane
 
-This directory holds the SplatTopConfig-owned values overlay for the reusable
+This directory holds the GarzAICluster-owned values overlay for the reusable
 Mandate chart from `agent-platform/helm/mandate`. The live Argo Application is
 `argocd/applications/agent-control-plane.yaml`.
 

@@ -60,7 +60,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--repo-url",
-        default="https://github.com/cesaregarza/SplatTopConfig.git",
+        default="https://github.com/cesaregarza/GarzAICluster.git",
         help="Repo URL for the chart (default: this repo).",
     )
     parser.add_argument(

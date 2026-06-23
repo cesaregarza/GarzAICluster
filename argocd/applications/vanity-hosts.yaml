@@ -8,7 +8,7 @@ metadata:
 spec:
   project: splattop
   source:
-    repoURL: https://github.com/cesaregarza/SplatTopConfig
+    repoURL: https://github.com/cesaregarza/GarzAICluster
     targetRevision: main
     path: helm/vanity-hosts
     helm:

@@ -447,7 +447,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertEqual(len(raw_sources), 1)
         self.assertEqual(
             raw_sources[0]["repoURL"],
-            "https://github.com/cesaregarza/SplatTopConfig",
+            "https://github.com/cesaregarza/GarzAICluster",
         )
 
     def test_control_plane_pin_understands_opencode_executor_imports(self) -> None:

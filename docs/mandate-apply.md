@@ -3,7 +3,7 @@
 `scripts/mandate_apply.py` is the first local CES-123 enablement planner for
 Mandate workload capabilities. It consumes one declarative
 `MandateWorkloadEnablement` YAML document and reconciles only the
-deployment-owned edges that SplatTopConfig is allowed to own.
+deployment-owned edges that GarzAICluster is allowed to own.
 
 Dry-run is the default. Use `--write` only on a branch intended for a normal PR.
 The tool never mutates the live cluster, never edits SOPS secret values, never

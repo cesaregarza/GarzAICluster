@@ -4,7 +4,7 @@ Use this runbook when standing up a brand-new cluster or when rehydrating Argo t
 
 ## Prerequisites
 
-- GitHub repo: `SplatTopConfig` (private) with `main` branch.
+- GitHub repo: `GarzAICluster` (private) with `main` branch.
 - GitHub App or fine-grained PAT that has `contents:write` on this repo only (used by automation).
 - Container registry credentials (DigitalOcean registry) and S3/DO Spaces credentials for i18n sync jobs.
 - Age key pair for SOPS (public key checked into the repo, private key stored offline + in 1Password).
@@ -13,7 +13,7 @@ Use this runbook when standing up a brand-new cluster or when rehydrating Argo t
 
 1. **Clone repos locally**
    - `git clone git@github.com:SplatTop/SplatTop.git`
-   - `git clone git@github.com:SplatTop/SplatTopConfig.git`
+   - `git clone git@github.com:SplatTop/GarzAICluster.git`
 2. **Install tooling**
    - Helm, kubectl, argocd CLI, sops, age, jq, yq.
 3. **Create deploy key for Argo**
@@ -28,7 +28,7 @@ Use this runbook when standing up a brand-new cluster or when rehydrating Argo t
    - Apply upstream manifests or helm install.
    - Login (`argocd admin initial-password`) and change the admin password (store in `.env` per plan).
 6. **Register this config repo**
-   - `argocd repo add git@github.com:SplatTop/SplatTopConfig.git --ssh-private-key-path ~/.ssh/splattop-config`
+   - `argocd repo add git@github.com:SplatTop/GarzAICluster.git --ssh-private-key-path ~/.ssh/splattop-config`
    - Verify Argo can list charts: `argocd repo list`.
 7. **Apply AppProjects**
    - `kubectl apply -f argocd/projects/`.

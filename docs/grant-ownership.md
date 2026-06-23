@@ -4,7 +4,7 @@ This file is generated from the agent-workloads release applier contract and
 the deployment registry overlay. Do not hand-edit it; run
 `scripts/generate_grant_ownership.py` instead.
 
-Changing a deployment-owned key edits the SplatTopConfig registry overlay and
+Changing a deployment-owned key edits the GarzAICluster registry overlay and
 requires a control-plane restart. It does not move workload image, manifest,
 or code digests, and it does not require workload identity token re-minting.
 

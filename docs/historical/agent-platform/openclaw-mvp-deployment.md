@@ -8,9 +8,9 @@ Mandate without exposing raw broker or worker tools to the model.
 ## What Can Be Deployed First
 
 Deploy the Mandate API and local deterministic worker from
-`mandate-agent-control-plane` into Kubernetes through `SplatTopConfig`. The
+`mandate-agent-control-plane` into Kubernetes through `GarzAICluster`. The
 chart lives in `helm/mandate`; the live values, runtime secret, DNS, TLS, and
-Argo Application belong in `SplatTopConfig`.
+Argo Application belong in `GarzAICluster`.
 
 The initial OpenClaw-facing capability surface should be limited to:
 

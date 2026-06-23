@@ -1,7 +1,7 @@
 [project]
-name = "splattopconfig-scripts"
+name = "garzaicluster-scripts"
 version = "0.1.0"
-description = "Helper scripts for the SplatTopConfig repo."
+description = "Helper scripts for the GarzAICluster repo."
 authors = [
   { name = "SplatTop contributors" }
 ]

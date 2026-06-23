@@ -1,7 +1,7 @@
 # How to request a bot deploy bump
 
 ### Easiest (one click)
-- Open the **[Bump a bot image form](https://github.com/cesaregarza/SplatTopConfig/issues/new?template=bump-bot.yml)**.
+- Open the **[Bump a bot image form](https://github.com/cesaregarza/GarzAICluster/issues/new?template=bump-bot.yml)**.
 - Choose your bot, paste a **tag** (e.g., `v1.2.3`) or a **digest**.
 - We’ll resolve to the canonical digest, open a PR, and mention you.
 
