@@ -78,7 +78,7 @@ def _fixture_repo(*, target_revision: str, image_tag: str) -> Path:
                         "path": "helm/mandate",
                     },
                     {
-                        "repoURL": "https://github.com/cesaregarza/SplatTopConfig",
+                        "repoURL": "https://github.com/cesaregarza/GarzAICluster",
                         "targetRevision": "main",
                         "ref": "values",
                     },

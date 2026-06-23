@@ -283,7 +283,7 @@ def render_ownership_markdown(ownership: dict[str, Any]) -> str:
         "the deployment registry overlay. Do not hand-edit it; run",
         "`scripts/generate_grant_ownership.py` instead.",
         "",
-        "Changing a deployment-owned key edits the SplatTopConfig registry overlay and",
+        "Changing a deployment-owned key edits the GarzAICluster registry overlay and",
         "requires a control-plane restart. It does not move workload image, manifest,",
         "or code digests, and it does not require workload identity token re-minting.",
         "",
@@ -427,7 +427,7 @@ def apply_grant_edit(
         raise GrantEditError(
             f"{capability_id} {key_path} is {owner}-owned. Edit "
             f"agent-workloads/{source_path}; consequence: workload digest moves, "
-            "SplatTopConfig must re-pin the release, and workload identity tokens must "
+            "GarzAICluster must re-pin the release, and workload identity tokens must "
             "be re-minted."
         )
 

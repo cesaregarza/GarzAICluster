@@ -4,7 +4,7 @@ This runbook covers the deployment-owned controls mounted into the Mandate
 model-gateway and API pods from the
 `agent-control-plane-model-gateway-controls` ConfigMap.
 
-Mandate owns the enforcement code. SplatTopConfig owns the live files that make
+Mandate owns the enforcement code. GarzAICluster owns the live files that make
 the controls operable in this cluster.
 
 ## Files

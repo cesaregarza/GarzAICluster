@@ -7,7 +7,7 @@ Control Plane, not by calling workload containers directly.
 
 - `agent-platform` owns the reusable Mandate control-plane API chart at
   `helm/mandate`.
-- `SplatTopConfig` owns the live values overlay, Argo Application, namespace,
+- `GarzAICluster` owns the live values overlay, Argo Application, namespace,
   image tag, runtime secret, DNS, and TLS.
 - The live Kubernetes release, namespace, and hostname remain
   `agent-control-plane` for continuity, even though the deployed runtime is

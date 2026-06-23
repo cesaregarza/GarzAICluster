@@ -73,7 +73,7 @@ status: success
 image: registry.digitalocean.com/sendouq/agent-platform:sha-c06fd9aa810e
 ```
 
-### SplatTopConfig
+### GarzAICluster
 
 Commits:
 

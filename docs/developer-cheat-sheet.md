@@ -6,8 +6,8 @@ Quick reference for engineers touching the config repo after the split.
 
 ```bash
 git clone git@github.com:SplatTop/SplatTop.git
-git clone git@github.com:SplatTop/SplatTopConfig.git
-tree -L 1 SplatTopConfig
+git clone git@github.com:SplatTop/GarzAICluster.git
+tree -L 1 GarzAICluster
 ```
 
 - `helm/` – charts per service (api, react, celery, monitoring).
@@ -18,7 +18,7 @@ tree -L 1 SplatTopConfig
 ## Validating Changes Locally
 
 ```bash
-cd SplatTopConfig
+cd GarzAICluster
 helm lint helm/splattop
 helm template helm/splattop -f helm/splattop/values-dev.yaml > /tmp/dev.yaml
 kubeconform -strict /tmp/dev.yaml
@@ -60,7 +60,7 @@ trufflehog filesystem --no-update --only-verified --fail .
 - Only the prod AppProject (`argocd/projects/splattop-project.yaml`) is managed here today; it targets the `default` + `monitoring` namespaces.
 - `splattop-admins` is the sole write-capable group (role `proj:splattop:admin`). Everyone else falls back to `policy.default: role:readonly`.
 - Prod syncs are manual and constrained to the Mon–Fri 15:00–02:00 UTC window. Outside that window the UI/CLI will reject sync attempts automatically.
-- Argo reads this repo via the `argocd-repo-splattopconfig` deploy key secret. Update/rotate it via `kubectl -n argocd create secret generic ... --dry-run=client -o yaml | kubectl apply -f -` and record the change in `docs/argo-operations.md`.
+- Argo reads this repo via the `argocd-repo-garzaicluster` deploy key secret. Update/rotate it via `kubectl -n argocd create secret generic ... --dry-run=client -o yaml | kubectl apply -f -` and record the change in `docs/argo-operations.md`.
 
 ## Troubleshooting
 
@@ -71,7 +71,7 @@ trufflehog filesystem --no-update --only-verified --fail .
 ## Editing Secrets
 
 ```bash
-cd SplatTopConfig
+cd GarzAICluster
 printf '%s\n' "$SOPS_AGE_KEY" > ~/.config/sops/age/keys.txt  # contents from GH secret
 export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
 sops k8s/secrets.enc.yaml

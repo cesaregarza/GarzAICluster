@@ -17,13 +17,13 @@ from scripts.grant_ownership import (
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate or check the SplatTopConfig grant ownership map."
+        description="Generate or check the GarzAICluster grant ownership map."
     )
     parser.add_argument(
         "--repo-root",
         type=Path,
         default=Path.cwd(),
-        help="Path to the SplatTopConfig checkout.",
+        help="Path to the GarzAICluster checkout.",
     )
     parser.add_argument(
         "--agent-workloads-repo",

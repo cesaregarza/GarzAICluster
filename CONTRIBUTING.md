@@ -1,10 +1,10 @@
-# Contributing to SplatTopConfig
+# Contributing to GarzAICluster
 
 Thanks for helping keep our GitOps pipeline healthy! This repo is lightweight by design; every change goes through PR review with platform ownership (see `.github/CODEOWNERS`).
 
 ## Quick Start
 
-1. Clone both repos (`SplatTop` and `SplatTopConfig`) so you can coordinate code + config changes.
+1. Clone both repos (`SplatTop` and `GarzAICluster`) so you can coordinate code + config changes.
 2. Read through:
    - `docs/bootstrap.md` – environment bring-up and required secrets.
    - `docs/release-workflow.md` – how images/digests move between repos.

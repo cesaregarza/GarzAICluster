@@ -292,7 +292,7 @@ def _write_control_plane_application(repo: Path, target_revision: str) -> None:
                         "path": "helm/mandate",
                     },
                     {
-                        "repoURL": "https://github.com/cesaregarza/SplatTopConfig",
+                        "repoURL": "https://github.com/cesaregarza/GarzAICluster",
                         "targetRevision": "main",
                         "ref": "values",
                     },

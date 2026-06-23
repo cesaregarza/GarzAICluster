@@ -6,7 +6,7 @@ metadata:
 spec:
   generators:
     - git:
-        repoURL: https://github.com/cesaregarza/SplatTopConfig
+        repoURL: https://github.com/cesaregarza/GarzAICluster
         revision: main
         files:
           - path: apps/bots/*.yaml

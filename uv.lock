@@ -59,7 +59,7 @@ wheels = [
 ]
 
 [[package]]
-name = "splattopconfig-scripts"
+name = "garzaicluster-scripts"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

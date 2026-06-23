@@ -74,7 +74,7 @@ kubectl apply -f argocd/applications/splattop-prod.yaml
 
 4. Create the production application via UI:
    - Project: `splattop`
-   - Repository: `https://github.com/cesaregarza/SplatTopConfig`
+   - Repository: `https://github.com/cesaregarza/GarzAICluster`
    - Path: `helm/splattop`
    - Cluster: `in-cluster`
    - Namespace: `default`

@@ -5,7 +5,7 @@ This guide covers day-to-day management of Argo CD once it tracks the config rep
 ## AppProjects & RBAC
 
 - Production is the only environment managed from this repo today. The manifest lives at `argocd/projects/splattop-project.yaml`.
-- The project pins `sourceRepos` to `https://github.com/cesaregarza/SplatTopConfig` and limits destinations to the `default` (app) and `monitoring` namespaces on the in-cluster API server.
+- The project pins `sourceRepos` to `https://github.com/cesaregarza/GarzAICluster` and limits destinations to the `default` (app) and `monitoring` namespaces on the in-cluster API server.
 - Resource whitelists mirror the previous settings so Helm can continue to manage monitoring/cluster objects required by prod.
 - A weekday sync window (Mon–Fri, cron `0 15 * * 1-5`, `duration: 11h`) blocks off-hours deploys.
 - Only the `splattop-admins` group is bound (role `proj:splattop:admin`). Set `policy.default: role:readonly` in `argocd-rbac-cm` so casual logins stay read-only.
@@ -22,7 +22,7 @@ All of the details are codified inside `argocd/applications/splattop-prod.yaml`;
 ## Repository & Registry Credentials
 
 1. **Config repo**
-   - Create a read-only deploy key dedicated to Argo (`argocd-repo-splattopconfig` secret in the `argocd` namespace).
+   - Create a read-only deploy key dedicated to Argo (`argocd-repo-garzaicluster` secret in the `argocd` namespace).
    - Reference it from `argocd-cm.repositories` so no developer PATs are needed inside the control plane.
 2. **Container registry**
    - Mirror the existing DOCR `regcred` into the `argocd` namespace for metadata lookups, and keep per-namespace pull secrets for workloads.
