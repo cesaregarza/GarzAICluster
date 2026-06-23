@@ -12,8 +12,8 @@ data:
     imports:
     - id: data.workspace_probe
       manifest_path: registries/imports/agent-data.workspace_probe.json
-      manifest_digest: sha256:cbe15972c3067fa095e8a5b2ba7c79676381de39cc9a27c894169935d06b9804
-      image_digest: sha256:bd792e0127d6c20bad8bfae9442421b2b86d941ac78229454e289bc85c6b3472
+      manifest_digest: sha256:33f2dfaafaee1efd00fd7141df5904de2081cd618d866069a74a8b2f8a275ad1
+      image_digest: sha256:a07b0e58ac4ae9742a5a5ee0f5b94526cae2ae84416b853b34a3dff86077eb62
       expected_source:
         repo: agent-workloads
         repo_url: https://github.com/cesaregarza/agent-workloads
@@ -48,8 +48,8 @@ data:
             session_taint: prod_authority
     - id: opencode.proposer
       manifest_path: registries/imports/agent-opencode.proposer.json
-      manifest_digest: sha256:32aa6f06cf53e78d37cad63d842a5904afc966cbdcc36e4658d8b9e6da6b914f
-      image_digest: sha256:c67180b83c6bebd0099bc9c92d07d7f23b4c5b61514cdecf6a9ae4b6c9e9ffd1
+      manifest_digest: sha256:9bda3ba7b95652914d229db8df52c6dbb50528b956b834447e8b377c245796e3
+      image_digest: sha256:82861c8fd76e83f02943a5c0e55ebe9f2d23a9086f18e3725135ae7eb67d4305
       expected_source:
         repo: agent-workloads
         repo_url: https://github.com/cesaregarza/agent-workloads
@@ -175,10 +175,74 @@ data:
           artifacts:
             allowed: false
             broker_required: false
+        agent_workloads.opencode_orchestrate:
+          description: Imported OpenCode orchestrator that may select one server-authorized
+            delegated child capability under the parent worker claim.
+          output_schema: agent_workloads_opencode_orchestrate_result_v1
+          task_contract:
+            input_schema: task_intent
+            text: Describe the governed work to route or answer in task.text.
+            required_hints: []
+            optional_hints: []
+            routing_guidance: Use for ambiguous or multi-step governed work that needs
+              model-selected routing through Mandate child dispatch. Natural-language
+              data questions should delegate to agent_workloads.readonly_query, not readonly_sql.
+          result_contract:
+            output_schema: agent_workloads_opencode_orchestrate_result_v1
+            released_result_fields:
+            - schema_version
+            - mode
+            - output_text
+            - answer_text
+            - answer_is_platform_verified
+            - capability_id
+            - child_job_id
+            - released_result
+            - evidence
+          disclosure_summary:
+            summary: Returns either a bounded no-match/local answer or the platform-released
+              result of one parent_only child job.
+            released_result: Orchestrator mode, answer text or child released result,
+              child id, delegated capability id, and evidence metadata.
+            released_artifacts: No artifacts are expected from this capability.
+            artifact_classes_allowed: []
+            withheld:
+            - parent claim token
+            - worker-service credentials
+            - child raw errors
+            - broker internals
+            - model transcripts
+          negative_affordances:
+          - Cannot create more than one child job.
+          - Cannot route to undelegated or invented capabilities.
+          - Cannot expose child jobs independently to the host channel.
+          - Must not be used as a local fallback when no governed capability matches.
+          model_lease:
+            required: true
+            allowed_tier: fast
+            allowed_profiles:
+            - openai.gpt-5.3-codex-spark
+            max_cost_usd: 0.25
+          session_authority_budget:
+            max_operations: 8
+            session_taint: prod_authority
+          disclosure:
+            raw_inputs_returnable: false
+            internal_sources_returnable: false
+            excerpts_allowed: true
+            aggregate_facts_allowed: true
+            citations_allowed: provider_public_only
+            artifact_classes_allowed: []
+            max_confidentiality_level_out: customer_visible
+            require_output_redaction_pass: true
+            require_result_schema: true
+          artifacts:
+            allowed: false
+            broker_required: false
     - id: opencode.apply_executor
       manifest_path: registries/imports/agent-opencode.apply_executor.json
-      manifest_digest: sha256:854c2f24ae5fd694e80ee881eff268170e38cb93cc2e13036180b1124ff5c1db
-      image_digest: sha256:eff4707f8a52459849b8ccd8872a7194828eb490290ff82ea662b085ef59d90e
+      manifest_digest: sha256:a5b1b1567b902a7dc1ec0d50737835a99dec9bd1cf1e7e4e8eaf94b1caf749ce
+      image_digest: sha256:8f5a68f15bb418e67bfc06b8f3bbdcfabf97810085e71af7d06bba7430c58bda
       expected_source:
         repo: agent-workloads
         repo_url: https://github.com/cesaregarza/agent-workloads
@@ -437,8 +501,8 @@ data:
           "consequence_class": "read_only"
         }
       },
-      "code_digest": "sha256:82a6b7332ba26fa73ffd25e34118f00aed4ceef7ebba8ffcc87ede3794ec60e6",
-      "digest": "sha256:cbe15972c3067fa095e8a5b2ba7c79676381de39cc9a27c894169935d06b9804",
+      "code_digest": "sha256:40bdd1223a75938726ac3073df3d663e43a7db63ca4ef2eed1259b5dd48755b7",
+      "digest": "sha256:33f2dfaafaee1efd00fd7141df5904de2081cd618d866069a74a8b2f8a275ad1",
       "display_name": "Agent Workloads Data Worker",
       "evals": {
         "optional": [],
@@ -448,7 +512,7 @@ data:
       },
       "id": "data.workspace_probe",
       "image": {
-        "digest": "sha256:bd792e0127d6c20bad8bfae9442421b2b86d941ac78229454e289bc85c6b3472",
+        "digest": "sha256:a07b0e58ac4ae9742a5a5ee0f5b94526cae2ae84416b853b34a3dff86077eb62",
         "repository": "registry.digitalocean.com/sendouq/agent-workloads-worker"
       },
       "loop": {
@@ -468,9 +532,13 @@ data:
     {
       "capabilities": [
         "agent_workloads.opencode_propose",
-        "agent_workloads.opencode_task"
+        "agent_workloads.opencode_task",
+        "agent_workloads.opencode_orchestrate"
       ],
       "capability_metadata": {
+        "agent_workloads.opencode_orchestrate": {
+          "consequence_class": "reversible_staging"
+        },
         "agent_workloads.opencode_propose": {
           "consequence_class": "reversible_staging"
         },
@@ -478,8 +546,8 @@ data:
           "consequence_class": "reversible_staging"
         }
       },
-      "code_digest": "sha256:2ce9fcada25311aacc5d8efa9b0a91c909651a3f0dcc851830021efa61dd676f",
-      "digest": "sha256:32aa6f06cf53e78d37cad63d842a5904afc966cbdcc36e4658d8b9e6da6b914f",
+      "code_digest": "sha256:488cf488f7e8d6e04889140594a66da594b665944713c50a0fa09116719981c6",
+      "digest": "sha256:9bda3ba7b95652914d229db8df52c6dbb50528b956b834447e8b377c245796e3",
       "display_name": "OpenCode Proposer",
       "evals": {
         "optional": [],
@@ -489,7 +557,7 @@ data:
       },
       "id": "opencode.proposer",
       "image": {
-        "digest": "sha256:c67180b83c6bebd0099bc9c92d07d7f23b4c5b61514cdecf6a9ae4b6c9e9ffd1",
+        "digest": "sha256:82861c8fd76e83f02943a5c0e55ebe9f2d23a9086f18e3725135ae7eb67d4305",
         "repository": "registry.digitalocean.com/sendouq/opencode-proposer"
       },
       "loop": {
@@ -515,8 +583,8 @@ data:
           "consequence_class": "consequential"
         }
       },
-      "code_digest": "sha256:2fbe35663ee4f20d3b733594e8483718357b4e080ab65327a9b43b0f82c8637d",
-      "digest": "sha256:854c2f24ae5fd694e80ee881eff268170e38cb93cc2e13036180b1124ff5c1db",
+      "code_digest": "sha256:0925d609a1fe765ea8c38af276669a1c1b8f1fc8087064afb4f1cfd31ada44be",
+      "digest": "sha256:a5b1b1567b902a7dc1ec0d50737835a99dec9bd1cf1e7e4e8eaf94b1caf749ce",
       "display_name": "OpenCode Apply Executor",
       "evals": {
         "optional": [],
@@ -526,7 +594,7 @@ data:
       },
       "id": "opencode.apply_executor",
       "image": {
-        "digest": "sha256:eff4707f8a52459849b8ccd8872a7194828eb490290ff82ea662b085ef59d90e",
+        "digest": "sha256:8f5a68f15bb418e67bfc06b8f3bbdcfabf97810085e71af7d06bba7430c58bda",
         "repository": "registry.digitalocean.com/sendouq/opencode-apply-executor"
       },
       "loop": {
