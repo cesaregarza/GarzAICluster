@@ -32,7 +32,11 @@ Required before activation:
   registry; dispatch still requires the prod policy grant and Mandate admission.
 - `AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` is present when `readonly_sql` is
   enabled. It must point at a separate weak read-only role, not the platform
-  state writer role.
+  state writer role. The role must satisfy the CES-263 ceiling: explicit
+  `SELECT` grants only on approved schema-qualified relations, no database
+  `CREATE`/`TEMPORARY`, no writable schema in `search_path`, no broad default
+  table/sequence grants, and only `security_invoker=true` views unless a future
+  reviewed owner-privilege view allowlist is added.
 - `AGENT_PLATFORM_WORKLOAD_IDENTITY_ISSUER` and
   `AGENT_PLATFORM_WORKLOAD_IDENTITY_ALLOWED_SUBJECTS_JSON` are explicitly set in
   prod. Missing issuer or subject allowlist fails closed for HMAC workload
