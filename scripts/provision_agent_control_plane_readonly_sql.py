@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import os
 import re
 import secrets
@@ -21,6 +22,81 @@ DEFAULT_SECRET_FILE = (
     REPO_ROOT / "secrets" / "agent-control-plane" / "runtime-secret.enc.yaml"
 )
 DEFAULT_SOPS_KEY = REPO_ROOT / "keys" / "age-private.txt"
+XSCRAPER_ANALYTICAL_RELATIONS = (
+    "xscraper.players",
+    "xscraper.player_latest",
+    "xscraper.player_season",
+    "xscraper.season_results",
+    "xscraper.weapon_leaderboard",
+    "xscraper.aliases",
+    "xscraper.schedules",
+)
+
+
+@dataclass(frozen=True)
+class ReadonlySqlTarget:
+    name: str
+    default_database: str
+    default_role: str
+    secret_key: str
+    admin_url_envs: tuple[str, ...]
+    database_envs: tuple[str, ...]
+    host_envs: tuple[str, ...]
+    password_envs: tuple[str, ...]
+    relations_envs: tuple[str, ...]
+    default_relations: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ProvisionConfig:
+    target: ReadonlySqlTarget
+    admin_url: str | None
+    database: str
+    db_host: str | None
+    role: str
+    password: str | None
+    schemas: list[str] | None
+    relations: list[str]
+    secret_file: Path
+    secret_key: str
+    skip_db: bool
+
+
+READONLY_SQL_TARGETS = {
+    "bots": ReadonlySqlTarget(
+        name="bots",
+        default_database="bots",
+        default_role="agent_control_plane_readonly_sql",
+        secret_key="AGENT_PLATFORM_READONLY_SQL_DATABASE_URL",
+        admin_url_envs=("AGENT_CONTROL_PLANE_DB_ADMIN_URL", "BOT_DB_ADMIN_URL"),
+        database_envs=("AGENT_CONTROL_PLANE_DB_NAME", "BOT_DB_NAME"),
+        host_envs=("AGENT_CONTROL_PLANE_DB_HOST", "BOT_DB_HOST"),
+        password_envs=("AGENT_CONTROL_PLANE_READONLY_SQL_PASSWORD",),
+        relations_envs=("AGENT_CONTROL_PLANE_READONLY_SQL_RELATIONS",),
+    ),
+    "xscraper_analytical": ReadonlySqlTarget(
+        name="xscraper_analytical",
+        default_database="xscraper",
+        default_role="agent_control_plane_xscraper_readonly_sql",
+        secret_key="AGENT_PLATFORM_READONLY_SQL_ANALYTICAL_DATABASE_URL",
+        admin_url_envs=(
+            "AGENT_CONTROL_PLANE_XSCRAPER_DB_ADMIN_URL",
+            "XSCRAPER_DB_ADMIN_URL",
+            "BOT_DB_ADMIN_URL",
+        ),
+        database_envs=("AGENT_CONTROL_PLANE_XSCRAPER_DB_NAME", "XSCRAPER_DB_NAME"),
+        host_envs=("AGENT_CONTROL_PLANE_XSCRAPER_DB_HOST", "XSCRAPER_DB_HOST", "BOT_DB_HOST"),
+        password_envs=(
+            "AGENT_CONTROL_PLANE_XSCRAPER_READONLY_SQL_PASSWORD",
+            "AGENT_PLATFORM_READONLY_SQL_ANALYTICAL_PASSWORD",
+        ),
+        relations_envs=(
+            "AGENT_CONTROL_PLANE_XSCRAPER_READONLY_SQL_RELATIONS",
+            "AGENT_PLATFORM_READONLY_SQL_ANALYTICAL_RELATIONS",
+        ),
+        default_relations=XSCRAPER_ANALYTICAL_RELATIONS,
+    ),
+}
 
 
 def load_env_file() -> None:
@@ -51,25 +127,32 @@ def parse_args() -> argparse.Namespace:
         )
     )
     parser.add_argument(
+        "--target",
+        choices=sorted(READONLY_SQL_TARGETS),
+        default=os.environ.get("AGENT_CONTROL_PLANE_READONLY_SQL_TARGET", "bots"),
+        help=(
+            "Named readonly SQL target to provision. Defaults to bots; "
+            "xscraper_analytical writes the preset-bound analytical DSN."
+        ),
+    )
+    parser.add_argument(
         "--admin-url",
-        default=os.environ.get("AGENT_CONTROL_PLANE_DB_ADMIN_URL")
-        or os.environ.get("BOT_DB_ADMIN_URL"),
-        help="Postgres admin URL. Defaults to AGENT_CONTROL_PLANE_DB_ADMIN_URL or BOT_DB_ADMIN_URL.",
+        default=None,
+        help="Postgres admin URL. Defaults to target-specific admin URL env vars.",
     )
     parser.add_argument(
         "--database",
-        default=os.environ.get("AGENT_CONTROL_PLANE_DB_NAME")
-        or os.environ.get("BOT_DB_NAME", "bots"),
+        default=None,
     )
     parser.add_argument(
         "--db-host",
-        default=os.environ.get("AGENT_CONTROL_PLANE_DB_HOST") or os.environ.get("BOT_DB_HOST"),
+        default=None,
         help="Host for the emitted connection string. Defaults to private-<admin host>.",
     )
-    parser.add_argument("--db-user", default="agent_control_plane_readonly_sql")
+    parser.add_argument("--db-user", default=None)
     parser.add_argument(
         "--db-password",
-        default=os.environ.get("AGENT_CONTROL_PLANE_READONLY_SQL_PASSWORD"),
+        default=None,
     )
     parser.add_argument(
         "--schema",
@@ -92,6 +175,11 @@ def parse_args() -> argparse.Namespace:
             "with a comma-separated list."
         ),
     )
+    parser.add_argument(
+        "--secret-key",
+        default=None,
+        help="Runtime secret stringData key to write. Defaults to the selected target.",
+    )
     parser.add_argument("--secret-file", type=Path, default=DEFAULT_SECRET_FILE)
     parser.add_argument("--skip-db", action="store_true")
     return parser.parse_args()
@@ -105,6 +193,12 @@ def ensure_command(name: str) -> None:
 def validate_identifier(value: str, label: str) -> str:
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
         sys.exit(f"{label} must be a valid Postgres identifier.")
+    return value
+
+
+def validate_secret_key(value: str) -> str:
+    if not re.fullmatch(r"[A-Z][A-Z0-9_]*", value):
+        sys.exit("secret key must be an uppercase environment variable name.")
     return value
 
 
@@ -122,6 +216,34 @@ def split_env_list(value: str | None) -> list[str]:
     if not value:
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def first_env(names: tuple[str, ...]) -> str | None:
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return None
+
+
+def resolve_config(args: argparse.Namespace) -> ProvisionConfig:
+    target = READONLY_SQL_TARGETS[args.target]
+    relations = args.relations or split_env_list(first_env(target.relations_envs))
+    if not relations:
+        relations = list(target.default_relations)
+    return ProvisionConfig(
+        target=target,
+        admin_url=args.admin_url or first_env(target.admin_url_envs),
+        database=args.database or first_env(target.database_envs) or target.default_database,
+        db_host=args.db_host or first_env(target.host_envs),
+        role=args.db_user or target.default_role,
+        password=args.db_password or first_env(target.password_envs),
+        schemas=args.schemas,
+        relations=relations,
+        secret_file=args.secret_file,
+        secret_key=args.secret_key or target.secret_key,
+        skip_db=args.skip_db,
+    )
 
 
 def dedupe(values: list[str]) -> list[str]:
@@ -359,6 +481,8 @@ def build_role_sql(
                 JOIN pg_catalog.pg_namespace ns
                   ON ns.oid = cls.relnamespace
                 WHERE cls.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+                  AND ns.nspname <> 'information_schema'
+                  AND ns.nspname NOT LIKE 'pg\\_%'
                   AND (
                     has_table_privilege(role_name, cls.oid, 'INSERT')
                     OR has_table_privilege(role_name, cls.oid, 'UPDATE')
@@ -382,7 +506,7 @@ def _redact_secret_literals(value: str) -> str:
     return re.sub(r"postgres(?:ql)?://\S+", "postgresql://<redacted>", value)
 
 
-def set_encrypted_secret(secret_file: Path, database_url: str) -> None:
+def set_encrypted_secret(secret_file: Path, secret_key: str, database_url: str) -> None:
     ensure_command("sops")
     env = os.environ.copy()
     if "SOPS_AGE_KEY_FILE" not in env and DEFAULT_SOPS_KEY.exists():
@@ -391,8 +515,7 @@ def set_encrypted_secret(secret_file: Path, database_url: str) -> None:
         [
             "sops",
             "--set",
-            '["stringData"]["AGENT_PLATFORM_READONLY_SQL_DATABASE_URL"] '
-            f'"{database_url}"',
+            f'["stringData"]["{secret_key}"] "{database_url}"',
             str(secret_file),
         ],
         cwd=REPO_ROOT,
@@ -407,45 +530,47 @@ def set_encrypted_secret(secret_file: Path, database_url: str) -> None:
 def main() -> None:
     load_env_file()
     args = parse_args()
-    if not args.admin_url:
-        sys.exit("Provide --admin-url or set AGENT_CONTROL_PLANE_DB_ADMIN_URL/BOT_DB_ADMIN_URL.")
-    if args.skip_db and not args.db_password:
+    config = resolve_config(args)
+    if not config.admin_url:
+        joined = "/".join(config.target.admin_url_envs)
+        sys.exit(f"Provide --admin-url or set one of: {joined}.")
+    if config.skip_db and not config.password:
+        joined = "/".join(config.target.password_envs)
         sys.exit(
-            "Provide --db-password or AGENT_CONTROL_PLANE_READONLY_SQL_PASSWORD "
-            "when using --skip-db."
+            f"Provide --db-password or one of {joined} when using --skip-db."
         )
 
-    role = validate_identifier(args.db_user, "db-user")
-    relation_inputs = args.relations or split_env_list(
-        os.environ.get("AGENT_CONTROL_PLANE_READONLY_SQL_RELATIONS")
-    )
+    role = validate_identifier(config.role, "db-user")
+    secret_key = validate_secret_key(config.secret_key)
+    relation_inputs = config.relations
     relations = [validate_relation_identifier(relation) for relation in relation_inputs]
     if not relations:
         sys.exit(
-            "Provide --relation or AGENT_CONTROL_PLANE_READONLY_SQL_RELATIONS. "
+            f"Provide --relation or one of {config.target.relations_envs}. "
             "CES-263 forbids blanket schema grants."
         )
     relation_schemas = dedupe([schema for schema, _relation in relations])
     schemas = [
         validate_identifier(schema, "schema")
-        for schema in (args.schemas or relation_schemas)
+        for schema in (config.schemas or relation_schemas)
     ]
-    password = args.db_password or generate_password()
+    password = config.password or generate_password()
 
-    if not args.skip_db:
+    if not config.skip_db:
         ensure_command("psql")
-        run_sql(args.admin_url, args.database, role, password, schemas, relations)
+        run_sql(config.admin_url, config.database, role, password, schemas, relations)
 
     database_url = build_connection_string(
-        args.admin_url,
+        config.admin_url,
         role,
         password,
-        args.database,
-        args.db_host,
+        config.database,
+        config.db_host,
     )
-    set_encrypted_secret(args.secret_file, database_url)
+    set_encrypted_secret(config.secret_file, secret_key, database_url)
     print(
-        "Provisioned Agent Control Plane readonly SQL role and encrypted runtime secret."
+        f"Provisioned {config.target.name} readonly SQL role and encrypted "
+        f"{secret_key}."
     )
 
 

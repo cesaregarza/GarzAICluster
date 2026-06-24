@@ -22,10 +22,8 @@ model_lease:
   allowed_profile: openai.gpt-5.3-codex-spark
 worker:
   claims: true
-secrets:
-  - key: XSCRAPER_READONLY_DATABASE_URL
 network:
-  - to: private-db-postgresql-nyc3-xscraper-do-user-15543770-0.c.db.ondigitalocean.com:25060
+  - to: agent-control-plane.agent-control-plane.svc.cluster.local:80
 ```
 
 Plan without writing:
