@@ -37,11 +37,17 @@ tokens:
 
 ```bash
 SOPS_AGE_KEY_FILE=keys/age-private.txt \
+  AGENT_CONTROL_PLANE_READONLY_SQL_RELATIONS=public.accounts,common.orders \
   uv run python scripts/provision_agent_control_plane_readonly_sql.py
 ```
 
 That helper creates a separate weak login role and stores
-`AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` in `runtime-secret.enc.yaml`.
+`AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` in `runtime-secret.enc.yaml`. The
+relation list is mandatory: CES-263 forbids blanket schema grants. The helper
+grants `SELECT` only on the approved schema-qualified tables/views, pins the role
+`search_path` to those schemas, removes database `CREATE`/`TEMPORARY`, revokes
+broad/default table grants from the role, and rejects approved views unless they
+are `security_invoker=true`.
 
 Hosted harness model access currently needs these additional keys:
 
