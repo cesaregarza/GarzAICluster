@@ -146,6 +146,10 @@ def check_agent_workloads_identity_digests(
         overlay_pins=overlay_pins,
         token_claims_by_agent=token_claims_by_agent,
     )
+    _assert_rollout_checksum_matches(
+        values=values,
+        ciphertext_sha256="sha256:" + hashlib.sha256(secret_path.read_bytes()).hexdigest(),
+    )
 
     return (
         "agent-workloads deployed images and workload identity bundle claims "
@@ -439,6 +443,22 @@ def _assert_token_metadata_matches(
         source_commit = entry.get("source_commit")
         if not isinstance(source_commit, str) or not source_commit:
             raise DriftGateError(f"{agent_id} token metadata source_commit is required")
+
+
+def _assert_rollout_checksum_matches(
+    *,
+    values: dict[str, Any],
+    ciphertext_sha256: str,
+) -> None:
+    rollout_checksums = values.get("rolloutChecksums")
+    if not isinstance(rollout_checksums, dict):
+        raise DriftGateError("rolloutChecksums must be a mapping")
+    actual = rollout_checksums.get("workloadIdentityTokenSecret")
+    if actual != ciphertext_sha256:
+        raise DriftGateError(
+            "rolloutChecksums.workloadIdentityTokenSecret mismatch: "
+            f"expected {ciphertext_sha256}, got {actual}"
+        )
 
 
 def _base64_url_decode(encoded: str) -> bytes:

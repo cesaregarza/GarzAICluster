@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import copy
+import hashlib
+import json
 import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
@@ -12,10 +16,14 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 YAML_PARSER = YAML(typ="safe")
 
 
-def _render_agent_workloads_prod() -> list[dict[str, Any]]:
+def _render_agent_workloads_prod(
+    *,
+    values_path: Path | None = None,
+) -> list[dict[str, Any]]:
     if shutil.which("helm") is None:
         raise unittest.SkipTest("helm is required for chart render tests")
 
+    values_path = values_path or Path("apps/agent-workloads/values.yaml")
     result = subprocess.run(
         [
             "helm",
@@ -23,7 +31,7 @@ def _render_agent_workloads_prod() -> list[dict[str, Any]]:
             "agent-workloads",
             "helm/agent-workloads",
             "-f",
-            "apps/agent-workloads/values.yaml",
+            str(values_path),
         ],
         check=True,
         cwd=str(REPO_ROOT),
@@ -63,6 +71,20 @@ def _container_by_name(deployment: dict[str, Any], name: str) -> dict[str, Any]:
         if container["name"] == name:
             return container
     raise AssertionError(f"container {name} not rendered")
+
+
+def _release_pins_checksum(values: dict[str, Any]) -> str:
+    serialized = json.dumps(
+        values["mandateReleasePins"],
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return hashlib.sha256(serialized).hexdigest()
+
+
+def _write_yaml(path: Path, value: dict[str, Any]) -> None:
+    with path.open("w", encoding="utf-8") as file:
+        YAML_PARSER.dump(value, file)
 
 
 class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
@@ -150,6 +172,90 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
         self.assertEqual(deployment["spec"]["replicas"], 2)
         self.assertEqual(self.values["opencodeProposer"]["replicaCount"], 1)
         self.assertEqual(opencode_deployment["spec"]["replicas"], 1)
+
+    def test_worker_pods_roll_on_identity_secret_or_release_pin_change(self) -> None:
+        deployments = {
+            name: _find_doc(self.docs, kind="Deployment", name=name)
+            for name in (
+                "agent-workloads",
+                "agent-workloads-opencode-proposer",
+            )
+        }
+        expected_token_checksum = self.values["rolloutChecksums"][
+            "workloadIdentityTokenSecret"
+        ]
+        expected_release_checksum = _release_pins_checksum(self.values)
+
+        for deployment in deployments.values():
+            annotations = deployment["spec"]["template"]["metadata"]["annotations"]
+            self.assertEqual(
+                annotations["checksum.garz.ai/agent-workloads-token-secret"],
+                expected_token_checksum,
+            )
+            self.assertEqual(
+                annotations["checksum.garz.ai/agent-workloads-release-pins"],
+                expected_release_checksum,
+            )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_values_path = Path(temp_dir) / "values.yaml"
+            changed_token_values = copy.deepcopy(self.values)
+            changed_token_values["rolloutChecksums"][
+                "workloadIdentityTokenSecret"
+            ] = "sha256:" + "9" * 64
+            _write_yaml(temp_values_path, changed_token_values)
+            changed_token_docs = _render_agent_workloads_prod(
+                values_path=temp_values_path,
+            )
+            changed_token_deployment = _find_doc(
+                changed_token_docs,
+                kind="Deployment",
+                name="agent-workloads",
+            )
+            changed_token_annotations = changed_token_deployment["spec"]["template"][
+                "metadata"
+            ]["annotations"]
+            self.assertNotEqual(
+                changed_token_annotations[
+                    "checksum.garz.ai/agent-workloads-token-secret"
+                ],
+                expected_token_checksum,
+            )
+            self.assertEqual(
+                changed_token_annotations[
+                    "checksum.garz.ai/agent-workloads-release-pins"
+                ],
+                expected_release_checksum,
+            )
+
+            changed_pins_values = copy.deepcopy(self.values)
+            changed_pins_values["mandateReleasePins"]["data.workspace_probe"][
+                "codeDigest"
+            ] = "sha256:" + "8" * 64
+            _write_yaml(temp_values_path, changed_pins_values)
+            changed_pins_docs = _render_agent_workloads_prod(
+                values_path=temp_values_path,
+            )
+            changed_pins_deployment = _find_doc(
+                changed_pins_docs,
+                kind="Deployment",
+                name="agent-workloads",
+            )
+            changed_pins_annotations = changed_pins_deployment["spec"]["template"][
+                "metadata"
+            ]["annotations"]
+            self.assertEqual(
+                changed_pins_annotations[
+                    "checksum.garz.ai/agent-workloads-token-secret"
+                ],
+                expected_token_checksum,
+            )
+            self.assertNotEqual(
+                changed_pins_annotations[
+                    "checksum.garz.ai/agent-workloads-release-pins"
+                ],
+                expected_release_checksum,
+            )
 
     def test_opencode_apply_executor_runs_without_model_or_provider_credentials(
         self,

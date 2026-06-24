@@ -172,6 +172,31 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
         self.assertIn("match release pins", result)
 
+    def test_gate_rejects_missing_workload_identity_rollout_checksum(self) -> None:
+        root = _fixture_repo()
+        values_path = root / "apps" / "agent-workloads" / "values.yaml"
+        values = YAML_PARSER.load(values_path.read_text())
+        del values["rolloutChecksums"]
+        _write_yaml(values_path, values)
+
+        with self.assertRaisesRegex(DriftGateError, "rolloutChecksums"):
+            _check(root)
+
+    def test_gate_rejects_stale_workload_identity_rollout_checksum(self) -> None:
+        root = _fixture_repo()
+        values_path = root / "apps" / "agent-workloads" / "values.yaml"
+        values = YAML_PARSER.load(values_path.read_text())
+        values["rolloutChecksums"]["workloadIdentityTokenSecret"] = (
+            "sha256:" + "9" * 64
+        )
+        _write_yaml(values_path, values)
+
+        with self.assertRaisesRegex(
+            DriftGateError,
+            "rolloutChecksums.workloadIdentityTokenSecret",
+        ):
+            _check(root)
+
     def test_gate_rejects_values_overlay_code_digest_mismatch(self) -> None:
         root = _fixture_repo()
         values_path = root / "apps" / "agent-workloads" / "values.yaml"
@@ -324,7 +349,6 @@ def _fixture_repo(
     }
     if include_pins:
         values["mandateReleasePins"] = DIGESTS
-    _write_yaml(values_path, values)
 
     configmap_path = root / "apps" / "agent-control-plane-registry-overlay" / (
         "configmap.yaml"
@@ -362,7 +386,12 @@ def _fixture_repo(
         },
     }
     _write_yaml(token_secret_path, token_secret)
-    _write_metadata(root)
+    ciphertext_hash = _write_metadata(root)
+    if include_pins:
+        values["rolloutChecksums"] = {
+            "workloadIdentityTokenSecret": ciphertext_hash,
+        }
+    _write_yaml(values_path, values)
     return root
 
 
@@ -412,7 +441,7 @@ def _configmap() -> dict[str, Any]:
     }
 
 
-def _write_metadata(root: Path) -> None:
+def _write_metadata(root: Path) -> str:
     token_secret_path = root / TOKEN_SECRET_PATH
     ciphertext_hash = "sha256:" + hashlib.sha256(token_secret_path.read_bytes()).hexdigest()
     metadata = {
@@ -440,6 +469,7 @@ def _write_metadata(root: Path) -> None:
         },
     }
     _write_yaml(root / TOKEN_METADATA_PATH, metadata)
+    return ciphertext_hash
 
 
 def _mwit_token(

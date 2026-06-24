@@ -57,6 +57,24 @@ Image reference for a values image subtree.
 {{- end }}
 
 {{/*
+Checksum of release pins that should roll worker pods when registry pins move.
+*/}}
+{{- define "agent-workloads.releasePinsChecksum" -}}
+{{- if .Values.mandateReleasePins -}}
+{{- toJson .Values.mandateReleasePins | sha256sum -}}
+{{- else -}}
+absent
+{{- end -}}
+{{- end }}
+
+{{/*
+Checksum of the SOPS workload-identity-token Secret ciphertext.
+*/}}
+{{- define "agent-workloads.workloadIdentityTokenSecretChecksum" -}}
+{{- default "absent" .Values.rolloutChecksums.workloadIdentityTokenSecret -}}
+{{- end }}
+
+{{/*
 Image pull secrets.
 */}}
 {{- define "agent-workloads.imagePullSecrets" -}}

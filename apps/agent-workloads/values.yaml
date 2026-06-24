@@ -40,6 +40,8 @@ extraVolumeMounts:
 - name: workload-identity-token
   mountPath: /var/run/mandate/workload-identity
   readOnly: true
+rolloutChecksums:
+  workloadIdentityTokenSecret: sha256:889097c9e28f6cb3c6acefd85334b751c94648dc37db935767a421cb7ed3782c
 resources:
   requests:
     cpu: 25m

@@ -87,6 +87,13 @@ file. Do not patch individual ciphertext values by hand; the metadata
 `ciphertext_sha256` is the reviewable link between the ledger and the encrypted
 token Secret.
 
+After a token rotation, update
+`apps/agent-workloads/values.yaml:rolloutChecksums.workloadIdentityTokenSecret`
+to the same metadata `ciphertext_sha256`. The Helm chart projects that value
+into the worker pod-template annotations, so a token-only re-mint rolls the
+standing worker processes instead of leaving them cached on the previous
+startup token.
+
 The drift-gate automation receives only the scoped Age key that can decrypt
 `workload-identity-tokens.enc.yaml`. It must not decrypt
 `runtime-secret.enc.yaml`, database URLs, Codex auth JSON, registry credentials,
