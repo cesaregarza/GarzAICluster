@@ -134,6 +134,23 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             },
         )
 
+    def test_workspace_probe_runs_multiple_replicas_for_burst_claims(self) -> None:
+        deployment = _find_doc(
+            self.docs,
+            kind="Deployment",
+            name="agent-workloads",
+        )
+        opencode_deployment = _find_doc(
+            self.docs,
+            kind="Deployment",
+            name="agent-workloads-opencode-proposer",
+        )
+
+        self.assertEqual(self.values["replicaCount"], 2)
+        self.assertEqual(deployment["spec"]["replicas"], 2)
+        self.assertEqual(self.values["opencodeProposer"]["replicaCount"], 1)
+        self.assertEqual(opencode_deployment["spec"]["replicas"], 1)
+
     def test_opencode_apply_executor_runs_without_model_or_provider_credentials(
         self,
     ) -> None:
