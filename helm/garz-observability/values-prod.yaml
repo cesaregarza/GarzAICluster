@@ -43,8 +43,8 @@ monitoring:
           app.kubernetes.io/name: splattop
   grafana:
     enabled: true
-    serverDomain: grafana.splat.top
-    serverRootUrl: https://grafana.splat.top/
+    serverDomain: grafana.garz.ai
+    serverRootUrl: https://grafana.garz.ai/
     plugins:
     - marcusolsson-hourly-heatmap-panel
     ingress:
@@ -54,7 +54,7 @@ monitoring:
         cert-manager.io/cluster-issuer: letsencrypt-prod
         nginx.ingress.kubernetes.io/ssl-redirect: "false"
       hosts:
-      - host: grafana.splat.top
+      - host: grafana.garz.ai
         paths:
         - path: /
           pathType: Prefix
@@ -63,8 +63,13 @@ monitoring:
           serviceNameOverride: grafana
       tls:
         enabled: true
-        secretName: grafana-tls
-    vanityHosts: []
+        secretName: grafana-garz-ai-tls
+    vanityHosts:
+    - host: grafana.splat.top
+      target: https://grafana.garz.ai/
+      nameOverride: grafana-splat-top-redirect
+      tlsSecretName: grafana-tls
+      cloudflareProxied: true
     datasourcesConfigMapName: grafana-datasources
     dashboardProvidersConfigMapName: grafana-dashboard-providers
     dashboards:
