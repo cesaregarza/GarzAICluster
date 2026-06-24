@@ -1,8 +1,10 @@
 nameOverride: splattop
 fullnameOverride: splattop-prod
 
-# Keep live object names/selectors stable while ownership moves from the
-# SplatTop app chart to this cluster-level chart.
+# CES-257 state-preservation decision: keep live object names/selectors stable
+# while ownership moves from the SplatTop app chart to this cluster-level chart.
+# Do not change this without a PV retain/re-bind migration for the Prometheus
+# TSDB PVC and Grafana runtime-state PVC.
 legacySelectorLabels:
   name: splattop
   instance: splattop-prod
