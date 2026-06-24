@@ -42,6 +42,23 @@ class RoleSqlTests(unittest.TestCase):
         self.assertIn("('public', 'accounts')", sql)
         self.assertIn("('common', 'orders')", sql)
 
+    def test_write_like_relation_check_excludes_system_schemas(self) -> None:
+        sql = provision.build_role_sql(
+            "bots",
+            "agent_control_plane_readonly_sql",
+            "password",
+            ["common"],
+            [("common", "channel_names")],
+        )
+
+        write_check = sql.split(
+            "RAISE EXCEPTION 'read-only SQL role has write-like relation privileges'",
+            maxsplit=1,
+        )[0].rsplit("IF EXISTS", maxsplit=1)[1]
+
+        self.assertIn("ns.nspname <> 'information_schema'", write_check)
+        self.assertIn("ns.nspname NOT LIKE 'pg\\_%'", write_check)
+
 
 class RedactionTests(unittest.TestCase):
     def test_redacts_password_literals_and_postgres_urls(self) -> None:

@@ -359,6 +359,8 @@ def build_role_sql(
                 JOIN pg_catalog.pg_namespace ns
                   ON ns.oid = cls.relnamespace
                 WHERE cls.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+                  AND ns.nspname <> 'information_schema'
+                  AND ns.nspname NOT LIKE 'pg\\_%'
                   AND (
                     has_table_privilege(role_name, cls.oid, 'INSERT')
                     OR has_table_privilege(role_name, cls.oid, 'UPDATE')
