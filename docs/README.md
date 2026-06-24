@@ -1,16 +1,18 @@
 # Infra Docs Overview
 
-These documents capture the canonical workflows for the SplatTop config repository. Read them in roughly this order when contributing here:
+These documents capture the canonical workflows for the GarzAICluster repository.
+Read them in roughly this order when contributing here:
 
 1. `bootstrap.md` – bring-up steps for a fresh cluster + Argo that points to this repo.
 2. `release-workflow.md` – how images flow from the app repo into environment value bumps, including hotfixes/rollbacks.
 3. `argo-operations.md` – AppProject guardrails, policy enforcement, and day-to-day Argo duties.
-4. `domains-and-hostnames.md` – public hostname rollout checklist, including multi-zone external-dns changes.
-5. `secrets-strategy.md` – SOPS + Age plan, rotation, and CI/Dev ergonomics.
-6. `mandate-apply.md` – local declarative enablement planner for Mandate
+4. `cluster-identity.md` – current garz.ai cluster identity and the deliberate internal `splattop` names that remain stable.
+5. `domains-and-hostnames.md` – public hostname rollout checklist, including multi-zone external-dns changes.
+6. `secrets-strategy.md` – SOPS + Age plan, rotation, and CI/Dev ergonomics.
+7. `mandate-apply.md` – local declarative enablement planner for Mandate
    workload capability wiring.
-7. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
-8. `k8s/secrets.template.yaml` → `k8s/secrets.enc.yaml` – example flow for encrypted secrets.
+8. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
+9. `k8s/secrets.template.yaml` → `k8s/secrets.enc.yaml` – example flow for encrypted secrets.
 
 Supplemental references:
 
