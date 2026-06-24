@@ -4,7 +4,7 @@ Kubernetes + Argo CD source of truth for SplatTop. Charts, AppSets, secrets work
 
 ## Quick links
 
-- Bootstrap/runbooks: `docs/bootstrap.md`, `docs/argo-operations.md`, `docs/release-workflow.md`, `docs/cluster-identity.md`, `docs/secrets-strategy.md`, `docs/developer-cheat-sheet.md`
+- Bootstrap/runbooks: `docs/bootstrap.md`, `docs/argo-operations.md`, `docs/release-workflow.md`, `docs/cluster-identity.md`, `docs/secrets-strategy.md`, `docs/runbooks/postgres-restore.md`, `docs/developer-cheat-sheet.md`
 - KSOPS deep dive and CMP recipe: `docs/ksops-llm-response.md`
 - Argo objects: `argocd/` (AppProjects, Applications, AppSets)
 - Charts/values: `helm/` and `apps/`
