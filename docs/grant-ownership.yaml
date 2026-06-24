@@ -54,6 +54,24 @@ capabilities:
       path: agents/db-workspace-probe/agent.yaml
     config_path: apps/agent-control-plane-registry-overlay/configmap.yaml:data.workload_imports.yaml.imports[id=data.workspace_probe].capabilities.agent_workloads.readonly_query
     keys:
+      artifacts:
+        owner: deployment_overlay
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
+      broker:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      broker_lease:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
       description:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint

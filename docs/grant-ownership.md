@@ -74,6 +74,9 @@ control-plane restart and do not require re-minting.
 | `agent_workloads.opencode_task` | `result_contract` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_task` | `session_authority_budget` | `mixed` | `control_plane_restart` |
 | `agent_workloads.opencode_task` | `task_contract` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.readonly_query` | `artifacts` | `deployment_overlay` | `control_plane_restart` |
+| `agent_workloads.readonly_query` | `broker` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.readonly_query` | `broker_lease` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.readonly_query` | `description` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.readonly_query` | `model_lease` | `deployment_overlay` | `control_plane_restart` |
 | `agent_workloads.readonly_query` | `output_schema` | `workload_release` | `digest_moves_repin_remint` |
