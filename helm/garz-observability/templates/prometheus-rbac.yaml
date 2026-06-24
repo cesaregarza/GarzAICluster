@@ -1,19 +1,19 @@
 {{- if .Values.monitoring.prometheus.enabled }}
-{{- $monitoringNamespace := include "splattop.monitoringNamespace" . -}}
+{{- $monitoringNamespace := include "garzObservability.monitoringNamespace" . -}}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "splattop.fullname" . }}-prometheus
+  name: {{ include "garzObservability.fullname" . }}-prometheus
   namespace: {{ $monitoringNamespace }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "prometheus" "root" .) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "prometheus" "root" .) | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "splattop.fullname" . }}-prometheus
+  name: {{ include "garzObservability.fullname" . }}-prometheus
   labels:
-    {{- include "splattop.labels" . | nindent 4 }}
+    {{- include "garzObservability.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources:
@@ -35,15 +35,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "splattop.fullname" . }}-prometheus
+  name: {{ include "garzObservability.fullname" . }}-prometheus
   labels:
-    {{- include "splattop.labels" . | nindent 4 }}
+    {{- include "garzObservability.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "splattop.fullname" . }}-prometheus
+  name: {{ include "garzObservability.fullname" . }}-prometheus
 subjects:
   - kind: ServiceAccount
-    name: {{ include "splattop.fullname" . }}-prometheus
+    name: {{ include "garzObservability.fullname" . }}-prometheus
     namespace: {{ $monitoringNamespace }}
 {{- end }}

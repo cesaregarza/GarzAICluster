@@ -1,5 +1,5 @@
 {{- $root := . -}}
-{{- $ns := include "splattop.monitoringNamespace" . -}}
+{{- $ns := include "garzObservability.monitoringNamespace" . -}}
 {{- if and .Values.monitoring.alertmanager.enabled $ns }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -7,7 +7,7 @@ metadata:
   name: alertmanager
   namespace: {{ $ns }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "monitoring-pdb-alertmanager" "root" $root) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "monitoring-pdb-alertmanager" "root" $root) | nindent 4 }}
 spec:
   maxUnavailable: 1
   selector:
@@ -22,7 +22,7 @@ metadata:
   name: grafana
   namespace: {{ $ns }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "monitoring-pdb-grafana" "root" $root) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "monitoring-pdb-grafana" "root" $root) | nindent 4 }}
 spec:
   maxUnavailable: 1
   selector:
@@ -37,7 +37,7 @@ metadata:
   name: prometheus
   namespace: {{ $ns }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "monitoring-pdb-prometheus" "root" $root) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "monitoring-pdb-prometheus" "root" $root) | nindent 4 }}
 spec:
   maxUnavailable: 1
   selector:

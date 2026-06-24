@@ -1,16 +1,16 @@
 {{/*
-Render additional compatibility services for components when requested via
-`service.extraServices`.
+Render additional compatibility services for monitoring components when requested
+via `monitoring.<component>.service.extraServices`.
 */}}
 {{- $root := . -}}
-{{- define "splattop.extraService" -}}
+{{- define "garzObservability.extraService" -}}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ .service.name }}
-  namespace: {{ include "splattop.componentNamespace" (dict "component" .component "root" .root) }}
+  namespace: {{ include "garzObservability.monitoringNamespace" .root }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" .component "root" .root) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" .component "root" .root) | nindent 4 }}
 spec:
   {{- $componentService := dict -}}
   {{- if hasKey .config "service" }}
@@ -37,17 +37,17 @@ spec:
     {{- if .service.selector }}
     {{- toYaml .service.selector | nindent 4 }}
     {{- else }}
-    {{- include "splattop.componentSelectorLabels" (dict "component" .component "root" .root) | nindent 4 }}
+    {{- include "garzObservability.componentSelectorLabels" (dict "component" .component "root" .root) | nindent 4 }}
     {{- end }}
 {{- end -}}
 
-{{- range $component, $config := dict "fastapi" .Values.fastapi "react" .Values.react "celeryWorker" .Values.celeryWorker "celeryBeat" .Values.celeryBeat "redis" .Values.redis "splatnlp" .Values.splatnlp -}}
+{{- range $component, $config := dict "prometheus" .Values.monitoring.prometheus "grafana" .Values.monitoring.grafana "alertmanager" .Values.monitoring.alertmanager -}}
   {{- $extraServices := dig "service" "extraServices" list $config -}}
   {{- $enabled := default true (dig "enabled" nil $config) -}}
   {{- if and $enabled $extraServices }}
     {{- range $service := $extraServices }}
 ---
-{{ include "splattop.extraService" (dict "root" $root "component" $component "config" $config "service" $service) }}
+{{ include "garzObservability.extraService" (dict "root" $root "component" $component "config" $config "service" $service) }}
     {{- end }}
   {{- end }}
 {{- end }}

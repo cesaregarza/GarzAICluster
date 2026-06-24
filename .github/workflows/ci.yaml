@@ -69,6 +69,10 @@ jobs:
             path: helm/splattop
             release: splattop
             prod_values: helm/splattop/values-prod.yaml
+          - name: garz-observability
+            path: helm/garz-observability
+            release: garz-observability
+            prod_values: helm/garz-observability/values-prod.yaml
           - name: splattop-teams
             path: helm/splattop-teams
             release: splattop-teams
@@ -129,7 +133,7 @@ jobs:
       matrix:
         env:
           - name: prod
-            values: helm/splattop/values-prod.yaml
+            values: helm/garz-observability/values-prod.yaml
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -145,4 +149,10 @@ jobs:
           python-version: "3.11"
 
       - name: Run promtool validation
-        run: python scripts/validate_prometheus_config.py --values ${{ matrix.env.values }} --label ${{ matrix.env.name }}
+        run: >
+          python scripts/validate_prometheus_config.py
+          --chart-dir helm/garz-observability
+          --release-name garz-observability
+          --namespace monitoring
+          --values ${{ matrix.env.values }}
+          --label ${{ matrix.env.name }}

@@ -2,10 +2,10 @@
 {{- $ingress := .Values.monitoring.grafana.ingress -}}
 {{- $vanityHosts := .Values.monitoring.grafana.vanityHosts -}}
 {{- if and .Values.monitoring.grafana.enabled $ingress.enabled $vanityHosts }}
-{{- $grafanaSvc := printf "%s-grafana" (include "splattop.fullname" $root) -}}
+{{- $grafanaSvc := printf "%s-grafana" (include "garzObservability.fullname" $root) -}}
 {{- range $index, $entry := $vanityHosts }}
 {{- if and $entry.host $entry.target }}
-{{- $name := default (printf "%s-grafana-vanity-%d" (include "splattop.fullname" $root) $index) $entry.nameOverride -}}
+{{- $name := default (printf "%s-grafana-vanity-%d" (include "garzObservability.fullname" $root) $index) $entry.nameOverride -}}
 {{- $tlsSecret := default $ingress.tls.secretName $entry.tlsSecretName -}}
 {{- if gt $index 0 }}
 ---
@@ -14,9 +14,9 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ $name }}
-  namespace: {{ include "splattop.monitoringNamespace" $root }}
+  namespace: {{ include "garzObservability.monitoringNamespace" $root }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "grafana-vanity" "root" $root) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "grafana-vanity" "root" $root) | nindent 4 }}
   annotations:
     {{- range $key, $value := $ingress.annotations }}
     {{- if and $value (not (or (eq $key "nginx.ingress.kubernetes.io/ssl-redirect") (eq $key "nginx.ingress.kubernetes.io/permanent-redirect") (eq $key "nginx.ingress.kubernetes.io/permanent-redirect-code"))) }}

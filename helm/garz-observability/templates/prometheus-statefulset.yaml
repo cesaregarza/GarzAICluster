@@ -1,27 +1,27 @@
 {{- if .Values.monitoring.prometheus.enabled }}
-{{- $fullName := include "splattop.fullname" . -}}
+{{- $fullName := include "garzObservability.fullname" . -}}
 {{- $configMapName := default (printf "%s-prometheus-config" $fullName) .Values.monitoring.prometheus.configMapName -}}
 {{- $rulesConfigMapName := default (printf "%s-prometheus-rules" $fullName) .Values.monitoring.prometheus.rules.configMapName -}}
-{{- $monitoringNamespace := include "splattop.monitoringNamespace" . -}}
+{{- $monitoringNamespace := include "garzObservability.monitoringNamespace" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "splattop.fullname" . }}-prometheus
+  name: {{ include "garzObservability.fullname" . }}-prometheus
   namespace: {{ $monitoringNamespace }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "prometheus" "root" .) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "prometheus" "root" .) | nindent 4 }}
 spec:
   replicas: {{ .Values.monitoring.prometheus.replicas }}
-  serviceName: {{ include "splattop.fullname" . }}-prometheus
+  serviceName: {{ include "garzObservability.fullname" . }}-prometheus
   selector:
     matchLabels:
-      {{- include "splattop.componentSelectorLabels" (dict "component" "prometheus" "root" .) | nindent 6 }}
+      {{- include "garzObservability.componentSelectorLabels" (dict "component" "prometheus" "root" .) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "splattop.componentSelectorLabels" (dict "component" "prometheus" "root" .) | nindent 8 }}
+        {{- include "garzObservability.componentSelectorLabels" (dict "component" "prometheus" "root" .) | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "splattop.fullname" . }}-prometheus
+      serviceAccountName: {{ include "garzObservability.fullname" . }}-prometheus
       securityContext:
         fsGroup: 65534
         runAsNonRoot: true

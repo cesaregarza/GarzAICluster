@@ -1,0 +1,17 @@
+apiVersion: v2
+name: garz-observability
+description: Cluster-level Prometheus, Grafana, and Alertmanager for garz.ai
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - garz.ai
+  - observability
+  - prometheus
+  - grafana
+  - alertmanager
+maintainers:
+  - name: GarzAICluster Operators
+home: https://garz.ai
+sources:
+  - https://github.com/cesaregarza/GarzAICluster

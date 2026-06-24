@@ -14,9 +14,9 @@ This chart deploys the following components:
 - **SplatNLP**: ML inference service
 - **Ingress Controller**: (Optional) Bundled NGINX controller for local/dev clusters
 - **Ingress**: (Optional) Route external traffic to services
-- **Prometheus**: (Optional) Metrics collection and monitoring
-- **Grafana**: (Optional) Metrics visualization and dashboards
-- **AlertManager**: (Optional) Alert routing and management
+
+Prometheus, Grafana, and Alertmanager are deployed by the cluster-level
+`helm/garz-observability` chart.
 
 ## Prerequisites
 
@@ -184,67 +184,10 @@ The following table lists the configurable parameters and their default values.
 | `ingressController.enabled` | Deploy the bundled `ingress-nginx` controller manifest | `false` (dev), `true` in `values-local.yaml` |
 | `ingressController.manifestPath` | Path (under `helm/splattop/files/`) to render for the controller | `ingress-nginx/controller-v1.0.0.yaml` |
 
-### Monitoring Configuration
+### Observability Configuration
 
-#### Prometheus
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `monitoring.prometheus.enabled` | Enable Prometheus | `false` (dev), `true` (prod) |
-| `monitoring.prometheus.replicas` | Number of replicas | `1` |
-| `monitoring.prometheus.image.tag` | Image tag | `v2.52.0` |
-| `monitoring.prometheus.service.port` | Service port | `9090` |
-| `monitoring.prometheus.configMapName` | ConfigMap containing `prometheus.yml` | `prometheus-config` |
-| `monitoring.prometheus.retention` | Data retention period | `15d` |
-| `monitoring.prometheus.persistence.enabled` | Enable persistent storage | `true` |
-| `monitoring.prometheus.persistence.size` | Storage size | `20Gi` |
-| `monitoring.prometheus.rules.enabled` | Mount alerting rules ConfigMap | `false` |
-| `monitoring.prometheus.rules.configMapName` | ConfigMap containing alerting rules | `prometheus-rules` |
-| `monitoring.prometheus.resources.requests.cpu` | CPU request | `250m` |
-| `monitoring.prometheus.resources.requests.memory` | Memory request | `512Mi` |
-| `monitoring.prometheus.resources.limits.cpu` | CPU limit | `1` |
-| `monitoring.prometheus.resources.limits.memory` | Memory limit | `2Gi` |
-
-#### Grafana
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `monitoring.grafana.enabled` | Enable Grafana | `false` (dev), `true` (prod) |
-| `monitoring.grafana.replicas` | Number of replicas | `1` |
-| `monitoring.grafana.image.tag` | Image tag | `10.4.3` |
-| `monitoring.grafana.service.port` | Service port | `80` |
-| `monitoring.grafana.serverDomain` | Server domain | `""` (dev), `grafana.splat.top` (prod) |
-| `monitoring.grafana.plugins` | Plugins to install via `GF_INSTALL_PLUGINS` | `[]` (dev), `["marcusolsson-hourly-heatmap-panel"]` (prod) |
-| `monitoring.networkPolicies.grafana.extraEgress` | Extra Grafana egress rules (`cidr` + optional `ports`) | `[]` (dev), `[{"cidr":"0.0.0.0/0","ports":[443]}]` (prod) |
-| `monitoring.grafana.adminCredentialsSecret` | Admin credentials secret | `grafana-admin-credentials` |
-| `monitoring.grafana.datasourcesConfigMapName` | ConfigMap for datasource provisioning | `grafana-datasources` |
-| `monitoring.grafana.dashboardProvidersConfigMapName` | ConfigMap for dashboard providers | `grafana-dashboard-providers` |
-| `monitoring.grafana.vanityHosts` | List of host → redirect mappings (e.g., `foo.grafana.splat.top` → dashboard URL) | `[]` |
-| `monitoring.grafana.persistence.enabled` | Enable persistent storage | `true` |
-| `monitoring.grafana.persistence.size` | Storage size | `5Gi` |
-| `monitoring.grafana.dashboards` | List of dashboards to mount (`name`, optional `configMapName`) | `[]` (dev), see values-prod.yaml |
-
-Vanity Grafana hosts can be added with `monitoring.grafana.vanityHosts` to issue a redirect per hostname (use the full dashboard URL). Example:
-
-```yaml
-monitoring:
-  grafana:
-    vanityHosts:
-      - host: stats.grafana.splat.top
-        target: https://grafana.splat.top/d/abc123/my-dashboard
-        code: 302 # optional (defaults to 302)
-        cloudflareProxied: true # optional per-host override for external-dns
-```
-
-#### AlertManager
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `monitoring.alertmanager.enabled` | Enable AlertManager | `false` (dev), `true` (prod) |
-| `monitoring.alertmanager.replicas` | Number of replicas | `1` |
-| `monitoring.alertmanager.image.tag` | Image tag | `v0.27.0` |
-| `monitoring.alertmanager.service.port` | Service port | `9093` |
-| `monitoring.alertmanager.configSecret` | Config secret name | `alertmanager-config` |
+Prometheus, Grafana, and Alertmanager are no longer rendered by this chart.
+Configure them through `helm/garz-observability`.
 
 ## Required Secrets
 
@@ -268,38 +211,10 @@ kubectl create secret generic db-secrets \
 
 You can also use the template from `/k8s/secrets.template` as a reference.
 
-### Monitoring Secrets (if monitoring is enabled)
+### Observability Secrets
 
-If you enable the monitoring stack, you'll need to create additional secrets:
-
-**Grafana Admin Credentials:**
-```bash
-kubectl create secret generic grafana-admin-credentials \
-  --from-literal=admin-user=admin \
-  --from-literal=admin-password=your-secure-password
-```
-
-**AlertManager Configuration:**
-```bash
-kubectl create secret generic alertmanager-config \
-  --from-file=alertmanager.yaml=/path/to/alertmanager-config.yaml
-```
-
-**Prometheus Configuration (if not using default):**
-
-You'll need to create ConfigMaps for:
-- `prometheus-config` - Main Prometheus configuration
-- `prometheus-rules` - Prometheus alerting rules (optional)
-- `grafana-datasources` - Grafana datasource configuration
-- `grafana-dashboard-providers` - Grafana dashboard provider configuration
-- Dashboard ConfigMaps (e.g., `grafana-dashboard-core`, `grafana-dashboard-splatgpt`, etc.)
-
-If you already maintain these under different names, point the chart at them via
-`monitoring.prometheus.configMapName`, `monitoring.prometheus.rules.configMapName`,
-`monitoring.grafana.datasourcesConfigMapName`, and `monitoring.grafana.dashboardProvidersConfigMapName`
-(each dashboard entry also accepts an optional `configMapName` override).
-
-See the existing configurations in `/k8s/monitoring/` for reference templates.
+Grafana and Alertmanager secrets are owned by the `helm/garz-observability`
+chart. The SplatTop app chart only requires its application/database secrets.
 
 ## Examples
 

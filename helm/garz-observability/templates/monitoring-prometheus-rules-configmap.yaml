@@ -1,13 +1,13 @@
 {{- if and .Values.monitoring.prometheus.enabled .Values.monitoring.prometheus.rules.enabled }}
-{{- $fullName := include "splattop.fullname" . -}}
+{{- $fullName := include "garzObservability.fullname" . -}}
 {{- $rulesConfigMapName := default (printf "%s-prometheus-rules" $fullName) .Values.monitoring.prometheus.rules.configMapName -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ $rulesConfigMapName }}
-  namespace: {{ include "splattop.monitoringNamespace" . }}
+  namespace: {{ include "garzObservability.monitoringNamespace" . }}
   labels:
-    {{- include "splattop.componentLabels" (dict "component" "prometheus-rules" "root" .) | nindent 4 }}
+    {{- include "garzObservability.componentLabels" (dict "component" "prometheus-rules" "root" .) | nindent 4 }}
 data:
   critical-alerts.yaml: |
     groups:

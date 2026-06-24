@@ -1,0 +1,116 @@
+nameOverride: splattop
+fullnameOverride: splattop-prod
+
+# Keep live object names/selectors stable while ownership moves from the
+# SplatTop app chart to this cluster-level chart.
+legacySelectorLabels:
+  name: splattop
+  instance: splattop-prod
+
+monitoring:
+  createNamespace: false
+  networkPolicies:
+    grafana:
+      extraEgress:
+      - cidr: 0.0.0.0/0
+        ports: [443]
+    prometheus:
+      allowedEgressNamespaces:
+      - monitoring
+      - default
+      - ingress-nginx
+      - splattop-bot-agent-8s
+      - splattop-bot-agent-8s-dev
+  cilium:
+    prometheusEgressKubeAPI:
+      enabled: true
+  prometheus:
+    enabled: true
+    rules:
+      enabled: true
+    service:
+      extraServices:
+      - name: prometheus
+        ports:
+        - name: http
+          port: 9090
+          targetPort: 9090
+        selector:
+          app.kubernetes.io/component: prometheus
+          app.kubernetes.io/instance: splattop-prod
+          app.kubernetes.io/name: splattop
+  grafana:
+    enabled: true
+    serverDomain: grafana.splat.top
+    serverRootUrl: https://grafana.splat.top/
+    plugins:
+    - marcusolsson-hourly-heatmap-panel
+    ingress:
+      enabled: true
+      nameOverride: grafana-ingress
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+        nginx.ingress.kubernetes.io/ssl-redirect: "false"
+      hosts:
+      - host: grafana.splat.top
+        paths:
+        - path: /
+          pathType: Prefix
+          serviceName: grafana
+          servicePort: 80
+          serviceNameOverride: grafana
+      tls:
+        enabled: true
+        secretName: grafana-tls
+    vanityHosts: []
+    datasourcesConfigMapName: grafana-datasources
+    dashboardProvidersConfigMapName: grafana-dashboard-providers
+    dashboards:
+    - name: core
+      configMapName: grafana-dashboard-core
+      dataKey: splattop-overview.json
+    - name: observability
+      configMapName: grafana-dashboard-observability
+      dataKey: hot-paths-and-snapshots.json
+    - name: splatgpt
+      configMapName: grafana-dashboard-splatgpt
+      dataKey: splatgpt-operations.json
+    - name: auth-rate
+      configMapName: grafana-dashboard-auth-rate
+      dataKey: auth-and-rate.json
+    - name: realtime
+      configMapName: grafana-dashboard-realtime
+      dataKey: realtime-channels.json
+    - name: ripple
+      configMapName: grafana-dashboard-ripple
+      dataKey: ripple-performance.json
+    - name: api-usage
+      configMapName: grafana-dashboard-api-usage
+      dataKey: api-usage-pipeline.json
+    - name: data-pipeline
+      configMapName: grafana-dashboard-data-pipeline
+      dataKey: data-pipelines.json
+    service:
+      extraServices:
+      - name: grafana
+        ports:
+        - name: http
+          port: 80
+          targetPort: 3000
+        selector:
+          app.kubernetes.io/component: grafana
+          app.kubernetes.io/instance: splattop-prod
+          app.kubernetes.io/name: splattop
+  alertmanager:
+    enabled: true
+    service:
+      extraServices:
+      - name: alertmanager
+        ports:
+        - name: http
+          port: 9093
+          targetPort: 9093
+        selector:
+          app.kubernetes.io/component: alertmanager
+          app.kubernetes.io/instance: splattop-prod
+          app.kubernetes.io/name: splattop

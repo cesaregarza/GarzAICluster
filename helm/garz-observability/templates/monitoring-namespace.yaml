@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ include "splattop.monitoringNamespace" . }}
+  name: {{ include "garzObservability.monitoringNamespace" . }}
   labels:
-    {{- $labels := include "splattop.labels" . | fromYaml -}}
+    {{- $labels := include "garzObservability.labels" . | fromYaml -}}
     {{- $_ := set $labels "app.kubernetes.io/name" "monitoring" -}}
     {{- toYaml $labels | nindent 4 }}
 {{- end }}
