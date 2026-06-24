@@ -3,13 +3,13 @@
 
 global:
   environment: production
-  appImageTag: v1.0.1
+  appImageTag: v1.0.2
 
 # Vote API backend configuration
 voteApi:
   replicas: 1
   image:
-    tag: v1.0.1
+    tag: v1.0.2
     pullPolicy: IfNotPresent
   env:
     DEV_MODE: "false"
@@ -31,7 +31,7 @@ voteApi:
 voteFrontend:
   replicas: 1
   image:
-    tag: v1.0.1
+    tag: v1.0.2
     pullPolicy: IfNotPresent
 
 # Ingress configuration for production
