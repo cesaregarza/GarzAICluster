@@ -44,7 +44,6 @@ class WorkloadEnablementTests(unittest.TestCase):
                     "allowed_profile": "openai.gpt-5.3-codex-spark",
                 },
                 "worker": {"claims": True},
-                "secrets": [{"key": "XSCRAPER_READONLY_DATABASE_URL"}],
             },
         )
 
@@ -55,8 +54,6 @@ class WorkloadEnablementTests(unittest.TestCase):
         self.assertIn("policy_grant_present", _codes(result.actions))
         self.assertIn("model_profile_present", _codes(result.actions))
         self.assertIn("worker_claim_present", _codes(result.actions))
-        self.assertIn("secret_key_ref_present", _codes(result.actions))
-        self.assertIn("sops_secret_key_present", _codes(result.actions))
 
     def test_write_adds_policy_grant_and_worker_claim_only(self) -> None:
         root = _fixture_repo()

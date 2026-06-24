@@ -33,7 +33,8 @@ approval-card Discord token. Set `AGENT_PLATFORM_GIT_DELIVERY_GITHUB_TOKEN` to
 include the deliverer-scoped GitHub credential.
 
 Add or rotate only the read-only SQL broker credential without rotating service
-tokens:
+tokens. The default target is the `bots` readonly SQL role and writes
+`AGENT_PLATFORM_READONLY_SQL_DATABASE_URL`:
 
 ```bash
 SOPS_AGE_KEY_FILE=keys/age-private.txt \
@@ -41,10 +42,23 @@ SOPS_AGE_KEY_FILE=keys/age-private.txt \
   uv run python scripts/provision_agent_control_plane_readonly_sql.py
 ```
 
+Prepare the xscraper analytical role for `agent_workloads.readonly_query` without
+touching the bots URL:
+
+```bash
+SOPS_AGE_KEY_FILE=keys/age-private.txt \
+  AGENT_CONTROL_PLANE_READONLY_SQL_TARGET=xscraper_analytical \
+  XSCRAPER_DB_ADMIN_URL=postgresql://admin:***@private-db:25060/xscraper?sslmode=require \
+  AGENT_CONTROL_PLANE_XSCRAPER_READONLY_SQL_PASSWORD=... \
+  uv run python scripts/provision_agent_control_plane_readonly_sql.py
+```
+
 That helper creates a separate weak login role and stores
-`AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` in `runtime-secret.enc.yaml`. The
-relation list is mandatory: CES-263 forbids blanket schema grants. The helper
-grants `SELECT` only on the approved schema-qualified tables/views, pins the role
+the selected runtime secret key in `runtime-secret.enc.yaml`
+(`AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` for bots,
+`AGENT_PLATFORM_READONLY_SQL_ANALYTICAL_DATABASE_URL` for xscraper). The relation
+list is mandatory: CES-263 forbids blanket schema grants. The helper grants
+`SELECT` only on the approved schema-qualified tables/views, pins the role
 `search_path` to those schemas, removes database `CREATE`/`TEMPORARY`, revokes
 broad/default table grants from the role, and rejects approved views unless they
 are `security_invoker=true`.
