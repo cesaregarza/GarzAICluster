@@ -11,8 +11,10 @@ Read them in roughly this order when contributing here:
 6. `secrets-strategy.md` – SOPS + Age plan, rotation, and CI/Dev ergonomics.
 7. `mandate-apply.md` – local declarative enablement planner for Mandate
    workload capability wiring.
-8. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
-9. `k8s/secrets.template.yaml` → `k8s/secrets.enc.yaml` – example flow for encrypted secrets.
+8. `runbooks/postgres-restore.md` – DigitalOcean managed Postgres restore
+   procedure for the live Mandate `agent-control-plane` deployment.
+9. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
+10. `k8s/secrets.template.yaml` → `k8s/secrets.enc.yaml` – example flow for encrypted secrets.
 
 Supplemental references:
 
