@@ -8,9 +8,18 @@ fullnameOverride: agent-control-plane
 
 replicaCount: 1
 
+apiPodAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: /metrics
+
+metrics:
+  enabled: true
+  port: 9090
+
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-c87300b78d5d
+  tag: sha-08c75f113697
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -148,8 +157,18 @@ networkPolicy:
           matchLabels:
             app.kubernetes.io/name: opencode-proposer
             app.kubernetes.io/instance: agent-workloads
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: splattop
+            app.kubernetes.io/instance: splattop-prod
+            app.kubernetes.io/component: prometheus
     ports:
       - port: 8000
+        protocol: TCP
+      - port: 9090
         protocol: TCP
   egress:
     dns:
