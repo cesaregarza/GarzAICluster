@@ -154,6 +154,9 @@ jobs:
     needs: detect-intent
     runs-on: ubuntu-latest
     environment: config
+    permissions:
+      id-token: write
+      contents: read
     outputs:
       bot: ${{ steps.out.outputs.bot }}
       image: ${{ steps.out.outputs.image }}
@@ -168,15 +171,23 @@ jobs:
           curl -sSL -o /tmp/go-containerregistry.tar.gz https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz
           sudo tar -C /usr/local/bin -xzf /tmp/go-containerregistry.tar.gz crane
 
+      - name: Fetch DOCR credentials from broker
+        id: docr-creds
+        uses: cesaregarza/.github/actions/fetch-broker-credentials@main
+        with:
+          broker-url: https://credentials.garz.ai
+          audience: https://credentials.garz.ai/v1
+          capability: digitalocean-registry-write
+
       - name: Authenticate to DigitalOcean Registry
         env:
-          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          DIGITALOCEAN_REGISTRY_TOKEN: ${{ fromJson(steps.docr-creds.outputs.secrets-json).DIGITALOCEAN_REGISTRY_TOKEN }}
         run: |
-          if [ -z "$DIGITALOCEAN_ACCESS_TOKEN" ]; then
-            echo "DIGITALOCEAN_ACCESS_TOKEN is required to query image digests" >&2
+          if [ -z "$DIGITALOCEAN_REGISTRY_TOKEN" ]; then
+            echo "DIGITALOCEAN_REGISTRY_TOKEN is required to query image digests" >&2
             exit 1
           fi
-          echo "$DIGITALOCEAN_ACCESS_TOKEN" | crane auth login registry.digitalocean.com -u doctl --password-stdin
+          echo "$DIGITALOCEAN_REGISTRY_TOKEN" | crane auth login registry.digitalocean.com -u doctl --password-stdin
 
       - name: Install yq
         run: |
