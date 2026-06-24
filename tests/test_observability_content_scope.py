@@ -15,6 +15,12 @@ CLUSTER_ALERTS = {
     "PrometheusTSDBCapacityHigh",
     "AlertmanagerDown",
     "MandateSyntheticLiveVerifyFailed",
+    "MandateAgentControlPlaneMetricsDown",
+    "MandateCallbackAdapterDown",
+    "MandateCallbackOutboxBacklog",
+    "MandateOldestReadyJobAgeHigh",
+    "MandateDeadLetteredCallbackDeliveries",
+    "MandateMigrationJobFailed",
     "GrafanaDown",
 }
 SPLATTOP_APP_ALERTS = {

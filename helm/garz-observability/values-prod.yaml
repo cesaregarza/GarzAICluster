@@ -21,6 +21,7 @@ monitoring:
       - monitoring
       - default
       - ingress-nginx
+      - agent-control-plane
       - splattop-bot-agent-8s
       - splattop-bot-agent-8s-dev
   cilium:
@@ -30,6 +31,16 @@ monitoring:
     enabled: true
     rules:
       enabled: true
+    agentControlPlane:
+      enabled: true
+      namespace: agent-control-plane
+      serviceName: agent-control-plane
+      component: api
+      alerts:
+        callbackAdapterMinAvailableReplicas: 1
+        outboxDepthThreshold: 100
+        oldestReadyJobAgeSecondsThreshold: 300
+        deadLetteredDeliveryGrowthThreshold: 0
     service:
       extraServices:
       - name: prometheus
@@ -110,6 +121,29 @@ monitoring:
           app.kubernetes.io/name: splattop
   alertmanager:
     enabled: true
+    config:
+      create: true
+      content: |
+        global:
+          resolve_timeout: 5m
+
+        route:
+          receiver: discord-ops
+          group_by: ["alertname", "namespace"]
+          group_wait: 30s
+          group_interval: 5m
+          repeat_interval: 4h
+
+        receivers:
+          - name: discord-ops
+            discord_configs:
+              - webhook_url_file: /etc/alertmanager/secrets/discord-webhook/webhook-url
+                send_resolved: true
+    discord:
+      enabled: true
+      webhookSecretName: alertmanager-discord-webhook
+      webhookSecretKey: webhook-url
+      webhookMountPath: /etc/alertmanager/secrets/discord-webhook
     service:
       extraServices:
       - name: alertmanager

@@ -1,5 +1,6 @@
 {{- if .Values.monitoring.alertmanager.enabled }}
 {{- $monitoringNamespace := include "garzObservability.monitoringNamespace" . -}}
+{{- $discord := .Values.monitoring.alertmanager.discord -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,6 +39,11 @@ spec:
               mountPath: /etc/alertmanager
             - name: data
               mountPath: /alertmanager
+            {{- if $discord.enabled }}
+            - name: discord-webhook
+              mountPath: {{ $discord.webhookMountPath }}
+              readOnly: true
+            {{- end }}
             - name: tmp
               mountPath: /tmp
           readinessProbe:
@@ -69,6 +75,14 @@ spec:
             secretName: {{ .Values.monitoring.alertmanager.configSecret }}
         - name: data
           emptyDir: {}
+        {{- if $discord.enabled }}
+        - name: discord-webhook
+          secret:
+            secretName: {{ $discord.webhookSecretName }}
+            items:
+              - key: {{ $discord.webhookSecretKey }}
+                path: {{ $discord.webhookSecretKey }}
+        {{- end }}
         - name: tmp
           emptyDir: {}
 {{- end }}
