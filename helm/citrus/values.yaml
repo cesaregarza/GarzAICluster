@@ -15,6 +15,7 @@ fullnameOverride: ""
 application:
   configMapName: django-config
   secretName: django-secrets
+  emailSecretName: django-email-secrets
   command: >
     python manage.py migrate --noinput &&
     python manage.py collectstatic --noinput &&
@@ -22,6 +23,11 @@ application:
   configData:
     DJANGO_DEBUG: "False"
     ALLOWED_HOSTS: "citrus-grace.com,www.citrus-grace.com,dev.citrus-grace.com"
+    DEFAULT_FROM_EMAIL: "orders@citrus-grace.com"
+    MEDIA_EMAIL: "media@citrus-grace.com"
+    HELP_EMAIL: "help@citrus-grace.com"
+    ORDERS_EMAIL: "orders@citrus-grace.com"
+    BUSINESS_TIME_ZONE: "America/Chicago"
 
 
 service:

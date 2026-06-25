@@ -33,6 +33,11 @@ spec:
             - secretRef:
                 name: {{ .Values.application.secretName }}
                 optional: true
+            {{- if .Values.application.emailSecretName }}
+            - secretRef:
+                name: {{ .Values.application.emailSecretName }}
+                optional: true
+            {{- end }}
           readinessProbe:
             tcpSocket:
               port: {{ .Values.service.targetPort }}
