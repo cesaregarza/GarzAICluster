@@ -209,6 +209,7 @@ def run_sql(admin_url: str, database: str, schema: str, role: str, password: str
             EXECUTE format('REVOKE ALL ON DATABASE %I FROM %I', db_name, role_name);
             EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', db_name, role_name);
             EXECUTE format('GRANT CREATE ON DATABASE %I TO %I', db_name, role_name);
+            EXECUTE format('GRANT TEMPORARY ON DATABASE %I TO %I', db_name, role_name);
 
             EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', schema_name);
             EXECUTE format('ALTER SCHEMA %I OWNER TO %I', schema_name, role_name);
