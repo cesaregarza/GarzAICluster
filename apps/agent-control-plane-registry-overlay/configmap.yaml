@@ -32,9 +32,15 @@ data:
         agent_workloads.db_probe:
           description: Imported reversible staging database workspace probe.
           output_schema: agent_workloads_db_probe_result_v1
+          output_gate:
+            policy_id: deterministic-public-result-v1
+            projection_id: agent_workloads.db_probe
         agent_workloads.readonly_query:
           description: Imported governed readonly SQL query worker.
           output_schema: agent_workloads_readonly_query_result_v1
+          output_gate:
+            policy_id: deterministic-public-result-v1
+            projection_id: agent_workloads.readonly_query
           model_lease:
             required: true
             allowed_tier: fast
@@ -100,6 +106,9 @@ data:
           description: Imported OpenCode proposer that returns metadata-only proposal
             artifacts.
           output_schema: agent_workloads_opencode_proposal_result_v1
+          output_gate:
+            policy_id: patch-aware-opencode-proposal-v1
+            projection_id: agent_workloads.opencode_propose
           model_lease:
             required: true
             allowed_tier: fast
@@ -156,6 +165,9 @@ data:
           description: Imported OpenCode answer task that performs bounded local work
             and returns answer text through the output gate.
           output_schema: agent_workloads_opencode_task_result_v1
+          output_gate:
+            policy_id: deterministic-public-result-v1
+            projection_id: agent_workloads.opencode_task
           task_contract:
             input_schema: task_intent
             text: Describe the work to perform in task.text.
@@ -211,6 +223,9 @@ data:
           description: Imported OpenCode orchestrator that may select one server-authorized
             delegated child capability under the parent worker claim.
           output_schema: agent_workloads_opencode_orchestrate_result_v1
+          output_gate:
+            policy_id: deterministic-public-result-v1
+            projection_id: agent_workloads.opencode_orchestrate
           task_contract:
             input_schema: task_intent
             text: Describe the governed work to route or answer in task.text.
@@ -292,6 +307,9 @@ data:
         agent_workloads.opencode_apply:
           description: Imported OpenCode apply executor for approved proposal diffs.
           output_schema: agent_workloads_opencode_apply_result_v1
+          output_gate:
+            policy_id: patch-aware-opencode-proposal-v1
+            projection_id: agent_workloads.opencode_apply
           approval_mode: admin_confirm
           result_contract:
             output_schema: agent_workloads_opencode_apply_result_v1
