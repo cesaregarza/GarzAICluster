@@ -79,7 +79,9 @@ def main() -> int:
             f"{result.action} {result.capability_id} {result.key_path} in "
             f"{result.config_path}"
         )
-        print("deploy consequence: overlay-only: CP restart required, no re-mint")
+        print(
+            "deploy consequence: overlay-only: verify CP rollout after sync, no re-mint"
+        )
         if args.create_pr:
             if pr_body_path is None:
                 raise GrantEditError("--create-pr requires a PR body path")

@@ -4,9 +4,12 @@ This file is generated from the agent-workloads release applier contract and
 the deployment registry overlay. Do not hand-edit it; run
 `scripts/generate_grant_ownership.py` instead.
 
-Changing a deployment-owned key edits the GarzAICluster registry overlay and
-requires a control-plane restart. It does not move workload image, manifest,
-or code digests, and it does not require workload identity token re-minting.
+Changing a deployment-owned key edits the GarzAICluster registry overlay.
+The CES-108 PostSync hook is intended to roll the control-plane Deployments
+after registry-overlay sync. Until CES-108 live verification closes, confirm
+the rollout after sync and run a manual restart if it did not fire. It does
+not move workload image, manifest, or code digests, and it does not require
+workload identity token re-minting.
 
 Changing a workload-release-owned key belongs in `agent-workloads`
 `agents/<id>/agent.yaml`; that moves the workload code digest and requires the
@@ -27,8 +30,9 @@ normal publish, re-pin, and re-mint flow.
 ## Policy Overlay
 
 The `policy.prod.yaml` embedded in the registry overlay is deployment-owned.
-Policy grants, approval overrides, and aggregate budget caps require a
-control-plane restart and do not require re-minting.
+Policy grants, approval overrides, and aggregate budget caps follow the
+same registry-overlay rollout-verification path and do not require
+re-minting.
 
 ## Capability Keys
 

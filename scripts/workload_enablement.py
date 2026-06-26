@@ -211,7 +211,9 @@ def render_workload_enablement_pr_body(result: WorkloadEnablementResult) -> str:
             "## Authority Invariants",
             "- No live ConfigMap, Secret, or Kubernetes object is mutated.",
             "- Secret values are never read or written; only key names are inspected.",
-            "- Deployment-owned overlay edits require the normal PR and control-plane restart.",
+            "- Deployment-owned overlay edits require the normal PR and Argo sync. "
+            "Until CES-108 live verification closes, confirm the control-plane rollout "
+            "or restart manually.",
             "- Workload-release-owned fields remain refused by the ownership map.",
             "- Import and enablement documents are not dispatch authority by themselves.",
             "",
