@@ -6,7 +6,7 @@ global:
   imagePullSecrets:
   - regcred
   databaseSecretName: vote-db-secrets
-  appImageTag: v1.0.1
+  appImageTag: v1.0.2
 
 # Vote API backend configuration
 voteApi:
@@ -14,7 +14,7 @@ voteApi:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/vote-api
-    tag: v1.0.1
+    tag: v1.0.2
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -58,7 +58,7 @@ voteFrontend:
   containerPort: 8080
   image:
     repository: registry.digitalocean.com/sendouq/vote-frontend
-    tag: v1.0.1
+    tag: v1.0.2
     pullPolicy: Always
   service:
     type: ClusterIP
