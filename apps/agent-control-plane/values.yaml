@@ -19,7 +19,7 @@ metrics:
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-fc1bc136727c
+  tag: sha-b6a939800536
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -39,6 +39,7 @@ secretKeys:
 
 env:
   AGENT_PLATFORM_ENVIRONMENT: prod
+  AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON: '{"model_gateway":{"digest":"sha256:07283d0d52bba1369e860ad727891954d65eb2a8e73e928dace753afc3c57ca1","protocol":"model_gateway"},"readonly-sql-broker":{"digest":"sha256:a81a9f8cb6e289492b14d4172777f2ab9228a1e13b6121ad592c9c4fcc07fa4c","protocol":"readonly_sql"}}'
   AGENT_PLATFORM_OUTPUT_GATE_BACKEND: patch_aware
   AGENT_PLATFORM_POSTGRES_POOL_MIN_SIZE: "0"
   AGENT_PLATFORM_POSTGRES_POOL_MAX_SIZE: "2"
