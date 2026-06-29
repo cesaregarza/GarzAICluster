@@ -2,8 +2,9 @@
 
 Encrypted secrets consumed by the `agent-control-plane-secrets` Argo CD app.
 
-- `runtime-secret.enc.yaml`: API database URL and service tokens for OpenClaw,
-  internal workers, external worker services, approval handlers, audit
+- `runtime-secret.enc.yaml`: API database URL and service tokens for
+  trusted-edge/OpenClaw ingress, internal workers, external worker services,
+  approval handlers, audit
   readers/writers, the OpenClaw callback hook URL/token, and the
   callback-adapter-only Discord token used for deterministic approval cards.
   It also holds the model-gateway signing secret, Codex ChatGPT `auth.json`,
@@ -15,6 +16,10 @@ Encrypted secrets consumed by the `agent-control-plane-secrets` Argo CD app.
   Contents and Pull Requests read/write.
 - `regcred.enc.yaml`: DOCR pull credentials for
   `registry.digitalocean.com/sendouq/agent-platform`.
+
+The trusted-edge token currently reuses the legacy OpenClaw service-token value
+so the Edge host does not need a coordinated bearer-token rotation during the
+CES-293 rename.
 
 Regenerate with:
 

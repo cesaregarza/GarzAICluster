@@ -370,6 +370,15 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         ):
             self.assertEqual(env[key], "true")
 
+    def test_trusted_edge_token_is_wired_with_legacy_alias(self) -> None:
+        values = self.control_plane_values
+        secret_data = self.control_plane_secret["stringData"]
+
+        self.assertIn("AGENT_PLATFORM_TRUSTED_EDGE_TOKEN", values["secretKeys"])
+        self.assertIn("AGENT_PLATFORM_OPENCLAW_TOKEN", values["secretKeys"])
+        self.assertIn("AGENT_PLATFORM_TRUSTED_EDGE_TOKEN", secret_data)
+        self.assertIn("AGENT_PLATFORM_OPENCLAW_TOKEN", secret_data)
+
     def test_git_deliverer_is_configured_for_mandate_sandbox_only(self) -> None:
         values = self.control_plane_values
         deliverer = values["gitDeliverer"]

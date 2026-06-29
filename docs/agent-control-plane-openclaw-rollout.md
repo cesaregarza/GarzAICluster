@@ -28,6 +28,7 @@ Control Plane, not by calling workload containers directly.
    overlay:
    `AGENT_PLATFORM_DATABASE_URL`,
    `AGENT_PLATFORM_OPENCLAW_TOKEN`,
+   `AGENT_PLATFORM_TRUSTED_EDGE_TOKEN`,
    `AGENT_PLATFORM_INTERNAL_WORKER_TOKEN`,
    `AGENT_PLATFORM_APPROVAL_TOKEN`,
    `AGENT_PLATFORM_AUDIT_READ_TOKEN`, and
@@ -56,7 +57,8 @@ Control Plane, not by calling workload containers directly.
 10. Configure the OpenClaw droplet MCP server to run
    `AGENT_PLATFORM_MCP_BACKEND=http uv run python -m mandate.adapters.mcp.server`
    with `AGENT_PLATFORM_CONTROL_API_BASE_URL=https://agent-control-plane.garz.ai`
-   and the matching OpenClaw service token from `agent-control-plane-secrets`.
+   and the matching trusted-edge/OpenClaw service token from
+   `agent-control-plane-secrets`.
    The current OpenClaw droplet IP is `143.198.149.87`.
 
 ## Current MVP Limits
