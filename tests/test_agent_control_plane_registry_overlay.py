@@ -459,6 +459,40 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             "https://github.com/cesaregarza/GarzAICluster",
         )
 
+    def test_model_gateway_provider_pins_are_scoped_to_gateway_process(self) -> None:
+        values = self.control_plane_values
+        api_pins = json.loads(values["env"]["AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON"])
+        gateway_pins = json.loads(
+            values["modelGateway"]["env"]["AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON"]
+        )
+
+        self.assertEqual(
+            set(api_pins),
+            {"model_gateway", "readonly-sql-broker"},
+        )
+        self.assertEqual(
+            set(gateway_pins),
+            {"model_gateway"},
+        )
+        self.assertEqual(
+            api_pins["model_gateway"]["digest"],
+            "sha256:07283d0d52bba1369e860ad727891954d65eb2a8e73e928dace753afc3c57ca1",
+        )
+        self.assertEqual(
+            api_pins["readonly-sql-broker"]["digest"],
+            "sha256:a81a9f8cb6e289492b14d4172777f2ab9228a1e13b6121ad592c9c4fcc07fa4c",
+        )
+        self.assertEqual(
+            gateway_pins["model_gateway"],
+            {
+                "digest": (
+                    "sha256:"
+                    "c979193f60517a1351e1e6f45631aab5ca23bb0f6cf62415519a0a1c6f9b9f84"
+                ),
+                "protocol": "model_gateway",
+            },
+        )
+
     def test_control_plane_pin_understands_opencode_executor_imports(self) -> None:
         sources = self.control_plane_application["spec"]["sources"]
         mandate_source = next(

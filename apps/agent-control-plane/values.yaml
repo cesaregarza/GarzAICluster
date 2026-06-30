@@ -19,7 +19,7 @@ metrics:
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-b6a939800536
+  tag: sha-62725b00e3ca
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -108,6 +108,8 @@ gitDeliverer:
 modelGateway:
   enabled: true
   replicaCount: 1
+  env:
+    AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON: '{"model_gateway":{"digest":"sha256:c979193f60517a1351e1e6f45631aab5ca23bb0f6cf62415519a0a1c6f9b9f84","protocol":"model_gateway"}}'
   codexAuthPersistence:
     enabled: true
     accessModes:
