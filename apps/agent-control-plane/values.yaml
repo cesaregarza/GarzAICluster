@@ -19,7 +19,7 @@ metrics:
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-453c40a30e4e
+  tag: sha-0e36df08a36b
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -40,7 +40,7 @@ secretKeys:
 
 env:
   AGENT_PLATFORM_ENVIRONMENT: prod
-  AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON: '{"model_gateway":{"digest":"sha256:e1701e859a98b1772b5437619800639d09e9e11591dab63e9abbae8793054d75","protocol":"model_gateway"},"readonly-sql-broker":{"digest":"sha256:a81a9f8cb6e289492b14d4172777f2ab9228a1e13b6121ad592c9c4fcc07fa4c","protocol":"readonly_sql"}}'
+  AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON: '{"model_gateway":{"digest":"sha256:2d097ec2451096da626540c2b85a9e5531cdafa27482dd318afcd19310da2125","protocol":"model_gateway"},"readonly-sql-broker":{"digest":"sha256:a81a9f8cb6e289492b14d4172777f2ab9228a1e13b6121ad592c9c4fcc07fa4c","protocol":"readonly_sql"}}'
   AGENT_PLATFORM_OUTPUT_GATE_BACKEND: patch_aware
   AGENT_PLATFORM_POSTGRES_POOL_MIN_SIZE: "0"
   AGENT_PLATFORM_POSTGRES_POOL_MAX_SIZE: "2"
@@ -109,7 +109,7 @@ modelGateway:
   enabled: true
   replicaCount: 1
   env:
-    AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON: '{"model_gateway":{"digest":"sha256:ce09f622f235528b652c8047d7104c50156d4b6061dfdfe0c279f896a1c0e29d","protocol":"model_gateway"}}'
+    AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON: '{"model_gateway":{"digest":"sha256:6ce3a3a26c7a00f7f49a537538525925355a55e3507784e2f396224f113515bd","protocol":"model_gateway"}}'
   codexAuthPersistence:
     enabled: true
     accessModes:

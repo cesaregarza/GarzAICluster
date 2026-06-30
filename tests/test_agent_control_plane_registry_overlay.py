@@ -476,7 +476,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertEqual(
             api_pins["model_gateway"]["digest"],
-            "sha256:e1701e859a98b1772b5437619800639d09e9e11591dab63e9abbae8793054d75",
+            "sha256:2d097ec2451096da626540c2b85a9e5531cdafa27482dd318afcd19310da2125",
         )
         self.assertEqual(
             api_pins["readonly-sql-broker"]["digest"],
@@ -487,7 +487,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             {
                 "digest": (
                     "sha256:"
-                    "ce09f622f235528b652c8047d7104c50156d4b6061dfdfe0c279f896a1c0e29d"
+                    "6ce3a3a26c7a00f7f49a537538525925355a55e3507784e2f396224f113515bd"
                 ),
                 "protocol": "model_gateway",
             },
