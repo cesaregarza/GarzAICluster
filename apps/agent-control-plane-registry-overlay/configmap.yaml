@@ -47,9 +47,9 @@ data:
             allowed_profiles:
             - openai.gpt-5.3-codex-spark
             max_prompt_tokens: 12000
-            max_completion_tokens: 1200
-            max_total_tokens: 13200
-            max_cost_usd: 0.05
+            max_completion_tokens: 32000
+            max_total_tokens: 44000
+            max_cost_usd: 0.25
           session_authority_budget:
             max_operations: 4
             session_taint: prod_authority
