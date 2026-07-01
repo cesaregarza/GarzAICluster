@@ -49,7 +49,7 @@ data:
             max_prompt_tokens: 12000
             max_completion_tokens: 32000
             max_total_tokens: 44000
-            max_cost_usd: 0.25
+            max_cost_usd: 10.0
           session_authority_budget:
             max_operations: 4
             session_taint: prod_authority
@@ -81,7 +81,7 @@ data:
             - aggregate_summary
             max_rows: 50
             max_runtime_seconds: 120
-            max_cost_usd: 0.05
+            max_cost_usd: 10.0
             statement_timeout_ms: 60000
             max_concurrency: 1
     - id: opencode.proposer
@@ -364,7 +364,7 @@ data:
             session_taint: prod_authority
   policy.prod.yaml: |
     defaults:
-      max_cost_usd_per_job: 0.25
+      max_cost_usd_per_job: 10.0
       max_runtime_seconds_per_job: 60
       aggregate_budget:
         platform_daily_usd: 25.0
