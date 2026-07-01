@@ -9,15 +9,17 @@ from typing import Any
 from ruamel.yaml import YAML
 
 from scripts.grant_ownership import (
-    CONFIGMAP_PATH,
     OWNERSHIP_DOC_PATH,
     OWNERSHIP_MAP_PATH,
     OWNERSHIP_SOURCE_PATH,
+    REGISTRY_OVERLAY_DIR,
     GrantEditError,
     apply_grant_edit,
     build_ownership_map,
     check_ownership_outputs,
+    load_registry_overlay_data,
     render_ownership_markdown,
+    write_registry_overlay_values,
 )
 
 
@@ -51,7 +53,8 @@ class GrantOwnershipTests(unittest.TestCase):
 
     def test_map_changes_when_applier_contract_snapshot_changes(self) -> None:
         root = Path(tempfile.mkdtemp())
-        for path in [CONFIGMAP_PATH, OWNERSHIP_SOURCE_PATH]:
+        _copy_registry_overlay(root)
+        for path in [OWNERSHIP_SOURCE_PATH]:
             source = REPO_ROOT / path
             target = root / path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -131,8 +134,8 @@ class GrantOwnershipTests(unittest.TestCase):
 
 def _fixture_repo() -> Path:
     root = Path(tempfile.mkdtemp())
+    _copy_registry_overlay(root)
     for path in [
-        CONFIGMAP_PATH,
         OWNERSHIP_SOURCE_PATH,
         OWNERSHIP_MAP_PATH,
         OWNERSHIP_DOC_PATH,
@@ -144,18 +147,23 @@ def _fixture_repo() -> Path:
     return root
 
 
+def _copy_registry_overlay(root: Path) -> None:
+    source = REPO_ROOT / REGISTRY_OVERLAY_DIR
+    target = root / REGISTRY_OVERLAY_DIR
+    shutil.copytree(source, target, dirs_exist_ok=True)
+
+
 def _inject_model_completion_tokens(root: Path, value: int) -> None:
-    configmap = YAML_PARSER.load((root / CONFIGMAP_PATH).read_text())
-    workload_imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
+    data = load_registry_overlay_data(root)
+    workload_imports = YAML_PARSER.load(data["workload_imports.yaml"])
     capability = _find_capability(workload_imports, "agent_workloads.opencode_propose")
     capability["model_lease"]["max_completion_tokens"] = value
-    configmap["data"]["workload_imports.yaml"] = _yaml_text(workload_imports)
-    _write_yaml(root / CONFIGMAP_PATH, configmap)
+    write_registry_overlay_values(root, {"workload_imports.yaml": _yaml_text(workload_imports)})
 
 
 def _capability(root: Path, capability_id: str) -> dict[str, Any]:
-    configmap = YAML_PARSER.load((root / CONFIGMAP_PATH).read_text())
-    workload_imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
+    data = load_registry_overlay_data(root)
+    workload_imports = YAML_PARSER.load(data["workload_imports.yaml"])
     return _find_capability(workload_imports, capability_id)
 
 

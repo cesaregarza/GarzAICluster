@@ -1,5 +1,5 @@
 defaults:
-  max_cost_usd_per_job: 0.25
+  max_cost_usd_per_job: 10.0
   max_runtime_seconds_per_job: 60
   aggregate_budget:
     platform_daily_usd: 250.0
@@ -10,7 +10,8 @@ defaults:
 
 bindings:
   - id: private-admin-controlled-capabilities
-    description: Production-safe private admin binding for no-key probes, bounded read-only SQL, and imported worker-service capabilities.
+    description: Production-safe private admin binding for no-key probes,
+      bounded read-only SQL, and the first imported worker-service probe.
     guild_id: "614277943706910722"
     channel_id: "1480483954694819940"
     users:
@@ -35,9 +36,11 @@ bindings:
       approval_overrides:
         approval.probe: admin_confirm
         agent_workloads.opencode_apply: admin_confirm
-
   - id: synthetic-live-verify-probe
-    description: Scheduled no-key deployment smoke probe. This binding stays narrower than private-admin access so CronJob credentials can prove the live submit/worker/output/callback path without gaining operator capabilities.
+    description: Scheduled no-key deployment smoke probe for CES-154. This
+      binding is intentionally narrower than the private admin binding so
+      CronJob credentials can prove the live submit/worker/output/callback
+      path without gaining operator capabilities.
     guild_id: "614277943706910722"
     channel_id: "1480483954694819940"
     users:

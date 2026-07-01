@@ -17,6 +17,9 @@ The generated ConfigMap keeps the existing runtime shape:
 - `workload_imports.yaml`, `policy.prod.yaml`, and `evals.yaml` are mounted into `/app/registries`.
 - Every other ConfigMap key is mounted under `/app/registries/imports`.
 - `scripts/check_agent_control_plane_registry_compat.py` materializes the same shape before asking the pinned `agent-platform` checkout to build `RegistrySnapshot.from_repo(environment="prod")`.
+- In pull-request CI, the same script compares the rendered ConfigMap data against
+  the base branch's last-known-good ConfigMap, semantically for YAML/JSON/JSONL
+  values, so readability-only edits cannot silently drift production authority.
 
 ## Sync behavior
 

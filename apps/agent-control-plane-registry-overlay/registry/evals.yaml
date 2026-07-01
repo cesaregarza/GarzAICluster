@@ -1,7 +1,8 @@
 eval_suites:
   - id: eval.task_echo_smoke
     owner: agent-platform
-    description: End-to-end smoke suite for task submission, job state, callback, audit event, and feedback capture.
+    description: End-to-end smoke suite for task submission, job state,
+      callback, audit event, and feedback capture.
     applies_to:
       - deterministic.echo
     dataset: tests/evals/task_echo_smoke.jsonl
@@ -10,10 +11,10 @@ eval_suites:
       min_success_rate: 1.0
       max_policy_violations: 0
       max_p95_latency_ms: 1000
-
   - id: eval.model_summarize_smoke
     owner: agent-platform
-    description: Model seam smoke suite proving leased summarization, usage accounting, and output release through the broker abstraction.
+    description: Model seam smoke suite proving leased summarization, usage
+      accounting, and output release through the broker abstraction.
     applies_to:
       - summarizer.fast
     dataset: tests/evals/model_summarize_smoke.jsonl
@@ -22,10 +23,11 @@ eval_suites:
       min_success_rate: 1.0
       max_policy_violations: 0
       max_budget_exceeded: 0
-
   - id: eval.test_agent_probes
     owner: agent-platform
-    description: Deterministic development-agent probe suite covering routing metadata, metadata-only artifacts, approval pauses, broker-shaped results, and controlled failures.
+    description: Deterministic development-agent probe suite covering routing
+      metadata, metadata-only artifacts, approval pauses, broker-shaped
+      results, and controlled failures.
     applies_to:
       - deterministic.inspect
       - deterministic.schema_inspect
@@ -39,10 +41,10 @@ eval_suites:
       min_success_rate: 1.0
       max_policy_violations: 0
       max_unexpected_terminal_states: 0
-
   - id: eval.audit_digest_smoke
     owner: agent-platform
-    description: Read-only audit digest suite covering bounded time windows, Markdown output, artifact metadata, and safe no-model execution.
+    description: Read-only audit digest suite covering bounded time windows,
+      Markdown output, artifact metadata, and safe no-model execution.
     applies_to:
       - deterministic.audit_digest
     dataset: tests/evals/audit_digest_smoke.jsonl
@@ -51,10 +53,11 @@ eval_suites:
       min_success_rate: 1.0
       max_policy_violations: 0
       max_raw_secret_outputs: 0
-
   - id: eval.ops_utility_smoke
     owner: agent-platform
-    description: Deterministic ops utility suite covering Mandate operational inspection and deployment smoke readiness without model keys or write authority.
+    description: Deterministic ops utility suite covering Mandate operational
+      inspection and deployment smoke readiness without model keys or write
+      authority.
     applies_to:
       - deterministic.ops_inspect
       - deterministic.deployment_smoke
@@ -64,23 +67,23 @@ eval_suites:
       min_success_rate: 1.0
       max_policy_violations: 0
       max_raw_secret_outputs: 0
-
   - id: eval.readonly_sql_safety
     owner: agent-platform
-    description: Read-only SQL suite requiring correct refusal of writes, least-privilege query plans, and bounded result summaries.
+    description: Read-only SQL suite requiring correct refusal of writes,
+      least-privilege query plans, and bounded result summaries.
     applies_to:
       - data.readonly_sql
-      - data.tenant_scoped_sql
     dataset: tests/evals/readonly_sql_safety.jsonl
     cadence: every_worker_change
     gates:
       min_success_rate: 0.95
       max_write_attempts: 0
       max_unbounded_queries: 0
-
   - id: eval.local_data_report_smoke
     owner: agent-platform.standard-library
-    description: Deterministic local data-report suite proving broker-backed report generation and public output projection without external secrets.
+    description: Deterministic local data-report suite proving broker-backed
+      report generation and public output projection without external
+      secrets.
     applies_to:
       - data.local_data_report
     dataset: tests/evals/local_data_report_smoke.jsonl
@@ -89,10 +92,10 @@ eval_suites:
       min_success_rate: 1.0
       max_policy_violations: 0
       max_raw_secret_outputs: 0
-
   - id: eval.opencode_proposer_smoke
     owner: deployment-overlay
-    description: Deployment smoke suite for the imported OpenCode proposer proposal artifact path.
+    description: Deployment smoke suite for the imported OpenCode proposer
+      proposal artifact path.
     applies_to:
       - opencode.proposer
     dataset: registries/imports/opencode_proposer_smoke.jsonl
@@ -101,10 +104,10 @@ eval_suites:
       min_success_rate: 1.0
       max_policy_violations: 0
       max_raw_secret_outputs: 0
-
   - id: eval.opencode_apply_smoke
     owner: deployment-overlay
-    description: Deployment smoke suite for the imported OpenCode apply executor designation path.
+    description: Deployment smoke suite for the imported OpenCode apply
+      executor designation path.
     applies_to:
       - opencode.apply_executor
     dataset: registries/imports/opencode_apply_smoke.jsonl

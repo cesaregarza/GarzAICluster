@@ -11,6 +11,11 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
+from scripts.check_agent_control_plane_registry_compat import (
+    RegistryCompatError,
+    _assert_registry_data_equivalent,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "check_agent_control_plane_registry_compat.py"
@@ -155,6 +160,47 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), new_sha)
+
+    def test_render_equivalence_allows_formatting_and_rejects_authority_drift(
+        self,
+    ) -> None:
+        expected = {
+            "policy.prod.yaml": textwrap.dedent(
+                """
+                defaults:
+                  max_cost_usd_per_job: 10.0
+                """
+            ),
+            "agent-opencode.proposer.json": json.dumps(
+                {
+                    "id": "opencode.proposer",
+                    "digest": "sha256:" + "a" * 64,
+                },
+                indent=2,
+            ),
+            "opencode_proposer_smoke.jsonl": json.dumps({"ok": True}) + "\n",
+        }
+        formatted = {
+            "policy.prod.yaml": "defaults: {max_cost_usd_per_job: 10.0}\n",
+            "agent-opencode.proposer.json": json.dumps(
+                {
+                    "digest": "sha256:" + "a" * 64,
+                    "id": "opencode.proposer",
+                },
+                separators=(",", ":"),
+            ),
+            "opencode_proposer_smoke.jsonl": json.dumps({"ok": True}) + "\n",
+        }
+
+        _assert_registry_data_equivalent(formatted, expected)
+
+        drifted = dict(formatted)
+        drifted["policy.prod.yaml"] = "defaults: {max_cost_usd_per_job: 0.25}\n"
+        with self.assertRaisesRegex(
+            RegistryCompatError,
+            "registry overlay render drift: policy.prod.yaml",
+        ):
+            _assert_registry_data_equivalent(drifted, expected)
 
 
 def _run_gate(config_repo: Path, platform_repo: Path) -> subprocess.CompletedProcess[str]:

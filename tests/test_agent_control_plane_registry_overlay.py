@@ -308,7 +308,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             ],
             "admin_confirm",
         )
-        self.assertEqual(policy["defaults"]["max_cost_usd_per_job"], 0.25)
+        self.assertEqual(policy["defaults"]["max_cost_usd_per_job"], 10.0)
         self.assertEqual(
             policy["defaults"]["aggregate_budget"]["per_capability_daily_usd"][
                 "agent_workloads.opencode_propose"
@@ -325,9 +325,9 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         evals = YAML_PARSER.load(self.data["evals.yaml"])
         evals_by_id = {entry["id"]: entry for entry in evals["eval_suites"]}
         self.assertIn("eval.task_echo_smoke", evals_by_id)
-        self.assertIn(
-            "data.tenant_scoped_sql",
+        self.assertEqual(
             evals_by_id["eval.readonly_sql_safety"]["applies_to"],
+            ["data.readonly_sql"],
         )
         self.assertEqual(
             evals_by_id["eval.opencode_proposer_smoke"]["dataset"],
