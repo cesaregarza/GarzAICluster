@@ -61,6 +61,11 @@ def main() -> int:
     parser.add_argument("--runtime-secret-path", type=Path, default=RUNTIME_SECRET_PATH)
     parser.add_argument("--token-secret-path", type=Path, default=TOKEN_SECRET_PATH)
     parser.add_argument("--token-metadata-path", type=Path, default=TOKEN_METADATA_PATH)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Compatibility flag; this command always checks and exits non-zero on drift.",
+    )
     args = parser.parse_args()
 
     try:
