@@ -86,8 +86,8 @@ data:
             max_concurrency: 1
     - id: opencode.proposer
       manifest_path: registries/imports/agent-opencode.proposer.json
-      manifest_digest: sha256:d60fdc231605a45e3a73f6c401683a005d96120de3cc27a35c885c1593fc315a
-      image_digest: sha256:8f258f03d1bc238e9270f54029433aa7860bf1cc67e5b90d7382c1296e774c21
+      manifest_digest: sha256:dc60ee7feec97a7f407a0fc4752eac99ac3b4dc9ae99974db7a2fb9f60238f14
+      image_digest: sha256:40fd41fa823bb5a8aea790d66c4331ea3b1436b5ba3cc55c1dc4e001ccae1808
       expected_source:
         repo: agent-workloads
         repo_url: https://github.com/cesaregarza/agent-workloads
@@ -598,8 +598,8 @@ data:
           "consequence_class": "reversible_staging"
         }
       },
-      "code_digest": "sha256:00bd6a46c63214c7b4976a73ac7632de46d08c1ab4cecaa11ba1e2b5dfc957d8",
-      "digest": "sha256:d60fdc231605a45e3a73f6c401683a005d96120de3cc27a35c885c1593fc315a",
+      "code_digest": "sha256:da890c27c1df58eb1208188ac64ed5dec406ac7d2a1bc043d9e70495c3775c8b",
+      "digest": "sha256:dc60ee7feec97a7f407a0fc4752eac99ac3b4dc9ae99974db7a2fb9f60238f14",
       "display_name": "OpenCode Proposer",
       "evals": {
         "optional": [],
@@ -609,7 +609,7 @@ data:
       },
       "id": "opencode.proposer",
       "image": {
-        "digest": "sha256:8f258f03d1bc238e9270f54029433aa7860bf1cc67e5b90d7382c1296e774c21",
+        "digest": "sha256:40fd41fa823bb5a8aea790d66c4331ea3b1436b5ba3cc55c1dc4e001ccae1808",
         "repository": "registry.digitalocean.com/sendouq/opencode-proposer"
       },
       "loop": {

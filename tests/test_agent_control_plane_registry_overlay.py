@@ -263,7 +263,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             ],
             "admin_confirm",
         )
-        self.assertEqual(policy["defaults"]["max_cost_usd_per_job"], 0.25)
+        self.assertEqual(policy["defaults"]["max_cost_usd_per_job"], 10.0)
         self.assertEqual(
             policy["defaults"]["aggregate_budget"]["per_capability_daily_usd"][
                 "agent_workloads.opencode_propose"
