@@ -60,6 +60,38 @@ jobs:
       - name: Check deployed registry compatibility
         uses: cesaregarza/.github/actions/agent-control-plane-registry-compat-gate@a1d2fb4a6b288066574b1ac53074ac62e920a07f
 
+  agent-control-plane-registry-overlay-render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install kustomize
+        env:
+          KUSTOMIZE_VERSION: v5.4.3
+        run: |
+          curl --fail --location --retry 5 --retry-all-errors --connect-timeout 20 \
+            --output kustomize.tar.gz \
+            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          gzip -t kustomize.tar.gz
+          tar -xzf kustomize.tar.gz
+          sudo install -m 0755 kustomize /usr/local/bin/kustomize
+          kustomize version
+
+      - name: Check registry overlay kustomize render
+        run: uv run python scripts/check_agent_control_plane_registry_overlay_render.py
+
   helm-and-kubeconform:
     runs-on: ubuntu-latest
     strategy:
