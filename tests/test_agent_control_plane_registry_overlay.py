@@ -8,6 +8,8 @@ from typing import Any
 from ruamel.yaml import YAML
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+REGISTRY_OVERLAY_DIR = REPO_ROOT / "apps" / "agent-control-plane-registry-overlay"
+REGISTRY_OVERLAY_CONFIGMAP_NAME = "agent-control-plane-registry-overlay"
 YAML_PARSER = YAML(typ="safe")
 
 
@@ -18,13 +20,31 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return loaded
 
 
+def _load_registry_overlay_data() -> dict[str, str]:
+    legacy_configmap_path = REGISTRY_OVERLAY_DIR / "configmap.yaml"
+    if legacy_configmap_path.exists():
+        configmap = _load_yaml(legacy_configmap_path)
+        return configmap["data"]
+
+    kustomization = _load_yaml(REGISTRY_OVERLAY_DIR / "kustomization.yaml")
+    generators = kustomization.get("configMapGenerator") or []
+    generator = next(
+        item
+        for item in generators
+        if isinstance(item, dict)
+        and item.get("name") == REGISTRY_OVERLAY_CONFIGMAP_NAME
+    )
+    data: dict[str, str] = {}
+    for file_spec in generator["files"]:
+        key, relative_path = file_spec.split("=", 1)
+        data[key] = (REGISTRY_OVERLAY_DIR / relative_path).read_text()
+    return data
+
+
 class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        configmap = _load_yaml(
-            REPO_ROOT / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
-        )
-        cls.data = configmap["data"]
+        cls.data = _load_registry_overlay_data()
         cls.control_plane_values = _load_yaml(
             REPO_ROOT / "apps" / "agent-control-plane" / "values.yaml"
         )
@@ -47,10 +67,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             / "agent-control-plane-registry-overlay.yaml"
         )
         cls.registry_overlay_restart_hook = _load_yaml(
-            REPO_ROOT
-            / "apps"
-            / "agent-control-plane-registry-overlay"
-            / "restart-hook.yaml"
+            REGISTRY_OVERLAY_DIR / "restart-hook.yaml"
         )
         cls.model_gateway_controls = _load_yaml(
             REPO_ROOT
@@ -58,6 +75,34 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             / "agent-control-plane-runtime-controls"
             / "configmap.yaml"
         )
+
+    def test_registry_overlay_is_authored_as_kustomize_file_generator(self) -> None:
+        kustomization = _load_yaml(REGISTRY_OVERLAY_DIR / "kustomization.yaml")
+        self.assertFalse((REGISTRY_OVERLAY_DIR / "configmap.yaml").exists())
+        self.assertEqual(kustomization["kind"], "Kustomization")
+        self.assertIn("restart-rbac.yaml", kustomization["resources"])
+        self.assertIn("restart-hook.yaml", kustomization["resources"])
+        self.assertTrue(kustomization["generatorOptions"]["disableNameSuffixHash"])
+
+        generator = next(
+            item
+            for item in kustomization["configMapGenerator"]
+            if item["name"] == REGISTRY_OVERLAY_CONFIGMAP_NAME
+        )
+        self.assertEqual(
+            set(self.data),
+            {
+                "workload_imports.yaml",
+                "policy.prod.yaml",
+                "evals.yaml",
+                "agent-data.workspace_probe.json",
+                "agent-opencode.proposer.json",
+                "agent-opencode.apply_executor.json",
+                "opencode_proposer_smoke.jsonl",
+                "opencode_apply_smoke.jsonl",
+            },
+        )
+        self.assertEqual(len(generator["files"]), len(self.data))
 
     def test_registry_overlay_restart_hook_runs_without_selective_sync(self) -> None:
         annotations = self.registry_overlay_restart_hook["metadata"]["annotations"]
@@ -263,7 +308,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             ],
             "admin_confirm",
         )
-        self.assertEqual(policy["defaults"]["max_cost_usd_per_job"], 10.0)
+        self.assertEqual(policy["defaults"]["max_cost_usd_per_job"], 0.25)
         self.assertEqual(
             policy["defaults"]["aggregate_budget"]["per_capability_daily_usd"][
                 "agent_workloads.opencode_propose"
@@ -280,6 +325,10 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         evals = YAML_PARSER.load(self.data["evals.yaml"])
         evals_by_id = {entry["id"]: entry for entry in evals["eval_suites"]}
         self.assertIn("eval.task_echo_smoke", evals_by_id)
+        self.assertIn(
+            "data.tenant_scoped_sql",
+            evals_by_id["eval.readonly_sql_safety"]["applies_to"],
+        )
         self.assertEqual(
             evals_by_id["eval.opencode_proposer_smoke"]["dataset"],
             "registries/imports/opencode_proposer_smoke.jsonl",
