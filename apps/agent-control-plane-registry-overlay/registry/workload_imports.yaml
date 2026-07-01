@@ -260,6 +260,10 @@ imports:
         allowed_profiles:
         - openai.gpt-5.3-codex-spark
         max_cost_usd: 10.0
+      delegation:
+        max_children: 1
+        allowed_children:
+        - agent_workloads.readonly_query
       session_authority_budget:
         max_operations: 8
         session_taint: prod_authority
