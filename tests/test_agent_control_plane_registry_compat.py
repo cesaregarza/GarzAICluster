@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import textwrap
@@ -14,6 +15,7 @@ from ruamel.yaml import YAML
 from scripts.check_agent_control_plane_registry_compat import (
     RegistryCompatError,
     _assert_registry_data_equivalent,
+    registry_overlay_data,
 )
 
 
@@ -97,6 +99,69 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
             self.assertIn(
                 f"compatible with agent-platform {new_sha}",
                 new_result.stdout,
+            )
+
+    def test_inherited_github_base_ref_does_not_break_fixture_repos(self) -> None:
+        with TemporaryDirectory() as raw_tmp:
+            tmp = Path(raw_tmp)
+            platform_repo, _old_sha, new_sha = _fake_agent_platform_repo(tmp)
+            _git(platform_repo, "checkout", "--quiet", new_sha)
+            config_repo = _config_repo(
+                tmp,
+                target_revision=new_sha,
+                include_per_user_daily_tokens=True,
+            )
+
+            result = _run_gate(
+                config_repo,
+                platform_repo,
+                env={"GITHUB_BASE_REF": "main"},
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_kustomize_source_reader_survives_resource_render_failure(self) -> None:
+        with TemporaryDirectory() as raw_tmp:
+            overlay_dir = Path(raw_tmp) / "overlay"
+            registry_dir = overlay_dir / "registry"
+            registry_dir.mkdir(parents=True)
+            (registry_dir / "policy.prod.yaml").write_text(
+                "defaults:\n  max_cost_usd_per_job: 10.0\n",
+                encoding="utf-8",
+            )
+            (overlay_dir / "restart-hook.yaml").write_text(
+                textwrap.dedent(
+                    """
+                    apiVersion: batch/v1
+                    kind: Job
+                    metadata:
+                      generateName: registry-overlay-restart-
+                    spec: {}
+                    """
+                ).lstrip(),
+                encoding="utf-8",
+            )
+            (overlay_dir / "kustomization.yaml").write_text(
+                textwrap.dedent(
+                    """
+                    apiVersion: kustomize.config.k8s.io/v1beta1
+                    kind: Kustomization
+                    resources:
+                      - restart-hook.yaml
+                    configMapGenerator:
+                      - name: agent-control-plane-registry-overlay
+                        files:
+                          - policy.prod.yaml=registry/policy.prod.yaml
+                    """
+                ).lstrip(),
+                encoding="utf-8",
+            )
+
+            data = registry_overlay_data(overlay_dir)
+
+            self.assertEqual(
+                data,
+                {"policy.prod.yaml": "defaults:\n  max_cost_usd_per_job: 10.0\n"},
             )
 
     def test_two_allowed_profiles_fails_with_named_registry_error(self) -> None:
@@ -203,7 +268,17 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
             _assert_registry_data_equivalent(drifted, expected)
 
 
-def _run_gate(config_repo: Path, platform_repo: Path) -> subprocess.CompletedProcess[str]:
+def _run_gate(
+    config_repo: Path,
+    platform_repo: Path,
+    *,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    process_env = os.environ.copy()
+    process_env.pop("AGENT_CONTROL_PLANE_REGISTRY_BASE_REF", None)
+    process_env.pop("GITHUB_BASE_REF", None)
+    if env:
+        process_env.update(env)
     return subprocess.run(
         [
             sys.executable,
@@ -216,6 +291,7 @@ def _run_gate(config_repo: Path, platform_repo: Path) -> subprocess.CompletedPro
         capture_output=True,
         text=True,
         check=False,
+        env=process_env,
     )
 
 

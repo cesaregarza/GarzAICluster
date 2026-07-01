@@ -173,6 +173,11 @@ def _assert_render_equivalent_to_base_configmap(
     base_ref = _registry_equivalence_base_ref()
     if base_ref is None:
         return
+    if (
+        os.environ.get("AGENT_CONTROL_PLANE_REGISTRY_BASE_REF") is None
+        and not _is_git_worktree(repo_root)
+    ):
+        return
     expected_data = _base_registry_configmap_data(repo_root=repo_root, base_ref=base_ref)
     if expected_data is None:
         return
@@ -248,6 +253,16 @@ def _git_fetch_base_ref(repo_root: Path, base_ref: str) -> None:
         text=True,
         check=False,
     )
+
+
+def _is_git_worktree(repo_root: Path) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "--is-inside-work-tree"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0 and result.stdout.strip() == "true"
 
 
 def _git_ref_exists(repo_root: Path, ref: str) -> bool:
@@ -353,7 +368,6 @@ def _render_kustomization(overlay_dir: Path) -> str | None:
         ["kustomize", "build", str(overlay_dir)],
         ["kubectl", "kustomize", str(overlay_dir)],
     )
-    missing = 0
     for command in commands:
         try:
             result = subprocess.run(
@@ -363,15 +377,9 @@ def _render_kustomization(overlay_dir: Path) -> str | None:
                 check=False,
             )
         except FileNotFoundError:
-            missing += 1
             continue
         if result.returncode == 0:
             return result.stdout
-        raise RegistryCompatError(
-            f"registry overlay kustomize render failed: {result.stderr.strip()}"
-        )
-    if missing == len(commands):
-        return None
     return None
 
 
