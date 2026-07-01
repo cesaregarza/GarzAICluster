@@ -1,0 +1,41 @@
+{
+  "capabilities": [
+    "agent_workloads.db_probe",
+    "agent_workloads.readonly_query"
+  ],
+  "capability_metadata": {
+    "agent_workloads.db_probe": {
+      "consequence_class": "reversible_staging"
+    },
+    "agent_workloads.readonly_query": {
+      "consequence_class": "read_only"
+    }
+  },
+  "code_digest": "sha256:2b2e8637872c744496e769765537105fc516a031ee83af9cb02e7bad76147999",
+  "digest": "sha256:ad0fc7d1a71d263d7da00cc1adb61251ba4b79937bc1aa3b7d69f7c6ba3c9877",
+  "display_name": "Agent Workloads Data Worker",
+  "evals": {
+    "optional": [],
+    "required": [
+      "eval.test_agent_probes",
+      "eval.readonly_sql_safety"
+    ]
+  },
+  "id": "data.workspace_probe",
+  "image": {
+    "digest": "sha256:cd2b2b3aa851833c8718b5d92541fb9822b1594d9b6983aebf0b6615215aed9a",
+    "repository": "registry.digitalocean.com/sendouq/agent-workloads-worker"
+  },
+  "loop": {
+    "contract": "worker_service_v1",
+    "kind": "worker_service",
+    "protocol": "mandate_worker_service_pull_v1"
+  },
+  "schema_version": "agent-workload.v1",
+  "source": {
+    "path": "agents/db-workspace-probe/agent.yaml",
+    "repo": "agent-workloads",
+    "repo_url": "https://github.com/cesaregarza/agent-workloads"
+  },
+  "workload_type": "agent"
+}

@@ -8,8 +8,10 @@ from typing import Any
 from ruamel.yaml import YAML
 
 from scripts.grant_ownership import (
-    CONFIGMAP_PATH,
     OWNERSHIP_MAP_PATH,
+    load_registry_overlay_data,
+    registry_overlay_value_path,
+    write_registry_overlay_values,
 )
 
 
@@ -110,9 +112,7 @@ def apply_workload_enablement(
     capability_id = _required_str(document.get("capability"), "capability")
     workload_id = _required_str(document.get("workload"), "workload")
 
-    configmap_path = repo_root / CONFIGMAP_PATH
-    configmap = _load_yaml_rt(configmap_path)
-    data = _required_mapping(configmap.get("data"), "registry overlay ConfigMap data")
+    data = load_registry_overlay_data(repo_root, round_trip=True)
     workload_imports = _load_yaml_text_rt(
         _required_str(data.get("workload_imports.yaml"), "data.workload_imports.yaml")
     )
@@ -135,29 +135,32 @@ def apply_workload_enablement(
     gaps: list[EnablementAction] = []
     changed_files: set[str] = set()
 
-    if _plan_policy_grant(
+    policy_changed = _plan_policy_grant(
         document=document,
         capability_id=capability_id,
         policy=policy,
         actions=actions,
-    ):
-        changed_files.add(str(CONFIGMAP_PATH))
+    )
+    if policy_changed:
+        changed_files.add(str(registry_overlay_value_path(repo_root, "policy.prod.yaml")))
 
-    if _plan_model_lease(
+    model_lease_changed = _plan_model_lease(
         document=document,
         capability_id=capability_id,
         capability=capability,
         actions=actions,
-    ):
-        changed_files.add(str(CONFIGMAP_PATH))
+    )
+    if model_lease_changed:
+        changed_files.add(str(registry_overlay_value_path(repo_root, "workload_imports.yaml")))
 
-    if _plan_worker_claims(
+    worker_claims_changed = _plan_worker_claims(
         document=document,
         workload_id=workload_id,
         capability_id=capability_id,
         values=values,
         actions=actions,
-    ):
+    )
+    if worker_claims_changed:
         changed_files.add(str(AGENT_WORKLOADS_VALUES_PATH))
 
     _plan_secret_references(
@@ -169,11 +172,16 @@ def apply_workload_enablement(
     )
     _plan_network_requests(document=document, gaps=gaps)
 
-    if write and changed_files:
-        data["workload_imports.yaml"] = _dump_yaml(workload_imports)
-        data["policy.prod.yaml"] = _dump_yaml(policy)
-        _write_yaml(configmap_path, configmap)
-        _write_yaml(values_path, values)
+    if write:
+        overlay_updates: dict[str, str] = {}
+        if policy_changed:
+            overlay_updates["policy.prod.yaml"] = _dump_yaml(policy)
+        if model_lease_changed:
+            overlay_updates["workload_imports.yaml"] = _dump_yaml(workload_imports)
+        if overlay_updates:
+            write_registry_overlay_values(repo_root, overlay_updates)
+        if worker_claims_changed:
+            _write_yaml(values_path, values)
 
     result = WorkloadEnablementResult(
         workload=_required_str(import_entry.get("id"), "workload import id"),

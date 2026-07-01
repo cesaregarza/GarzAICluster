@@ -10,10 +10,12 @@ from typing import Any
 from ruamel.yaml import YAML
 
 from scripts.grant_ownership import (
-    CONFIGMAP_PATH,
     OWNERSHIP_DOC_PATH,
     OWNERSHIP_MAP_PATH,
     OWNERSHIP_SOURCE_PATH,
+    REGISTRY_OVERLAY_DIR,
+    load_registry_overlay_data,
+    write_registry_overlay_values,
 )
 from scripts.workload_enablement import (
     AGENT_WORKLOADS_RUNTIME_SECRET_PATH,
@@ -81,7 +83,7 @@ class WorkloadEnablementTests(unittest.TestCase):
         self.assertEqual(
             result.changed_files,
             (
-                "apps/agent-control-plane-registry-overlay/configmap.yaml",
+                "apps/agent-control-plane-registry-overlay/registry/policy.prod.yaml",
                 "apps/agent-workloads/values.yaml",
             ),
         )
@@ -169,8 +171,12 @@ class WorkloadEnablementTests(unittest.TestCase):
 
 def _fixture_repo() -> Path:
     root = Path(tempfile.mkdtemp())
+    shutil.copytree(
+        REPO_ROOT / REGISTRY_OVERLAY_DIR,
+        root / REGISTRY_OVERLAY_DIR,
+        dirs_exist_ok=True,
+    )
     for path in [
-        CONFIGMAP_PATH,
         OWNERSHIP_SOURCE_PATH,
         OWNERSHIP_MAP_PATH,
         OWNERSHIP_DOC_PATH,
@@ -192,17 +198,16 @@ def _write_enablement(root: Path, payload: dict[str, Any]) -> Path:
 
 
 def _remove_policy_grant(root: Path, capability_id: str) -> None:
-    configmap = _load_configmap(root)
-    policy = YAML_PARSER.load(configmap["data"]["policy.prod.yaml"])
+    data = load_registry_overlay_data(root)
+    policy = YAML_PARSER.load(data["policy.prod.yaml"])
     allow = _policy_allow_from_payload(policy, "private-admin-controlled-capabilities")
     allow.remove(capability_id)
-    configmap["data"]["policy.prod.yaml"] = _yaml_text(policy)
-    _write_yaml(root / CONFIGMAP_PATH, configmap)
+    write_registry_overlay_values(root, {"policy.prod.yaml": _yaml_text(policy)})
 
 
 def _policy_allow(root: Path, binding_id: str) -> list[str]:
-    configmap = _load_configmap(root)
-    policy = YAML_PARSER.load(configmap["data"]["policy.prod.yaml"])
+    data = load_registry_overlay_data(root)
+    policy = YAML_PARSER.load(data["policy.prod.yaml"])
     return _policy_allow_from_payload(policy, binding_id)
 
 
@@ -238,10 +243,6 @@ def _worker_env(values: dict[str, Any], workload_id: str) -> dict[str, Any]:
     if workload_id == "opencode.apply_executor":
         return values["opencodeApplyExecutor"]["env"]
     raise AssertionError(f"unknown worker fixture: {workload_id}")
-
-
-def _load_configmap(root: Path) -> dict[str, Any]:
-    return YAML_PARSER.load((root / CONFIGMAP_PATH).read_text())
 
 
 def _load_values(root: Path) -> dict[str, Any]:

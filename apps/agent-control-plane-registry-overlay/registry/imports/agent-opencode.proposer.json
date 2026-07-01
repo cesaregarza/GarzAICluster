@@ -1,0 +1,44 @@
+{
+  "capabilities": [
+    "agent_workloads.opencode_propose",
+    "agent_workloads.opencode_task",
+    "agent_workloads.opencode_orchestrate"
+  ],
+  "capability_metadata": {
+    "agent_workloads.opencode_orchestrate": {
+      "consequence_class": "reversible_staging"
+    },
+    "agent_workloads.opencode_propose": {
+      "consequence_class": "reversible_staging"
+    },
+    "agent_workloads.opencode_task": {
+      "consequence_class": "reversible_staging"
+    }
+  },
+  "code_digest": "sha256:da890c27c1df58eb1208188ac64ed5dec406ac7d2a1bc043d9e70495c3775c8b",
+  "digest": "sha256:dc60ee7feec97a7f407a0fc4752eac99ac3b4dc9ae99974db7a2fb9f60238f14",
+  "display_name": "OpenCode Proposer",
+  "evals": {
+    "optional": [],
+    "required": [
+      "eval.opencode_proposer_smoke"
+    ]
+  },
+  "id": "opencode.proposer",
+  "image": {
+    "digest": "sha256:40fd41fa823bb5a8aea790d66c4331ea3b1436b5ba3cc55c1dc4e001ccae1808",
+    "repository": "registry.digitalocean.com/sendouq/opencode-proposer"
+  },
+  "loop": {
+    "contract": "worker_service_v1",
+    "kind": "worker_service",
+    "protocol": "mandate_worker_service_pull_v1"
+  },
+  "schema_version": "agent-workload.v1",
+  "source": {
+    "path": "agents/opencode-proposer/agent.yaml",
+    "repo": "agent-workloads",
+    "repo_url": "https://github.com/cesaregarza/agent-workloads"
+  },
+  "workload_type": "agent"
+}

@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import contextlib
 import importlib
+import json
+import os
 import re
 import shutil
 import subprocess
@@ -16,12 +18,12 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONTROL_PLANE_APPLICATION_PATH = Path("argocd/applications/agent-control-plane.yaml")
-REGISTRY_OVERLAY_CONFIGMAP_PATH = Path(
-    "apps/agent-control-plane-registry-overlay/configmap.yaml"
-)
+REGISTRY_OVERLAY_DIR = Path("apps/agent-control-plane-registry-overlay")
+REGISTRY_OVERLAY_CONFIGMAP_PATH = REGISTRY_OVERLAY_DIR / "configmap.yaml"
+REGISTRY_OVERLAY_KUSTOMIZATION_PATH = REGISTRY_OVERLAY_DIR / "kustomization.yaml"
+REGISTRY_OVERLAY_CONFIGMAP_NAME = "agent-control-plane-registry-overlay"
 AGENT_PLATFORM_REPO_URLS = {
     "git@github.com:cesaregarza/agent-platform.git",
     "https://github.com/cesaregarza/agent-platform",
@@ -103,7 +105,11 @@ def validate_deployed_registry_compat(
         agent_platform_repo=agent_platform_repo,
         expected_revision=expected_revision,
     )
-    data = registry_overlay_data(repo_root / REGISTRY_OVERLAY_CONFIGMAP_PATH)
+    data = registry_overlay_data(repo_root / REGISTRY_OVERLAY_DIR)
+    _assert_render_equivalent_to_base_configmap(
+        repo_root=repo_root,
+        rendered_data=data,
+    )
 
     with tempfile.TemporaryDirectory(prefix="mandate-registry-compat-") as raw_tmp:
         temp_repo = Path(raw_tmp) / "agent-platform"
@@ -141,19 +147,313 @@ def agent_platform_target_revision(application_path: Path) -> str:
     raise RegistryCompatError("agent-control-plane Argo Application missing agent-platform source")
 
 
-def registry_overlay_data(configmap_path: Path) -> dict[str, str]:
+def registry_overlay_data(overlay_path: Path) -> dict[str, str]:
+    """Read registry overlay data from Kustomize sources or the legacy ConfigMap."""
+    if overlay_path.is_dir():
+        kustomization_path = overlay_path / "kustomization.yaml"
+        if kustomization_path.exists():
+            return _registry_overlay_data_from_rendered_kustomization(
+                overlay_dir=overlay_path,
+                kustomization_path=kustomization_path,
+            )
+        configmap_path = overlay_path / "configmap.yaml"
+        if configmap_path.exists():
+            return _registry_overlay_data_from_configmap(configmap_path)
+        raise RegistryCompatError(
+            "registry overlay must contain kustomization.yaml or configmap.yaml"
+        )
+    return _registry_overlay_data_from_configmap(overlay_path)
+
+
+def _assert_render_equivalent_to_base_configmap(
+    *,
+    repo_root: Path,
+    rendered_data: dict[str, str],
+) -> None:
+    base_ref = _registry_equivalence_base_ref()
+    if base_ref is None:
+        return
+    if (
+        os.environ.get("AGENT_CONTROL_PLANE_REGISTRY_BASE_REF") is None
+        and not _is_git_worktree(repo_root)
+    ):
+        return
+    expected_data = _base_registry_configmap_data(repo_root=repo_root, base_ref=base_ref)
+    if expected_data is None:
+        return
+    _assert_registry_data_equivalent(rendered_data, expected_data)
+
+
+def _registry_equivalence_base_ref() -> str | None:
+    configured = os.environ.get("AGENT_CONTROL_PLANE_REGISTRY_BASE_REF")
+    if configured:
+        return configured
+    github_base_ref = os.environ.get("GITHUB_BASE_REF")
+    if github_base_ref:
+        return f"origin/{github_base_ref}"
+    return None
+
+
+def _base_registry_configmap_data(
+    *,
+    repo_root: Path,
+    base_ref: str,
+) -> dict[str, str] | None:
+    raw = _git_show(
+        repo_root,
+        f"{base_ref}:{REGISTRY_OVERLAY_CONFIGMAP_PATH.as_posix()}",
+    )
+    if raw is None and base_ref.startswith("origin/"):
+        _git_fetch_base_ref(repo_root, base_ref.removeprefix("origin/"))
+        raw = _git_show(
+            repo_root,
+            f"{base_ref}:{REGISTRY_OVERLAY_CONFIGMAP_PATH.as_posix()}",
+        )
+    if raw is None and not _git_ref_exists(repo_root, base_ref):
+        raise RegistryCompatError(
+            f"registry overlay render-equivalence base ref is unavailable: {base_ref}"
+        )
+    if raw is None:
+        return None
+    configmap = YAML_PARSER.load(raw)
+    data = configmap.get("data") if isinstance(configmap, dict) else None
+    if not isinstance(data, dict):
+        raise RegistryCompatError("base registry overlay ConfigMap must contain data")
+    return {
+        key: value
+        for key, value in data.items()
+        if isinstance(key, str) and isinstance(value, str)
+    }
+
+
+def _git_show(repo_root: Path, revision: str) -> str | None:
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "show", revision],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def _git_fetch_base_ref(repo_root: Path, base_ref: str) -> None:
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "fetch",
+            "--depth=1",
+            "origin",
+            f"{base_ref}:refs/remotes/origin/{base_ref}",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _is_git_worktree(repo_root: Path) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "--is-inside-work-tree"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
+def _git_ref_exists(repo_root: Path, ref: str) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "--verify", f"{ref}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def _assert_registry_data_equivalent(
+    rendered_data: dict[str, str],
+    expected_data: dict[str, str],
+) -> None:
+    rendered_keys = set(rendered_data)
+    expected_keys = set(expected_data)
+    if rendered_keys != expected_keys:
+        raise RegistryCompatError(
+            "registry overlay render key drift: "
+            f"expected {sorted(expected_keys)}, got {sorted(rendered_keys)}"
+        )
+    for key in sorted(expected_keys):
+        rendered = _registry_data_semantic_value(key, rendered_data[key])
+        expected = _registry_data_semantic_value(key, expected_data[key])
+        if rendered != expected:
+            raise RegistryCompatError(f"registry overlay render drift: {key}")
+
+
+def _registry_data_semantic_value(key: str, value: str) -> Any:
+    if key.endswith(".yaml") or key.endswith(".yml"):
+        return YAML_PARSER.load(value)
+    if key.endswith(".json"):
+        return json.loads(value)
+    if key.endswith(".jsonl"):
+        return [
+            json.loads(line)
+            for line in value.splitlines()
+            if line.strip()
+        ]
+    return value
+
+
+def _registry_overlay_data_from_configmap(configmap_path: Path) -> dict[str, str]:
     configmap = _load_yaml(configmap_path)
     data = configmap.get("data")
     if not isinstance(data, dict) or not data:
         raise RegistryCompatError("registry overlay ConfigMap must contain data")
     strings: dict[str, str] = {}
     for key, value in data.items():
-        if not isinstance(key, str) or "/" in key or key in {"", ".", ".."}:
-            raise RegistryCompatError(f"registry overlay ConfigMap key is invalid: {key}")
+        _validate_registry_overlay_key(key)
         if not isinstance(value, str) or not value.strip():
             raise RegistryCompatError(f"registry overlay ConfigMap value is empty: {key}")
         strings[key] = value
     return strings
+
+
+def _registry_overlay_data_from_rendered_kustomization(
+    *,
+    overlay_dir: Path,
+    kustomization_path: Path,
+) -> dict[str, str]:
+    rendered = _render_kustomization(overlay_dir)
+    if rendered is not None:
+        data = _registry_overlay_data_from_rendered_yaml(rendered)
+        if data:
+            return data
+    return _registry_overlay_data_from_kustomization_sources(
+        overlay_dir=overlay_dir,
+        kustomization_path=kustomization_path,
+    )
+
+
+def _registry_overlay_data_from_rendered_yaml(rendered: str) -> dict[str, str]:
+    for document in YAML_PARSER.load_all(rendered):
+        if not isinstance(document, dict):
+            continue
+        if document.get("kind") != "ConfigMap":
+            continue
+        metadata = document.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        if metadata.get("name") != REGISTRY_OVERLAY_CONFIGMAP_NAME:
+            continue
+        data = document.get("data")
+        if not isinstance(data, dict):
+            raise RegistryCompatError("rendered registry overlay ConfigMap missing data")
+        strings: dict[str, str] = {}
+        for key, value in data.items():
+            _validate_registry_overlay_key(key)
+            if not isinstance(value, str) or not value.strip():
+                raise RegistryCompatError(
+                    f"rendered registry overlay ConfigMap value is empty: {key}"
+                )
+            strings[key] = value
+        return strings
+    raise RegistryCompatError("rendered registry overlay ConfigMap not found")
+
+
+def _render_kustomization(overlay_dir: Path) -> str | None:
+    commands = (
+        ["kustomize", "build", str(overlay_dir)],
+        ["kubectl", "kustomize", str(overlay_dir)],
+    )
+    for command in commands:
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            continue
+        if result.returncode == 0:
+            return result.stdout
+    return None
+
+
+def _registry_overlay_data_from_kustomization_sources(
+    *,
+    overlay_dir: Path,
+    kustomization_path: Path,
+) -> dict[str, str]:
+    kustomization = _load_yaml(kustomization_path)
+    generators = kustomization.get("configMapGenerator")
+    if not isinstance(generators, list):
+        raise RegistryCompatError("registry overlay kustomization missing configMapGenerator")
+
+    generator = None
+    for item in generators:
+        if isinstance(item, dict) and item.get("name") == REGISTRY_OVERLAY_CONFIGMAP_NAME:
+            generator = item
+            break
+    if generator is None:
+        raise RegistryCompatError(
+            f"registry overlay kustomization missing {REGISTRY_OVERLAY_CONFIGMAP_NAME} generator"
+        )
+
+    file_specs = generator.get("files")
+    if not isinstance(file_specs, list) or not file_specs:
+        raise RegistryCompatError("registry overlay ConfigMap generator must contain files")
+
+    data: dict[str, str] = {}
+    for raw_spec in file_specs:
+        if not isinstance(raw_spec, str) or not raw_spec:
+            raise RegistryCompatError("registry overlay ConfigMap file spec is invalid")
+        key, relative_path = _parse_kustomize_file_spec(raw_spec)
+        _validate_registry_overlay_key(key)
+        if key in data:
+            raise RegistryCompatError(f"registry overlay ConfigMap key is duplicated: {key}")
+        source_path = _resolve_overlay_source_path(overlay_dir, relative_path)
+        value = source_path.read_text(encoding="utf-8")
+        if not value.strip():
+            raise RegistryCompatError(f"registry overlay ConfigMap value is empty: {key}")
+        data[key] = value
+
+    return data
+
+
+def _parse_kustomize_file_spec(file_spec: str) -> tuple[str, str]:
+    if "=" in file_spec:
+        key, relative_path = file_spec.split("=", 1)
+    else:
+        relative_path = file_spec
+        key = Path(relative_path).name
+    if not key or not relative_path:
+        raise RegistryCompatError(f"registry overlay ConfigMap file spec is invalid: {file_spec}")
+    return key, relative_path
+
+
+def _resolve_overlay_source_path(overlay_dir: Path, relative_path: str) -> Path:
+    source_path = (overlay_dir / relative_path).resolve()
+    overlay_root = overlay_dir.resolve()
+    try:
+        source_path.relative_to(overlay_root)
+    except ValueError as exc:
+        raise RegistryCompatError(
+            f"registry overlay ConfigMap file escapes overlay directory: {relative_path}"
+        ) from exc
+    if not source_path.is_file():
+        raise RegistryCompatError(
+            f"registry overlay ConfigMap source file not found: {relative_path}"
+        )
+    return source_path
+
+
+def _validate_registry_overlay_key(key: Any) -> None:
+    if not isinstance(key, str) or "/" in key or key in {"", ".", ".."}:
+        raise RegistryCompatError(f"registry overlay ConfigMap key is invalid: {key}")
 
 
 def materialize_registry_overlay(agent_platform_repo: Path, data: dict[str, str]) -> None:

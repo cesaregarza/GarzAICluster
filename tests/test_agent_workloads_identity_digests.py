@@ -172,6 +172,14 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
         self.assertIn("match release pins", result)
 
+    def test_gate_accepts_matching_kustomize_generated_overlay(self) -> None:
+        root = _fixture_repo()
+        _convert_fixture_overlay_to_kustomize_sources(root)
+
+        result = _check(root)
+
+        self.assertIn("match release pins", result)
+
     def test_gate_rejects_missing_workload_identity_rollout_checksum(self) -> None:
         root = _fixture_repo()
         values_path = root / "apps" / "agent-workloads" / "values.yaml"
@@ -439,6 +447,37 @@ def _configmap() -> dict[str, Any]:
         "metadata": {"name": "agent-control-plane-registry-overlay"},
         "data": data,
     }
+
+
+def _convert_fixture_overlay_to_kustomize_sources(root: Path) -> None:
+    overlay_dir = root / "apps" / "agent-control-plane-registry-overlay"
+    configmap_path = overlay_dir / "configmap.yaml"
+    configmap = YAML_PARSER.load(configmap_path.read_text())
+    data = configmap["data"]
+    configmap_path.unlink()
+    file_specs: list[str] = []
+    for key, value in data.items():
+        if key == "workload_imports.yaml":
+            relative_path = Path("registry") / key
+        else:
+            relative_path = Path("registry") / "imports" / key
+        target = overlay_dir / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(value, encoding="utf-8")
+        file_specs.append(f"{key}={relative_path.as_posix()}")
+    _write_yaml(
+        overlay_dir / "kustomization.yaml",
+        {
+            "apiVersion": "kustomize.config.k8s.io/v1beta1",
+            "kind": "Kustomization",
+            "configMapGenerator": [
+                {
+                    "name": "agent-control-plane-registry-overlay",
+                    "files": file_specs,
+                }
+            ],
+        },
+    )
 
 
 def _write_metadata(root: Path) -> str:
