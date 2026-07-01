@@ -112,9 +112,10 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             "BeforeHookCreation",
         )
         self.assertEqual(
-            self.registry_overlay_restart_hook["metadata"]["generateName"],
-            "registry-overlay-restart-",
+            self.registry_overlay_restart_hook["metadata"]["name"],
+            "agent-control-plane-registry-overlay-restart",
         )
+        self.assertNotIn("generateName", self.registry_overlay_restart_hook["metadata"])
 
         sync_options = set(
             self.registry_overlay_application["spec"]["syncPolicy"].get(
@@ -123,6 +124,27 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertIn("CreateNamespace=true", sync_options)
         self.assertNotIn("ApplyOutOfSyncOnly=true", sync_options)
+
+    def test_ci_runs_real_registry_overlay_kustomize_render_gate(self) -> None:
+        workflow = _load_yaml(REPO_ROOT / ".github" / "workflows" / "ci.yaml")
+        job = workflow["jobs"]["agent-control-plane-registry-overlay-render"]
+        run_steps = [
+            step.get("run", "")
+            for step in job["steps"]
+            if isinstance(step, dict) and "run" in step
+        ]
+
+        self.assertTrue(
+            any("kustomize version" in step for step in run_steps),
+            "registry overlay render job must install standalone kustomize",
+        )
+        self.assertTrue(
+            any(
+                "scripts/check_agent_control_plane_registry_overlay_render.py" in step
+                for step in run_steps
+            ),
+            "registry overlay render job must run the real kustomize render gate",
+        )
 
     def test_opencode_proposer_import_is_overlay_pinned_and_proposal_only(self) -> None:
         imports = YAML_PARSER.load(self.data["workload_imports.yaml"])

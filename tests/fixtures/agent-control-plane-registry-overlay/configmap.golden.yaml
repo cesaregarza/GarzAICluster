@@ -1,0 +1,664 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-control-plane-registry-overlay
+  namespace: agent-control-plane
+  labels:
+    app.kubernetes.io/name: agent-control-plane
+    app.kubernetes.io/component: registry-overlay
+data:
+  workload_imports.yaml: |
+    schema_version: workload-imports.v1
+    imports:
+    - id: data.workspace_probe
+      manifest_path: registries/imports/agent-data.workspace_probe.json
+      manifest_digest: sha256:ad0fc7d1a71d263d7da00cc1adb61251ba4b79937bc1aa3b7d69f7c6ba3c9877
+      image_digest: sha256:cd2b2b3aa851833c8718b5d92541fb9822b1594d9b6983aebf0b6615215aed9a
+      expected_source:
+        repo: agent-workloads
+        repo_url: https://github.com/cesaregarza/agent-workloads
+        path: agents/db-workspace-probe/agent.yaml
+      agent:
+        execution_posture: capability_worker
+        network_access: database_only
+        service_account_ref: agent-workloads-worker
+        identity_audience: mandate-api
+        capacity_tier: 4
+        concurrency: 1
+        max_runtime_seconds: 120
+        model_call: true
+        readonly_sql_broker: true
+      capabilities:
+        agent_workloads.db_probe:
+          description: Imported reversible staging database workspace probe.
+          output_schema: agent_workloads_db_probe_result_v1
+          output_gate:
+            policy_id: deterministic-public-result-v1
+            projection_id: agent_workloads.db_probe
+        agent_workloads.readonly_query:
+          description: Imported governed readonly SQL query worker.
+          output_schema: agent_workloads_readonly_query_result_v1
+          output_gate:
+            policy_id: deterministic-public-result-v1
+            projection_id: agent_workloads.readonly_query
+          model_lease:
+            required: true
+            allowed_tier: fast
+            allowed_profiles:
+            - openai.gpt-5.3-codex-spark
+            max_prompt_tokens: 12000
+            max_completion_tokens: 32000
+            max_total_tokens: 44000
+            max_cost_usd: 10.0
+          session_authority_budget:
+            max_operations: 4
+            session_taint: prod_authority
+          artifacts:
+            allowed: false
+            broker_required: true
+          broker:
+            allowed_broker: readonly-sql-broker
+            allowed_presets:
+            - analytical-read
+          broker_lease:
+            required: true
+            preset: analytical-read
+            allowed_source_schemas:
+            - xscraper
+            allowed_tables:
+            - xscraper.players
+            - xscraper.player_latest
+            - xscraper.player_season
+            - xscraper.season_results
+            - xscraper.weapon_leaderboard
+            - xscraper.aliases
+            - xscraper.schedules
+            allowed_operations:
+            - describe_schema
+            - describe_table
+            - select_limited
+            - explain_safe
+            - aggregate_summary
+            max_rows: 50
+            max_runtime_seconds: 120
+            max_cost_usd: 10.0
+            statement_timeout_ms: 60000
+            max_concurrency: 1
+    - id: opencode.proposer
+      manifest_path: registries/imports/agent-opencode.proposer.json
+      manifest_digest: sha256:dc60ee7feec97a7f407a0fc4752eac99ac3b4dc9ae99974db7a2fb9f60238f14
+      image_digest: sha256:40fd41fa823bb5a8aea790d66c4331ea3b1436b5ba3cc55c1dc4e001ccae1808
+      expected_source:
+        repo: agent-workloads
+        repo_url: https://github.com/cesaregarza/agent-workloads
+        path: agents/opencode-proposer/agent.yaml
+      agent:
+        execution_posture: hosted_harness
+        network_access: broker_only
+        service_account_ref: opencode-proposer
+        identity_audience: mandate-api
+        capacity_tier: 4
+        concurrency: 1
+        max_runtime_seconds: 900
+        model_gateway_token: true
+      capabilities:
+        agent_workloads.opencode_propose:
+          description: Imported OpenCode proposer that returns metadata-only proposal
+            artifacts.
+          output_schema: agent_workloads_opencode_proposal_result_v1
+          output_gate:
+            policy_id: patch-aware-opencode-proposal-v1
+            projection_id: agent_workloads.opencode_propose
+          model_lease:
+            required: true
+            allowed_tier: fast
+            allowed_profiles:
+            - openai.gpt-5.3-codex-spark
+            max_cost_usd: 0.25
+          session_authority_budget:
+            max_operations: 100
+            session_taint: prod_authority
+          disclosure:
+            raw_inputs_returnable: false
+            internal_sources_returnable: false
+            excerpts_allowed: false
+            aggregate_facts_allowed: true
+            citations_allowed: provider_public_only
+            artifact_classes_allowed:
+            - opencode_proposal
+            max_confidentiality_level_out: customer_visible
+            require_output_redaction_pass: true
+            require_result_schema: true
+          artifacts:
+            allowed: true
+            broker_required: false
+          result_contract:
+            output_schema: agent_workloads_opencode_proposal_result_v1
+            released_result_fields:
+            - output_text
+            - proposal_digest
+            - proposal_path
+            - changed_files
+            - diff_sha256
+            - diff_truncated
+            - base_repo
+            - base_ref_name
+            - base_commit_sha
+            - base_tree_sha
+          disclosure_summary:
+            summary: OpenCode proposal diffs remain metadata-only for the governed apply
+              arc.
+            released_result: Proposal digest, file metadata, and immutable base repo/ref/commit/tree
+              metadata only.
+            released_artifacts: Proposal artifact metadata only; diff bytes are withheld
+              from released output after platform capture.
+            artifact_classes_allowed:
+            - opencode_proposal
+            withheld:
+            - proposal diff bytes
+            - raw task inputs
+            - internal sources and broker internals
+          negative_affordances:
+          - Returns metadata only; cannot show proposal diff bytes.
+          - Must not be used for answer-style tasks.
+        agent_workloads.opencode_task:
+          description: Imported OpenCode answer task that performs bounded local work
+            and returns answer text through the output gate.
+          output_schema: agent_workloads_opencode_task_result_v1
+          output_gate:
+            policy_id: deterministic-public-result-v1
+            projection_id: agent_workloads.opencode_task
+          task_contract:
+            input_schema: task_intent
+            text: Describe the work to perform in task.text.
+            required_hints: []
+            optional_hints: []
+            routing_guidance: Use for work requests that need a governed OpenCode answer,
+              not for code-change proposals or apply operations.
+          result_contract:
+            output_schema: agent_workloads_opencode_task_result_v1
+            released_result_fields:
+            - schema_version
+            - answer_text
+            - answer_sha256
+            - answer_is_platform_verified
+            - evidence
+          disclosure_summary:
+            summary: Returns a bounded answer generated by the governed OpenCode task
+              worker; the answer is not platform-verified fact.
+            released_result: Answer text plus evidence metadata.
+            released_artifacts: No artifacts are expected from this capability.
+            artifact_classes_allowed: []
+            withheld:
+            - raw task inputs
+            - internal sources and broker internals
+            - proposal diff bytes
+          negative_affordances:
+          - Does not create proposal diffs or apply changes.
+          - Answer is agent output under governance, not platform-verified truth.
+          - Must not be used as a fallback when no capability matches.
+          model_lease:
+            required: true
+            allowed_tier: fast
+            allowed_profiles:
+            - openai.gpt-5.3-codex-spark
+            max_cost_usd: 0.25
+          session_authority_budget:
+            max_operations: 8
+            session_taint: prod_authority
+          disclosure:
+            raw_inputs_returnable: false
+            internal_sources_returnable: false
+            excerpts_allowed: true
+            aggregate_facts_allowed: true
+            citations_allowed: provider_public_only
+            artifact_classes_allowed: []
+            max_confidentiality_level_out: customer_visible
+            require_output_redaction_pass: true
+            require_result_schema: true
+          artifacts:
+            allowed: false
+            broker_required: false
+        agent_workloads.opencode_orchestrate:
+          description: Imported OpenCode orchestrator that may select one server-authorized
+            delegated child capability under the parent worker claim.
+          output_schema: agent_workloads_opencode_orchestrate_result_v1
+          output_gate:
+            policy_id: deterministic-public-result-v1
+            projection_id: agent_workloads.opencode_orchestrate
+          task_contract:
+            input_schema: task_intent
+            text: Describe the governed work to route or answer in task.text.
+            required_hints: []
+            optional_hints: []
+            routing_guidance: Use for ambiguous or multi-step governed work that needs
+              model-selected routing through Mandate child dispatch. Natural-language
+              data questions should delegate to agent_workloads.readonly_query, not readonly_sql.
+          result_contract:
+            output_schema: agent_workloads_opencode_orchestrate_result_v1
+            released_result_fields:
+            - schema_version
+            - mode
+            - output_text
+            - answer_text
+            - answer_is_platform_verified
+            - capability_id
+            - child_job_id
+            - released_result
+            - evidence
+          disclosure_summary:
+            summary: Returns either a bounded no-match/local answer or the platform-released
+              result of one parent_only child job.
+            released_result: Orchestrator mode, answer text or child released result,
+              child id, delegated capability id, and evidence metadata.
+            released_artifacts: No artifacts are expected from this capability.
+            artifact_classes_allowed: []
+            withheld:
+            - parent claim token
+            - worker-service credentials
+            - child raw errors
+            - broker internals
+            - model transcripts
+          negative_affordances:
+          - Cannot create more than one child job.
+          - Cannot route to undelegated or invented capabilities.
+          - Cannot expose child jobs independently to the host channel.
+          - Must not be used as a local fallback when no governed capability matches.
+          model_lease:
+            required: true
+            allowed_tier: fast
+            allowed_profiles:
+            - openai.gpt-5.3-codex-spark
+            max_cost_usd: 10.0
+          session_authority_budget:
+            max_operations: 8
+            session_taint: prod_authority
+          disclosure:
+            raw_inputs_returnable: false
+            internal_sources_returnable: false
+            excerpts_allowed: true
+            aggregate_facts_allowed: true
+            citations_allowed: provider_public_only
+            artifact_classes_allowed: []
+            max_confidentiality_level_out: customer_visible
+            require_output_redaction_pass: true
+            require_result_schema: true
+          artifacts:
+            allowed: false
+            broker_required: false
+    - id: opencode.apply_executor
+      manifest_path: registries/imports/agent-opencode.apply_executor.json
+      manifest_digest: sha256:96275e43165c5c338e1a1b0be26dc4e19293c6d5045ec8a712ce5ba2924c5169
+      image_digest: sha256:48a475ef25fb46ee05376099cf318750acdda4f8259fd0491f71611fe15a7e3b
+      expected_source:
+        repo: agent-workloads
+        repo_url: https://github.com/cesaregarza/agent-workloads
+        path: agents/opencode-apply-executor/agent.yaml
+      agent:
+        execution_posture: capability_worker
+        network_access: broker_only
+        service_account_ref: opencode-apply-executor
+        identity_audience: mandate-api
+        executor: true
+        capacity_tier: 4
+        concurrency: 1
+        max_runtime_seconds: 300
+      capabilities:
+        agent_workloads.opencode_apply:
+          description: Imported OpenCode apply executor for approved proposal diffs.
+          output_schema: agent_workloads_opencode_apply_result_v1
+          output_gate:
+            policy_id: patch-aware-opencode-proposal-v1
+            projection_id: agent_workloads.opencode_apply
+          approval_mode: admin_confirm
+          result_contract:
+            output_schema: agent_workloads_opencode_apply_result_v1
+            released_result_fields:
+            - output_text
+            - operation_status
+            - action_id
+            - branch
+            - commit_sha
+            - applied_diff_sha256
+            - proposal_diff_sha256
+            - changed_files
+            - base_repo
+            - base_ref_name
+            - base_commit_sha
+            - base_tree_sha
+          disclosure:
+            raw_inputs_returnable: false
+            internal_sources_returnable: false
+            excerpts_allowed: false
+            aggregate_facts_allowed: false
+            citations_allowed: none
+            artifact_classes_allowed:
+            - opencode_apply_result
+            max_confidentiality_level_out: customer_visible
+            require_output_redaction_pass: true
+            require_result_schema: true
+          artifacts:
+            allowed: true
+            broker_required: false
+          disclosure_summary:
+            summary: OpenCode apply releases local apply metadata for the governed delivery
+              arc.
+            released_result: Local apply status, designation id, commit, patch digests,
+              changed files, and immutable base repo/ref/commit/tree metadata only.
+            released_artifacts: Apply result artifact metadata only; diff bytes and remote
+              delivery claims are withheld.
+            artifact_classes_allowed:
+            - opencode_apply_result
+            withheld:
+            - proposal and applied diff bytes
+            - remote ref and draft PR URL until deliverer confirmation
+            - raw task inputs
+            - internal sources and broker internals
+          negative_affordances:
+          - Does not push, open, merge, or claim a remote PR.
+          - Remote ref and PR URL arrive only through the deliverer callback after confirmed
+            write.
+          - Must not be used as a fallback when no capability matches.
+          session_authority_budget:
+            max_operations: 1
+            session_taint: prod_authority
+  policy.prod.yaml: |
+    defaults:
+      max_cost_usd_per_job: 10.0
+      max_runtime_seconds_per_job: 60
+      aggregate_budget:
+        platform_daily_usd: 250.0
+        per_capability_daily_usd_default: 100.0
+        per_capability_daily_usd:
+          agent_workloads.opencode_apply: 1.0
+          agent_workloads.opencode_propose: 1.0
+
+    bindings:
+      - id: private-admin-controlled-capabilities
+        description: Production-safe private admin binding for no-key probes,
+          bounded read-only SQL, and the first imported worker-service probe.
+        guild_id: "614277943706910722"
+        channel_id: "1480483954694819940"
+        users:
+          admins:
+            - "94265880216612864"
+          authorized:
+            - "94265880216612864"
+        capabilities:
+          allow:
+            - task.echo
+            - approval.probe
+            - readonly_sql
+            - audit.digest
+            - mandate.ops.inspect
+            - mandate.deploy.smoke
+            - agent_workloads.db_probe
+            - agent_workloads.readonly_query
+            - agent_workloads.opencode_apply
+            - agent_workloads.opencode_propose
+            - agent_workloads.opencode_task
+            - agent_workloads.opencode_orchestrate
+          approval_overrides:
+            approval.probe: admin_confirm
+            agent_workloads.opencode_apply: admin_confirm
+      - id: synthetic-live-verify-probe
+        description: Scheduled no-key deployment smoke probe for CES-154. This
+          binding is intentionally narrower than the private admin binding so
+          CronJob credentials can prove the live submit/worker/output/callback
+          path without gaining operator capabilities.
+        guild_id: "614277943706910722"
+        channel_id: "1480483954694819940"
+        users:
+          admins: []
+          authorized:
+            - mandate-live-probe
+        capabilities:
+          allow:
+            - mandate.deploy.smoke
+  evals.yaml: |
+    eval_suites:
+      - id: eval.task_echo_smoke
+        owner: agent-platform
+        description: End-to-end smoke suite for task submission, job state,
+          callback, audit event, and feedback capture.
+        applies_to:
+          - deterministic.echo
+        dataset: tests/evals/task_echo_smoke.jsonl
+        cadence: every_change
+        gates:
+          min_success_rate: 1.0
+          max_policy_violations: 0
+          max_p95_latency_ms: 1000
+      - id: eval.model_summarize_smoke
+        owner: agent-platform
+        description: Model seam smoke suite proving leased summarization, usage
+          accounting, and output release through the broker abstraction.
+        applies_to:
+          - summarizer.fast
+        dataset: tests/evals/model_summarize_smoke.jsonl
+        cadence: every_prompt_or_model_change
+        gates:
+          min_success_rate: 1.0
+          max_policy_violations: 0
+          max_budget_exceeded: 0
+      - id: eval.test_agent_probes
+        owner: agent-platform
+        description: Deterministic development-agent probe suite covering routing
+          metadata, metadata-only artifacts, approval pauses, broker-shaped
+          results, and controlled failures.
+        applies_to:
+          - deterministic.inspect
+          - deterministic.schema_inspect
+          - deterministic.artifact_probe
+          - deterministic.approval_probe
+          - deterministic.broker_probe
+          - deterministic.failure_probe
+        dataset: tests/evals/test_agent_probes.jsonl
+        cadence: every_change
+        gates:
+          min_success_rate: 1.0
+          max_policy_violations: 0
+          max_unexpected_terminal_states: 0
+      - id: eval.audit_digest_smoke
+        owner: agent-platform
+        description: Read-only audit digest suite covering bounded time windows,
+          Markdown output, artifact metadata, and safe no-model execution.
+        applies_to:
+          - deterministic.audit_digest
+        dataset: tests/evals/audit_digest_smoke.jsonl
+        cadence: every_worker_change
+        gates:
+          min_success_rate: 1.0
+          max_policy_violations: 0
+          max_raw_secret_outputs: 0
+      - id: eval.ops_utility_smoke
+        owner: agent-platform
+        description: Deterministic ops utility suite covering Mandate operational
+          inspection and deployment smoke readiness without model keys or write
+          authority.
+        applies_to:
+          - deterministic.ops_inspect
+          - deterministic.deployment_smoke
+        dataset: tests/evals/ops_utility_smoke.jsonl
+        cadence: every_worker_change
+        gates:
+          min_success_rate: 1.0
+          max_policy_violations: 0
+          max_raw_secret_outputs: 0
+      - id: eval.readonly_sql_safety
+        owner: agent-platform
+        description: Read-only SQL suite requiring correct refusal of writes,
+          least-privilege query plans, and bounded result summaries.
+        applies_to:
+          - data.readonly_sql
+        dataset: tests/evals/readonly_sql_safety.jsonl
+        cadence: every_worker_change
+        gates:
+          min_success_rate: 0.95
+          max_write_attempts: 0
+          max_unbounded_queries: 0
+      - id: eval.local_data_report_smoke
+        owner: agent-platform.standard-library
+        description: Deterministic local data-report suite proving broker-backed
+          report generation and public output projection without external
+          secrets.
+        applies_to:
+          - data.local_data_report
+        dataset: tests/evals/local_data_report_smoke.jsonl
+        cadence: every_worker_change
+        gates:
+          min_success_rate: 1.0
+          max_policy_violations: 0
+          max_raw_secret_outputs: 0
+      - id: eval.opencode_proposer_smoke
+        owner: deployment-overlay
+        description: Deployment smoke suite for the imported OpenCode proposer
+          proposal artifact path.
+        applies_to:
+          - opencode.proposer
+        dataset: registries/imports/opencode_proposer_smoke.jsonl
+        cadence: every_worker_change
+        gates:
+          min_success_rate: 1.0
+          max_policy_violations: 0
+          max_raw_secret_outputs: 0
+      - id: eval.opencode_apply_smoke
+        owner: deployment-overlay
+        description: Deployment smoke suite for the imported OpenCode apply
+          executor designation path.
+        applies_to:
+          - opencode.apply_executor
+        dataset: registries/imports/opencode_apply_smoke.jsonl
+        cadence: every_worker_change
+        gates:
+          min_success_rate: 1.0
+          max_policy_violations: 0
+          max_raw_secret_outputs: 0
+  opencode_proposer_smoke.jsonl: |
+    {"case_id":"opencode_proposal_artifact","capability":"agent_workloads.opencode_propose","input":{"text":"Draft a bounded proposal."},"expected":{"status":"succeeded","artifact_class":"opencode_proposal"}}
+  opencode_apply_smoke.jsonl: |
+    {"case_id":"opencode_apply_designation","capability":"agent_workloads.opencode_apply","input":{"text":"Apply an approved OpenCode proposal."},"expected":{"approval_mode":"admin_confirm","artifact_class":"opencode_apply_result"}}
+  agent-data.workspace_probe.json: |
+    {
+      "capabilities": [
+        "agent_workloads.db_probe",
+        "agent_workloads.readonly_query"
+      ],
+      "capability_metadata": {
+        "agent_workloads.db_probe": {
+          "consequence_class": "reversible_staging"
+        },
+        "agent_workloads.readonly_query": {
+          "consequence_class": "read_only"
+        }
+      },
+      "code_digest": "sha256:2b2e8637872c744496e769765537105fc516a031ee83af9cb02e7bad76147999",
+      "digest": "sha256:ad0fc7d1a71d263d7da00cc1adb61251ba4b79937bc1aa3b7d69f7c6ba3c9877",
+      "display_name": "Agent Workloads Data Worker",
+      "evals": {
+        "optional": [],
+        "required": [
+          "eval.test_agent_probes",
+          "eval.readonly_sql_safety"
+        ]
+      },
+      "id": "data.workspace_probe",
+      "image": {
+        "digest": "sha256:cd2b2b3aa851833c8718b5d92541fb9822b1594d9b6983aebf0b6615215aed9a",
+        "repository": "registry.digitalocean.com/sendouq/agent-workloads-worker"
+      },
+      "loop": {
+        "contract": "worker_service_v1",
+        "kind": "worker_service",
+        "protocol": "mandate_worker_service_pull_v1"
+      },
+      "schema_version": "agent-workload.v1",
+      "source": {
+        "path": "agents/db-workspace-probe/agent.yaml",
+        "repo": "agent-workloads",
+        "repo_url": "https://github.com/cesaregarza/agent-workloads"
+      },
+      "workload_type": "agent"
+    }
+  agent-opencode.proposer.json: |
+    {
+      "capabilities": [
+        "agent_workloads.opencode_propose",
+        "agent_workloads.opencode_task",
+        "agent_workloads.opencode_orchestrate"
+      ],
+      "capability_metadata": {
+        "agent_workloads.opencode_orchestrate": {
+          "consequence_class": "reversible_staging"
+        },
+        "agent_workloads.opencode_propose": {
+          "consequence_class": "reversible_staging"
+        },
+        "agent_workloads.opencode_task": {
+          "consequence_class": "reversible_staging"
+        }
+      },
+      "code_digest": "sha256:da890c27c1df58eb1208188ac64ed5dec406ac7d2a1bc043d9e70495c3775c8b",
+      "digest": "sha256:dc60ee7feec97a7f407a0fc4752eac99ac3b4dc9ae99974db7a2fb9f60238f14",
+      "display_name": "OpenCode Proposer",
+      "evals": {
+        "optional": [],
+        "required": [
+          "eval.opencode_proposer_smoke"
+        ]
+      },
+      "id": "opencode.proposer",
+      "image": {
+        "digest": "sha256:40fd41fa823bb5a8aea790d66c4331ea3b1436b5ba3cc55c1dc4e001ccae1808",
+        "repository": "registry.digitalocean.com/sendouq/opencode-proposer"
+      },
+      "loop": {
+        "contract": "worker_service_v1",
+        "kind": "worker_service",
+        "protocol": "mandate_worker_service_pull_v1"
+      },
+      "schema_version": "agent-workload.v1",
+      "source": {
+        "path": "agents/opencode-proposer/agent.yaml",
+        "repo": "agent-workloads",
+        "repo_url": "https://github.com/cesaregarza/agent-workloads"
+      },
+      "workload_type": "agent"
+    }
+  agent-opencode.apply_executor.json: |
+    {
+      "capabilities": [
+        "agent_workloads.opencode_apply"
+      ],
+      "capability_metadata": {
+        "agent_workloads.opencode_apply": {
+          "consequence_class": "consequential"
+        }
+      },
+      "code_digest": "sha256:05b77d442e4657e96fb8ba2b660d5b289a522ae5c11a5a152878fddd9cfa6204",
+      "digest": "sha256:96275e43165c5c338e1a1b0be26dc4e19293c6d5045ec8a712ce5ba2924c5169",
+      "display_name": "OpenCode Apply Executor",
+      "evals": {
+        "optional": [],
+        "required": [
+          "eval.opencode_apply_smoke"
+        ]
+      },
+      "id": "opencode.apply_executor",
+      "image": {
+        "digest": "sha256:48a475ef25fb46ee05376099cf318750acdda4f8259fd0491f71611fe15a7e3b",
+        "repository": "registry.digitalocean.com/sendouq/opencode-apply-executor"
+      },
+      "loop": {
+        "contract": "worker_service_v1",
+        "kind": "worker_service",
+        "protocol": "mandate_worker_service_pull_v1"
+      },
+      "schema_version": "agent-workload.v1",
+      "source": {
+        "path": "agents/opencode-apply-executor/agent.yaml",
+        "repo": "agent-workloads",
+        "repo_url": "https://github.com/cesaregarza/agent-workloads"
+      },
+      "workload_type": "agent"
+    }

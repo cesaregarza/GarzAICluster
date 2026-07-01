@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  generateName: registry-overlay-restart-
+  name: agent-control-plane-registry-overlay-restart
   namespace: agent-control-plane
   labels:
     app.kubernetes.io/name: agent-control-plane
