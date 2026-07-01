@@ -38,7 +38,7 @@ extraVolumeMounts:
   mountPath: /var/run/mandate/workload-identity
   readOnly: true
 rolloutChecksums:
-  workloadIdentityTokenSecret: sha256:7c255a96de9949a392692a522d98e4dc0f949bdb9e6dfb07bb085a6a3e0c4747
+  workloadIdentityTokenSecret: sha256:a5b0b3868cd3bb0b88345dbcbaaf0749ed226c34fad8bcebb17d887284f0ab8b
 resources:
   requests:
     cpu: 25m
@@ -94,8 +94,8 @@ opencodeProposer:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-90e06a05a14e
-    digest: sha256:40fd41fa823bb5a8aea790d66c4331ea3b1436b5ba3cc55c1dc4e001ccae1808
+    tag: sha-16659a2e9c72
+    digest: sha256:3c80986e64e6b766ef76cc99c348e498bc71d76ae283396c17e6dcdf261ebe8f
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
@@ -229,6 +229,6 @@ mandateReleasePins:
     manifestDigest: sha256:96275e43165c5c338e1a1b0be26dc4e19293c6d5045ec8a712ce5ba2924c5169
     imageDigest: sha256:48a475ef25fb46ee05376099cf318750acdda4f8259fd0491f71611fe15a7e3b
   opencode.proposer:
-    codeDigest: sha256:da890c27c1df58eb1208188ac64ed5dec406ac7d2a1bc043d9e70495c3775c8b
-    manifestDigest: sha256:dc60ee7feec97a7f407a0fc4752eac99ac3b4dc9ae99974db7a2fb9f60238f14
-    imageDigest: sha256:40fd41fa823bb5a8aea790d66c4331ea3b1436b5ba3cc55c1dc4e001ccae1808
+    codeDigest: sha256:20744321330f8ce2643802cec7aaf118f5cfb700cd8566a68e60cf472f031c60
+    manifestDigest: sha256:10afb7af367e0d958edeb00840e14aadd96029b7e26b607283da2481f8176951
+    imageDigest: sha256:3c80986e64e6b766ef76cc99c348e498bc71d76ae283396c17e6dcdf261ebe8f
