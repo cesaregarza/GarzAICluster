@@ -41,7 +41,7 @@ imports:
         max_total_tokens: 44000
         max_cost_usd: 10.0
       session_authority_budget:
-        max_operations: 4
+        max_operations: 16
         session_taint: prod_authority
       artifacts:
         allowed: false
@@ -265,7 +265,7 @@ imports:
         allowed_children:
         - agent_workloads.readonly_query
       session_authority_budget:
-        max_operations: 8
+        max_operations: 32
         session_taint: prod_authority
       disclosure:
         raw_inputs_returnable: false
