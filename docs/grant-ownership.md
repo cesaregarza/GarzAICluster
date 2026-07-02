@@ -48,6 +48,7 @@ control-plane restart and do not require re-minting.
 | `agent_workloads.opencode_apply` | `result_contract` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_apply` | `session_authority_budget` | `mixed` | `control_plane_restart` |
 | `agent_workloads.opencode_orchestrate` | `artifacts` | `deployment_overlay` | `control_plane_restart` |
+| `agent_workloads.opencode_orchestrate` | `delegation` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_orchestrate` | `description` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_orchestrate` | `disclosure` | `deployment_overlay` | `control_plane_restart` |
 | `agent_workloads.opencode_orchestrate` | `disclosure_summary` | `workload_release` | `digest_moves_repin_remint` |
