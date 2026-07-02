@@ -181,6 +181,15 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             {"allowed": True, "broker_required": False},
         )
 
+        orchestrate = opencode["capabilities"]["agent_workloads.opencode_orchestrate"]
+        self.assertEqual(
+            orchestrate["result_contract"]["output_schema"],
+            "agent_workloads_opencode_orchestrate_result_v1",
+        )
+        released_fields = set(orchestrate["result_contract"]["released_result_fields"])
+        self.assertIn("delegated_capability_id", released_fields)
+        self.assertNotIn("capability_id", released_fields)
+
         manifest = json.loads(self.data["agent-opencode.proposer.json"])
         self.assertEqual(manifest["id"], "opencode.proposer")
         self.assertEqual(manifest["digest"], release_pin["manifestDigest"])
