@@ -2,6 +2,8 @@
 
 Kubernetes + Argo CD source of truth for SplatTop. Charts, AppSets, secrets workflow, and runbooks live here (not in the app repo).
 
+`cesaregarza/GarzAICluster` is the canonical GitOps repository. Do not recreate `cesaregarza/SplatTopConfig` as a separate repository; legacy links should resolve here.
+
 ## Quick links
 
 - Bootstrap/runbooks: `docs/bootstrap.md`, `docs/argo-operations.md`, `docs/release-workflow.md`, `docs/cluster-identity.md`, `docs/secrets-strategy.md`, `docs/runbooks/postgres-restore.md`, `docs/developer-cheat-sheet.md`
