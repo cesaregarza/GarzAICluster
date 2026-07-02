@@ -232,7 +232,7 @@ imports:
         - output_text
         - answer_text
         - answer_is_platform_verified
-        - capability_id
+        - delegated_capability_id
         - child_job_id
         - released_result
         - evidence
