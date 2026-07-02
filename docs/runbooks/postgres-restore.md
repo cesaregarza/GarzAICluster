@@ -36,7 +36,7 @@ DigitalOcean context:
 | Values overlay | `apps/agent-control-plane/values.yaml` |
 | Chart source | `argocd/applications/agent-control-plane.yaml` |
 | Public hostname | `agent-control-plane.garz.ai` |
-| Current image | `registry.digitalocean.com/sendouq/agent-platform:sha-c0d0e073c68a` |
+| Current image | `registry.digitalocean.com/sendouq/agent-platform:sha-b0c0476bbf4d` |
 
 DigitalOcean managed PostgreSQL documents automatic backups and point-in-time
 restore by forking a new database cluster. Restores must create a new cluster;
@@ -177,7 +177,7 @@ spec:
         - name: regcred
       containers:
         - name: schema-check
-          image: registry.digitalocean.com/sendouq/agent-platform:sha-c0d0e073c68a
+          image: registry.digitalocean.com/sendouq/agent-platform:sha-b0c0476bbf4d
           envFrom:
             - secretRef:
                 name: agent-control-plane-secrets
