@@ -91,6 +91,19 @@ Utilities that were previously bundled with the app repo move here when they are
   in `argocd/applications/agent-control-plane.yaml`. Use
   `--print-target-revision` to retrieve that SHA for automation.
 
+- `check_agent_control_plane_registry_overlay_render.py` – renders
+  `apps/agent-control-plane-registry-overlay` with real kustomize and compares
+  the generated `agent-control-plane-registry-overlay` ConfigMap to the
+  committed golden. After editing registry overlay source files, regenerate the
+  golden and derived ownership docs before running the gate:
+
+  ```bash
+  uv run python scripts/check_agent_control_plane_registry_overlay_render.py --update-golden
+  uv run python scripts/generate_grant_ownership.py
+  uv run python scripts/check_agent_control_plane_registry_overlay_render.py
+  uv run python scripts/generate_grant_ownership.py --check
+  ```
+
 - `mandate_apply.py` – plans or writes a local CES-123
   `MandateWorkloadEnablement` document into deployment-owned files only. Dry-run
   is the default; `--write` edits files for a normal PR. It never reads or

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 from ruamel.yaml import YAML
@@ -145,6 +147,72 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             ),
             "registry overlay render job must run the real kustomize render gate",
         )
+
+    def test_registry_overlay_render_gate_can_update_golden(self) -> None:
+        script_path = (
+            REPO_ROOT / "scripts" / "check_agent_control_plane_registry_overlay_render.py"
+        )
+        spec = importlib.util.spec_from_file_location(
+            "check_agent_control_plane_registry_overlay_render",
+            script_path,
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        rendered_configmap = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": REGISTRY_OVERLAY_CONFIGMAP_NAME,
+                "namespace": "agent-control-plane",
+                "labels": {
+                    "app.kubernetes.io/component": "registry-overlay",
+                    "app.kubernetes.io/name": "agent-control-plane",
+                },
+            },
+            "data": {
+                "agent-opencode.proposer.json": "{}\n",
+                "workload_imports.yaml": "schema_version: workload-imports.v1\n",
+            },
+        }
+        with TemporaryDirectory() as tmp:
+            golden_path = Path(tmp) / "configmap.golden.yaml"
+            golden_path.write_text(
+                "\n".join(
+                    (
+                        "apiVersion: v1",
+                        "kind: ConfigMap",
+                        "metadata:",
+                        f"  name: {REGISTRY_OVERLAY_CONFIGMAP_NAME}",
+                        "  namespace: agent-control-plane",
+                        "  labels:",
+                        "    app.kubernetes.io/name: agent-control-plane",
+                        "    app.kubernetes.io/component: registry-overlay",
+                        "data:",
+                        "  workload_imports.yaml: |",
+                        "    old: value",
+                        "",
+                    )
+                )
+            )
+
+            module._write_golden_configmap(rendered_configmap, golden_path)
+            updated = _load_yaml(golden_path)
+            self.assertEqual(updated["data"], rendered_configmap["data"])
+
+            text = golden_path.read_text()
+            self.assertIn("  workload_imports.yaml: |", text)
+            self.assertIn("  agent-opencode.proposer.json: |", text)
+            self.assertLess(
+                text.index("workload_imports.yaml"),
+                text.index("agent-opencode.proposer.json"),
+            )
+            self.assertLess(
+                text.index("app.kubernetes.io/name"),
+                text.index("app.kubernetes.io/component"),
+            )
 
     def test_opencode_proposer_import_is_overlay_pinned_and_proposal_only(self) -> None:
         imports = YAML_PARSER.load(self.data["workload_imports.yaml"])

@@ -42,6 +42,14 @@ def main() -> int:
         default=None,
         help="Optional path to the pre-refactor registry overlay ConfigMap golden.",
     )
+    parser.add_argument(
+        "--update-golden",
+        action="store_true",
+        help=(
+            "Rewrite the committed ConfigMap golden from the real kustomize render "
+            "instead of only checking for drift."
+        ),
+    )
     args = parser.parse_args()
 
     repo_root = args.repo_root.resolve()
@@ -55,10 +63,14 @@ def main() -> int:
             repo_root=repo_root,
             kustomize=args.kustomize,
             golden_configmap_path=golden_path,
+            update_golden=args.update_golden,
         )
     except RegistryOverlayRenderError as exc:
         print(f"registry overlay render gate failed: {exc}", file=sys.stderr)
         return 1
+    if args.update_golden:
+        print(f"updated registry overlay ConfigMap golden: {golden_path}")
+        return 0
     print("registry overlay kustomize render matches the committed ConfigMap golden.")
     return 0
 
@@ -68,6 +80,7 @@ def check_registry_overlay_render(
     repo_root: Path,
     kustomize: str,
     golden_configmap_path: Path,
+    update_golden: bool = False,
 ) -> None:
     rendered = _kustomize_build(
         repo_root=repo_root,
@@ -75,6 +88,8 @@ def check_registry_overlay_render(
         kustomize=kustomize,
     )
     rendered_configmap = _extract_registry_configmap(rendered)
+    if update_golden:
+        _write_golden_configmap(rendered_configmap, golden_configmap_path)
     golden_configmap = _load_yaml(golden_configmap_path)
     _assert_configmap_identity_matches(rendered_configmap, golden_configmap)
     _assert_configmap_data_matches(rendered_configmap, golden_configmap)
@@ -187,6 +202,102 @@ def _configmap_data(configmap: dict[str, Any], *, label: str) -> dict[str, str]:
             )
         strings[key] = value
     return strings
+
+
+def _write_golden_configmap(
+    rendered_configmap: dict[str, Any],
+    golden_configmap_path: Path,
+) -> None:
+    """Write a stable golden from the rendered ConfigMap.
+
+    Kustomize emits valid YAML but may order top-level fields differently than the
+    committed fixture. Preserve the existing fixture's data-key and label order
+    where possible so regeneration diffs stay focused on actual registry data.
+    """
+    rendered_identity = _configmap_identity(rendered_configmap)
+    rendered_data = _configmap_data(rendered_configmap, label="rendered")
+
+    existing_identity: dict[str, Any] | None = None
+    existing_data: dict[str, str] = {}
+    if golden_configmap_path.exists():
+        existing = _load_yaml(golden_configmap_path)
+        existing_identity = _configmap_identity(existing)
+        existing_data = _configmap_data(existing, label="golden")
+
+    data_keys = _stable_order(
+        existing_order=existing_data.keys(),
+        rendered_keys=rendered_data.keys(),
+    )
+    label_keys = _stable_order(
+        existing_order=(
+            (existing_identity or {}).get("metadata", {}).get("labels", {}) or {}
+        ).keys(),
+        rendered_keys=rendered_identity["metadata"]["labels"].keys(),
+    )
+
+    golden_configmap_path.parent.mkdir(parents=True, exist_ok=True)
+    golden_configmap_path.write_text(
+        _format_golden_configmap(
+            identity=rendered_identity,
+            data=rendered_data,
+            data_keys=data_keys,
+            label_keys=label_keys,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _stable_order(*, existing_order: Any, rendered_keys: Any) -> list[str]:
+    rendered = set(rendered_keys)
+    ordered = [key for key in existing_order if key in rendered]
+    ordered.extend(sorted(key for key in rendered if key not in ordered))
+    return ordered
+
+
+def _format_golden_configmap(
+    *,
+    identity: dict[str, Any],
+    data: dict[str, str],
+    data_keys: list[str],
+    label_keys: list[str],
+) -> str:
+    metadata = identity["metadata"]
+    labels = metadata["labels"]
+    lines = [
+        f"apiVersion: {_yaml_scalar(identity['apiVersion'])}",
+        f"kind: {_yaml_scalar(identity['kind'])}",
+        "metadata:",
+        f"  name: {_yaml_scalar(metadata['name'])}",
+        f"  namespace: {_yaml_scalar(metadata['namespace'])}",
+        "  labels:",
+    ]
+    for key in label_keys:
+        lines.append(f"    {_yaml_key(key)}: {_yaml_scalar(labels[key])}")
+    lines.append("data:")
+    for key in data_keys:
+        value = data[key]
+        chomping = "|" if value.endswith("\n") else "|-"
+        lines.append(f"  {_yaml_key(key)}: {chomping}")
+        value_lines = value.splitlines()
+        if value_lines:
+            lines.extend(f"    {line}" if line else "" for line in value_lines)
+        else:
+            lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def _yaml_key(value: str) -> str:
+    if not value or any(char in value for char in " \t\n\r:#{}[],&*?|<>=!%@\\\"'"):
+        return json.dumps(value)
+    return value
+
+
+def _yaml_scalar(value: Any) -> str:
+    if not isinstance(value, str):
+        return json.dumps(value)
+    if not value or any(char in value for char in " \t\n\r:#{}[],&*?|<>=!%@\\\"'"):
+        return json.dumps(value)
+    return value
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
