@@ -38,7 +38,7 @@ extraVolumeMounts:
   mountPath: /var/run/mandate/workload-identity
   readOnly: true
 rolloutChecksums:
-  workloadIdentityTokenSecret: sha256:62581d44cff710c93cafe2ea34d7ab986feb9a9426f86f5101f95b2c654a7d57
+  workloadIdentityTokenSecret: sha256:1230e1ea587623a6859d66521adee65d721bdf5468d7f862f5c9be76f8cf8a67
 resources:
   requests:
     cpu: 25m
