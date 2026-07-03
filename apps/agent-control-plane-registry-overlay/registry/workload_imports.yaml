@@ -71,7 +71,7 @@ imports:
         - aggregate_summary
         max_rows: 50
         max_runtime_seconds: 120
-        max_cost_usd: 0.05
+        max_cost_usd: 10.0
         statement_timeout_ms: 60000
         max_concurrency: 1
 - id: opencode.proposer
