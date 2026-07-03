@@ -2,8 +2,8 @@ schema_version: workload-imports.v1
 imports:
 - id: data.workspace_probe
   manifest_path: registries/imports/agent-data.workspace_probe.json
-  manifest_digest: sha256:945385558bcaeff605f4b61c3e0e1ef61facdf2d2f7db0eb2e158a3c4975104d
-  image_digest: sha256:f24aa9535af4a3c3174569562812d7c7131b87aae36e1d3039ca684e14762014
+  manifest_digest: sha256:0fc2801a383f625c955499c0e0a4af89dd5a98be308acbeecccdae22f457c66a
+  image_digest: sha256:0aa4d9d833981b5faf3f048a6af6e4f96d3e59d37e4d4b5e15cd5d270e3e1107
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -71,13 +71,13 @@ imports:
         - aggregate_summary
         max_rows: 50
         max_runtime_seconds: 120
-        max_cost_usd: 10.0
+        max_cost_usd: 0.05
         statement_timeout_ms: 60000
         max_concurrency: 1
 - id: opencode.proposer
   manifest_path: registries/imports/agent-opencode.proposer.json
-  manifest_digest: sha256:b34384e3772727c50c972c9dc8cc082bf2afa9f61886c78fb5c33b7ba4b40af8
-  image_digest: sha256:a3bb07d2677c77b1563da61618e0aaba11e03f6051f7d1bfcd3c1d0ae16860b5
+  manifest_digest: sha256:d307d1d9937b2d2386d9b97f36cd9b0aa5b78f6993b2e9696b51cb722818f072
+  image_digest: sha256:9a8e54ee7b7ef3493415c50523f7b2d064333324cce73ed2b249e4167e3ba103
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -285,8 +285,8 @@ imports:
         broker_required: false
 - id: opencode.apply_executor
   manifest_path: registries/imports/agent-opencode.apply_executor.json
-  manifest_digest: sha256:e174b18865ba37409281cbd16c4153f9fc2a2302c017049b06a760b0638e9611
-  image_digest: sha256:57859f8d25fb9d23f54c521ed5cc4c28c838440cbab733824d8cd83b69147f24
+  manifest_digest: sha256:4a2b9886107a0dafcf739918336746787fcb1a31723c476e9a4001ad1b3865cb
+  image_digest: sha256:0a9a38686652a18284e8c16cef5e45f541c1fd26b61cd065984e21076d677796
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
