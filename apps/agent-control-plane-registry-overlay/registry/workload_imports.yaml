@@ -2,8 +2,8 @@ schema_version: workload-imports.v1
 imports:
 - id: data.workspace_probe
   manifest_path: registries/imports/agent-data.workspace_probe.json
-  manifest_digest: sha256:0fc2801a383f625c955499c0e0a4af89dd5a98be308acbeecccdae22f457c66a
-  image_digest: sha256:0aa4d9d833981b5faf3f048a6af6e4f96d3e59d37e4d4b5e15cd5d270e3e1107
+  manifest_digest: sha256:5582da81e4a339b869502d2f2abeb684c57a32d64c3925c2d58e2ed7d31007f7
+  image_digest: sha256:f16d28bad667bc5e6e468b32b6a59972c2698d9f7a4e6b92dc686c831c1c6a2f
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -76,8 +76,8 @@ imports:
         max_concurrency: 1
 - id: opencode.proposer
   manifest_path: registries/imports/agent-opencode.proposer.json
-  manifest_digest: sha256:d307d1d9937b2d2386d9b97f36cd9b0aa5b78f6993b2e9696b51cb722818f072
-  image_digest: sha256:9a8e54ee7b7ef3493415c50523f7b2d064333324cce73ed2b249e4167e3ba103
+  manifest_digest: sha256:499cec6154736243100e92c06dd7b1c7d808a8e522aa36dcf0cf3f418a67b511
+  image_digest: sha256:8bbc3c72e21249ccc5f359841df09621a5f8005c858267865c678e8f964b162e
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -285,8 +285,8 @@ imports:
         broker_required: false
 - id: opencode.apply_executor
   manifest_path: registries/imports/agent-opencode.apply_executor.json
-  manifest_digest: sha256:4a2b9886107a0dafcf739918336746787fcb1a31723c476e9a4001ad1b3865cb
-  image_digest: sha256:0a9a38686652a18284e8c16cef5e45f541c1fd26b61cd065984e21076d677796
+  manifest_digest: sha256:bb9ec6ca90b68f97a3ceb2c4e7ff819b958178c85f14cfeb47eb49754383cad8
+  image_digest: sha256:44de4092453e993b28c64a21afdc41b65a15e9a1d9f087b9b7328560ae0f2099
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
