@@ -63,6 +63,11 @@ env:
   AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_CONSEQUENCE_ENFORCEMENT: "true"
   AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_AUDIT: "true"
 
+skills:
+  enabled: true
+  configMapName: mandate-skill-packs
+  mountPath: /var/lib/mandate/skills
+
 migrations:
   enabled: true
   useHelmHooks: false

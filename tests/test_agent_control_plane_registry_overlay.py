@@ -66,6 +66,12 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             / "applications"
             / "agent-control-plane-registry-overlay.yaml"
         )
+        cls.agent_workloads_skills_application = _load_yaml(
+            REPO_ROOT / "argocd" / "applications" / "agent-workloads-skills.yaml"
+        )
+        cls.splattop_project = _load_yaml(
+            REPO_ROOT / "argocd" / "projects" / "splattop-project.yaml"
+        )
         cls.registry_overlay_restart_hook = _load_yaml(
             REGISTRY_OVERLAY_DIR / "restart-hook.yaml"
         )
@@ -103,6 +109,54 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             },
         )
         self.assertEqual(len(generator["files"]), len(self.data))
+
+    def test_readonly_query_skills_sync_from_agent_workloads(self) -> None:
+        imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
+        imports_by_id = {entry["id"]: entry for entry in imports["imports"]}
+        readonly_query = imports_by_id["data.workspace_probe"]["capabilities"][
+            "agent_workloads.readonly_query"
+        ]
+        self.assertEqual(
+            readonly_query["skills"],
+            ["xscraper-schema", "xscraper-glossary"],
+        )
+
+        skills = self.control_plane_values["skills"]
+        self.assertEqual(
+            skills,
+            {
+                "enabled": True,
+                "configMapName": "mandate-skill-packs",
+                "mountPath": "/var/lib/mandate/skills",
+            },
+        )
+
+        skills_app = self.agent_workloads_skills_application
+        self.assertEqual(skills_app["spec"]["project"], "splattop")
+        self.assertEqual(
+            skills_app["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"],
+            "8",
+        )
+        self.assertEqual(
+            skills_app["spec"]["source"],
+            {
+                "repoURL": "https://github.com/cesaregarza/agent-workloads",
+                "targetRevision": "main",
+                "path": "skills",
+            },
+        )
+        self.assertEqual(
+            skills_app["spec"]["destination"]["namespace"],
+            "agent-control-plane",
+        )
+        self.assertEqual(
+            skills_app["spec"]["syncPolicy"]["automated"],
+            {"prune": True, "selfHeal": True},
+        )
+        self.assertIn(
+            "https://github.com/cesaregarza/agent-workloads",
+            self.splattop_project["spec"]["sourceRepos"],
+        )
 
     def test_registry_overlay_restart_hook_runs_without_selective_sync(self) -> None:
         annotations = self.registry_overlay_restart_hook["metadata"]["annotations"]

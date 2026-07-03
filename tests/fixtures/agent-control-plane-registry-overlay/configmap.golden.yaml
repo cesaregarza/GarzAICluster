@@ -41,6 +41,9 @@ data:
           output_gate:
             policy_id: deterministic-public-result-v1
             projection_id: agent_workloads.readonly_query
+          skills:
+          - xscraper-schema
+          - xscraper-glossary
           model_lease:
             required: true
             allowed_tier: fast
