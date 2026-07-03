@@ -10,6 +10,7 @@ from ruamel.yaml import YAML
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_OVERLAY_DIR = REPO_ROOT / "apps" / "agent-control-plane-registry-overlay"
 REGISTRY_OVERLAY_CONFIGMAP_NAME = "agent-control-plane-registry-overlay"
+SKILL_BUNDLE_DIR = REPO_ROOT / "apps" / "agent-control-plane-skills"
 YAML_PARSER = YAML(typ="safe")
 
 
@@ -66,8 +67,11 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             / "applications"
             / "agent-control-plane-registry-overlay.yaml"
         )
-        cls.agent_workloads_skills_application = _load_yaml(
-            REPO_ROOT / "argocd" / "applications" / "agent-workloads-skills.yaml"
+        cls.control_plane_skills_application = _load_yaml(
+            REPO_ROOT / "argocd" / "applications" / "agent-control-plane-skills.yaml"
+        )
+        cls.control_plane_skills_kustomization = _load_yaml(
+            SKILL_BUNDLE_DIR / "kustomization.yaml"
         )
         cls.splattop_project = _load_yaml(
             REPO_ROOT / "argocd" / "projects" / "splattop-project.yaml"
@@ -110,7 +114,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertEqual(len(generator["files"]), len(self.data))
 
-    def test_readonly_query_skills_sync_from_agent_workloads(self) -> None:
+    def test_readonly_query_skills_sync_from_operator_bundle(self) -> None:
         imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
         imports_by_id = {entry["id"]: entry for entry in imports["imports"]}
         readonly_query = imports_by_id["data.workspace_probe"]["capabilities"][
@@ -131,7 +135,12 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             },
         )
 
-        skills_app = self.agent_workloads_skills_application
+        self.assertFalse(
+            (
+                REPO_ROOT / "argocd" / "applications" / "agent-workloads-skills.yaml"
+            ).exists()
+        )
+        skills_app = self.control_plane_skills_application
         self.assertEqual(skills_app["spec"]["project"], "splattop")
         self.assertEqual(
             skills_app["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"],
@@ -140,9 +149,9 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertEqual(
             skills_app["spec"]["source"],
             {
-                "repoURL": "https://github.com/cesaregarza/agent-workloads",
+                "repoURL": "https://github.com/cesaregarza/GarzAICluster",
                 "targetRevision": "main",
-                "path": "skills",
+                "path": "apps/agent-control-plane-skills",
             },
         )
         self.assertEqual(
@@ -153,9 +162,35 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             skills_app["spec"]["syncPolicy"]["automated"],
             {"prune": True, "selfHeal": True},
         )
-        self.assertIn(
+        self.assertNotIn(
             "https://github.com/cesaregarza/agent-workloads",
             self.splattop_project["spec"]["sourceRepos"],
+        )
+
+        generator = self.control_plane_skills_kustomization["configMapGenerator"][0]
+        self.assertEqual(generator["name"], "mandate-skill-packs")
+        self.assertEqual(
+            set(generator["files"]),
+            {
+                "manifest.json=bundle/manifest.json",
+                "xscraper-schema.md=bundle/xscraper-schema.md",
+                "xscraper-glossary.md=bundle/xscraper-glossary.md",
+            },
+        )
+        manifest = json.loads(
+            (SKILL_BUNDLE_DIR / "bundle" / "manifest.json").read_text()
+        )
+        self.assertEqual(
+            manifest["source"]["commit"],
+            "9792a39f34de9b143fd3342ccc03da21613f285f",
+        )
+        self.assertIn(
+            "id: xscraper-schema",
+            (SKILL_BUNDLE_DIR / "bundle" / "xscraper-schema.md").read_text(),
+        )
+        self.assertIn(
+            "id: xscraper-glossary",
+            (SKILL_BUNDLE_DIR / "bundle" / "xscraper-glossary.md").read_text(),
         )
 
     def test_registry_overlay_restart_hook_runs_without_selective_sync(self) -> None:

@@ -19,7 +19,7 @@ metrics:
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-91079663b000
+  tag: sha-0e631187996d
   pullPolicy: IfNotPresent
 
 secretKeys:

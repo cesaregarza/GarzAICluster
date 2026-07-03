@@ -1,0 +1,19 @@
+{
+  "schema_version": "agent-control-plane-skill-bundle.v1",
+  "source": {
+    "repo": "cesaregarza/agent-workloads",
+    "commit": "9792a39f34de9b143fd3342ccc03da21613f285f"
+  },
+  "skills": [
+    {
+      "id": "xscraper-glossary",
+      "path": "xscraper-glossary.md",
+      "digest": "sha256:804f5681374b0e3ffb936133819a3a1743d424b0e2fcfb7797a1d47399e3225a"
+    },
+    {
+      "id": "xscraper-schema",
+      "path": "xscraper-schema.md",
+      "digest": "sha256:e9195b589b5e904448e7830917dd7325a98081029fd69a89936aad554047f51e"
+    }
+  ]
+}

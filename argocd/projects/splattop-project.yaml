@@ -12,7 +12,6 @@ spec:
     - https://github.com/cesaregarza/GarzAICluster
     - https://github.com/cesaregarza/agent-platform
     - git@github.com:cesaregarza/agent-platform.git
-    - https://github.com/cesaregarza/agent-workloads
 
   destinations:
     - namespace: default
