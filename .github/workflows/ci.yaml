@@ -60,6 +60,83 @@ jobs:
       - name: Check deployed registry compatibility
         uses: cesaregarza/.github/actions/agent-control-plane-registry-compat-gate@a1d2fb4a6b288066574b1ac53074ac62e920a07f
 
+  agent-control-plane-provider-digest-pins:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Read pinned agent-platform revision
+        id: target
+        run: |
+          set -euo pipefail
+          revision="$(uv run python scripts/check_agent_control_plane_provider_pins.py --print-target-revision)"
+          [[ -n "$revision" ]] || { echo "::error::target revision is empty" >&2; exit 1; }
+          echo "revision=${revision}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch source and registry credentials
+        id: broker
+        uses: cesaregarza/.github/actions/fetch-broker-credentials@a1d2fb4a6b288066574b1ac53074ac62e920a07f
+        with:
+          broker-url: https://credentials.garz.ai
+          audience: https://credentials.garz.ai/v1
+          capabilities: '["mandate-contracts-read","digitalocean-registry-write"]'
+
+      - name: Check out pinned agent-platform source
+        uses: actions/checkout@v4
+        with:
+          repository: cesaregarza/agent-platform
+          ref: ${{ steps.target.outputs.revision }}
+          path: agent-platform
+          token: ${{ fromJson(steps.broker.outputs.secrets-json).MANDATE_CONTRACTS_READ_TOKEN }}
+          fetch-depth: 0
+
+      - name: Ensure agent-platform main ref is available
+        run: git -C agent-platform fetch origin main:refs/remotes/origin/main
+
+      - name: Install crane
+        run: |
+          curl --fail --location --retry 5 --retry-all-errors --connect-timeout 20 \
+            --output /tmp/go-containerregistry.tar.gz \
+            https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz
+          gzip -t /tmp/go-containerregistry.tar.gz
+          sudo tar -C /usr/local/bin -xzf /tmp/go-containerregistry.tar.gz crane
+          crane version
+
+      - name: Authenticate to DigitalOcean Registry
+        env:
+          DIGITALOCEAN_REGISTRY_TOKEN: ${{ fromJson(steps.broker.outputs.secrets-json).DIGITALOCEAN_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ -n "$DIGITALOCEAN_REGISTRY_TOKEN" ]] || {
+            echo "::error::DIGITALOCEAN_REGISTRY_TOKEN is required to query image manifests" >&2
+            exit 1
+          }
+          echo "$DIGITALOCEAN_REGISTRY_TOKEN" |
+            crane auth login registry.digitalocean.com -u doctl --password-stdin
+
+      - name: Check provider digest pins
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
+        run: >
+          uv run python scripts/check_agent_control_plane_provider_pins.py
+          --agent-platform-repo agent-platform
+          --check-image-exists
+
   agent-control-plane-registry-overlay-render:
     runs-on: ubuntu-latest
     steps:
