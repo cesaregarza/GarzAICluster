@@ -182,7 +182,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertEqual(
             manifest["source"]["commit"],
-            "9792a39f34de9b143fd3342ccc03da21613f285f",
+            "7dfa224cbca21486544e024c35385eed1c64f45d",
         )
         self.assertIn(
             "id: xscraper-schema",

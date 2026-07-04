@@ -7,7 +7,7 @@ generatorOptions:
   labels:
     app.kubernetes.io/name: agent-control-plane
     app.kubernetes.io/component: skills
-    garz.ai/source: ci-published-skill-bundle
+    garz.ai/source: operator-curated-skill-bundle
 
 configMapGenerator:
   - name: mandate-skill-packs

@@ -49,7 +49,7 @@ TOKEN_SECRET_PATH = Path("secrets/agent-workloads/workload-identity-tokens.enc.y
 TOKEN_METADATA_PATH = Path(
     "secrets/agent-workloads/workload-identity-tokens.metadata.yaml"
 )
-DIGEST_SPEC_VERSION = "agent-workloads-code-digest-v1"
+DIGEST_SPEC_VERSION = "agent-workloads-code-digest-v2"
 WORKLOAD_IDENTITY_BUNDLE_DIGEST_VERSION = "workload_identity_bundle.v1"
 OLD_MUTABLE_BROKER_ACTION = (
     "cesaregarza/"

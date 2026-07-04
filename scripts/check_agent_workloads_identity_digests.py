@@ -28,7 +28,7 @@ TOKEN_METADATA_PATH = Path(
 )
 SHA256_DIGEST_RE = re.compile(r"^sha256:[a-fA-F0-9]{64}$")
 TOKEN_PREFIX = "mwit_v1"
-DIGEST_SPEC_VERSION = "agent-workloads-code-digest-v1"
+DIGEST_SPEC_VERSION = "agent-workloads-code-digest-v2"
 TOKEN_METADATA_SCHEMA_VERSION = "agent-workloads-workload-identity-tokens.metadata.v1"
 WORKLOAD_IDENTITY_BUNDLE_DIGEST_VERSION = "workload_identity_bundle.v1"
 TOKEN_KEYS_BY_AGENT_ID = {
