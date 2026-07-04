@@ -300,7 +300,7 @@ syntheticLiveVerify:
       capability_id: agent_workloads.readonly_query
       text: Show 3 recent X Power schedule windows from xscraper.schedules.
       max_cost_usd: 1.0
-      max_runtime_seconds: 120
+      max_runtime_seconds: 60
       timeout_seconds: 180
       poll_seconds: 5
       expected_status: succeeded
