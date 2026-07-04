@@ -94,7 +94,7 @@ jobs:
         with:
           broker-url: https://credentials.garz.ai
           audience: https://credentials.garz.ai/v1
-          capabilities: '["mandate-contracts-read","digitalocean-registry-write"]'
+          capabilities: '["mandate-contracts-read","digitalocean-registry-read"]'
 
       - name: Check out pinned agent-platform source
         uses: actions/checkout@v4

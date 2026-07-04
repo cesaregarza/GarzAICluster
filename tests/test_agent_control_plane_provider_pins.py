@@ -219,7 +219,7 @@ class AgentControlPlaneProviderPinTests(unittest.TestCase):
             broker_step["with"]["capabilities"],
         )
         self.assertIn(
-            '"digitalocean-registry-write"',
+            '"digitalocean-registry-read"',
             broker_step["with"]["capabilities"],
         )
 
