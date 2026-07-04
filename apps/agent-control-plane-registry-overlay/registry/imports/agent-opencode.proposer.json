@@ -16,7 +16,7 @@
     }
   },
   "code_digest": "sha256:45441ea0f3091baa08a7d3cdcf713dd833641ea0938d71338a84734984cda03d",
-  "digest": "sha256:1518a2ffae84947629254653755c04f12f6f823078e1527b98c3f110512f7b8d",
+  "digest": "sha256:01166c201018c21b9071cdc5142c3c1af29c7b09e577e8ddd36f88c20b9dfd9c",
   "display_name": "OpenCode Proposer",
   "evals": {
     "optional": [],
@@ -26,7 +26,7 @@
   },
   "id": "opencode.proposer",
   "image": {
-    "digest": "sha256:9c7b957e20edd32024cf7823a0fca29477f9d635626b48fbd38ffb5e22f8984a",
+    "digest": "sha256:49333bad201df65723d218989999a7a17d8d1694efb2f5556894b5c33b1e37b5",
     "repository": "registry.digitalocean.com/sendouq/opencode-proposer"
   },
   "loop": {
