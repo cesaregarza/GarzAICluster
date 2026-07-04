@@ -22,4 +22,11 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+  ignoreDifferences:
+    - group: ""
+      kind: ConfigMap
+      name: mandate-skill-packs
+      namespace: agent-control-plane
+      jsonPointers:
+        - /data
   revisionHistoryLimit: 10

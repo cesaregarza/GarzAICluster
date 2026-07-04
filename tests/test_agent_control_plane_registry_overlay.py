@@ -21,6 +21,17 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return loaded
 
 
+def _load_yaml_documents(path: Path) -> list[dict[str, Any]]:
+    loaded = [
+        document
+        for document in YAML_PARSER.load_all(path.read_text())
+        if isinstance(document, dict)
+    ]
+    if not loaded:
+        raise AssertionError(f"YAML documents expected: {path}")
+    return loaded
+
+
 def _load_registry_overlay_data() -> dict[str, str]:
     legacy_configmap_path = REGISTRY_OVERLAY_DIR / "configmap.yaml"
     if legacy_configmap_path.exists():
@@ -73,6 +84,18 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         cls.control_plane_skills_kustomization = _load_yaml(
             SKILL_BUNDLE_DIR / "kustomization.yaml"
         )
+        cls.control_plane_skills_configmap = _load_yaml(
+            SKILL_BUNDLE_DIR / "configmap.yaml"
+        )
+        cls.control_plane_skills_rbac = _load_yaml_documents(
+            SKILL_BUNDLE_DIR / "materialize-rbac.yaml"
+        )
+        cls.control_plane_skills_job = _load_yaml(
+            SKILL_BUNDLE_DIR / "materialize-job.yaml"
+        )
+        cls.control_plane_skills_cronjob = _load_yaml(
+            SKILL_BUNDLE_DIR / "materialize-cronjob.yaml"
+        )
         cls.splattop_project = _load_yaml(
             REPO_ROOT / "argocd" / "projects" / "splattop-project.yaml"
         )
@@ -114,7 +137,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertEqual(len(generator["files"]), len(self.data))
 
-    def test_readonly_query_skills_sync_from_operator_bundle(self) -> None:
+    def test_readonly_query_skills_sync_from_published_bundle_consumer(self) -> None:
         imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
         imports_by_id = {entry["id"]: entry for entry in imports["imports"]}
         readonly_query = imports_by_id["data.workspace_probe"]["capabilities"][
@@ -162,36 +185,91 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             skills_app["spec"]["syncPolicy"]["automated"],
             {"prune": True, "selfHeal": True},
         )
+        self.assertEqual(
+            skills_app["spec"]["ignoreDifferences"],
+            [
+                {
+                    "group": "",
+                    "kind": "ConfigMap",
+                    "name": "mandate-skill-packs",
+                    "namespace": "agent-control-plane",
+                    "jsonPointers": ["/data"],
+                }
+            ],
+        )
         self.assertNotIn(
             "https://github.com/cesaregarza/agent-workloads",
             self.splattop_project["spec"]["sourceRepos"],
         )
 
-        generator = self.control_plane_skills_kustomization["configMapGenerator"][0]
-        self.assertEqual(generator["name"], "mandate-skill-packs")
         self.assertEqual(
-            set(generator["files"]),
+            set(self.control_plane_skills_kustomization["resources"]),
             {
-                "manifest.json=bundle/manifest.json",
-                "xscraper-schema.md=bundle/xscraper-schema.md",
-                "xscraper-glossary.md=bundle/xscraper-glossary.md",
+                "configmap.yaml",
+                "materialize-rbac.yaml",
+                "materialize-job.yaml",
+                "materialize-cronjob.yaml",
             },
         )
-        manifest = json.loads(
-            (SKILL_BUNDLE_DIR / "bundle" / "manifest.json").read_text()
+        self.assertEqual(
+            self.control_plane_skills_configmap["metadata"]["name"],
+            "mandate-skill-packs",
         )
         self.assertEqual(
-            manifest["source"]["commit"],
-            "7dfa224cbca21486544e024c35385eed1c64f45d",
+            self.control_plane_skills_configmap["data"],
+            {},
         )
-        self.assertIn(
-            "id: xscraper-schema",
-            (SKILL_BUNDLE_DIR / "bundle" / "xscraper-schema.md").read_text(),
+        self.assertEqual(
+            self.control_plane_skills_configmap["metadata"]["labels"]["garz.ai/source"],
+            "ci-published-skill-bundle",
         )
-        self.assertIn(
-            "id: xscraper-glossary",
-            (SKILL_BUNDLE_DIR / "bundle" / "xscraper-glossary.md").read_text(),
+        self.assertFalse(any((SKILL_BUNDLE_DIR / "bundle").glob("*")))
+
+        role = next(
+            document
+            for document in self.control_plane_skills_rbac
+            if document["kind"] == "Role"
         )
+        self.assertEqual(role["rules"], [
+            {
+                "apiGroups": [""],
+                "resources": ["configmaps"],
+                "resourceNames": ["mandate-skill-packs"],
+                "verbs": ["get", "patch", "update"],
+            }
+        ])
+        self.assertNotIn("create", role["rules"][0]["verbs"])
+        self.assertNotIn("delete", role["rules"][0]["verbs"])
+
+        self._assert_skill_bundle_materializer_pod(
+            self.control_plane_skills_job["spec"]["template"]["spec"]
+        )
+        cron_spec = self.control_plane_skills_cronjob["spec"]
+        self.assertEqual(cron_spec["schedule"], "*/5 * * * *")
+        self.assertEqual(cron_spec["concurrencyPolicy"], "Forbid")
+        self._assert_skill_bundle_materializer_pod(
+            cron_spec["jobTemplate"]["spec"]["template"]["spec"]
+        )
+
+    def _assert_skill_bundle_materializer_pod(self, pod_spec: dict[str, Any]) -> None:
+        self.assertEqual(pod_spec["serviceAccountName"], "mandate-skill-bundle-sync")
+        self.assertEqual(pod_spec["imagePullSecrets"], [{"name": "regcred"}])
+        init_container = pod_spec["initContainers"][0]
+        self.assertEqual(init_container["name"], "bundle")
+        self.assertEqual(
+            init_container["image"],
+            "registry.digitalocean.com/sendouq/agent-workloads-skills:main",
+        )
+        self.assertEqual(init_container["imagePullPolicy"], "Always")
+
+        materializer = pod_spec["containers"][0]
+        script = materializer["command"][-1]
+        self.assertIn("sha256sum -c SHA256SUMS", script)
+        self.assertIn("agent-control-plane-skill-bundle.v1", script)
+        self.assertIn("create configmap mandate-skill-packs", script)
+        self.assertIn("--server-side", script)
+        self.assertIn("--field-manager=mandate-skill-bundle-sync", script)
+        self.assertNotIn("kubectl create -f", script)
 
     def test_registry_overlay_restart_hook_runs_without_selective_sync(self) -> None:
         annotations = self.registry_overlay_restart_hook["metadata"]["annotations"]
