@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agent-control-plane-skills
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: splattop
+  source:
+    repoURL: https://github.com/cesaregarza/GarzAICluster
+    targetRevision: main
+    path: apps/agent-control-plane-skills
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: agent-control-plane
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  revisionHistoryLimit: 10

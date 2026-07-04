@@ -15,7 +15,9 @@ from ruamel.yaml import YAML
 from scripts.check_agent_control_plane_registry_compat import (
     RegistryCompatError,
     _assert_registry_data_equivalent,
+    materialize_skill_bundle,
     registry_overlay_data,
+    skill_bundle_data,
 )
 
 
@@ -162,6 +164,46 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
             self.assertEqual(
                 data,
                 {"policy.prod.yaml": "defaults:\n  max_cost_usd_per_job: 10.0\n"},
+            )
+
+    def test_skill_bundle_reader_materializes_pinned_platform_skills(self) -> None:
+        with TemporaryDirectory() as raw_tmp:
+            tmp = Path(raw_tmp)
+            bundle_dir = tmp / "apps" / "agent-control-plane-skills"
+            (bundle_dir / "bundle").mkdir(parents=True)
+            (bundle_dir / "bundle" / "xscraper-schema.md").write_text(
+                "---\nid: xscraper-schema\nversion: test\n---\n# Schema\n",
+                encoding="utf-8",
+            )
+            (bundle_dir / "kustomization.yaml").write_text(
+                textwrap.dedent(
+                    """
+                    apiVersion: kustomize.config.k8s.io/v1beta1
+                    kind: Kustomization
+                    configMapGenerator:
+                      - name: mandate-skill-packs
+                        files:
+                          - xscraper-schema.md=bundle/xscraper-schema.md
+                    """
+                ).lstrip(),
+                encoding="utf-8",
+            )
+
+            data = skill_bundle_data(bundle_dir)
+            platform_repo = tmp / "agent-platform"
+            materialize_skill_bundle(platform_repo, data)
+
+            self.assertEqual(
+                data,
+                {
+                    "xscraper-schema.md": (
+                        "---\nid: xscraper-schema\nversion: test\n---\n# Schema\n"
+                    )
+                },
+            )
+            self.assertEqual(
+                (platform_repo / "skills" / "xscraper-schema.md").read_text(),
+                data["xscraper-schema.md"],
             )
 
     def test_two_allowed_profiles_fails_with_named_registry_error(self) -> None:

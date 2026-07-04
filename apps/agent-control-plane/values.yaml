@@ -19,7 +19,7 @@ metrics:
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-91079663b000
+  tag: sha-184da9ef35f6
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -62,6 +62,11 @@ env:
   AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_COST_CUTOFF: "true"
   AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_CONSEQUENCE_ENFORCEMENT: "true"
   AGENT_PLATFORM_HOSTED_HARNESS_SAFE_FLOOR_AUDIT: "true"
+
+skills:
+  enabled: true
+  configMapName: mandate-skill-packs
+  mountPath: /var/lib/mandate/skills
 
 migrations:
   enabled: true
