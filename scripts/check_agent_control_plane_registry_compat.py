@@ -26,6 +26,7 @@ REGISTRY_OVERLAY_CONFIGMAP_PATH = REGISTRY_OVERLAY_DIR / "configmap.yaml"
 REGISTRY_OVERLAY_KUSTOMIZATION_PATH = REGISTRY_OVERLAY_DIR / "kustomization.yaml"
 REGISTRY_OVERLAY_CONFIGMAP_NAME = "agent-control-plane-registry-overlay"
 SKILL_BUNDLE_DIR = Path("apps/agent-control-plane-skills")
+SKILL_BUNDLE_COMPAT_FIXTURE_DIR = Path("tests/fixtures/agent-control-plane-skills")
 SKILL_BUNDLE_CONFIGMAP_NAME = "mandate-skill-packs"
 AGENT_PLATFORM_REPO_URLS = {
     "git@github.com:cesaregarza/agent-platform.git",
@@ -119,7 +120,7 @@ def validate_deployed_registry_compat(
         ignore = shutil.ignore_patterns(".git", ".venv", "__pycache__", ".mypy_cache")
         shutil.copytree(agent_platform_repo, temp_repo, ignore=ignore)
         materialize_registry_overlay(temp_repo, data)
-        materialize_skill_bundle(temp_repo, skill_bundle_data(repo_root / SKILL_BUNDLE_DIR))
+        materialize_skill_bundle(temp_repo, _compat_skill_bundle_data(repo_root))
         _import_registry_snapshot_from(temp_repo, environment=environment)
 
     return (
@@ -170,7 +171,7 @@ def registry_overlay_data(overlay_path: Path) -> dict[str, str]:
 
 
 def skill_bundle_data(bundle_path: Path) -> dict[str, str]:
-    """Read the operator-reviewed skill bundle ConfigMap data."""
+    """Read optional local skill bundle ConfigMap data for compatibility checks."""
     if not bundle_path.exists():
         return {}
     kustomization_path = bundle_path / "kustomization.yaml"
@@ -184,12 +185,22 @@ def skill_bundle_data(bundle_path: Path) -> dict[str, str]:
                 configmap_name=SKILL_BUNDLE_CONFIGMAP_NAME,
                 label="skill bundle",
             )
+    kustomization = _load_yaml(kustomization_path)
+    if "configMapGenerator" not in kustomization:
+        return {}
     return _configmap_data_from_kustomization_sources(
         source_dir=bundle_path,
         kustomization_path=kustomization_path,
         configmap_name=SKILL_BUNDLE_CONFIGMAP_NAME,
         label="skill bundle",
     )
+
+
+def _compat_skill_bundle_data(repo_root: Path) -> dict[str, str]:
+    data = skill_bundle_data(repo_root / SKILL_BUNDLE_DIR)
+    if data:
+        return data
+    return skill_bundle_data(repo_root / SKILL_BUNDLE_COMPAT_FIXTURE_DIR)
 
 
 def _assert_render_equivalent_to_base_configmap(

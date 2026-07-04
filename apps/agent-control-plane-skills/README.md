@@ -1,9 +1,10 @@
 # Agent Control Plane Skill Bundle
 
-This kustomization renders the operator-reviewed skill bundle consumed by
-`agent-control-plane` through the `mandate-skill-packs` ConfigMap.
+This kustomization owns the scoped materializer for the
+`mandate-skill-packs` ConfigMap consumed by `agent-control-plane`.
 
-This bundle is an operator-curated copy of the reviewed `agent-workloads/skills`
-content until the CES-374 publish automation lands. GarzAICluster consumes the
-rendered bundle as deployment data so Argo CD does not sync raw
-`agent-workloads/skills` source directly into production.
+`agent-workloads` CI publishes reviewed `skills/` content as the
+`registry.digitalocean.com/sendouq/agent-workloads-skills:main` bundle image.
+The materializer verifies the bundle checksum index and server-side applies only
+the single named `mandate-skill-packs` ConfigMap. It does not let
+`agent-workloads` provide arbitrary Argo CD manifests.
