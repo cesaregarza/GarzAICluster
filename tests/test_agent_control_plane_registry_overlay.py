@@ -486,8 +486,16 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             ["mandate-live-probe"],
         )
         self.assertEqual(
+            synthetic_binding["principal"],
+            {
+                "issuer": "synthetic",
+                "subject_kind": "service",
+                "tenant_id": "garzai-prod",
+            },
+        )
+        self.assertEqual(
             synthetic_binding["capabilities"]["allow"],
-            ["mandate.deploy.smoke"],
+            ["mandate.deploy.smoke", "agent_workloads.readonly_query"],
         )
         self.assertEqual(synthetic_binding["users"].get("admins"), [])
         self.assertNotIn("approval_overrides", synthetic_binding["capabilities"])
@@ -547,29 +555,74 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             "evals.yaml",
         )
 
-    def test_synthetic_live_verify_keeps_dedicated_probe_actor_disabled(self) -> None:
+    def test_synthetic_live_verify_runs_internal_deployment_and_readonly_probes(
+        self,
+    ) -> None:
         synthetic = self.control_plane_values["syntheticLiveVerify"]
 
-        self.assertFalse(synthetic["enabled"])
+        self.assertTrue(synthetic["enabled"])
         self.assertEqual(synthetic["schedule"], "*/5 * * * *")
         self.assertEqual(synthetic["baseUrl"], "http://agent-control-plane:80")
         self.assertEqual(
-            synthetic["actor"],
+            synthetic["principal"],
             {
-                "platform": "synthetic",
-                "guildId": "614277943706910722",
-                "channelId": "1480483954694819940",
-                "userId": "mandate-live-probe",
+                "issuer": "synthetic",
+                "subject_id": "mandate-live-probe",
+                "subject_kind": "service",
+                "tenant_id": "garzai-prod",
                 "roles": ["synthetic_probe"],
+                "provenance": {
+                    "source": "synthetic-live-verify",
+                    "identifiers": {
+                        "tenant_ref": "garzai-prod",
+                        "subject_ref": "mandate-live-probe",
+                    },
+                },
             },
         )
         self.assertEqual(
-            synthetic["replyTarget"],
+            synthetic["deliveryTarget"],
             {
-                "channelId": "1480483954694819940",
-                "messageId": "scheduled-synthetic-live-verify",
+                "kind": "internal",
+                "target_ref": "synthetic-live-verify",
+                "message_ref": "scheduled-synthetic-live-verify",
             },
         )
+        self.assertEqual(
+            synthetic["surfaceContext"],
+            {
+                "source": "synthetic-live-verify",
+                "surface_ref": "synthetic-live-verify",
+                "adapter_provenance": {
+                    "source": "synthetic-live-verify",
+                    "identifiers": {"probe": "scheduled"},
+                },
+            },
+        )
+        self.assertEqual(
+            synthetic["trustedContext"],
+            {"entitlements": [], "attachment_authorities": []},
+        )
+        journeys = {journey["id"]: journey for journey in synthetic["journeys"]}
+        self.assertEqual(
+            set(journeys),
+            {"deployment-smoke", "readonly-query-skill-digests"},
+        )
+        self.assertEqual(
+            journeys["deployment-smoke"]["required_result_fields"],
+            ["output_text", "probe_marker"],
+        )
+        readonly_query = journeys["readonly-query-skill-digests"]
+        self.assertEqual(
+            readonly_query["capability_id"],
+            "agent_workloads.readonly_query",
+        )
+        self.assertEqual(readonly_query["required_result_fields"], ["output_text"])
+        self.assertEqual(
+            readonly_query["required_skill_ids"],
+            ["xscraper-schema", "xscraper-glossary"],
+        )
+        self.assertIn("tool.started", readonly_query["required_event_types"])
 
     def test_prometheus_alerts_on_failed_synthetic_live_verify_job(self) -> None:
         rules_template = (

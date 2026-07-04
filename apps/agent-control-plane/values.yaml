@@ -19,7 +19,7 @@ metrics:
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-184da9ef35f6
+  tag: sha-2f9c719f52d9
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -247,16 +247,74 @@ postgresSweep:
   enabled: true
 
 syntheticLiveVerify:
-  enabled: false
+  enabled: true
   schedule: "*/5 * * * *"
   baseUrl: http://agent-control-plane:80
-  actor:
-    platform: synthetic
-    guildId: "614277943706910722"
-    channelId: "1480483954694819940"
-    userId: mandate-live-probe
+  principal:
+    issuer: synthetic
+    subject_id: mandate-live-probe
+    subject_kind: service
+    tenant_id: garzai-prod
     roles:
       - synthetic_probe
-  replyTarget:
-    channelId: "1480483954694819940"
-    messageId: scheduled-synthetic-live-verify
+    provenance:
+      source: synthetic-live-verify
+      identifiers:
+        tenant_ref: garzai-prod
+        subject_ref: mandate-live-probe
+  deliveryTarget:
+    kind: internal
+    target_ref: synthetic-live-verify
+    message_ref: scheduled-synthetic-live-verify
+  surfaceContext:
+    source: synthetic-live-verify
+    surface_ref: synthetic-live-verify
+    adapter_provenance:
+      source: synthetic-live-verify
+      identifiers:
+        probe: scheduled
+  trustedContext:
+    entitlements: []
+    attachment_authorities: []
+  journeys:
+    - id: deployment-smoke
+      capability_id: mandate.deploy.smoke
+      text: Run the deployment smoke probe and return the deployment marker.
+      max_cost_usd: 0.05
+      max_runtime_seconds: 60
+      timeout_seconds: 120
+      poll_seconds: 5
+      expected_status: succeeded
+      required_result_fields:
+        - output_text
+        - probe_marker
+      required_callback_types:
+        - job.accepted
+        - job.progress
+        - job.succeeded
+      required_event_types:
+        - run.created
+        - policy.evaluated
+        - result.released
+    - id: readonly-query-skill-digests
+      capability_id: agent_workloads.readonly_query
+      text: Show 3 recent X Power schedule windows from xscraper.schedules.
+      max_cost_usd: 1.0
+      max_runtime_seconds: 120
+      timeout_seconds: 180
+      poll_seconds: 5
+      expected_status: succeeded
+      required_result_fields:
+        - output_text
+      required_callback_types:
+        - job.accepted
+        - job.progress
+        - job.succeeded
+      required_event_types:
+        - run.created
+        - policy.evaluated
+        - tool.started
+        - result.released
+      required_skill_ids:
+        - xscraper-schema
+        - xscraper-glossary
