@@ -610,7 +610,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertEqual(
             journeys["deployment-smoke"]["required_result_fields"],
-            ["output_text", "probe_marker"],
+            ["output_text", "schema_version"],
         )
         readonly_query = journeys["readonly-query-skill-digests"]
         self.assertEqual(
