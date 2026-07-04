@@ -1,6 +1,6 @@
 ---
 id: xscraper-glossary
-version: 2026.07.03
+version: 2026.07.04
 requires:
   - xscraper-schema
 ---
@@ -39,3 +39,5 @@ requires:
   before concluding there is no match.
 - Use regional boolean filters only when the task explicitly asks for a division
   or region, or when a leaderboard table requires the distinction.
+- Splashtag discriminators (the #NNNN suffix) are display identity, not join keys;
+  join on player_id when correlating across tables.
