@@ -12,8 +12,8 @@ bindings:
   - id: private-admin-controlled-capabilities
     description: Production-safe private admin binding for no-key probes,
       bounded read-only SQL, and the first imported worker-service probe.
-    guild_id: "614277943706910722"
-    channel_id: "1480483954694819940"
+    guild_id: "1523242748822425750"
+    channel_id: "1523242750043226234"
     users:
       admins:
         - "94265880216612864"
