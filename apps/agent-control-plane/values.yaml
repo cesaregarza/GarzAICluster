@@ -19,7 +19,7 @@ metrics:
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-22e8e023a614
+  tag: sha-33546e5db1b0
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -37,6 +37,11 @@ secretKeys:
   - AGENT_PLATFORM_MODEL_GATEWAY_CODEX_AUTH_JSON
   - AGENT_PLATFORM_WORKLOAD_IDENTITY_HMAC_SECRET
   - AGENT_PLATFORM_MCP_TRUSTED_CONTEXT_HMAC_SECRET
+
+apiExtraSecretRefs:
+  - secretName: agent-control-plane-hermes-mctx
+    keys:
+      - AGENT_PLATFORM_MCP_TRUSTED_CONTEXT_HMAC_SECONDARY_SECRET
 
 env:
   AGENT_PLATFORM_ENVIRONMENT: prod

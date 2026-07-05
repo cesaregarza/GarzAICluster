@@ -45,6 +45,10 @@ Required before activation:
   with the public control API URL, the matching trusted-edge/OpenClaw service
   token, and the shared `AGENT_PLATFORM_MCP_TRUSTED_CONTEXT_HMAC_SECRET` used
   to sign per-turn `mctx_v2` assertions.
+- Hermes uses a separate `agent-control-plane-hermes-mctx` Secret mounted only
+  into the API pod through `apiExtraSecretRefs`, so Discord ingress does not
+  share OpenClaw's trusted-context HMAC key or expose the Hermes key to worker,
+  callback, or model-gateway pods.
 - The callback adapter deployment uses the same Postgres state as the API and
   worker, claims delivery by event id, and posts safe terminal output to the
   OpenClaw droplet's `/mandate-edge/openclaw-callback` plugin route. The
