@@ -61,6 +61,10 @@ Required before activation:
   `agent-control-plane-model-gateway-controls` as a directory so operator edits
   project without pod restarts. See
   [model-gateway controls](../../docs/model-gateway-controls.md).
+- `postgresSweep.enabled=false` while the current
+  `db-postgresql-nyc3-xscraper` `db-amd-1vcpu-2gb` plan is connection-slot
+  saturated by the live control-plane services. Re-enable it only after the
+  database connection budget is raised or the service pool footprint is reduced.
 - `syntheticLiveVerify.enabled=true` runs the scheduled deployment smoke and
   readonly-query probes every five minutes through the trusted-edge `/v1/tasks`
   path with signed `mctx_v2` assertions. The dedicated

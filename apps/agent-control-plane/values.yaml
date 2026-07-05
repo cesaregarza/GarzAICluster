@@ -249,7 +249,7 @@ extraVolumeMounts:
     readOnly: true
 
 postgresSweep:
-  enabled: true
+  enabled: false
 
 syntheticLiveVerify:
   enabled: true
