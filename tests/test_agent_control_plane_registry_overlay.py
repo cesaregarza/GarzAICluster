@@ -482,6 +482,13 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         synthetic_binding = bindings_by_id["synthetic-live-verify-probe"]
 
         self.assertEqual(
+            binding["surface_identifiers"],
+            {
+                "guild_id": "1523242748822425750",
+                "channel_id": "1523242750043226234",
+            },
+        )
+        self.assertEqual(
             synthetic_binding["users"]["authorized"],
             ["mandate-live-probe"],
         )
