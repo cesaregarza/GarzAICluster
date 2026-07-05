@@ -55,6 +55,26 @@ data:
           - targets:
               - alertmanager.monitoring.svc.cluster.local:9093
 
+{{- range $scrape := .Values.monitoring.prometheus.staticScrapeConfigs }}
+      - job_name: {{ $scrape.jobName | quote }}
+        metrics_path: {{ default "/metrics" $scrape.metricsPath | quote }}
+        {{- with $scrape.scheme }}
+        scheme: {{ . | quote }}
+        {{- end }}
+        {{- with $scrape.scrapeInterval }}
+        scrape_interval: {{ . | quote }}
+        {{- end }}
+        static_configs:
+          - targets:
+            {{- range $target := $scrape.targets }}
+              - {{ $target | quote }}
+            {{- end }}
+            {{- with $scrape.labels }}
+            labels:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+
+{{- end }}
       - job_name: kubernetes-pods
         kubernetes_sd_configs:
           - role: pod

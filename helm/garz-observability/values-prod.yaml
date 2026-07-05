@@ -21,11 +21,22 @@ monitoring:
       - ingress-nginx
       - splattop-bot-agent-8s
       - splattop-bot-agent-8s-dev
+      extraEgress:
+      - cidr: 10.108.0.8/32
+        ports: [8080]
   cilium:
     prometheusEgressKubeAPI:
       enabled: true
   prometheus:
     enabled: true
+    staticScrapeConfigs:
+    - jobName: hermes-governed-runtime
+      metricsPath: /metrics
+      targets:
+      - 10.108.0.8:8080
+      labels:
+        service: hermes
+        deployment: hermes-mandate-edge-nyc3-01
     rules:
       enabled: true
     service:
