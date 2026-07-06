@@ -18,6 +18,8 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: citrus
       server: https://kubernetes.default.svc
+    - namespace: citrus-dev
+      server: https://kubernetes.default.svc
     - namespace: splatvote-prod
       server: https://kubernetes.default.svc
     - namespace: monitoring
