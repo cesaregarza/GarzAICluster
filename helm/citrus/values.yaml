@@ -22,6 +22,7 @@ application:
     gunicorn Mycore.wsgi:application --bind 0.0.0.0:8000
   configData:
     DJANGO_DEBUG: "False"
+    SITE_NAME: "Citrus Grace"
     ALLOWED_HOSTS: "citrus-grace.com,www.citrus-grace.com,dev.citrus-grace.com"
     DEFAULT_FROM_EMAIL: "orders@citrus-grace.com"
     MEDIA_EMAIL: "media@citrus-grace.com"
