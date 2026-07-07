@@ -55,6 +55,14 @@ data:
           - targets:
               - alertmanager.monitoring.svc.cluster.local:9093
 
+{{- if .Values.monitoring.kube_state_metrics.enabled }}
+      - job_name: kube-state-metrics
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - {{ printf "%s-kube-state-metrics.%s.svc.cluster.local:%v" $fullName (include "garzObservability.monitoringNamespace" .) (.Values.monitoring.kube_state_metrics.service.port | int) | quote }}
+
+{{- end }}
 {{- range $scrape := .Values.monitoring.prometheus.staticScrapeConfigs }}
       - job_name: {{ $scrape.jobName | quote }}
         metrics_path: {{ default "/metrics" $scrape.metricsPath | quote }}

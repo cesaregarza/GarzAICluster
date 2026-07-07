@@ -1,0 +1,50 @@
+{{- if .Values.monitoring.kube_state_metrics.enabled }}
+{{- $root := . -}}
+{{- $fullName := include "garzObservability.fullname" . -}}
+{{- $monitoringNamespace := include "garzObservability.monitoringNamespace" . -}}
+{{- $watchedNamespaces := .Values.monitoring.kube_state_metrics.watched_namespaces | default list -}}
+{{- if not $watchedNamespaces -}}
+{{- fail "monitoring.kube_state_metrics.watched_namespaces must include at least one namespace" -}}
+{{- end -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $fullName }}-kube-state-metrics
+  namespace: {{ $monitoringNamespace }}
+  labels:
+    {{- include "garzObservability.componentLabels" (dict "component" "kube-state-metrics" "root" .) | nindent 4 }}
+{{- range $namespace := $watchedNamespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullName }}-kube-state-metrics
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "garzObservability.componentLabels" (dict "component" "kube-state-metrics-rbac" "root" $root) | nindent 4 }}
+rules:
+  - apiGroups:
+      - batch
+    resources:
+      - jobs
+    verbs:
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullName }}-kube-state-metrics
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "garzObservability.componentLabels" (dict "component" "kube-state-metrics-rbac" "root" $root) | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullName }}-kube-state-metrics
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullName }}-kube-state-metrics
+    namespace: {{ $monitoringNamespace }}
+{{- end }}
+{{- end }}

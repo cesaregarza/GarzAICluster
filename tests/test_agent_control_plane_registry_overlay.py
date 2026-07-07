@@ -649,6 +649,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             'kube_job_status_failed{namespace="agent-control-plane"}',
             rules_template,
         )
+        self.assertIn("kube_job_owner", rules_template)
 
     def test_hosted_harness_safe_floor_and_token_handoff_are_configured(self) -> None:
         values = self.control_plane_values

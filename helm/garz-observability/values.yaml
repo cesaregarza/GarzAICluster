@@ -35,6 +35,8 @@ monitoring:
       - default
       - ingress-nginx
       extraEgress: []
+    kube_state_metrics:
+      enabled: true
     alertmanager:
       enabled: true
       outboundCIDR: 0.0.0.0/0
@@ -78,6 +80,30 @@ monitoring:
     rules:
       enabled: false
       configMapName: prometheus-rules
+
+  # kube-state-metrics exposes Kubernetes Job status for alert rules that need
+  # to reason about completed or failed batch work.
+  kube_state_metrics:
+    enabled: false
+    replicas: 1
+    image:
+      repository: registry.k8s.io/kube-state-metrics/kube-state-metrics
+      tag: v2.19.1
+      pull_policy: IfNotPresent
+    watched_namespaces:
+      - agent-control-plane
+    resources_to_collect:
+      - jobs
+    service:
+      type: ClusterIP
+      port: 8080
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
 
   # Grafana configuration
   grafana:
