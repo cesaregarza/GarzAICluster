@@ -31,6 +31,10 @@ application:
     HELP_EMAIL: "help@citrus-grace.com"
     ORDERS_EMAIL: "orders@citrus-grace.com"
     BUSINESS_TIME_ZONE: "America/Chicago"
+    CACHE_URL: "redis://citrus-redis:6379/0"
+    TRUST_X_FORWARDED_FOR: "True"
+    TRUSTED_PROXY_IPS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    RECAPTCHA_MIN_SCORE: "0.5"
     EMAIL_HOST: "smtp-relay.gmail.com"
     EMAIL_PORT: "587"
     EMAIL_USE_TLS: "True"
@@ -52,6 +56,25 @@ persistence:
   accessModes:
     - ReadWriteOnce
   mountPath: /citrus/media
+
+redis:
+  enabled: true
+  name: citrus-redis
+  replicas: 1
+  image:
+    repository: redis
+    tag: "7.2.4-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
 
 ingress:
   enabled: true
