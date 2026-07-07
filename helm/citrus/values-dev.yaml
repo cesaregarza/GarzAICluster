@@ -1,5 +1,5 @@
 image:
-  tag: ba37ac601385a8af4c2e445fa1062d17955426c9 # allow-latest
+  tag: 70e89ee7f558b3a5f238505a7df04dad20b18660 # allow-latest
 
 application:
   configData:
