@@ -19,7 +19,7 @@ application:
   command: >
     python manage.py migrate --noinput &&
     python manage.py collectstatic --noinput &&
-    gunicorn Mycore.wsgi:application --bind 0.0.0.0:8000
+    gunicorn Mycore.wsgi:application --bind 0.0.0.0:8000 --access-logfile -
   configData:
     DJANGO_DEBUG: "False"
     SITE_NAME: "Citrus Grace"
