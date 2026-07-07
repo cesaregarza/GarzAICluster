@@ -26,6 +26,15 @@ spec:
     - host: {{ . }}
       http:
         paths:
+          {{- if and $.Values.media.enabled $.Values.persistence.enabled }}
+          - path: {{ $.Values.media.path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Values.service.name }}
+                port:
+                  number: {{ $.Values.media.servicePort }}
+          {{- end }}
           - path: /
             pathType: Prefix
             backend:

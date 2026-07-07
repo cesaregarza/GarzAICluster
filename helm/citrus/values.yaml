@@ -44,6 +44,24 @@ service:
   port: 80
   targetPort: 8000
 
+media:
+  enabled: true
+  path: /media/
+  image:
+    repository: nginx
+    tag: 1.27-alpine
+    pullPolicy: IfNotPresent
+  servicePort: 8080
+  containerPort: 80
+  mountPath: /usr/share/nginx/html/media
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
 persistence:
   enabled: true
   name: django-media-pvc

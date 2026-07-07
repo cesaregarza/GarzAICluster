@@ -55,6 +55,31 @@ spec:
               mountPath: {{ .Values.persistence.mountPath }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+        {{- if and .Values.media.enabled .Values.persistence.enabled }}
+        - name: media
+          image: "{{ .Values.media.image.repository }}:{{ .Values.media.image.tag }}"
+          imagePullPolicy: {{ .Values.media.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.media.containerPort }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.media.containerPort }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.media.containerPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+          volumeMounts:
+            - name: media-volume
+              mountPath: {{ .Values.media.mountPath }}
+              readOnly: true
+          resources:
+            {{- toYaml .Values.media.resources | nindent 12 }}
+        {{- end }}
       volumes:
         - name: media-volume
           persistentVolumeClaim:

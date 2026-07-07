@@ -13,3 +13,9 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
+    {{- if and .Values.media.enabled .Values.persistence.enabled }}
+    - name: media
+      port: {{ .Values.media.servicePort }}
+      targetPort: {{ .Values.media.containerPort }}
+      protocol: TCP
+    {{- end }}
