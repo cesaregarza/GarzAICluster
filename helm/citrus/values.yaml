@@ -17,9 +17,7 @@ application:
   secretName: django-secrets
   emailSecretName: django-email-secrets
   command: >
-    python manage.py migrate --noinput &&
-    python manage.py collectstatic --noinput &&
-    gunicorn Mycore.wsgi:application --bind 0.0.0.0:8000
+    exec gunicorn Mycore.wsgi:application --bind 0.0.0.0:8000
   configData:
     DJANGO_DEBUG: "False"
     SITE_NAME: "Citrus Grace"
@@ -37,6 +35,18 @@ application:
     EMAIL_USE_AUTH: "False"
     EMAIL_TIMEOUT: "10"
 
+migrations:
+  enabled: true
+  command: python manage.py migrate --noinput
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 service:
   name: citrus-service

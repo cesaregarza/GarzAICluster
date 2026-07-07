@@ -67,6 +67,25 @@ Keep renewal dates in `developer-cheat-sheet.md` or a shared calendar.
 
 Record outcomes (date, scenario, owner) at the bottom of this file for traceability.
 
+## Citrus Rollouts
+
+Citrus uses a single web replica with the `django-media-pvc` ReadWriteOnce
+volume mounted at `/citrus/media`. Do not raise `helm/citrus/values.yaml`
+`replicaCount` above `1` unless media is moved to RWX storage or object storage;
+the launch topology deliberately keeps one writer for uploaded product, banner,
+and gallery images.
+
+Database migrations run through the `citrus-migrate` Argo CD `PreSync` Job
+rendered by `helm/citrus/templates/migrations-job.yaml`. The web Deployment
+starts only gunicorn after the hook succeeds, so migrations do not race across
+pods and app startup does not run schema changes or collectstatic. Static assets
+are expected to be present in the image before rollout; media files remain on
+the PVC.
+
+Readiness and liveness remain TCP probes on the Django service port. During a
+normal image rollout, confirm the PreSync migration Job completes, then confirm
+the single web pod is Ready and still mounts `django-media-pvc`.
+
 ## In-Cluster Secret Decryption (SOPS/ksops)
 
 - Ensure the Age private key is present as `sops-age-key` in the `argocd` namespace (`age.agekey` key).

@@ -1,0 +1,43 @@
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "citrus.fullname" . }}-migrate
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app: citrus-migrate
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        app: citrus-migrate
+    spec:
+      restartPolicy: Never
+      {{- include "citrus.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - {{ .Values.migrations.command | quote }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.application.configMapName }}
+            - secretRef:
+                name: {{ .Values.application.secretName }}
+                optional: true
+            {{- if .Values.application.emailSecretName }}
+            - secretRef:
+                name: {{ .Values.application.emailSecretName }}
+                optional: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+{{- end }}
