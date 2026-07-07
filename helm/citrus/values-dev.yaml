@@ -19,6 +19,9 @@ application:
     EMAIL_USE_AUTH: "False"
     EMAIL_TIMEOUT: "10"
 
+backup:
+  enabled: false
+
 ingress:
   hosts:
     - dev.citrus-grace.com

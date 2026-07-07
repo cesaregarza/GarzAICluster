@@ -1,0 +1,125 @@
+{{- if and .Values.backup.enabled .Values.persistence.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "citrus.fullname" . }}-backup
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app: citrus-backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      activeDeadlineSeconds: {{ .Values.backup.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            app: citrus-backup
+        spec:
+          restartPolicy: Never
+          {{- include "citrus.imagePullSecrets" . | nindent 10 }}
+          containers:
+            - name: backup
+              image: "{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
+              imagePullPolicy: {{ .Values.backup.image.pullPolicy }}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  apk add --no-cache aws-cli postgresql16-client tar gzip python3
+
+                  timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  workdir="/backup/${timestamp}"
+                  mkdir -p "${workdir}"
+
+                  db_dump="${workdir}/citrus-${timestamp}.dump"
+                  media_archive="${workdir}/citrus-media-${timestamp}.tar.gz"
+
+                  export PGPASSWORD="${DB_PASSWORD}"
+                  pg_dump_args="-h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} --format=custom --no-owner --no-privileges --file=${db_dump}"
+                  if [ -n "${DB_SCHEMA:-}" ]; then
+                    pg_dump_args="${pg_dump_args} --schema=${DB_SCHEMA}"
+                  fi
+                  pg_dump ${pg_dump_args} "${DB_NAME}"
+
+                  tar -czf "${media_archive}" -C "$(dirname "${MEDIA_ROOT}")" "$(basename "${MEDIA_ROOT}")"
+
+                  destination="s3://${BACKUP_BUCKET}/${BACKUP_PREFIX}/${timestamp}"
+                  aws_args=""
+                  if [ -n "${AWS_ENDPOINT_URL:-}" ]; then
+                    aws_args="--endpoint-url ${AWS_ENDPOINT_URL}"
+                  fi
+                  aws ${aws_args} s3 cp "${db_dump}" "${destination}/$(basename "${db_dump}")"
+                  aws ${aws_args} s3 cp "${media_archive}" "${destination}/$(basename "${media_archive}")"
+
+                  cutoff_epoch="$(date -u -d "${RETENTION_DAYS} days ago" +%s)"
+                  aws ${aws_args} s3api list-objects-v2 \
+                    --bucket "${BACKUP_BUCKET}" \
+                    --prefix "${BACKUP_PREFIX}/" \
+                    --query 'Contents[].{Key:Key,LastModified:LastModified}' \
+                    --output json > "${workdir}/objects.json"
+
+                  python3 - "${workdir}/objects.json" "${cutoff_epoch}" > "${workdir}/expired-keys.txt" <<'PY'
+                  import datetime
+                  import json
+                  import sys
+
+                  path = sys.argv[1]
+                  cutoff = int(sys.argv[2])
+                  with open(path, "r", encoding="utf-8") as handle:
+                      objects = json.load(handle) or []
+                  for obj in objects:
+                      last_modified = obj.get("LastModified", "")
+                      if not last_modified:
+                          continue
+                      parsed = datetime.datetime.fromisoformat(
+                          last_modified.replace("Z", "+00:00")
+                      )
+                      if int(parsed.timestamp()) < cutoff:
+                          print(obj["Key"])
+                  PY
+
+                  while IFS= read -r key; do
+                    [ -n "${key}" ] || continue
+                    aws ${aws_args} s3api delete-object --bucket "${BACKUP_BUCKET}" --key "${key}"
+                  done < "${workdir}/expired-keys.txt"
+              env:
+                - name: MEDIA_ROOT
+                  value: {{ .Values.persistence.mountPath | quote }}
+                - name: AWS_ENDPOINT_URL
+                  value: {{ .Values.backup.endpointUrl | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.region | quote }}
+                - name: BACKUP_BUCKET
+                  value: {{ .Values.backup.bucket | quote }}
+                - name: BACKUP_PREFIX
+                  value: {{ .Values.backup.prefix | quote }}
+                - name: RETENTION_DAYS
+                  value: {{ .Values.backup.retentionDays | quote }}
+              envFrom:
+                - configMapRef:
+                    name: {{ .Values.application.configMapName }}
+                - secretRef:
+                    name: {{ .Values.application.secretName }}
+                - secretRef:
+                    name: {{ .Values.backup.secretName }}
+              volumeMounts:
+                - name: media-volume
+                  mountPath: {{ .Values.persistence.mountPath }}
+                  readOnly: true
+                - name: backup-work
+                  mountPath: /backup
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+          volumes:
+            - name: media-volume
+              persistentVolumeClaim:
+                claimName: {{ .Values.persistence.name }}
+                readOnly: true
+            - name: backup-work
+              emptyDir: {}
+{{- end }}

@@ -5,6 +5,9 @@ metadata:
   name: {{ .Values.persistence.name }}
   labels:
     {{- include "citrus.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+    helm.sh/resource-policy: keep
 spec:
   accessModes:
     {{- toYaml .Values.persistence.accessModes | nindent 4 }}

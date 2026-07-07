@@ -71,6 +71,33 @@ tooling is added outside this slice.
 
 ## Restore Procedure
 
+## Citrus Restore Notes
+
+Citrus stores its PostgreSQL data in the shared
+`db-postgresql-nyc3-xscraper` DigitalOcean managed database cluster. The live
+chart sets `DB_SCHEMA=citrus`; the database name, host, port, user, and password
+come from the `django-secrets` Secret in the `default` namespace. The
+`citrus-dev` environment uses its own `django-secrets` Secret in the
+`citrus-dev` namespace and should not be restored into production without an
+explicit operator decision.
+
+The `helm/citrus` chart renders a nightly `citrus-backup` CronJob for
+production. It writes two objects per run to DO Spaces under the configured
+`backup.prefix`: a custom-format `pg_dump` of the Citrus schema and a gzip tar
+archive of `/citrus/media` from `django-media-pvc`. The job deletes backup
+objects older than `backup.retentionDays` (30 days by default). The
+`citrus-backup-secrets` Secret must provide DO Spaces credentials as
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+
+For a managed-database PITR incident, fork the source cluster first, as
+described below, then extract only the Citrus data into the live cluster after
+the owner approves the target restore point. For logical-backup restore, fetch
+the matching `citrus-*.dump` object from Spaces, freeze Citrus writes by scaling
+the `citrus` deployment to zero or pausing the Argo application, and restore the
+dump into the `citrus` schema with `pg_restore --clean --if-exists --schema=citrus`.
+Restore the corresponding `citrus-media-*.tar.gz` archive into the retained
+`django-media-pvc` before resuming the web deployment.
+
 ### 1. Freeze Writers
 
 Stop all Mandate writers before pointing anything at a restored database. Do not
