@@ -1,7 +1,10 @@
 image:
-  tag: ba37ac601385a8af4c2e445fa1062d17955426c9 # allow-latest
+  tag: bad904ed4b042457b5ae857217a7f793975c15b6 # allow-latest
 
 application:
+  # Standalone generated-secret file (KSOPS: secrets/citrus-dev/django-app-key.enc.yaml)
+  # holding a real DJANGO_SECRET_KEY, encrypted with the public age recipient only.
+  generatedSecretName: citrus-dev-app-key
   configData:
     DJANGO_DEBUG: "False"
     SITE_NAME: "Citrus Grace Dev"
