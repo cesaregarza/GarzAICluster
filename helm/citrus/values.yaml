@@ -16,10 +16,8 @@ application:
   configMapName: django-config
   secretName: django-secrets
   emailSecretName: django-email-secrets
-  command: >
-    python manage.py migrate --noinput &&
-    python manage.py collectstatic --noinput &&
-    gunicorn Mycore.wsgi:application --bind 0.0.0.0:8000
+  command: >-
+    exec gunicorn Mycore.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120 --access-logfile -
   configData:
     DJANGO_DEBUG: "False"
     SITE_NAME: "Citrus Grace"
@@ -52,6 +50,37 @@ persistence:
   accessModes:
     - ReadWriteOnce
   mountPath: /citrus/media
+
+migrations:
+  enabled: true
+  hook: pre-install,pre-upgrade
+  backoffLimit: 3
+  command:
+    - python
+    - manage.py
+    - migrate
+    - --noinput
+
+terminationGracePeriodSeconds: 60
+
+podSecurityContext:
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+  runAsGroup: 10001
+  runAsNonRoot: true
+  runAsUser: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsGroup: 10001
+  runAsNonRoot: true
+  runAsUser: 10001
+  capabilities:
+    drop:
+      - ALL
 
 ingress:
   enabled: true
