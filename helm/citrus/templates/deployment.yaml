@@ -5,6 +5,8 @@ metadata:
   labels:
     {{- include "citrus.labels" . | nindent 4 }}
     app: citrus-web
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.deployment | quote }}
 spec:
   strategy:
     {{- toYaml .Values.strategy | nindent 4 }}
