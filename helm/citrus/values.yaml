@@ -36,6 +36,8 @@ application:
     HELP_EMAIL: "help@citrus-grace.com"
     ORDERS_EMAIL: "orders@citrus-grace.com"
     BUSINESS_TIME_ZONE: "America/Chicago"
+    CACHE_URL: "redis://citrus-redis:6379/0"
+    RATELIMIT_USE_CACHE: "default"
     EMAIL_HOST: "smtp-relay.gmail.com"
     EMAIL_PORT: "587"
     EMAIL_USE_TLS: "True"
@@ -96,6 +98,25 @@ containerSecurityContext:
   capabilities:
     drop:
       - ALL
+
+redis:
+  enabled: true
+  name: citrus-redis
+  replicas: 1
+  image:
+    repository: redis
+    tag: "7.2.4-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
 
 ingress:
   enabled: true
