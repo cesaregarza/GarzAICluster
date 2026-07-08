@@ -2,7 +2,13 @@ global:
   imagePullSecrets:
     - regcred
 
-replicaCount: 1
+replicaCount: 2
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/citrus
@@ -16,6 +22,7 @@ application:
   configMapName: django-config
   secretName: django-secrets
   emailSecretName: django-email-secrets
+  spacesSecretName: django-spaces-secrets
   command: >-
     exec gunicorn Mycore.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120 --access-logfile -
   configData:
@@ -34,6 +41,13 @@ application:
     EMAIL_USE_TLS: "True"
     EMAIL_USE_AUTH: "False"
     EMAIL_TIMEOUT: "10"
+    AWS_STORAGE_BUCKET_NAME: "citrus-media"
+    AWS_S3_ENDPOINT_URL: "https://nyc3.digitaloceanspaces.com"
+    AWS_S3_REGION_NAME: "nyc3"
+    AWS_S3_CUSTOM_DOMAIN: "citrus-media.nyc3.cdn.digitaloceanspaces.com"
+    AWS_QUERYSTRING_AUTH: "False"
+    AWS_DEFAULT_ACL: "public-read"
+    AWS_S3_CACHE_CONTROL: "max-age=86400, public"
 
 
 service:
@@ -43,7 +57,8 @@ service:
   targetPort: 8000
 
 persistence:
-  enabled: true
+  enabled: false
+  mountEnabled: false
   name: django-media-pvc
   storageClassName: ""
   size: 10Gi
