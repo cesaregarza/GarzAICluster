@@ -18,6 +18,9 @@ spec:
         app: citrus-web
     spec:
       {{- include "citrus.imagePullSecrets" . | nindent 6 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: django
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
@@ -27,6 +30,8 @@ spec:
           command: ["sh", "-c"]
           args:
             - {{ .Values.application.command | quote }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           envFrom:
             - configMapRef:
                 name: {{ .Values.application.configMapName }}
