@@ -18,6 +18,11 @@ image:
 nameOverride: ""
 fullnameOverride: ""
 
+syncWaves:
+  config: "0"
+  migrations: "1"
+  deployment: "2"
+
 application:
   configMapName: django-config
   secretName: django-secrets
@@ -70,7 +75,6 @@ persistence:
 
 migrations:
   enabled: true
-  hook: pre-install,pre-upgrade
   backoffLimit: 3
   command:
     - python
