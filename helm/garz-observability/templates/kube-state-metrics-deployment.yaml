@@ -1,0 +1,68 @@
+{{- if .Values.monitoring.kube_state_metrics.enabled }}
+{{- $ksm := .Values.monitoring.kube_state_metrics -}}
+{{- $fullName := include "garzObservability.fullname" . -}}
+{{- $monitoringNamespace := include "garzObservability.monitoringNamespace" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullName }}-kube-state-metrics
+  namespace: {{ $monitoringNamespace }}
+  labels:
+    {{- include "garzObservability.componentLabels" (dict "component" "kube-state-metrics" "root" .) | nindent 4 }}
+spec:
+  replicas: {{ $ksm.replicas }}
+  selector:
+    matchLabels:
+      {{- include "garzObservability.componentSelectorLabels" (dict "component" "kube-state-metrics" "root" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "garzObservability.componentSelectorLabels" (dict "component" "kube-state-metrics" "root" .) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: true
+      serviceAccountName: {{ $fullName }}-kube-state-metrics
+      nodeSelector:
+        kubernetes.io/os: linux
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kube-state-metrics
+          image: "{{ $ksm.image.repository }}:{{ $ksm.image.tag }}"
+          imagePullPolicy: {{ $ksm.image.pull_policy }}
+          args:
+            - "--port=8080"
+            - "--telemetry-port=8081"
+            - "--resources={{ join "," $ksm.resources_to_collect }}"
+            - "--namespaces={{ join "," $ksm.watched_namespaces }}"
+          ports:
+            - name: http-metrics
+              containerPort: 8080
+              protocol: TCP
+            - name: telemetry
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http-metrics
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: telemetry
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml $ksm.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop:
+                - ALL
+{{- end }}

@@ -17,6 +17,9 @@ The `garz-observability` Argo application renders this chart with
 `values-prod.yaml` into the `monitoring` namespace. It keeps the existing
 annotation-based `kubernetes-pods` Prometheus scrape config, alert rules,
 Grafana dashboards, Grafana ingress, Alertmanager, network policies, and PDBs.
+Production also enables kube-state-metrics scoped to `agent-control-plane` Jobs
+so the Mandate synthetic live-verify failed-Job alert has real `kube_job_*`
+series to evaluate.
 
 Required pre-existing secrets:
 

@@ -50,6 +50,8 @@ monitoring:
           app.kubernetes.io/component: prometheus
           app.kubernetes.io/instance: splattop-prod
           app.kubernetes.io/name: splattop
+  kube_state_metrics:
+    enabled: true
   grafana:
     enabled: true
     serverDomain: grafana.splat.top
