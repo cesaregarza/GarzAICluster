@@ -39,6 +39,11 @@ spec:
                 name: {{ .Values.application.emailSecretName }}
                 optional: true
             {{- end }}
+            {{- if .Values.application.spacesSecretName }}
+            - secretRef:
+                name: {{ .Values.application.spacesSecretName }}
+                optional: true
+            {{- end }}
             {{- if .Values.application.generatedSecretName }}
             # Generated app secrets (e.g. DJANGO_SECRET_KEY); listed last so it
             # overrides any placeholder of the same key in secretName.
