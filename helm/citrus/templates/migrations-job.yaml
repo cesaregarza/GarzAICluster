@@ -39,6 +39,13 @@ spec:
                 name: {{ .Values.application.emailSecretName }}
                 optional: true
             {{- end }}
+            {{- if .Values.application.generatedSecretName }}
+            # Generated app secrets (e.g. DJANGO_SECRET_KEY); listed last so it
+            # overrides any placeholder of the same key in secretName.
+            - secretRef:
+                name: {{ .Values.application.generatedSecretName }}
+                optional: true
+            {{- end }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
 {{- end }}
