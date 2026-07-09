@@ -35,7 +35,9 @@ spec:
             - "--port=8080"
             - "--telemetry-port=8081"
             - "--resources={{ join "," $ksm.resources_to_collect }}"
+            {{- if $ksm.watched_namespaces }}
             - "--namespaces={{ join "," $ksm.watched_namespaces }}"
+            {{- end }}
           ports:
             - name: http-metrics
               containerPort: 8080

@@ -186,6 +186,24 @@ def run_promtool_config(config_text: str) -> None:
         cfg_dir = Path(tempdir)
         config_path = cfg_dir / "prometheus.yml"
         config_path.write_text(config_text)
+        # promtool checks referenced bearer_token_file/ca_file paths even though
+        # CI is not running inside a Kubernetes pod.
+        service_account_dir = cfg_dir / "serviceaccount"
+        service_account_dir.mkdir()
+        (service_account_dir / "token").write_text("promtool-ci-token\n")
+        (service_account_dir / "ca.crt").write_text(
+            "-----BEGIN CERTIFICATE-----\n"
+            "MIIBhTCCASugAwIBAgIJAO7gPromtoolCiMAoGCCqGSM49BAMCMBQxEjAQBgNV\n"
+            "BAMMCXByb210b29sMB4XDTI2MDEwMTAwMDAwMFoXDTM2MDEwMTAwMDAwMFow\n"
+            "FDESMBAGA1UEAwwJcHJvbXRvb2wwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC\n"
+            "AAS8LL2hHmgKTu0eYi5iqHe4UjsJ61rVjuzh0f4fPTTW5s12rEc3D9GYm0NG\n"
+            "CMxUOMwxvKbL0fPfwdoF8Sero1MwUTAdBgNVHQ4EFgQUpromtoolci000000\n"
+            "000000000000000000wHwYDVR0jBBgwFoAUpromtoolci0000000000000000\n"
+            "00000000wDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNJADBGAiEAzj2p\n"
+            "sJ5yQfztwfdlKZs8dcOQGv4qaZFrBFZyV0sCIQC3B0vY0FSk5Fhl33FjzZzz\n"
+            "TfGv9dbAQHbXQz8mqQ==\n"
+            "-----END CERTIFICATE-----\n"
+        )
 
         subprocess.run(
             [
@@ -197,6 +215,11 @@ def run_promtool_config(config_text: str) -> None:
                 "--entrypoint=promtool",
                 "-v",
                 f"{cfg_dir}:/etc/prometheus/conf",
+                "-v",
+                (
+                    f"{service_account_dir}:"
+                    "/var/run/secrets/kubernetes.io/serviceaccount:ro"
+                ),
                 PROMTOOL_IMAGE,
                 "check",
                 "config",

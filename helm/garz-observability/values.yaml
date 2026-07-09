@@ -64,6 +64,8 @@ monitoring:
           targetPort: http
     configMapName: prometheus-config
     retention: 15d
+    kubeletScrape:
+      enabled: false
     staticScrapeConfigs: []
     persistence:
       enabled: true
@@ -81,8 +83,9 @@ monitoring:
       enabled: false
       configMapName: prometheus-rules
 
-  # kube-state-metrics exposes Kubernetes Job status for alert rules that need
-  # to reason about completed or failed batch work.
+  # kube-state-metrics exposes Kubernetes object state for alerting and
+  # reservation right-sizing. Leave watched_namespaces empty to watch all
+  # namespaces with a ClusterRole.
   kube_state_metrics:
     enabled: false
     replicas: 1
@@ -90,9 +93,14 @@ monitoring:
       repository: registry.k8s.io/kube-state-metrics/kube-state-metrics
       tag: v2.19.1
       pull_policy: IfNotPresent
-    watched_namespaces:
-      - agent-control-plane
+    watched_namespaces: []
     resources_to_collect:
+      - pods
+      - nodes
+      - deployments
+      - replicasets
+      - statefulsets
+      - daemonsets
       - jobs
     service:
       type: ClusterIP
