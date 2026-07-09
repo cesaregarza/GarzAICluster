@@ -27,6 +27,10 @@ application:
   configMapName: django-config
   secretName: django-secrets
   emailSecretName: django-email-secrets
+  # Standalone generated-secret file (KSOPS: secrets/citrus/citrus-app-key.enc.yaml)
+  # holding a real DJANGO_SECRET_KEY, encrypted with the public age recipient only.
+  # dev overrides this with citrus-dev-app-key in values-dev.yaml.
+  generatedSecretName: citrus-app-key
   spacesSecretName: django-spaces-secrets
   command: >-
     exec gunicorn Mycore.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120 --access-logfile -
