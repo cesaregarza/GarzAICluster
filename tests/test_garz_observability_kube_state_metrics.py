@@ -86,7 +86,7 @@ class GarzObservabilityKubeStateMetricsTests(unittest.TestCase):
             rules,
         )
 
-    def test_kube_state_metrics_renders_job_source_for_alert(self) -> None:
+    def test_kube_state_metrics_renders_cluster_metadata_for_right_sizing(self) -> None:
         deployment = _find_doc(
             self.docs,
             kind="Deployment",
@@ -98,8 +98,14 @@ class GarzObservabilityKubeStateMetricsTests(unittest.TestCase):
             container["image"],
             "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.19.1",
         )
-        self.assertIn("--resources=jobs", container["args"])
-        self.assertIn("--namespaces=agent-control-plane", container["args"])
+        self.assertIn(
+            "--resources=pods,nodes,deployments,replicasets,statefulsets,daemonsets,jobs",
+            container["args"],
+        )
+        self.assertFalse(
+            any(arg.startswith("--namespaces=") for arg in container["args"]),
+            "kube-state-metrics should watch all namespaces for right-sizing metadata",
+        )
         self.assertEqual(
             deployment["spec"]["template"]["spec"]["serviceAccountName"],
             "splattop-prod-kube-state-metrics",
@@ -113,31 +119,37 @@ class GarzObservabilityKubeStateMetricsTests(unittest.TestCase):
         )
         self.assertEqual(service["spec"]["ports"][0]["port"], 8080)
 
-        role = _find_doc(
+        cluster_role = _find_doc(
             self.docs,
-            kind="Role",
+            kind="ClusterRole",
             name="splattop-prod-kube-state-metrics",
-            namespace="agent-control-plane",
         )
-        self.assertEqual(
-            role["rules"],
-            [
-                {
-                    "apiGroups": ["batch"],
-                    "resources": ["jobs"],
-                    "verbs": ["list", "watch"],
-                }
-            ],
+        cluster_resources = {
+            resource
+            for rule in cluster_role["rules"]
+            for resource in rule["resources"]
+        }
+        self.assertTrue(
+            {
+                "pods",
+                "nodes",
+                "namespaces",
+                "deployments",
+                "replicasets",
+                "statefulsets",
+                "daemonsets",
+                "jobs",
+            }.issubset(cluster_resources)
         )
 
-        role_binding = _find_doc(
+        cluster_role_binding = _find_doc(
             self.docs,
-            kind="RoleBinding",
+            kind="ClusterRoleBinding",
             name="splattop-prod-kube-state-metrics",
-            namespace="agent-control-plane",
         )
+        self.assertEqual(cluster_role_binding["roleRef"]["kind"], "ClusterRole")
         self.assertEqual(
-            role_binding["subjects"],
+            cluster_role_binding["subjects"],
             [
                 {
                     "kind": "ServiceAccount",
@@ -158,6 +170,30 @@ class GarzObservabilityKubeStateMetricsTests(unittest.TestCase):
         self.assertIn("job_name: kube-state-metrics", prometheus_config)
         self.assertIn(
             "splattop-prod-kube-state-metrics.monitoring.svc.cluster.local:8080",
+            prometheus_config,
+        )
+
+    def test_prometheus_scrapes_kubelet_usage_for_right_sizing(self) -> None:
+        prometheus_config = _find_doc(
+            self.docs,
+            kind="ConfigMap",
+            name="prometheus-config",
+            namespace="monitoring",
+        )["data"]["prometheus.yml"]
+
+        self.assertIn("job_name: kubernetes-cadvisor", prometheus_config)
+        self.assertIn("job_name: kubernetes-kubelet", prometheus_config)
+        self.assertIn(
+            "bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token",
+            prometheus_config,
+        )
+        self.assertIn("replacement: kubernetes.default.svc:443", prometheus_config)
+        self.assertIn(
+            "replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor",
+            prometheus_config,
+        )
+        self.assertIn(
+            "replacement: /api/v1/nodes/${1}/proxy/metrics",
             prometheus_config,
         )
 

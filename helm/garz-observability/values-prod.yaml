@@ -29,6 +29,8 @@ monitoring:
       enabled: true
   prometheus:
     enabled: true
+    kubeletScrape:
+      enabled: true
     staticScrapeConfigs:
     - jobName: hermes-governed-runtime
       metricsPath: /metrics
