@@ -24,6 +24,9 @@ application:
     AWS_STORAGE_BUCKET_NAME: "citrus-media-dev"
     AWS_S3_CUSTOM_DOMAIN: "citrus-media-dev.nyc3.cdn.digitaloceanspaces.com"
 
+worker:
+  enabled: true
+
 ingress:
   hosts:
     - dev.citrus-grace.com

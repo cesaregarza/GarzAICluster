@@ -99,7 +99,7 @@ migrations:
     - --noinput
 
 worker:
-  enabled: true
+  enabled: false
   replicas: 1
   command: >-
     exec celery -A Mycore worker --loglevel=INFO --queues=media --concurrency=1
