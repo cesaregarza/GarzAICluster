@@ -22,6 +22,7 @@ syncWaves:
   config: "0"
   migrations: "1"
   deployment: "2"
+  worker: "2"
 
 application:
   configMapName: django-config
@@ -47,6 +48,16 @@ application:
     ORDERS_EMAIL: "orders@citrus-grace.com"
     BUSINESS_TIME_ZONE: "America/Chicago"
     CACHE_URL: "redis://citrus-redis:6379/0"
+    CELERY_BROKER_URL: "redis://citrus-redis:6379/1"
+    CELERY_TASK_ALWAYS_EAGER: "False"
+    CELERY_TASK_DEFAULT_QUEUE: "media"
+    CELERY_BROKER_VISIBILITY_TIMEOUT: "3600"
+    CELERY_TASK_SOFT_TIME_LIMIT: "240"
+    CELERY_TASK_TIME_LIMIT: "300"
+    MEDIA_UPLOAD_MAX_BYTES: "10485760"
+    MEDIA_COMPRESSION_MAX_IMAGE_PIXELS: "50000000"
+    MEDIA_COMPRESSION_ENABLED: "True"
+    MEDIA_GALLERY_MAX_BATCH: "25"
     RATELIMIT_USE_CACHE: "default"
     EMAIL_HOST: "smtp-relay.gmail.com"
     EMAIL_PORT: "587"
@@ -86,6 +97,22 @@ migrations:
     - manage.py
     - migrate
     - --noinput
+
+worker:
+  enabled: true
+  replicas: 1
+  command: >-
+    exec celery -A Mycore worker --loglevel=INFO --queues=media --concurrency=1
+    --prefetch-multiplier=1 --max-tasks-per-child=20 --soft-time-limit=240
+    --time-limit=300
+  terminationGracePeriodSeconds: 300
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 750m
+      memory: 1Gi
 
 terminationGracePeriodSeconds: 60
 
