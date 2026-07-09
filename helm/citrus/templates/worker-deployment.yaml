@@ -1,0 +1,61 @@
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "citrus.fullname" . }}-media-worker
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app: citrus-media-worker
+    app.kubernetes.io/component: media-worker
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.worker | quote }}
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      app: citrus-media-worker
+  template:
+    metadata:
+      labels:
+        app: citrus-media-worker
+        app.kubernetes.io/component: media-worker
+    spec:
+      {{- include "citrus.imagePullSecrets" . | nindent 6 }}
+      terminationGracePeriodSeconds: {{ .Values.worker.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: media-worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - {{ .Values.worker.command | quote }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.application.configMapName }}
+            - secretRef:
+                name: {{ .Values.application.secretName }}
+                optional: true
+            {{- if .Values.application.emailSecretName }}
+            - secretRef:
+                name: {{ .Values.application.emailSecretName }}
+                optional: true
+            {{- end }}
+            {{- if .Values.application.spacesSecretName }}
+            - secretRef:
+                name: {{ .Values.application.spacesSecretName }}
+                optional: true
+            {{- end }}
+            {{- if .Values.application.generatedSecretName }}
+            # Generated app secrets (e.g. DJANGO_SECRET_KEY); listed last so it
+            # overrides any placeholder of the same key in secretName.
+            - secretRef:
+                name: {{ .Values.application.generatedSecretName }}
+                optional: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+{{- end }}
