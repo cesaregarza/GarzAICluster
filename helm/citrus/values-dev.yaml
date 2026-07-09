@@ -1,5 +1,5 @@
 image:
-  tag: bad904ed4b042457b5ae857217a7f793975c15b6 # allow-latest
+  tag: 8036fe63ca3c4c38e03000d9272fe46d57ed0425 # allow-latest
 
 application:
   # Standalone generated-secret file (KSOPS: secrets/citrus-dev/django-app-key.enc.yaml)
@@ -21,6 +21,8 @@ application:
     EMAIL_USE_TLS: "True"
     EMAIL_USE_AUTH: "False"
     EMAIL_TIMEOUT: "10"
+    AWS_STORAGE_BUCKET_NAME: "citrus-media-dev"
+    AWS_S3_CUSTOM_DOMAIN: "citrus-media-dev.nyc3.cdn.digitaloceanspaces.com"
 
 ingress:
   hosts:

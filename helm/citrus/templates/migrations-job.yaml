@@ -7,9 +7,9 @@ metadata:
     {{- include "citrus.labels" . | nindent 4 }}
     app.kubernetes.io/component: migrations
   annotations:
-    "helm.sh/hook": {{ .Values.migrations.hook | quote }}
-    "helm.sh/hook-weight": "-1"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.migrations | quote }}
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
 spec:
   backoffLimit: {{ .Values.migrations.backoffLimit }}
   template:
@@ -37,6 +37,11 @@ spec:
             {{- if .Values.application.emailSecretName }}
             - secretRef:
                 name: {{ .Values.application.emailSecretName }}
+                optional: true
+            {{- end }}
+            {{- if .Values.application.spacesSecretName }}
+            - secretRef:
+                name: {{ .Values.application.spacesSecretName }}
                 optional: true
             {{- end }}
             {{- if .Values.application.generatedSecretName }}
