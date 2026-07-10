@@ -12,7 +12,7 @@ strategy:
 
 image:
   repository: registry.digitalocean.com/sendouq/citrus
-  tag: 0abd2c95f2c88d59abe93adbcffe5436ba4e9732 # allow-latest
+  tag: 4c1e5eadbdce14074b0ea4f588db0dd7465d5c42 # allow-latest
   pullPolicy: IfNotPresent
 
 nameOverride: ""
