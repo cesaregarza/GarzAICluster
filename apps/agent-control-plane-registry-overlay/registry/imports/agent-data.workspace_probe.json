@@ -11,8 +11,8 @@
       "consequence_class": "read_only"
     }
   },
-  "code_digest": "sha256:2acbf9b3fdc8ec129326ccdc55c13e62b6af3e66f55a3af11ba29519ec3be3d0",
-  "digest": "sha256:0b610bdafd91d61824d12c98fcc1738d5145933c91677c8b578deaa2ae481fe2",
+  "code_digest": "sha256:9df631ecb222d11e4545a6a33eda74b2748dcfc1cb192778947edfce308251df",
+  "digest": "sha256:320d25cbbef7f5626b035447a76c91a5383cbce46acea041dc0d864eb4024818",
   "display_name": "Agent Workloads Data Worker",
   "evals": {
     "optional": [],
@@ -23,7 +23,7 @@
   },
   "id": "data.workspace_probe",
   "image": {
-    "digest": "sha256:dee0a25a7bf906693804a01ac81b38b8be8051c490b7677754e769591e8f3256",
+    "digest": "sha256:b987762339eb6288c701612932ec663edc3610cf03399880fd9743932c2c8d63",
     "repository": "registry.digitalocean.com/sendouq/agent-workloads-worker"
   },
   "loop": {
