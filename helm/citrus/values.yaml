@@ -100,7 +100,7 @@ migrations:
     - --noinput
 
 worker:
-  enabled: false
+  enabled: true
   replicas: 1
   command: >-
     exec celery -A Mycore worker --loglevel=INFO --queues=media --concurrency=1
@@ -116,7 +116,7 @@ worker:
       memory: 1Gi
 
 mediaRequeue:
-  enabled: false
+  enabled: true
   schedule: "*/10 * * * *"
   concurrencyPolicy: Forbid
   backoffLimit: 2
@@ -137,7 +137,7 @@ mediaRequeue:
       memory: 512Mi
 
 mediaGc:
-  enabled: false
+  enabled: true
   schedule: "22 8 * * *"
   concurrencyPolicy: Forbid
   backoffLimit: 2
