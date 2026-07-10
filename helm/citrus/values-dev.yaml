@@ -27,6 +27,12 @@ application:
 worker:
   enabled: true
 
+mediaRequeue:
+  enabled: true
+
+mediaGc:
+  enabled: true
+
 ingress:
   hosts:
     - dev.citrus-grace.com
