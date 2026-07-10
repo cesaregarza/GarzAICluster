@@ -1,0 +1,123 @@
+{{- if .Values.mediaRequeue.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "citrus.fullname" . }}-media-requeue
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: media-requeue
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.mediaCronJobs | quote }}
+spec:
+  schedule: {{ .Values.mediaRequeue.schedule | quote }}
+  concurrencyPolicy: {{ .Values.mediaRequeue.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.mediaRequeue.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.mediaRequeue.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.mediaRequeue.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "citrus.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: media-requeue
+        spec:
+          {{- include "citrus.imagePullSecrets" . | nindent 10 }}
+          restartPolicy: OnFailure
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: media-requeue
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                {{- toYaml .Values.mediaRequeue.command | nindent 16 }}
+              securityContext:
+                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+              envFrom:
+                - configMapRef:
+                    name: {{ .Values.application.configMapName }}
+                - secretRef:
+                    name: {{ .Values.application.secretName }}
+                    optional: true
+                {{- if .Values.application.emailSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.emailSecretName }}
+                    optional: true
+                {{- end }}
+                {{- if .Values.application.spacesSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.spacesSecretName }}
+                    optional: true
+                {{- end }}
+                {{- if .Values.application.generatedSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.generatedSecretName }}
+                    optional: true
+                {{- end }}
+              resources:
+                {{- toYaml .Values.mediaRequeue.resources | nindent 16 }}
+{{- end }}
+{{- if and .Values.mediaRequeue.enabled .Values.mediaGc.enabled }}
+---
+{{- end }}
+{{- if .Values.mediaGc.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "citrus.fullname" . }}-media-gc
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: media-gc
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.mediaCronJobs | quote }}
+spec:
+  schedule: {{ .Values.mediaGc.schedule | quote }}
+  concurrencyPolicy: {{ .Values.mediaGc.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.mediaGc.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.mediaGc.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.mediaGc.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "citrus.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: media-gc
+        spec:
+          {{- include "citrus.imagePullSecrets" . | nindent 10 }}
+          restartPolicy: OnFailure
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: media-gc
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                {{- toYaml .Values.mediaGc.command | nindent 16 }}
+              securityContext:
+                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+              envFrom:
+                - configMapRef:
+                    name: {{ .Values.application.configMapName }}
+                - secretRef:
+                    name: {{ .Values.application.secretName }}
+                    optional: true
+                {{- if .Values.application.emailSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.emailSecretName }}
+                    optional: true
+                {{- end }}
+                {{- if .Values.application.spacesSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.spacesSecretName }}
+                    optional: true
+                {{- end }}
+                {{- if .Values.application.generatedSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.generatedSecretName }}
+                    optional: true
+                {{- end }}
+              resources:
+                {{- toYaml .Values.mediaGc.resources | nindent 16 }}
+{{- end }}
