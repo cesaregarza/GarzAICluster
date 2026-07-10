@@ -23,6 +23,7 @@ syncWaves:
   migrations: "1"
   deployment: "2"
   worker: "2"
+  mediaCronJobs: "3"
 
 application:
   configMapName: django-config
@@ -113,6 +114,48 @@ worker:
     limits:
       cpu: 750m
       memory: 1Gi
+
+mediaRequeue:
+  enabled: false
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  backoffLimit: 2
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  command:
+    - python
+    - manage.py
+    - enqueue_pending_media
+    - --stale-minutes=10
+    - --limit=100
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+mediaGc:
+  enabled: false
+  schedule: "22 8 * * *"
+  concurrencyPolicy: Forbid
+  backoffLimit: 2
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  command:
+    - python
+    - manage.py
+    - collect_orphan_media
+    - --dry-run
+    - --limit=100
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
 
 terminationGracePeriodSeconds: 60
 
