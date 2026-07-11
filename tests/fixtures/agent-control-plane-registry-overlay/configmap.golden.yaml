@@ -423,7 +423,8 @@ data:
           subject_kind: service
           tenant_id: garzai-prod
         users:
-          admins: []
+          admins:
+            - test-admin
           authorized:
             - mandate-live-probe
         capabilities:
