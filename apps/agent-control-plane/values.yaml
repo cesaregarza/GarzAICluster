@@ -80,6 +80,11 @@ migrations:
   disableStartupSchemaMigration: true
 
 localWorker:
+  health:
+    startup:
+      timeoutSeconds: 15
+    liveness:
+      timeoutSeconds: 15
   resources:
     limits:
       memory: 512Mi
@@ -90,6 +95,11 @@ localWorker:
   batchSize: 1
 
 callbackAdapter:
+  health:
+    startup:
+      timeoutSeconds: 15
+    liveness:
+      timeoutSeconds: 15
   resources:
     limits:
       memory: 512Mi
@@ -108,6 +118,11 @@ callbackAdapter:
     autoArchiveMinutes: 1440
 
 gitDeliverer:
+  health:
+    startup:
+      timeoutSeconds: 15
+    liveness:
+      timeoutSeconds: 15
   resources:
     limits:
       memory: 512Mi
