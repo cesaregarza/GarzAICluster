@@ -502,7 +502,13 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertEqual(
             synthetic_binding["capabilities"]["allow"],
-            ["mandate.deploy.smoke", "agent_workloads.readonly_query"],
+            [
+                "mandate.deploy.smoke",
+                "agent_workloads.readonly_query",
+                "approval.probe",
+                "agent_workloads.opencode_propose",
+                "agent_workloads.opencode_orchestrate",
+            ],
         )
         self.assertEqual(synthetic_binding["users"].get("admins"), [])
         self.assertNotIn("approval_overrides", synthetic_binding["capabilities"])
