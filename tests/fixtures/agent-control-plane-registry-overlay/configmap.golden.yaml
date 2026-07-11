@@ -423,17 +423,13 @@ data:
           subject_kind: service
           tenant_id: garzai-prod
         users:
-          admins:
-            - test-admin
+          admins: []
           authorized:
             - mandate-live-probe
         capabilities:
           allow:
             - mandate.deploy.smoke
             - agent_workloads.readonly_query
-            - approval.probe
-            - agent_workloads.opencode_propose
-            - agent_workloads.opencode_orchestrate
   evals.yaml: |
     eval_suites:
       - id: eval.task_echo_smoke
