@@ -510,7 +510,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
                 "agent_workloads.opencode_orchestrate",
             ],
         )
-        self.assertEqual(synthetic_binding["users"].get("admins"), [])
+        self.assertEqual(synthetic_binding["users"].get("admins"), ["test-admin"])
         self.assertNotIn("approval_overrides", synthetic_binding["capabilities"])
 
         self.assertIn(
