@@ -80,6 +80,9 @@ migrations:
   disableStartupSchemaMigration: true
 
 localWorker:
+  resources:
+    limits:
+      memory: 512Mi
   enabled: true
   replicaCount: 1
   capabilities: task.echo,approval.probe,readonly_sql,audit.digest,mandate.ops.inspect,mandate.deploy.smoke
@@ -87,6 +90,9 @@ localWorker:
   batchSize: 1
 
 callbackAdapter:
+  resources:
+    limits:
+      memory: 512Mi
   enabled: true
   replicaCount: 1
   sink: http
@@ -102,6 +108,9 @@ callbackAdapter:
     autoArchiveMinutes: 1440
 
 gitDeliverer:
+  resources:
+    limits:
+      memory: 512Mi
   enabled: true
   replicaCount: 1
   secretKeys:
