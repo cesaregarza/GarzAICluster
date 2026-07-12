@@ -21,6 +21,7 @@ rules:
     resourceNames:
       - agent-control-plane
       - agent-control-plane-callback-adapter
+      - agent-control-plane-git-deliverer
       - agent-control-plane-local-worker
       - agent-control-plane-model-gateway
     verbs: ["get", "watch", "patch"]

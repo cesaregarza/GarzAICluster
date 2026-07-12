@@ -23,7 +23,9 @@ The generated ConfigMap keeps the existing runtime shape:
 
 ## Sync behavior
 
-The control plane builds its `RegistrySnapshot` once at boot and never re-reads the mounted overlay, so every overlay change requires a restart of all four control-plane Deployments to take effect. The `PostSync` hook Job in `restart-hook.yaml`, using the narrowly scoped ServiceAccount/Role in `restart-rbac.yaml`, performs the rollout restart and waits on rollout status for each target deployment.
+The control plane builds its `RegistrySnapshot` once at boot and never re-reads the mounted overlay, so every overlay change requires a restart of all five control-plane Deployments to take effect. The `PostSync` hook Job in `hooks/restart-hook.yaml`, using the narrowly scoped ServiceAccount/Role in `restart-rbac.yaml`, performs the rollout restart and waits on rollout status for each target deployment.
+
+The hook is an Argo CD raw-directory source rather than a Kustomize resource: Kubernetes must receive its native `generateName` field so Argo creates a fresh hook Job on every sync. Kustomize requires a fixed `metadata.name`, which can cause an operation-resume to silently skip the hook.
 
 The Argo Application intentionally does not set `ApplyOutOfSyncOnly=true`; selective syncs skip hooks, which would skip the restart job and leave the control plane serving the previous boot-cached registry snapshot.
 
