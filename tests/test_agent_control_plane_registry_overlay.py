@@ -100,7 +100,10 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             REPO_ROOT / "argocd" / "projects" / "splattop-project.yaml"
         )
         cls.registry_overlay_restart_hook = _load_yaml(
-            REGISTRY_OVERLAY_DIR / "restart-hook.yaml"
+            REGISTRY_OVERLAY_DIR / "hooks" / "restart-hook.yaml"
+        )
+        cls.registry_overlay_restart_rbac = _load_yaml_documents(
+            REGISTRY_OVERLAY_DIR / "restart-rbac.yaml"
         )
         cls.model_gateway_controls = _load_yaml(
             REPO_ROOT
@@ -113,8 +116,11 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         kustomization = _load_yaml(REGISTRY_OVERLAY_DIR / "kustomization.yaml")
         self.assertFalse((REGISTRY_OVERLAY_DIR / "configmap.yaml").exists())
         self.assertEqual(kustomization["kind"], "Kustomization")
-        self.assertIn("restart-rbac.yaml", kustomization["resources"])
-        self.assertIn("restart-hook.yaml", kustomization["resources"])
+        self.assertEqual(kustomization["resources"], ["restart-rbac.yaml"])
+        self.assertTrue(
+            (REGISTRY_OVERLAY_DIR / "hooks" / "restart-hook.yaml").exists()
+        )
+        self.assertFalse((REGISTRY_OVERLAY_DIR / "hooks" / "kustomization.yaml").exists())
         self.assertTrue(kustomization["generatorOptions"]["disableNameSuffixHash"])
 
         generator = next(
@@ -272,6 +278,13 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertNotIn("kubectl create -f", script)
 
     def test_registry_overlay_restart_hook_runs_without_selective_sync(self) -> None:
+        expected_deployments = [
+            "agent-control-plane",
+            "agent-control-plane-callback-adapter",
+            "agent-control-plane-git-deliverer",
+            "agent-control-plane-local-worker",
+            "agent-control-plane-model-gateway",
+        ]
         annotations = self.registry_overlay_restart_hook["metadata"]["annotations"]
         self.assertEqual(annotations["argocd.argoproj.io/hook"], "PostSync")
         self.assertEqual(
@@ -279,10 +292,47 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             "BeforeHookCreation",
         )
         self.assertEqual(
-            self.registry_overlay_restart_hook["metadata"]["name"],
-            "agent-control-plane-registry-overlay-restart",
+            self.registry_overlay_restart_hook["metadata"]["generateName"],
+            "registry-overlay-restart-",
         )
-        self.assertNotIn("generateName", self.registry_overlay_restart_hook["metadata"])
+        self.assertNotIn("name", self.registry_overlay_restart_hook["metadata"])
+
+        restart_script = self.registry_overlay_restart_hook["spec"]["template"]["spec"][
+            "containers"
+        ][0]["command"][-1]
+        self.assertEqual(
+            restart_script.split('deploys="', 1)[1].split('"', 1)[0].split(),
+            expected_deployments,
+        )
+        restart_role = next(
+            document
+            for document in self.registry_overlay_restart_rbac
+            if document["kind"] == "Role"
+        )
+        restart_rule = next(
+            rule
+            for rule in restart_role["rules"]
+            if rule["resources"] == ["deployments"] and "resourceNames" in rule
+        )
+        self.assertEqual(restart_rule["resourceNames"], expected_deployments)
+
+        self.assertNotIn("source", self.registry_overlay_application["spec"])
+        self.assertEqual(
+            self.registry_overlay_application["spec"]["sources"],
+            [
+                {
+                    "repoURL": "https://github.com/cesaregarza/GarzAICluster",
+                    "targetRevision": "main",
+                    "path": "apps/agent-control-plane-registry-overlay",
+                },
+                {
+                    "repoURL": "https://github.com/cesaregarza/GarzAICluster",
+                    "targetRevision": "main",
+                    "path": "apps/agent-control-plane-registry-overlay/hooks",
+                    "directory": {"recurse": False},
+                },
+            ],
+        )
 
         sync_options = set(
             self.registry_overlay_application["spec"]["syncPolicy"].get(
