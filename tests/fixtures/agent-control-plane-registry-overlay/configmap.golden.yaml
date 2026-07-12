@@ -430,6 +430,7 @@ data:
           allow:
             - mandate.deploy.smoke
             - agent_workloads.readonly_query
+            - agent_workloads.opencode_task
   evals.yaml: |
     eval_suites:
       - id: eval.task_echo_smoke
