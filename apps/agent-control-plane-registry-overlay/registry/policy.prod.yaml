@@ -55,3 +55,4 @@ bindings:
       allow:
         - mandate.deploy.smoke
         - agent_workloads.readonly_query
+        - agent_workloads.opencode_task
