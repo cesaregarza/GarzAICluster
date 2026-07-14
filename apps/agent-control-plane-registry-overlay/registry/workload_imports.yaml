@@ -148,9 +148,6 @@ imports:
         - proposal diff bytes
         - raw task inputs
         - internal sources and broker internals
-      negative_affordances:
-      - Returns metadata only; cannot show proposal diff bytes.
-      - Must not be used for answer-style tasks.
       model_bounds:
         required: true
         allowed_tier: fast
@@ -193,10 +190,6 @@ imports:
         - raw task inputs
         - internal sources and broker internals
         - proposal diff bytes
-      negative_affordances:
-      - Does not create proposal diffs or apply changes.
-      - Answer is agent output under governance, not platform-verified truth.
-      - Must not be used as a fallback when no capability matches.
       session_authority_budget:
         max_operations: 8
         influence: principal
@@ -266,12 +259,6 @@ imports:
         - child raw errors
         - broker internals
         - model transcripts
-      negative_affordances:
-      - Cannot create more than one child job.
-      - Cannot retry child dispatch after an active or terminal child result.
-      - Cannot route to undelegated or invented capabilities.
-      - Cannot expose child jobs independently to the host channel.
-      - Must not be used as a local fallback when no governed capability matches.
       delegation:
         max_children: 1
         allowed_children:
@@ -373,7 +360,7 @@ imports:
         - remote ref and draft PR URL until deliverer confirmation
         - raw task inputs
         - internal sources and broker internals
-      negative_affordances:
+      limitations:
       - Does not push, open, merge, or claim a remote PR.
       - Remote ref and PR URL arrive only through the deliverer callback after confirmed
         write.

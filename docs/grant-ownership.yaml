@@ -72,7 +72,7 @@ capabilities:
         remint_required: true
         digest_moves: true
         source: workload agent.yaml
-      broker_lease:
+      broker_bounds:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
@@ -84,12 +84,12 @@ capabilities:
         remint_required: true
         digest_moves: true
         source: workload agent.yaml
-      model_lease:
-        owner: deployment_overlay
-        deploy_consequence: control_plane_restart
-        remint_required: false
-        digest_moves: false
-        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
+      model_bounds:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
       output_gate:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
@@ -156,13 +156,13 @@ capabilities:
         remint_required: true
         digest_moves: true
         source: workload agent.yaml
-      model_lease:
-        owner: deployment_overlay
-        deploy_consequence: control_plane_restart
-        remint_required: false
-        digest_moves: false
-        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
-      negative_affordances:
+      limitations:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      model_bounds:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
@@ -234,13 +234,13 @@ capabilities:
         remint_required: true
         digest_moves: true
         source: workload agent.yaml
-      model_lease:
-        owner: deployment_overlay
-        deploy_consequence: control_plane_restart
-        remint_required: false
-        digest_moves: false
-        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
-      negative_affordances:
+      limitations:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      model_bounds:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
@@ -306,13 +306,13 @@ capabilities:
         remint_required: true
         digest_moves: true
         source: workload agent.yaml
-      model_lease:
-        owner: deployment_overlay
-        deploy_consequence: control_plane_restart
-        remint_required: false
-        digest_moves: false
-        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
-      negative_affordances:
+      limitations:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload agent.yaml
+      model_bounds:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
@@ -390,7 +390,7 @@ capabilities:
         remint_required: true
         digest_moves: true
         source: workload agent.yaml
-      negative_affordances:
+      limitations:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
