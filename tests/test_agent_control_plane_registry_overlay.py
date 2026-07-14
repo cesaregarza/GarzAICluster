@@ -382,12 +382,12 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertEqual(opencode["agent"]["network_access"], "broker_only")
 
         capability = opencode["capabilities"]["agent_workloads.opencode_propose"]
-        self.assertEqual(capability["model_lease"]["allowed_tier"], "fast")
+        self.assertEqual(capability["model_bounds"]["allowed_tier"], "fast")
         self.assertEqual(
-            capability["model_lease"]["allowed_profiles"],
+            capability["model_bounds"]["allowed_profiles"],
             ["openai.gpt-5.3-codex-spark"],
         )
-        self.assertEqual(capability["model_lease"]["max_cost_usd"], 0.25)
+        self.assertEqual(capability["model_bounds"]["max_cost_usd"], 0.25)
         self.assertEqual(capability["session_authority_budget"]["max_operations"], 100)
         self.assertEqual(
             capability["disclosure"]["artifact_classes_allowed"],
@@ -449,8 +449,8 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertEqual(capability["session_authority_budget"]["max_operations"], 1)
         self.assertEqual(
-            capability["session_authority_budget"]["session_taint"],
-            "prod_authority",
+            capability["session_authority_budget"]["influence"],
+            "principal",
         )
         self.assertEqual(
             capability["artifacts"],
@@ -511,7 +511,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertIn(
             "Remote ref and PR URL arrive only through the deliverer callback after "
             "confirmed write.",
-            capability["negative_affordances"],
+            capability["limitations"],
         )
 
         manifest = json.loads(self.data["agent-opencode.apply_executor.json"])

@@ -35,13 +35,13 @@ ALLOWED_TOP_LEVEL_KEYS = {
     "workload",
     "capability",
     "grant",
-    "model_lease",
+    "model_bounds",
     "worker",
     "secrets",
     "network",
 }
 ALLOWED_GRANT_KEYS = {"binding"}
-ALLOWED_MODEL_LEASE_KEYS = {"allowed_profile"}
+ALLOWED_MODEL_BOUNDS_KEYS = {"allowed_profile"}
 ALLOWED_WORKER_KEYS = {"claims"}
 ALLOWED_SECRET_KEYS = {"key"}
 ALLOWED_NETWORK_KEYS = {"to"}
@@ -128,7 +128,7 @@ def apply_workload_enablement(
         workload_id=workload_id,
         capability_id=capability_id,
     )
-    _require_deployment_owned(ownership, capability_id, "model_lease")
+    _require_deployment_owned(ownership, capability_id, "model_bounds")
     _require_deployment_owned(ownership, capability_id, "session_authority_budget")
 
     actions: list[EnablementAction] = []
@@ -144,13 +144,13 @@ def apply_workload_enablement(
     if policy_changed:
         changed_files.add(str(registry_overlay_value_path(repo_root, "policy.prod.yaml")))
 
-    model_lease_changed = _plan_model_lease(
+    model_bounds_changed = _plan_model_bounds(
         document=document,
         capability_id=capability_id,
         capability=capability,
         actions=actions,
     )
-    if model_lease_changed:
+    if model_bounds_changed:
         changed_files.add(str(registry_overlay_value_path(repo_root, "workload_imports.yaml")))
 
     worker_claims_changed = _plan_worker_claims(
@@ -176,7 +176,7 @@ def apply_workload_enablement(
         overlay_updates: dict[str, str] = {}
         if policy_changed:
             overlay_updates["policy.prod.yaml"] = _dump_yaml(policy)
-        if model_lease_changed:
+        if model_bounds_changed:
             overlay_updates["workload_imports.yaml"] = _dump_yaml(workload_imports)
         if overlay_updates:
             write_registry_overlay_values(repo_root, overlay_updates)
@@ -240,7 +240,7 @@ def _load_document(path: Path) -> dict[str, Any]:
     if document.get("kind") != KIND:
         raise WorkloadEnablementError(f"kind must be {KIND!r}")
     _validate_grant(document.get("grant"))
-    _validate_model_lease(document.get("model_lease"))
+    _validate_model_bounds(document.get("model_bounds"))
     _validate_worker(document.get("worker"))
     _validate_secrets(document.get("secrets"))
     _validate_network(document.get("network"))
@@ -255,15 +255,15 @@ def _validate_grant(value: Any) -> None:
     _required_str(grant.get("binding"), "grant.binding")
 
 
-def _validate_model_lease(value: Any) -> None:
+def _validate_model_bounds(value: Any) -> None:
     if value is None:
         return
-    lease = _required_mapping(value, "model_lease")
-    _reject_unknown_keys(lease, ALLOWED_MODEL_LEASE_KEYS, "model_lease")
+    lease = _required_mapping(value, "model_bounds")
+    _reject_unknown_keys(lease, ALLOWED_MODEL_BOUNDS_KEYS, "model_bounds")
     profile = lease.get("allowed_profile")
     if not isinstance(profile, str) or not profile:
         raise WorkloadEnablementError(
-            "model_lease must declare exactly one non-empty allowed_profile"
+            "model_bounds must declare exactly one non-empty allowed_profile"
         )
 
 
@@ -330,20 +330,20 @@ def _plan_policy_grant(
     return True
 
 
-def _plan_model_lease(
+def _plan_model_bounds(
     *,
     document: dict[str, Any],
     capability_id: str,
     capability: dict[str, Any],
     actions: list[EnablementAction],
 ) -> bool:
-    requested = document.get("model_lease")
+    requested = document.get("model_bounds")
     if requested is None:
         return False
-    profile = _required_str(requested.get("allowed_profile"), "model_lease.allowed_profile")
+    profile = _required_str(requested.get("allowed_profile"), "model_bounds.allowed_profile")
     lease = _required_mapping(
-        capability.get("model_lease"),
-        f"{capability_id}.model_lease",
+        capability.get("model_bounds"),
+        f"{capability_id}.model_bounds",
     )
     current_profiles = lease.get("allowed_profiles") or []
     if current_profiles == [profile]:
