@@ -19,7 +19,7 @@ REGISTRY_OVERLAY_CONFIGMAP_NAME = "agent-control-plane-registry-overlay"
 OWNERSHIP_SOURCE_PATH = Path("docs/grant-ownership-source.yaml")
 OWNERSHIP_MAP_PATH = Path("docs/grant-ownership.yaml")
 OWNERSHIP_DOC_PATH = Path("docs/grant-ownership.md")
-APPLIER_PATH = Path("scripts/apply_splattop_release_artifacts.py")
+APPLIER_PATH = Path("scripts/apply_garzaicluster_release_artifacts.py")
 
 YAML_SAFE = YAML(typ="safe")
 YAML_RT = YAML()
@@ -45,7 +45,7 @@ class GrantEditError(RuntimeError):
 class ApplierContract:
     deployment_owned_capability_keys: tuple[str, ...]
     preserve_existing_capability_keys: tuple[str, ...]
-    session_taint_key: str
+    influence_key: str
     session_authority_budget_preserved_keys: tuple[str, ...]
 
 
@@ -111,15 +111,15 @@ def load_applier_contract(
             sorted(
                 str(key)
                 for key in source.get("session_authority_budget_preserved_keys")
-                or [_required_str(source.get("session_taint_key"), "session_taint_key")]
+                or [_required_str(source.get("influence_key"), "influence_key")]
             )
         )
-        session_taint_key = _required_str(
-            source.get("session_taint_key") or "session_taint",
-            "session_taint_key",
+        influence_key = _required_str(
+            source.get("influence_key") or "influence",
+            "influence_key",
         )
-        if session_taint_key not in preserved_keys:
-            preserved_keys = tuple(sorted((*preserved_keys, session_taint_key)))
+        if influence_key not in preserved_keys:
+            preserved_keys = tuple(sorted((*preserved_keys, influence_key)))
 
         return ApplierContract(
             deployment_owned_capability_keys=tuple(
@@ -138,7 +138,7 @@ def load_applier_contract(
                     )
                 )
             ),
-            session_taint_key=session_taint_key,
+            influence_key=influence_key,
             session_authority_budget_preserved_keys=preserved_keys,
         )
 
@@ -152,7 +152,7 @@ def extract_applier_contract(agent_workloads_repo: Path) -> ApplierContract:
         "DEPLOYMENT_OWNED_CAPABILITY_KEYS",
         "PRESERVE_EXISTING_CAPABILITY_KEYS",
         "SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS",
-        "SESSION_TAINT_KEY",
+        "INFLUENCE_KEY",
     }
     values: dict[str, Any] = {}
     for node in module.body:
@@ -165,13 +165,13 @@ def extract_applier_contract(agent_workloads_repo: Path) -> ApplierContract:
     try:
         deployment_owned = tuple(sorted(values["DEPLOYMENT_OWNED_CAPABILITY_KEYS"]))
         preserve_existing = tuple(sorted(values["PRESERVE_EXISTING_CAPABILITY_KEYS"]))
-        session_taint_key = str(values["SESSION_TAINT_KEY"])
+        influence_key = str(values["INFLUENCE_KEY"])
         preserved_keys = tuple(
             sorted(
                 str(key)
                 for key in values.get(
                     "SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS",
-                    {session_taint_key},
+                    {influence_key},
                 )
             )
         )
@@ -183,7 +183,7 @@ def extract_applier_contract(agent_workloads_repo: Path) -> ApplierContract:
     return ApplierContract(
         deployment_owned_capability_keys=deployment_owned,
         preserve_existing_capability_keys=preserve_existing,
-        session_taint_key=session_taint_key,
+        influence_key=influence_key,
         session_authority_budget_preserved_keys=preserved_keys,
     )
 
@@ -363,7 +363,7 @@ def write_ownership_outputs(
             "preserve_existing_capability_keys": list(
                 contract.preserve_existing_capability_keys
             ),
-            "session_taint_key": contract.session_taint_key,
+            "influence_key": contract.influence_key,
             "session_authority_budget_preserved_keys": list(
                 contract.session_authority_budget_preserved_keys
             ),
