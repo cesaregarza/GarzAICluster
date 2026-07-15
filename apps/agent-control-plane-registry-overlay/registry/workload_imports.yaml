@@ -76,7 +76,7 @@ imports:
         max_rows: 50
         max_runtime_seconds: 120
         max_cost_usd: 10.0
-        statement_timeout_ms: 60000
+        statement_timeout_ms: 20000
         max_concurrency: 1
         operation_max_influence:
           select_limited: external

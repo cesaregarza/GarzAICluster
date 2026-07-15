@@ -106,7 +106,8 @@ data: {agent-data.workspace_probe.json: "{\n  \"capabilities\": [\n    \"agent_w
     ,\"capability\":\"agent_workloads.opencode_propose\",\"input\":{\"text\":\"Draft
     a bounded proposal.\"},\"expected\":{\"status\":\"succeeded\",\"artifact_class\"\
     :\"opencode_proposal\"}}\n", policy.prod.yaml: "defaults:\n  max_cost_usd_per_job:
-    10.0\n  max_runtime_seconds_per_job: 60\n  aggregate_budget:\n    platform_daily_usd:
+    10.0\n  max_runtime_seconds_per_job: 60\n  max_runtime_seconds_per_capability:\n\
+    \    agent_workloads.readonly_query: 180\n  aggregate_budget:\n    platform_daily_usd:
     250.0\n    per_capability_daily_usd_default: 100.0\n    per_capability_daily_usd:\n\
     \      agent_workloads.opencode_apply: 1.0\n      agent_workloads.opencode_propose:
     1.0\n\nbindings:\n  - id: private-admin-controlled-capabilities\n    description:
@@ -161,7 +162,7 @@ data: {agent-data.workspace_probe.json: "{\n  \"capabilities\": [\n    \"agent_w
     xscraper.schedules\n        allowed_operations:\n        - describe_schema\n \
     \       - describe_table\n        - select_limited\n        - explain_safe\n \
     \       - aggregate_summary\n        max_rows: 50\n        max_runtime_seconds:
-    120\n        max_cost_usd: 10.0\n        statement_timeout_ms: 60000\n       \
+    120\n        max_cost_usd: 10.0\n        statement_timeout_ms: 20000\n       \
     \ max_concurrency: 1\n        operation_max_influence:\n          select_limited:
     external\n- id: opencode.proposer\n  manifest_path: registries/imports/agent-opencode.proposer.json\n\
     \  manifest_digest: sha256:24b219e753f82fb8ca5e8bc8a2141b87779d0b23feb0006004e4af3b3c332307\n\
