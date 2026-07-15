@@ -75,6 +75,10 @@ class AgentControlPlaneProviderPinTests(unittest.TestCase):
                 "postgresql://provider-pin-check@localhost/provider_pin_check",
             )
             self.assertEqual(
+                seen_env["control-api"][MODEL_GATEWAY_CODEX_AUTH_STORE_PATH_ENV],
+                "/var/lib/mandate/codex-auth/auth.json",
+            )
+            self.assertEqual(
                 seen_env["model-gateway"][MODEL_GATEWAY_CODEX_AUTH_STORE_PATH_ENV],
                 "/var/lib/mandate/codex-auth/auth.json",
             )

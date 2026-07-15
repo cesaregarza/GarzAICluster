@@ -340,6 +340,10 @@ def _control_api_process_env(values: Mapping[str, Any]) -> dict[str, str]:
     _add_startup_migration_env(env, values, operator_env)
     _add_skills_env(env, values, operator_env)
     _add_metrics_env(env, values, operator_env)
+    _add_model_gateway_codex_auth_store_env(
+        env,
+        _optional_mapping(values.get("modelGateway")),
+    )
     env.pop(PROVIDER_PINS_ENV, None)
     return env
 
