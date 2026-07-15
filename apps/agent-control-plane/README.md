@@ -61,6 +61,12 @@ Required before activation:
   `agent-control-plane-model-gateway-controls` as a directory so operator edits
   project without pod restarts. See
   [model-gateway controls](../../docs/model-gateway-controls.md).
+- The `agent-control-plane-model-gateway-codex-auth` PVC is mounted by both the
+  API and standalone model-gateway. The API therefore reads the same rotated
+  `auth.json` as the gateway instead of restarting from the static bootstrap
+  Secret. The live DigitalOcean block claim is `ReadWriteOnce`, so the chart
+  co-locates the API with the gateway on one node; use ReadWriteMany storage
+  before scaling this pair across nodes.
 - `postgresSweep.enabled=false` while the current
   `db-postgresql-nyc3-xscraper` `db-amd-1vcpu-2gb` plan is connection-slot
   saturated by the live control-plane services. Re-enable it only after the
