@@ -1,3 +1,74 @@
+{{- if .Values.projectedWorkloadIdentity.enabled }}
+{{- $workerId := required "projected identity requires workerId" .Values.projectedWorkloadIdentity.workerId }}
+{{- $releasePins := required "projected identity requires mandateReleasePins" .Values.mandateReleasePins }}
+{{- $currentRelease := required (printf "projected identity requires mandateReleasePins[%s]" $workerId) (index $releasePins $workerId) }}
+{{- $pinnedImageDigest := required "projected identity current release requires imageDigest" $currentRelease.imageDigest }}
+{{- $runtimeImageDigest := required "projected identity requires immutable image.digest" .Values.image.digest }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $runtimeImageDigest) }}
+{{- fail "projected identity image.digest must be lowercase sha256:<64 hex>" }}
+{{- end }}
+{{- if ne $runtimeImageDigest $pinnedImageDigest }}
+{{- fail "projected identity image.digest must equal current release imageDigest" }}
+{{- end }}
+{{- $projectedTokenAudience := required "projected worker identity audience is required" .Values.projectedWorkloadIdentity.token.audience }}
+{{- if ne $projectedTokenAudience (trim $projectedTokenAudience) }}
+{{- fail "projected worker identity audience must not have surrounding whitespace" }}
+{{- end }}
+{{- $projectedTokenExpirationSeconds := int .Values.projectedWorkloadIdentity.token.expirationSeconds }}
+{{- if or (lt $projectedTokenExpirationSeconds 600) (gt $projectedTokenExpirationSeconds 3600) }}
+{{- fail "projected worker identity expirationSeconds must be between 600 and 3600" }}
+{{- end }}
+{{- $projectedTokenMountPath := required "projected worker identity mountPath is required" .Values.projectedWorkloadIdentity.token.mountPath }}
+{{- if or (ne $projectedTokenMountPath (trim $projectedTokenMountPath)) (not (regexMatch "^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$" $projectedTokenMountPath)) (regexMatch "(^|/)\\.\\.?(/|$)" $projectedTokenMountPath) }}
+{{- fail "projected worker identity mountPath must be a normalized absolute path" }}
+{{- end }}
+{{- $projectedTokenFileName := required "projected worker identity fileName is required" .Values.projectedWorkloadIdentity.token.fileName }}
+{{- if or (ne $projectedTokenFileName (trim $projectedTokenFileName)) (not (regexMatch "^[A-Za-z0-9._-]+$" $projectedTokenFileName)) (eq $projectedTokenFileName ".") (eq $projectedTokenFileName "..") }}
+{{- fail "projected worker identity fileName must be a normalized basename" }}
+{{- end }}
+{{- $currentProjectedServiceAccount := include "agent-workloads.projectedIdentityServiceAccountName" . }}
+{{- $sharedServiceAccount := include "agent-workloads.serviceAccountName" . }}
+{{- if eq $currentProjectedServiceAccount $sharedServiceAccount }}
+{{- fail "projected current release ServiceAccount must differ from the shared legacy ServiceAccount" }}
+{{- end }}
+{{- with .Values.projectedWorkloadIdentity.previousRelease }}
+{{- $previousProjectedServiceAccount := include "agent-workloads.previousProjectedIdentityServiceAccountName" $ }}
+{{- if eq $previousProjectedServiceAccount $currentProjectedServiceAccount }}
+{{- fail "projected previous and current release ServiceAccounts must differ" }}
+{{- end }}
+{{- if eq $previousProjectedServiceAccount $sharedServiceAccount }}
+{{- fail "projected previous release ServiceAccount must differ from the shared legacy ServiceAccount" }}
+{{- end }}
+{{- end }}
+{{- if ne .Values.projectedWorkloadIdentity.workerId .Values.env.AGENT_WORKLOADS_WORKER_ID }}
+{{- fail "projected identity workerId must match AGENT_WORKLOADS_WORKER_ID" }}
+{{- end }}
+{{- if has "MANDATE_WORKLOAD_IDENTITY_TOKEN" .Values.secretKeys }}
+{{- fail "projected identity pod must not inject a static workload identity token" }}
+{{- end }}
+{{- if hasKey .Values.secretEnv "MANDATE_WORKLOAD_IDENTITY_TOKEN" }}
+{{- fail "projected identity pod must not inject a static workload identity token" }}
+{{- end }}
+{{- if hasKey .Values.env "MANDATE_WORKLOAD_IDENTITY_TOKEN" }}
+{{- fail "projected identity pod must not inject a static workload identity token" }}
+{{- end }}
+{{- if hasKey .Values.env "MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE" }}
+{{- fail "projected identity token file env is chart-owned" }}
+{{- end }}
+{{- range .Values.extraVolumes }}
+{{- with .secret }}
+{{- if eq .secretName "agent-workloads-workload-identity-tokens" }}
+{{- fail "projected identity pod must not mount the legacy identity Secret" }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- range .Values.extraVolumeMounts }}
+{{- $extraMountPath := clean (required "extra volume mount requires mountPath" .mountPath) }}
+{{- if or (eq $extraMountPath "/") (eq $extraMountPath $projectedTokenMountPath) (hasPrefix (printf "%s/" $projectedTokenMountPath) $extraMountPath) (hasPrefix (printf "%s/" $extraMountPath) $projectedTokenMountPath) }}
+{{- fail "extra volume mount must not overlap the projected identity token path" }}
+{{- end }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,12 +89,19 @@ spec:
         {{- end }}
       annotations:
         checksum.garz.ai/agent-workloads-release-pins: {{ include "agent-workloads.releasePinsChecksum" . | quote }}
+        {{- if not .Values.projectedWorkloadIdentity.enabled }}
         checksum.garz.ai/agent-workloads-token-secret: {{ include "agent-workloads.workloadIdentityTokenSecretChecksum" . | quote }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      automountServiceAccountToken: false
+      {{- if .Values.projectedWorkloadIdentity.enabled }}
+      serviceAccountName: {{ include "agent-workloads.projectedIdentityServiceAccountName" . }}
+      {{- else }}
       serviceAccountName: {{ include "agent-workloads.serviceAccountName" . }}
+      {{- end }}
       {{- include "agent-workloads.imagePullSecrets" . | nindent 6 }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -39,6 +117,10 @@ spec:
           {{- end }}
           env:
             {{- include "agent-workloads.runtimeEnv" . | nindent 12 }}
+            {{- if .Values.projectedWorkloadIdentity.enabled }}
+            - name: MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE
+              value: {{ include "agent-workloads.projectedIdentityTokenPath" . | quote }}
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
@@ -46,12 +128,28 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if .Values.projectedWorkloadIdentity.enabled }}
+            - name: projected-workload-identity-token
+              mountPath: {{ .Values.projectedWorkloadIdentity.token.mountPath | quote }}
+              readOnly: true
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if .Values.projectedWorkloadIdentity.enabled }}
+        - name: projected-workload-identity-token
+          projected:
+            # Decimal 288 is octal 0440; decimal avoids YAML 1.1/1.2 ambiguity.
+            defaultMode: 288
+            sources:
+              - serviceAccountToken:
+                  audience: {{ required "projected worker identity audience is required" .Values.projectedWorkloadIdentity.token.audience | quote }}
+                  expirationSeconds: {{ int .Values.projectedWorkloadIdentity.token.expirationSeconds }}
+                  path: {{ .Values.projectedWorkloadIdentity.token.fileName | quote }}
+        {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
