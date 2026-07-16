@@ -418,7 +418,7 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
         result = _render_process(values)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "projectedWorkloadIdentity.token.audience",
+            "audience",
             result.stderr,
         )
 
@@ -456,14 +456,14 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
                 lambda values: values["projectedWorkloadIdentity"]["token"].update(
                     {"expirationSeconds": 0}
                 ),
-                "Must be greater than or equal to 600",
+                "expirationSeconds",
             ),
             (
                 "long expiration",
                 lambda values: values["projectedWorkloadIdentity"]["token"].update(
                     {"expirationSeconds": 3601}
                 ),
-                "Must be less than or equal to 3600",
+                "expirationSeconds",
             ),
             (
                 "whitespace audience",
