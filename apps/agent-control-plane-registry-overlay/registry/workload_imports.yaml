@@ -2,8 +2,8 @@ schema_version: workload-imports.v1
 imports:
 - id: data.workspace_probe
   manifest_path: registries/imports/agent-data.workspace_probe.json
-  manifest_digest: sha256:d29c75fd7838159f05e86fc9447c1c972bffaf7cf9d9701424a62b71b9e2d87d
-  image_digest: sha256:10708208b56227a1b06b95a965842f5067813ca8e98142891f2d978cd4133f2b
+  manifest_digest: sha256:5f3eef0faa82cd54972a1b501fe9c0b98f1d682d25546c041e1d842811a36a79
+  image_digest: sha256:cc475da76066fa26d84b95ddab72fb40048cd494e369fc194616d3eb2daad13e
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -76,14 +76,14 @@ imports:
         max_rows: 50
         max_runtime_seconds: 120
         max_cost_usd: 10.0
-        statement_timeout_ms: 60000
+        statement_timeout_ms: 20000
         max_concurrency: 1
         operation_max_influence:
           select_limited: external
 - id: opencode.proposer
   manifest_path: registries/imports/agent-opencode.proposer.json
-  manifest_digest: sha256:24b219e753f82fb8ca5e8bc8a2141b87779d0b23feb0006004e4af3b3c332307
-  image_digest: sha256:5f1146bb216b68be1914ce4229b22ca15546cd9b1c5fb40960f7c3ad870ceaab
+  manifest_digest: sha256:d448938f4cb87012b6568d67bac9d06a2b5047400528dc252ba7e431200b425c
+  image_digest: sha256:c79fdbbef76ed081fc673232e69f8c6a9debd49bce4aadfbe9dae195303432b8
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -294,8 +294,8 @@ imports:
       - Must not be used as a local fallback when no governed capability matches.
 - id: opencode.apply_executor
   manifest_path: registries/imports/agent-opencode.apply_executor.json
-  manifest_digest: sha256:d015080780e26a8a1d648df924541d70d5723a1cd36830e9d4200bc8da30be59
-  image_digest: sha256:89de7155d168a8d760ef0cc53c7abcd61af4776d35de550364661febfbb13b86
+  manifest_digest: sha256:276edd581ca8a67a6a4e4f715cad4eb15bc6b45f3f0c2c626308cb3d08a5458c
+  image_digest: sha256:3d9fbf96773baa7c4ea720b83f52ef170797b93182dccb8f64bac023369bcd8b
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
