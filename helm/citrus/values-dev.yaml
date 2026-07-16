@@ -1,5 +1,5 @@
 image:
-  tag: ea4d303bcd95b56971a4c6030d98db4da90ec830 # allow-latest
+  tag: 8eff27883f7661a4c9b5f14d18a2cbb236fc4f72 # allow-latest
 
 application:
   # Standalone generated-secret file (KSOPS: secrets/citrus-dev/django-app-key.enc.yaml)
