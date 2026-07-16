@@ -190,6 +190,10 @@ jobs:
             path: helm/skyquiet-server
             release: skyquiet-server
             prod_values: helm/skyquiet-server/values.yaml
+          - name: agent-workloads
+            path: helm/agent-workloads
+            release: agent-workloads
+            prod_values: apps/agent-workloads/values.yaml
     steps:
       - name: Checkout
         uses: actions/checkout@v4

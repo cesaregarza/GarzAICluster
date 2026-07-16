@@ -98,6 +98,63 @@ Service account name.
 {{- end }}
 
 {{/*
+Normalize a worker id for a DNS-label ServiceAccount name.
+*/}}
+{{- define "agent-workloads.projectedIdentityWorkerName" -}}
+{{- regexReplaceAll "[^a-z0-9]+" (lower .Values.projectedWorkloadIdentity.workerId) "-" | trimAll "-" -}}
+{{- end }}
+
+{{/*
+Build a release-scoped ServiceAccount name from the trusted immutable release
+tuple. The 20-hex (80-bit) suffix is part of the verifier binding, so fail
+rather than truncating it.
+*/}}
+{{- define "agent-workloads.releaseScopedServiceAccountName" -}}
+{{- $root := .root -}}
+{{- $release := required "release-scoped ServiceAccount requires an immutable release tuple" .release -}}
+{{- $codeDigest := required "release-scoped ServiceAccount requires codeDigest" $release.codeDigest -}}
+{{- $manifestDigest := required "release-scoped ServiceAccount requires manifestDigest" $release.manifestDigest -}}
+{{- $imageDigest := required "release-scoped ServiceAccount requires imageDigest" $release.imageDigest -}}
+{{- range $label, $digest := dict "codeDigest" $codeDigest "manifestDigest" $manifestDigest "imageDigest" $imageDigest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail (printf "release-scoped ServiceAccount %s must be lowercase sha256:<64 hex>" $label) -}}
+{{- end -}}
+{{- end -}}
+{{- $workerName := include "agent-workloads.projectedIdentityWorkerName" $root -}}
+{{- if not (regexMatch "^[a-z0-9]+(-[a-z0-9]+)*$" $workerName) -}}
+{{- fail "projectedWorkloadIdentity.workerId must normalize to a DNS label" -}}
+{{- end -}}
+{{- $bundlePayload := printf "{\"code_digest\":\"%s\",\"image_digest\":\"%s\",\"manifest_digest\":\"%s\",\"schema_version\":\"workload_identity_bundle.v1\"}" $codeDigest $imageDigest $manifestDigest -}}
+{{- $digestSuffix := trunc 20 (sha256sum $bundlePayload) -}}
+{{- $name := printf "%s-%s-%s" $root.Values.projectedWorkloadIdentity.serviceAccountNamePrefix $workerName $digestSuffix -}}
+{{- if gt (len $name) 63 -}}
+{{- fail "release-scoped ServiceAccount name exceeds 63 characters" -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $name) -}}
+{{- fail "release-scoped ServiceAccount name must be a DNS label" -}}
+{{- end -}}
+{{- $name -}}
+{{- end }}
+
+{{/* Current projected-identity ServiceAccount. */}}
+{{- define "agent-workloads.projectedIdentityServiceAccountName" -}}
+{{- $workerId := .Values.projectedWorkloadIdentity.workerId -}}
+{{- $releasePins := required "projected identity requires mandateReleasePins" .Values.mandateReleasePins -}}
+{{- $workerPins := required (printf "projected identity requires mandateReleasePins[%s]" $workerId) (index $releasePins $workerId) -}}
+{{- include "agent-workloads.releaseScopedServiceAccountName" (dict "root" . "release" $workerPins) -}}
+{{- end }}
+
+{{/* Previous projected-identity ServiceAccount retained during rollout overlap. */}}
+{{- define "agent-workloads.previousProjectedIdentityServiceAccountName" -}}
+{{- include "agent-workloads.releaseScopedServiceAccountName" (dict "root" . "release" .Values.projectedWorkloadIdentity.previousRelease) -}}
+{{- end }}
+
+{{/* Full projected worker token path. */}}
+{{- define "agent-workloads.projectedIdentityTokenPath" -}}
+{{- printf "%s/%s" (trimSuffix "/" .Values.projectedWorkloadIdentity.token.mountPath) .Values.projectedWorkloadIdentity.token.fileName -}}
+{{- end }}
+
+{{/*
 Runtime environment.
 */}}
 {{- define "agent-workloads.runtimeEnv" -}}

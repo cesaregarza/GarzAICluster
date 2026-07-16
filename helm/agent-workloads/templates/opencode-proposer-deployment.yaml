@@ -25,6 +25,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "agent-workloads.serviceAccountName" . }}
       enableServiceLinks: false
       {{- include "agent-workloads.imagePullSecrets" . | nindent 6 }}

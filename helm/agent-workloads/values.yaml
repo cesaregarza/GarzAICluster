@@ -18,6 +18,24 @@ serviceAccount:
   automountServiceAccountToken: false
   annotations: {}
 
+# Release-scoped projected ServiceAccount identity. Keep disabled in generic
+# installs and enable a worker explicitly during its identity migration. The
+# ServiceAccount name binds the worker id to the immutable full release tuple.
+projectedWorkloadIdentity:
+  enabled: false
+  workerId: data.workspace_probe
+  serviceAccountNamePrefix: agent-workloads
+  serviceAccount:
+    create: true
+    annotations: {}
+  token:
+    audience: mandate-api
+    expirationSeconds: 3600
+    mountPath: /var/run/mandate/workload-identity
+    fileName: token
+  # During a re-pin, retain the prior immutable tuple until old pods drain.
+  previousRelease: null
+
 podAnnotations: {}
 podLabels: {}
 extraVolumes: []
