@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import unittest
@@ -195,6 +196,53 @@ class GarzObservabilityKubeStateMetricsTests(unittest.TestCase):
         self.assertIn(
             "replacement: /api/v1/nodes/${1}/proxy/metrics",
             prometheus_config,
+        )
+
+    def test_fastapi_scrape_discovers_default_namespace_with_sample_guardrail(
+        self,
+    ) -> None:
+        prometheus_config = _find_doc(
+            self.docs,
+            kind="ConfigMap",
+            name="prometheus-config",
+            namespace="monitoring",
+        )["data"]["prometheus.yml"]
+
+        self.assertIn("job_name: fastapi", prometheus_config)
+        self.assertIn("sample_limit: 15000", prometheus_config)
+        self.assertIn('regex: "default"', prometheus_config)
+
+    def test_prometheus_has_runtime_and_query_memory_guardrails(self) -> None:
+        stateful_set = _find_doc(
+            self.docs,
+            kind="StatefulSet",
+            name="splattop-prod-prometheus",
+            namespace="monitoring",
+        )
+        container = stateful_set["spec"]["template"]["spec"]["containers"][0]
+
+        self.assertIn("--query.max-samples=5000000", container["args"])
+        self.assertIn("--query.max-concurrency=5", container["args"])
+        self.assertIn("--query.timeout=60s", container["args"])
+        self.assertIn(
+            {"name": "GOMEMLIMIT", "value": "1200MiB"},
+            container["env"],
+        )
+
+        pod_annotations = stateful_set["spec"]["template"]["metadata"][
+            "annotations"
+        ]
+        self.assertTrue(
+            re.fullmatch(
+                r"[a-f0-9]{64}",
+                pod_annotations["checksum/prometheus-config"],
+            )
+        )
+        self.assertTrue(
+            re.fullmatch(
+                r"[a-f0-9]{64}",
+                pod_annotations["checksum/prometheus-rules"],
+            )
         )
 
 

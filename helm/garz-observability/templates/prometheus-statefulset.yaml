@@ -18,6 +18,11 @@ spec:
       {{- include "garzObservability.componentSelectorLabels" (dict "component" "prometheus" "root" .) | nindent 6 }}
   template:
     metadata:
+      annotations:
+        checksum/prometheus-config: {{ include (print $.Template.BasePath "/monitoring-prometheus-configmap.yaml") . | sha256sum }}
+        {{- if .Values.monitoring.prometheus.rules.enabled }}
+        checksum/prometheus-rules: {{ include (print $.Template.BasePath "/monitoring-prometheus-rules-configmap.yaml") . | sha256sum }}
+        {{- end }}
       labels:
         {{- include "garzObservability.componentSelectorLabels" (dict "component" "prometheus" "root" .) | nindent 8 }}
     spec:
@@ -36,7 +41,13 @@ spec:
             - "--config.file=/etc/prometheus/prometheus.yml"
             - "--storage.tsdb.path=/prometheus"
             - "--storage.tsdb.retention.time={{ .Values.monitoring.prometheus.retention }}"
+            - "--query.max-samples={{ .Values.monitoring.prometheus.query.maxSamples }}"
+            - "--query.max-concurrency={{ .Values.monitoring.prometheus.query.maxConcurrency }}"
+            - "--query.timeout={{ .Values.monitoring.prometheus.query.timeout }}"
             - "--web.enable-lifecycle"
+          env:
+            - name: GOMEMLIMIT
+              value: {{ .Values.monitoring.prometheus.goMemoryLimit | quote }}
           ports:
             - name: http
               containerPort: 9090
