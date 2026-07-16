@@ -153,6 +153,8 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             readonly_query["skills"],
             ["xscraper-schema", "xscraper-glossary"],
         )
+        self.assertEqual(readonly_query["broker_bounds"]["max_runtime_seconds"], 120)
+        self.assertEqual(readonly_query["broker_bounds"]["statement_timeout_ms"], 20000)
 
         skills = self.control_plane_values["skills"]
         self.assertEqual(
@@ -572,6 +574,11 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             "admin_confirm",
         )
         self.assertEqual(policy["defaults"]["max_cost_usd_per_job"], 10.0)
+        self.assertEqual(policy["defaults"]["max_runtime_seconds_per_job"], 60)
+        self.assertEqual(
+            policy["defaults"]["max_runtime_seconds_per_capability"],
+            {"agent_workloads.readonly_query": 180},
+        )
         self.assertEqual(
             policy["defaults"]["aggregate_budget"]["per_capability_daily_usd"][
                 "agent_workloads.opencode_propose"
@@ -842,7 +849,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             {
                 "digest": (
                     "sha256:"
-                    "2a3b6afc068849e07f65badc6a2ac83f1062ba062b3c8085d6188c2b28a45d64"
+                    "2010eb78000580e9bc9ad74b57b70500318014a397193133005fae153b39c336"
                 ),
                 "protocol": "model_gateway",
             },

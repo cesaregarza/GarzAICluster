@@ -3,12 +3,12 @@ data: {agent-data.workspace_probe.json: "{\n  \"capabilities\": [\n    \"agent_w
     ,\n    \"agent_workloads.readonly_query\"\n  ],\n  \"capability_metadata\": {\n\
     \    \"agent_workloads.db_probe\": {\n      \"consequence_class\": \"reversible_staging\"\
     \n    },\n    \"agent_workloads.readonly_query\": {\n      \"consequence_class\"\
-    : \"read_only\"\n    }\n  },\n  \"code_digest\": \"sha256:889446504ef49fd1fc89c1f04b8cc67581956480ed5a2b0c2cc6a7b2df0f95f3\"\
-    ,\n  \"digest\": \"sha256:d29c75fd7838159f05e86fc9447c1c972bffaf7cf9d9701424a62b71b9e2d87d\"\
+    : \"read_only\"\n    }\n  },\n  \"code_digest\": \"sha256:9bab17b6a6439d8f1dfa5bb4ed5f3c58d145013d46e46b6d83629827c90519f8\"\
+    ,\n  \"digest\": \"sha256:5f3eef0faa82cd54972a1b501fe9c0b98f1d682d25546c041e1d842811a36a79\"\
     ,\n  \"display_name\": \"Agent Workloads Data Worker\",\n  \"evals\": {\n    \"\
     optional\": [],\n    \"required\": [\n      \"eval.test_agent_probes\",\n    \
     \  \"eval.readonly_sql_safety\"\n    ]\n  },\n  \"id\": \"data.workspace_probe\"\
-    ,\n  \"image\": {\n    \"digest\": \"sha256:10708208b56227a1b06b95a965842f5067813ca8e98142891f2d978cd4133f2b\"\
+    ,\n  \"image\": {\n    \"digest\": \"sha256:cc475da76066fa26d84b95ddab72fb40048cd494e369fc194616d3eb2daad13e\"\
     ,\n    \"repository\": \"registry.digitalocean.com/sendouq/agent-workloads-worker\"\
     \n  },\n  \"loop\": {\n    \"contract\": \"worker_service_v1\",\n    \"kind\"\
     : \"worker_service\",\n    \"protocol\": \"mandate_worker_service_pull_v1\"\n\
@@ -106,7 +106,8 @@ data: {agent-data.workspace_probe.json: "{\n  \"capabilities\": [\n    \"agent_w
     ,\"capability\":\"agent_workloads.opencode_propose\",\"input\":{\"text\":\"Draft
     a bounded proposal.\"},\"expected\":{\"status\":\"succeeded\",\"artifact_class\"\
     :\"opencode_proposal\"}}\n", policy.prod.yaml: "defaults:\n  max_cost_usd_per_job:
-    10.0\n  max_runtime_seconds_per_job: 60\n  aggregate_budget:\n    platform_daily_usd:
+    10.0\n  max_runtime_seconds_per_job: 60\n  max_runtime_seconds_per_capability:\n\
+    \    agent_workloads.readonly_query: 180\n  aggregate_budget:\n    platform_daily_usd:
     250.0\n    per_capability_daily_usd_default: 100.0\n    per_capability_daily_usd:\n\
     \      agent_workloads.opencode_apply: 1.0\n      agent_workloads.opencode_propose:
     1.0\n\nbindings:\n  - id: private-admin-controlled-capabilities\n    description:
@@ -131,8 +132,8 @@ data: {agent-data.workspace_probe.json: "{\n  \"capabilities\": [\n    \"agent_w
     \      allow:\n        - mandate.deploy.smoke\n        - agent_workloads.readonly_query\n",
   workload_imports.yaml: "schema_version: workload-imports.v1\nimports:\n- id: data.workspace_probe\n\
     \  manifest_path: registries/imports/agent-data.workspace_probe.json\n  manifest_digest:
-    sha256:d29c75fd7838159f05e86fc9447c1c972bffaf7cf9d9701424a62b71b9e2d87d\n  image_digest:
-    sha256:10708208b56227a1b06b95a965842f5067813ca8e98142891f2d978cd4133f2b\n  expected_source:\n\
+    sha256:5f3eef0faa82cd54972a1b501fe9c0b98f1d682d25546c041e1d842811a36a79\n  image_digest:
+    sha256:cc475da76066fa26d84b95ddab72fb40048cd494e369fc194616d3eb2daad13e\n  expected_source:\n\
     \    repo: agent-workloads\n    repo_url: https://github.com/cesaregarza/agent-workloads\n\
     \    path: agents/db-workspace-probe/agent.yaml\n  agent:\n    execution_posture:
     capability_worker\n    network_access: database_only\n    service_account_ref:
@@ -151,8 +152,8 @@ data: {agent-data.workspace_probe.json: "{\n  \"capabilities\": [\n    \"agent_w
     \       broker_required: true\n      broker:\n        allowed_broker: readonly-sql-broker\n\
     \        allowed_presets:\n        - analytical-read\n      model_bounds:\n  \
     \      required: true\n        allowed_tier: fast\n        allowed_profiles:\n\
-    \        - openai.gpt-5.3-codex-spark\n        max_prompt_tokens: 12000\n    \
-    \    max_completion_tokens: 32000\n        max_total_tokens: 44000\n        max_cost_usd:
+    \        - openai.gpt-5.3-codex-spark\n        max_prompt_tokens: null\n    \
+    \    max_completion_tokens: null\n        max_total_tokens: null\n        max_cost_usd:
     10.0\n        max_influence: external\n      broker_bounds:\n        required:
     true\n        preset: analytical-read\n        allowed_source_schemas:\n     \
     \   - xscraper\n        allowed_tables:\n        - xscraper.players\n        -
@@ -161,7 +162,7 @@ data: {agent-data.workspace_probe.json: "{\n  \"capabilities\": [\n    \"agent_w
     xscraper.schedules\n        allowed_operations:\n        - describe_schema\n \
     \       - describe_table\n        - select_limited\n        - explain_safe\n \
     \       - aggregate_summary\n        max_rows: 50\n        max_runtime_seconds:
-    120\n        max_cost_usd: 10.0\n        statement_timeout_ms: 60000\n       \
+    120\n        max_cost_usd: 10.0\n        statement_timeout_ms: 20000\n       \
     \ max_concurrency: 1\n        operation_max_influence:\n          select_limited:
     external\n- id: opencode.proposer\n  manifest_path: registries/imports/agent-opencode.proposer.json\n\
     \  manifest_digest: sha256:24b219e753f82fb8ca5e8bc8a2141b87779d0b23feb0006004e4af3b3c332307\n\

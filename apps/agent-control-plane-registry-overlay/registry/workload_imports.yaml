@@ -2,8 +2,8 @@ schema_version: workload-imports.v1
 imports:
 - id: data.workspace_probe
   manifest_path: registries/imports/agent-data.workspace_probe.json
-  manifest_digest: sha256:d29c75fd7838159f05e86fc9447c1c972bffaf7cf9d9701424a62b71b9e2d87d
-  image_digest: sha256:10708208b56227a1b06b95a965842f5067813ca8e98142891f2d978cd4133f2b
+  manifest_digest: sha256:5f3eef0faa82cd54972a1b501fe9c0b98f1d682d25546c041e1d842811a36a79
+  image_digest: sha256:cc475da76066fa26d84b95ddab72fb40048cd494e369fc194616d3eb2daad13e
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -49,9 +49,9 @@ imports:
         allowed_tier: fast
         allowed_profiles:
         - openai.gpt-5.3-codex-spark
-        max_prompt_tokens: 12000
-        max_completion_tokens: 32000
-        max_total_tokens: 44000
+        max_prompt_tokens: null
+        max_completion_tokens: null
+        max_total_tokens: null
         max_cost_usd: 10.0
         max_influence: external
       broker_bounds:
@@ -76,7 +76,7 @@ imports:
         max_rows: 50
         max_runtime_seconds: 120
         max_cost_usd: 10.0
-        statement_timeout_ms: 60000
+        statement_timeout_ms: 20000
         max_concurrency: 1
         operation_max_influence:
           select_limited: external
