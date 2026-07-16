@@ -849,7 +849,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             {
                 "digest": (
                     "sha256:"
-                    "2a3b6afc068849e07f65badc6a2ac83f1062ba062b3c8085d6188c2b28a45d64"
+                    "2010eb78000580e9bc9ad74b57b70500318014a397193133005fae153b39c336"
                 ),
                 "protocol": "model_gateway",
             },
