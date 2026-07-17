@@ -7,8 +7,8 @@
       "consequence_class": "consequential"
     }
   },
-  "code_digest": "sha256:84cb43d1172b7ee7340a716802643c5e0484b0f027ba62265336880071a0daa8",
-  "digest": "sha256:d015080780e26a8a1d648df924541d70d5723a1cd36830e9d4200bc8da30be59",
+  "code_digest": "sha256:e4d64c5bb329e2c542dbe622635ff8b6c46ad2b6d71c1e777cb305a005935847",
+  "digest": "sha256:f40dddc19e40c58112ffcc40f31c03138904b932ba37557c54d021ab2f4b25cb",
   "display_name": "OpenCode Apply Executor",
   "evals": {
     "optional": [],
@@ -18,7 +18,7 @@
   },
   "id": "opencode.apply_executor",
   "image": {
-    "digest": "sha256:89de7155d168a8d760ef0cc53c7abcd61af4776d35de550364661febfbb13b86",
+    "digest": "sha256:fabede5708fb05d45b76614e370c7479b88528ccfa3dc20db367530fad6923d9",
     "repository": "registry.digitalocean.com/sendouq/opencode-apply-executor"
   },
   "loop": {
