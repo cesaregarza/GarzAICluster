@@ -296,6 +296,22 @@ data:
           approval_overrides:
             approval.probe: admin_confirm
             agent_workloads.opencode_apply: admin_confirm
+      - id: private-admin-trusted-read-query
+        description: Narrow read and query access for a trusted non-admin user on
+          the private admin surface.
+        surface_identifiers:
+          guild_id: "1523242748822425750"
+          channel_id: "1523242750043226234"
+        users:
+          admins: []
+          authorized:
+            - "98610679895846912"
+        capabilities:
+          allow:
+            - agent_workloads.readonly_query
+            - agent_workloads.opencode_orchestrate
+            - agent_workloads.opencode_task
+            - audit.digest
       - id: synthetic-live-verify-probe
         description: >-
           Scheduled no-key deployment and readonly-query live verify probe. This
