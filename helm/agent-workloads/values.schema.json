@@ -93,12 +93,150 @@
           "additionalProperties": false
         }
       }
+    },
+    "opencodeArtifactHandoff": {
+      "type": "object",
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "legacySharedVolume",
+            "governedCore"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "opencodeProposer": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "$ref": "#/definitions/opencodeIdentity"
+        }
+      }
+    },
+    "opencodeApplyExecutor": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "$ref": "#/definitions/opencodeIdentity"
+        }
+      }
     }
   },
   "definitions": {
     "sha256Digest": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "releaseTuple": {
+      "type": "object",
+      "required": [
+        "codeDigest",
+        "manifestDigest",
+        "imageDigest"
+      ],
+      "properties": {
+        "codeDigest": {
+          "$ref": "#/definitions/sha256Digest"
+        },
+        "manifestDigest": {
+          "$ref": "#/definitions/sha256Digest"
+        },
+        "imageDigest": {
+          "$ref": "#/definitions/sha256Digest"
+        }
+      },
+      "additionalProperties": false
+    },
+    "opencodeIdentity": {
+      "type": "object",
+      "required": [
+        "workerId",
+        "serviceAccountNamePrefix",
+        "mode",
+        "serviceAccount",
+        "token"
+      ],
+      "properties": {
+        "workerId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "serviceAccountNamePrefix": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "hmac",
+            "projected"
+          ]
+        },
+        "serviceAccount": {
+          "type": "object",
+          "required": [
+            "create",
+            "annotations"
+          ],
+          "properties": {
+            "create": {
+              "type": "boolean"
+            },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "token": {
+          "type": "object",
+          "required": [
+            "audience",
+            "expirationSeconds",
+            "mountPath",
+            "fileName"
+          ],
+          "properties": {
+            "audience": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expirationSeconds": {
+              "type": "integer",
+              "minimum": 600,
+              "maximum": 3600
+            },
+            "mountPath": {
+              "type": "string",
+              "minLength": 2
+            },
+            "fileName": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "previousRelease": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/releaseTuple"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

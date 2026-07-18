@@ -100,8 +100,12 @@ Service account name.
 {{/*
 Normalize a worker id for a DNS-label ServiceAccount name.
 */}}
+{{- define "agent-workloads.workerIdentityName" -}}
+{{- regexReplaceAll "[^a-z0-9]+" (lower .workerId) "-" | trimAll "-" -}}
+{{- end }}
+
 {{- define "agent-workloads.projectedIdentityWorkerName" -}}
-{{- regexReplaceAll "[^a-z0-9]+" (lower .Values.projectedWorkloadIdentity.workerId) "-" | trimAll "-" -}}
+{{- include "agent-workloads.workerIdentityName" (dict "workerId" .Values.projectedWorkloadIdentity.workerId) -}}
 {{- end }}
 
 {{/*
@@ -112,6 +116,9 @@ rather than truncating it.
 {{- define "agent-workloads.releaseScopedServiceAccountName" -}}
 {{- $root := .root -}}
 {{- $release := required "release-scoped ServiceAccount requires an immutable release tuple" .release -}}
+{{- $workerId := default $root.Values.projectedWorkloadIdentity.workerId .workerId -}}
+{{- $serviceAccountNamePrefix := default $root.Values.projectedWorkloadIdentity.serviceAccountNamePrefix .serviceAccountNamePrefix -}}
+{{- $identityLabel := default "projectedWorkloadIdentity" .identityLabel -}}
 {{- $codeDigest := required "release-scoped ServiceAccount requires codeDigest" $release.codeDigest -}}
 {{- $manifestDigest := required "release-scoped ServiceAccount requires manifestDigest" $release.manifestDigest -}}
 {{- $imageDigest := required "release-scoped ServiceAccount requires imageDigest" $release.imageDigest -}}
@@ -120,13 +127,13 @@ rather than truncating it.
 {{- fail (printf "release-scoped ServiceAccount %s must be lowercase sha256:<64 hex>" $label) -}}
 {{- end -}}
 {{- end -}}
-{{- $workerName := include "agent-workloads.projectedIdentityWorkerName" $root -}}
+{{- $workerName := include "agent-workloads.workerIdentityName" (dict "workerId" $workerId) -}}
 {{- if not (regexMatch "^[a-z0-9]+(-[a-z0-9]+)*$" $workerName) -}}
-{{- fail "projectedWorkloadIdentity.workerId must normalize to a DNS label" -}}
+{{- fail (printf "%s.workerId must normalize to a DNS label" $identityLabel) -}}
 {{- end -}}
 {{- $bundlePayload := printf "{\"code_digest\":\"%s\",\"image_digest\":\"%s\",\"manifest_digest\":\"%s\",\"schema_version\":\"workload_identity_bundle.v1\"}" $codeDigest $imageDigest $manifestDigest -}}
 {{- $digestSuffix := trunc 20 (sha256sum $bundlePayload) -}}
-{{- $name := printf "%s-%s-%s" $root.Values.projectedWorkloadIdentity.serviceAccountNamePrefix $workerName $digestSuffix -}}
+{{- $name := printf "%s-%s-%s" $serviceAccountNamePrefix $workerName $digestSuffix -}}
 {{- if gt (len $name) 63 -}}
 {{- fail "release-scoped ServiceAccount name exceeds 63 characters" -}}
 {{- end -}}
@@ -212,4 +219,102 @@ helm.sh/chart: {{ include "agent-workloads.chart" . }}
 app.kubernetes.io/part-of: {{ include "agent-workloads.name" . }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/component: opencode-proposer
+{{- end }}
+
+{{/*
+OpenCode apply executor object name and labels.
+*/}}
+{{- define "agent-workloads.opencodeApplyExecutorName" -}}
+{{- printf "%s-opencode-apply-executor" (include "agent-workloads.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "agent-workloads.opencodeApplyExecutorSelectorLabels" -}}
+app.kubernetes.io/name: opencode-apply-executor
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{- define "agent-workloads.opencodeApplyExecutorLabels" -}}
+helm.sh/chart: {{ include "agent-workloads.chart" . }}
+{{ include "agent-workloads.opencodeApplyExecutorSelectorLabels" . }}
+app.kubernetes.io/part-of: {{ include "agent-workloads.name" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/component: opencode-apply-executor
+{{- end }}
+
+{{/*
+Release-scoped identity helpers for one split OpenCode worker.
+*/}}
+{{- define "agent-workloads.opencodeIdentityServiceAccountName" -}}
+{{- $root := .root -}}
+{{- $identity := .identity -}}
+{{- $workerId := required "OpenCode identity requires workerId" $identity.workerId -}}
+{{- $releasePins := required "OpenCode identity requires mandateReleasePins" $root.Values.mandateReleasePins -}}
+{{- $workerPins := required (printf "OpenCode identity requires mandateReleasePins[%s]" $workerId) (index $releasePins $workerId) -}}
+{{- include "agent-workloads.releaseScopedServiceAccountName" (dict "root" $root "release" $workerPins "workerId" $workerId "serviceAccountNamePrefix" $identity.serviceAccountNamePrefix "identityLabel" .identityLabel) -}}
+{{- end }}
+
+{{- define "agent-workloads.previousOpencodeIdentityServiceAccountName" -}}
+{{- include "agent-workloads.releaseScopedServiceAccountName" (dict "root" .root "release" .identity.previousRelease "workerId" .identity.workerId "serviceAccountNamePrefix" .identity.serviceAccountNamePrefix "identityLabel" .identityLabel) -}}
+{{- end }}
+
+{{- define "agent-workloads.opencodeIdentityTokenPath" -}}
+{{- printf "%s/%s" (trimSuffix "/" .identity.token.mountPath) .identity.token.fileName -}}
+{{- end }}
+
+{{/*
+Fail closed when a split OpenCode worker could collapse release or credential
+identity. This helper emits no manifest content.
+*/}}
+{{- define "agent-workloads.validateOpencodeIdentity" -}}
+{{- $root := .root -}}
+{{- $values := .values -}}
+{{- $identity := $values.identity -}}
+{{- $label := .label -}}
+{{- $workerId := required (printf "%s identity requires workerId" $label) $identity.workerId -}}
+{{- if ne $workerId $values.env.AGENT_WORKLOADS_WORKER_ID -}}
+{{- fail (printf "%s identity workerId must match AGENT_WORKLOADS_WORKER_ID" $label) -}}
+{{- end -}}
+{{- $releasePins := required (printf "%s identity requires mandateReleasePins" $label) $root.Values.mandateReleasePins -}}
+{{- $workerPins := required (printf "%s identity requires mandateReleasePins[%s]" $label $workerId) (index $releasePins $workerId) -}}
+{{- $runtimeImageDigest := required (printf "%s governed identity requires immutable image.digest" $label) $values.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $runtimeImageDigest) -}}
+{{- fail (printf "%s image.digest must be lowercase sha256:<64 hex>" $label) -}}
+{{- end -}}
+{{- if ne $runtimeImageDigest $workerPins.imageDigest -}}
+{{- fail (printf "%s image.digest must equal mandateReleasePins[%s].imageDigest" $label $workerId) -}}
+{{- end -}}
+{{- if hasKey $values.env "AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE" -}}
+{{- fail (printf "%s artifact handoff mode env is chart-owned" $label) -}}
+{{- end -}}
+{{- if not (has $identity.mode (list "hmac" "projected")) -}}
+{{- fail (printf "%s identity mode must be hmac or projected" $label) -}}
+{{- end -}}
+{{- if eq $identity.mode "hmac" -}}
+{{- if or (ne (len $values.secretKeys) 0) (ne (len $values.secretEnv) 1) (not (hasKey $values.secretEnv "MANDATE_WORKLOAD_IDENTITY_TOKEN")) -}}
+{{- fail (printf "%s hmac identity must inject only MANDATE_WORKLOAD_IDENTITY_TOKEN" $label) -}}
+{{- end -}}
+{{- if or (hasKey $values.env "MANDATE_WORKLOAD_IDENTITY_TOKEN") (hasKey $values.env "MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE") -}}
+{{- fail (printf "%s hmac identity token env is chart-owned" $label) -}}
+{{- end -}}
+{{- else -}}
+{{- if or (ne (len $values.secretKeys) 0) (ne (len $values.secretEnv) 0) (hasKey $values.env "MANDATE_WORKLOAD_IDENTITY_TOKEN") (hasKey $values.env "MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE") -}}
+{{- fail (printf "%s projected identity must not inject static credentials" $label) -}}
+{{- end -}}
+{{- $audience := required (printf "%s projected identity audience is required" $label) $identity.token.audience -}}
+{{- if ne $audience (trim $audience) -}}
+{{- fail (printf "%s projected identity audience must not have surrounding whitespace" $label) -}}
+{{- end -}}
+{{- $expirationSeconds := int $identity.token.expirationSeconds -}}
+{{- if or (lt $expirationSeconds 600) (gt $expirationSeconds 3600) -}}
+{{- fail (printf "%s projected identity expirationSeconds must be between 600 and 3600" $label) -}}
+{{- end -}}
+{{- $mountPath := required (printf "%s projected identity mountPath is required" $label) $identity.token.mountPath -}}
+{{- if or (ne $mountPath (trim $mountPath)) (not (regexMatch "^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$" $mountPath)) (regexMatch "(^|/)\\.\\.?(/|$)" $mountPath) -}}
+{{- fail (printf "%s projected identity mountPath must be a normalized absolute path" $label) -}}
+{{- end -}}
+{{- $fileName := required (printf "%s projected identity fileName is required" $label) $identity.token.fileName -}}
+{{- if or (ne $fileName (trim $fileName)) (not (regexMatch "^[A-Za-z0-9._-]+$" $fileName)) (eq $fileName ".") (eq $fileName "..") -}}
+{{- fail (printf "%s projected identity fileName must be a normalized basename" $label) -}}
+{{- end -}}
+{{- end -}}
 {{- end }}
