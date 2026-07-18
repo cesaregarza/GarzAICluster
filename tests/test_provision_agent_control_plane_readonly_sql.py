@@ -1,4 +1,6 @@
+import argparse
 import unittest
+from unittest import mock
 
 from scripts import provision_agent_control_plane_readonly_sql as provision
 
@@ -18,6 +20,65 @@ class IdentifierTests(unittest.TestCase):
         self.assertEqual(
             provision.split_env_list("public.accounts, common.orders ,,"),
             ["public.accounts", "common.orders"],
+        )
+
+
+class TargetConfigTests(unittest.TestCase):
+    def test_default_target_preserves_bots_secret_key(self) -> None:
+        with mock.patch.dict("os.environ", {}, clear=True):
+            config = provision.resolve_config(
+                argparse.Namespace(
+                    target="bots",
+                    admin_url="postgresql://admin@example/bots",
+                    database=None,
+                    db_host=None,
+                    db_user=None,
+                    db_password="pw",
+                    schemas=None,
+                    relations=["common.channel_names"],
+                    secret_file=provision.DEFAULT_SECRET_FILE,
+                    secret_key=None,
+                    skip_db=True,
+                )
+            )
+
+        self.assertEqual(config.database, "bots")
+        self.assertEqual(config.role, "agent_control_plane_readonly_sql")
+        self.assertEqual(config.secret_key, "AGENT_PLATFORM_READONLY_SQL_DATABASE_URL")
+        self.assertEqual(config.relations, ["common.channel_names"])
+
+    def test_xscraper_target_uses_analytical_defaults(self) -> None:
+        with mock.patch.dict(
+            "os.environ",
+            {"XSCRAPER_DB_ADMIN_URL": "postgresql://admin@example/xscraper"},
+            clear=True,
+        ):
+            config = provision.resolve_config(
+                argparse.Namespace(
+                    target="xscraper_analytical",
+                    admin_url=None,
+                    database=None,
+                    db_host=None,
+                    db_user=None,
+                    db_password=None,
+                    schemas=None,
+                    relations=None,
+                    secret_file=provision.DEFAULT_SECRET_FILE,
+                    secret_key=None,
+                    skip_db=False,
+                )
+            )
+
+        self.assertEqual(config.admin_url, "postgresql://admin@example/xscraper")
+        self.assertEqual(config.database, "xscraper")
+        self.assertEqual(config.role, "agent_control_plane_xscraper_readonly_sql")
+        self.assertEqual(
+            config.secret_key,
+            "AGENT_PLATFORM_READONLY_SQL_ANALYTICAL_DATABASE_URL",
+        )
+        self.assertEqual(
+            tuple(config.relations),
+            provision.XSCRAPER_ANALYTICAL_RELATIONS,
         )
 
 

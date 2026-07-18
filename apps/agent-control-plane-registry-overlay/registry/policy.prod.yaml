@@ -1,0 +1,81 @@
+defaults:
+  max_cost_usd_per_job: 10.0
+  max_runtime_seconds_per_job: 60
+  max_runtime_seconds_per_capability:
+    agent_workloads.readonly_query: 180
+    agent_workloads.opencode_propose: 900
+    agent_workloads.opencode_task: 900
+    agent_workloads.opencode_orchestrate: 900
+    agent_workloads.opencode_apply: 300
+  aggregate_budget:
+    platform_daily_usd: 250.0
+    per_capability_daily_usd_default: 100.0
+    per_capability_daily_usd:
+      agent_workloads.opencode_apply: 1.0
+      agent_workloads.opencode_propose: 1.0
+
+bindings:
+  - id: private-admin-controlled-capabilities
+    description: Production-safe private admin binding for no-key probes,
+      bounded read-only SQL, and the first imported worker-service probe.
+    surface_identifiers:
+      guild_id: "1523242748822425750"
+      channel_id: "1523242750043226234"
+    users:
+      admins:
+        - "94265880216612864"
+      authorized:
+        - "94265880216612864"
+    capabilities:
+      allow:
+        - task.echo
+        - approval.probe
+        - readonly_sql
+        - audit.digest
+        - mandate.ops.inspect
+        - mandate.deploy.smoke
+        - agent_workloads.db_probe
+        - agent_workloads.readonly_query
+        - agent_workloads.opencode_apply
+        - agent_workloads.opencode_propose
+        - agent_workloads.opencode_task
+        - agent_workloads.opencode_orchestrate
+      approval_overrides:
+        approval.probe: admin_confirm
+        agent_workloads.opencode_apply: admin_confirm
+  - id: synthetic-live-verify-probe
+    description: >-
+      Scheduled no-key deployment and readonly-query live verify probe. This
+      binding is intentionally narrower than the private admin binding so
+      CronJob credentials can prove the live submit/worker/output/callback
+      path without gaining operator capabilities.
+    principal:
+      issuer: synthetic
+      subject_kind: service
+      tenant_id: garzai-prod
+    users:
+      admins: []
+      authorized:
+        - mandate-live-probe
+    capabilities:
+      allow:
+        - mandate.deploy.smoke
+        - agent_workloads.readonly_query
+  - id: private-admin-trusted-readonly
+    description: Narrower trusted-user binding on the private admin surface for a
+      non-admin trusted user. Read/query capabilities only (no propose, apply,
+      ops, deploy, or probes); cannot approve admin-gated actions or act on
+      other users' jobs.
+    surface_identifiers:
+      guild_id: "1523242748822425750"
+      channel_id: "1523242750043226234"
+    users:
+      admins: []
+      authorized:
+        - "98610679895846912"
+    capabilities:
+      allow:
+        - agent_workloads.readonly_query
+        - agent_workloads.opencode_orchestrate
+        - agent_workloads.opencode_task
+        - audit.digest

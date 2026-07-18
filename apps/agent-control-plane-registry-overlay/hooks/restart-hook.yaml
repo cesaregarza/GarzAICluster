@@ -22,14 +22,14 @@ spec:
       restartPolicy: Never
       containers:
         - name: rollout-restart
-          # CES-108: the control plane boot-caches the registry snapshot; an
-          # overlay sync without a rollout leaves stale authority serving.
+          # CES-108/CES-538: the control plane boot-caches the registry
+          # snapshot; an overlay sync without a rollout leaves stale authority.
           image: alpine/k8s:1.33.4@sha256:b0523f0a244ddc4c8e055aa335c040d3d78b3ead5528f4544395f7f9f69c7b68
           command:
             - /bin/sh
             - -ec
             - |
-              deploys="agent-control-plane agent-control-plane-callback-adapter agent-control-plane-local-worker agent-control-plane-model-gateway"
+              deploys="agent-control-plane agent-control-plane-callback-adapter agent-control-plane-git-deliverer agent-control-plane-local-worker agent-control-plane-model-gateway"
               for d in $deploys; do
                 kubectl -n agent-control-plane rollout restart "deploy/$d"
               done

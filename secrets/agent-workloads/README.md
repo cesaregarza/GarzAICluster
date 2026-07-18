@@ -3,11 +3,11 @@
 Encrypted secrets consumed by the `agent-workloads-secrets` Argo CD app.
 
 - `runtime-secret.enc.yaml`: the dedicated Agent Workloads Postgres workspace
-  URL, shared worker token, optional model auth, and readonly source database
-  URL. It must not contain workload-identity token keys. The XScraper/X Power
-  readonly query profile also requires `XSCRAPER_READONLY_DATABASE_URL`, but
-  `agent_workloads.readonly_query` is not granted in the first live `db_probe`
-  rollout.
+  URL, shared worker token, and optional model auth. It must not contain
+  workload-identity token keys or direct source-database URLs. The XScraper/X
+  Power readonly query profile executes through Mandate's Core readonly-SQL
+  broker, whose analytical database URL belongs in the Agent Control Plane
+  runtime secret as `AGENT_PLATFORM_READONLY_SQL_ANALYTICAL_DATABASE_URL`.
 - `workload-identity-tokens.enc.yaml`: the three `mwit_v1` workload-identity
   tokens for `data.workspace_probe`, `opencode.proposer`, and
   `opencode.apply_executor`. The first live `data.workspace_probe` deployment

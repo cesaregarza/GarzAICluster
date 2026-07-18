@@ -209,6 +209,7 @@ def run_sql(admin_url: str, database: str, schema: str, role: str, password: str
             EXECUTE format('REVOKE ALL ON DATABASE %I FROM %I', db_name, role_name);
             EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', db_name, role_name);
             EXECUTE format('GRANT CREATE ON DATABASE %I TO %I', db_name, role_name);
+            EXECUTE format('GRANT TEMPORARY ON DATABASE %I TO %I', db_name, role_name);
 
             EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', schema_name);
             EXECUTE format('ALTER SCHEMA %I OWNER TO %I', schema_name, role_name);
@@ -343,6 +344,7 @@ def main() -> None:
         openclaw_callback_lines += (
             f'          AGENT_PLATFORM_OPENCLAW_CALLBACK_TOKEN: "{openclaw_callback_token}"\n'
         )
+    openclaw_service_token = generate_token()
     git_delivery_line = (
         "          AGENT_PLATFORM_GIT_DELIVERY_GITHUB_TOKEN: "
         f'"{args.git_delivery_github_token}"\n'
@@ -358,7 +360,8 @@ def main() -> None:
           namespace: {args.namespace}
         stringData:
           AGENT_PLATFORM_DATABASE_URL: "{database_url}"
-          AGENT_PLATFORM_OPENCLAW_TOKEN: "{generate_token()}"
+          AGENT_PLATFORM_OPENCLAW_TOKEN: "{openclaw_service_token}"
+          AGENT_PLATFORM_TRUSTED_EDGE_TOKEN: "{openclaw_service_token}"
           AGENT_PLATFORM_INTERNAL_WORKER_TOKEN: "{generate_token()}"
           AGENT_PLATFORM_WORKER_SERVICE_TOKEN: "{generate_token()}"
           AGENT_PLATFORM_APPROVAL_TOKEN: "{generate_token()}"

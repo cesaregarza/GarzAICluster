@@ -42,9 +42,13 @@ Required before activation:
   prod. Missing issuer or subject allowlist fails closed for HMAC workload
   identity claims.
 - The OpenClaw droplet has the native `mandate-edge-openclaw` plugin enabled
-  with the public control API URL, the matching OpenClaw service token, and the
-  shared `AGENT_PLATFORM_MCP_TRUSTED_CONTEXT_HMAC_SECRET` used to sign per-turn
-  `mctx_v2` assertions.
+  with the public control API URL, the matching trusted-edge/OpenClaw service
+  token, and the shared `AGENT_PLATFORM_MCP_TRUSTED_CONTEXT_HMAC_SECRET` used
+  to sign per-turn `mctx_v2` assertions.
+- Hermes uses a separate `agent-control-plane-hermes-mctx` Secret mounted only
+  into the API pod through `apiExtraSecretRefs`, so Discord ingress does not
+  share OpenClaw's trusted-context HMAC key or expose the Hermes key to worker,
+  callback, or model-gateway pods.
 - The callback adapter deployment uses the same Postgres state as the API and
   worker, claims delivery by event id, and posts safe terminal output to the
   OpenClaw droplet's `/mandate-edge/openclaw-callback` plugin route. The
@@ -57,8 +61,30 @@ Required before activation:
   `agent-control-plane-model-gateway-controls` as a directory so operator edits
   project without pod restarts. See
   [model-gateway controls](../../docs/model-gateway-controls.md).
-- `syntheticLiveVerify.enabled=true` runs the CES-154 scheduled deployment
-  smoke probe every five minutes through the normal `/v1/tasks` path. The probe
-  uses the dedicated `mandate-live-probe` actor, which is policy-granted only
-  for `mandate.deploy.smoke`; failed Jobs alert through the production
-  Prometheus/Alertmanager route.
+- The `agent-control-plane-model-gateway-codex-auth` PVC is mounted by both the
+  API and standalone model-gateway. The API therefore reads the same rotated
+  `auth.json` as the gateway instead of restarting from the static bootstrap
+  Secret. The live DigitalOcean block claim is `ReadWriteOnce`, so the chart
+  co-locates the API with the gateway on one node; use ReadWriteMany storage
+  before scaling this pair across nodes.
+- `apps/agent-control-plane-runtime-controls/postgres-sweep-cronjob.yaml` owns
+  the production maintenance schedule. It runs `mandate-postgres-sweep` every
+  ten minutes with `concurrencyPolicy: Forbid`, a five-minute missed-start
+  deadline, and a zero-minimum/one-maximum Postgres pool. That single transient
+  connection ceiling supersedes the July 5 connection-pressure suspension
+  without restoring a long-lived maintenance pool. Keep the reusable chart's
+  `postgresSweep.enabled=false` to prevent a second CronJob from running.
+- The production terminal-row retention decision is 30 days. The sweep archives
+  eligible terminal control-job rows and their dependent rows transactionally
+  before deleting the live copies, skips jobs whose callbacks are not terminal,
+  and leaves permanent `agent_runs` and `run_events` audit history in place.
+  Queued-lease and approval expiry sweeps run on every invocation regardless of
+  whether any terminal rows are old enough to archive.
+- `syntheticLiveVerify.enabled=true` runs the scheduled deployment smoke and
+  readonly-query probes every five minutes through the trusted-edge `/v1/tasks`
+  path with signed `mctx_v2` assertions. The dedicated
+  `mandate-live-probe` service principal is policy-granted only for
+  `mandate.deploy.smoke` and `agent_workloads.readonly_query`, and the delivery
+  target is internal so successful probes do not post to the operator Discord
+  channel. Failed Jobs alert through the production Prometheus/Alertmanager
+  route.

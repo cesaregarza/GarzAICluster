@@ -1,0 +1,36 @@
+{
+  "capabilities": [
+    "agent_workloads.opencode_apply"
+  ],
+  "capability_metadata": {
+    "agent_workloads.opencode_apply": {
+      "consequence_class": "consequential"
+    }
+  },
+  "code_digest": "sha256:fc4fa6abb95be4b268757d7669766de52949f4b13787724270fbaf287acc2053",
+  "digest": "sha256:ed0c6fc748f1392dc76e2171400cf8af848a1aa7ce145d8bb71195957d703100",
+  "display_name": "OpenCode Apply Executor",
+  "evals": {
+    "optional": [],
+    "required": [
+      "eval.opencode_apply_smoke"
+    ]
+  },
+  "id": "opencode.apply_executor",
+  "image": {
+    "digest": "sha256:981e648d0000ab88a90a05d10790fa258fd396803c2d2cff9206dcb0cd22a93d",
+    "repository": "registry.digitalocean.com/sendouq/opencode-apply-executor"
+  },
+  "loop": {
+    "contract": "worker_service_v1",
+    "kind": "worker_service",
+    "protocol": "mandate_worker_service_pull_v1"
+  },
+  "schema_version": "agent-workload.v1",
+  "source": {
+    "path": "agents/opencode-apply-executor/agent.yaml",
+    "repo": "agent-workloads",
+    "repo_url": "https://github.com/cesaregarza/agent-workloads"
+  },
+  "workload_type": "agent"
+}

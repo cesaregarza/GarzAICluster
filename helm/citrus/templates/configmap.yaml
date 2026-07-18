@@ -4,6 +4,8 @@ metadata:
   name: {{ .Values.application.configMapName }}
   labels:
     {{- include "citrus.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.config | quote }}
 data:
   {{- range $key, $value := .Values.application.configData }}
   {{ $key }}: {{ $value | quote }}

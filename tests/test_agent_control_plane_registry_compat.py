@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import textwrap
@@ -10,6 +11,14 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 from ruamel.yaml import YAML
+
+from scripts.check_agent_control_plane_registry_compat import (
+    RegistryCompatError,
+    _assert_registry_data_equivalent,
+    materialize_skill_bundle,
+    registry_overlay_data,
+    skill_bundle_data,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -94,6 +103,109 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
                 new_result.stdout,
             )
 
+    def test_inherited_github_base_ref_does_not_break_fixture_repos(self) -> None:
+        with TemporaryDirectory() as raw_tmp:
+            tmp = Path(raw_tmp)
+            platform_repo, _old_sha, new_sha = _fake_agent_platform_repo(tmp)
+            _git(platform_repo, "checkout", "--quiet", new_sha)
+            config_repo = _config_repo(
+                tmp,
+                target_revision=new_sha,
+                include_per_user_daily_tokens=True,
+            )
+
+            result = _run_gate(
+                config_repo,
+                platform_repo,
+                env={"GITHUB_BASE_REF": "main"},
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_kustomize_source_reader_survives_resource_render_failure(self) -> None:
+        with TemporaryDirectory() as raw_tmp:
+            overlay_dir = Path(raw_tmp) / "overlay"
+            registry_dir = overlay_dir / "registry"
+            registry_dir.mkdir(parents=True)
+            (registry_dir / "policy.prod.yaml").write_text(
+                "defaults:\n  max_cost_usd_per_job: 10.0\n",
+                encoding="utf-8",
+            )
+            (overlay_dir / "restart-hook.yaml").write_text(
+                textwrap.dedent(
+                    """
+                    apiVersion: batch/v1
+                    kind: Job
+                    metadata:
+                      generateName: registry-overlay-restart-
+                    spec: {}
+                    """
+                ).lstrip(),
+                encoding="utf-8",
+            )
+            (overlay_dir / "kustomization.yaml").write_text(
+                textwrap.dedent(
+                    """
+                    apiVersion: kustomize.config.k8s.io/v1beta1
+                    kind: Kustomization
+                    resources:
+                      - restart-hook.yaml
+                    configMapGenerator:
+                      - name: agent-control-plane-registry-overlay
+                        files:
+                          - policy.prod.yaml=registry/policy.prod.yaml
+                    """
+                ).lstrip(),
+                encoding="utf-8",
+            )
+
+            data = registry_overlay_data(overlay_dir)
+
+            self.assertEqual(
+                data,
+                {"policy.prod.yaml": "defaults:\n  max_cost_usd_per_job: 10.0\n"},
+            )
+
+    def test_skill_bundle_reader_materializes_pinned_platform_skills(self) -> None:
+        with TemporaryDirectory() as raw_tmp:
+            tmp = Path(raw_tmp)
+            bundle_dir = tmp / "apps" / "agent-control-plane-skills"
+            (bundle_dir / "bundle").mkdir(parents=True)
+            (bundle_dir / "bundle" / "xscraper-schema.md").write_text(
+                "---\nid: xscraper-schema\nversion: test\n---\n# Schema\n",
+                encoding="utf-8",
+            )
+            (bundle_dir / "kustomization.yaml").write_text(
+                textwrap.dedent(
+                    """
+                    apiVersion: kustomize.config.k8s.io/v1beta1
+                    kind: Kustomization
+                    configMapGenerator:
+                      - name: mandate-skill-packs
+                        files:
+                          - xscraper-schema.md=bundle/xscraper-schema.md
+                    """
+                ).lstrip(),
+                encoding="utf-8",
+            )
+
+            data = skill_bundle_data(bundle_dir)
+            platform_repo = tmp / "agent-platform"
+            materialize_skill_bundle(platform_repo, data)
+
+            self.assertEqual(
+                data,
+                {
+                    "xscraper-schema.md": (
+                        "---\nid: xscraper-schema\nversion: test\n---\n# Schema\n"
+                    )
+                },
+            )
+            self.assertEqual(
+                (platform_repo / "skills" / "xscraper-schema.md").read_text(),
+                data["xscraper-schema.md"],
+            )
+
     def test_two_allowed_profiles_fails_with_named_registry_error(self) -> None:
         with TemporaryDirectory() as raw_tmp:
             tmp = Path(raw_tmp)
@@ -156,8 +268,59 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), new_sha)
 
+    def test_render_equivalence_allows_formatting_and_rejects_authority_drift(
+        self,
+    ) -> None:
+        expected = {
+            "policy.prod.yaml": textwrap.dedent(
+                """
+                defaults:
+                  max_cost_usd_per_job: 10.0
+                """
+            ),
+            "agent-opencode.proposer.json": json.dumps(
+                {
+                    "id": "opencode.proposer",
+                    "digest": "sha256:" + "a" * 64,
+                },
+                indent=2,
+            ),
+            "opencode_proposer_smoke.jsonl": json.dumps({"ok": True}) + "\n",
+        }
+        formatted = {
+            "policy.prod.yaml": "defaults: {max_cost_usd_per_job: 10.0}\n",
+            "agent-opencode.proposer.json": json.dumps(
+                {
+                    "digest": "sha256:" + "a" * 64,
+                    "id": "opencode.proposer",
+                },
+                separators=(",", ":"),
+            ),
+            "opencode_proposer_smoke.jsonl": json.dumps({"ok": True}) + "\n",
+        }
 
-def _run_gate(config_repo: Path, platform_repo: Path) -> subprocess.CompletedProcess[str]:
+        _assert_registry_data_equivalent(formatted, expected)
+
+        drifted = dict(formatted)
+        drifted["policy.prod.yaml"] = "defaults: {max_cost_usd_per_job: 0.25}\n"
+        with self.assertRaisesRegex(
+            RegistryCompatError,
+            "registry overlay render drift: policy.prod.yaml",
+        ):
+            _assert_registry_data_equivalent(drifted, expected)
+
+
+def _run_gate(
+    config_repo: Path,
+    platform_repo: Path,
+    *,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    process_env = os.environ.copy()
+    process_env.pop("AGENT_CONTROL_PLANE_REGISTRY_BASE_REF", None)
+    process_env.pop("GITHUB_BASE_REF", None)
+    if env:
+        process_env.update(env)
     return subprocess.run(
         [
             sys.executable,
@@ -170,6 +333,7 @@ def _run_gate(config_repo: Path, platform_repo: Path) -> subprocess.CompletedPro
         capture_output=True,
         text=True,
         check=False,
+        env=process_env,
     )
 
 

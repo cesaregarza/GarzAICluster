@@ -27,6 +27,23 @@ class ControlPlaneReleasePinTests(unittest.TestCase):
 
         self.assertIn("targetRevision and image tag match", result)
 
+    def test_control_plane_ingress_allows_both_split_opencode_workers(self) -> None:
+        values = YAML_PARSER.load(
+            (REPO_ROOT / "apps" / "agent-control-plane" / "values.yaml").read_text()
+        )
+        sources = values["networkPolicy"]["ingress"]["sources"]
+        workload_sources = {
+            source["podSelector"]["matchLabels"].get("app.kubernetes.io/name")
+            for source in sources
+            if source.get("namespaceSelector", {})
+            .get("matchLabels", {})
+            .get("kubernetes.io/metadata.name")
+            == "agent-workloads"
+        }
+
+        self.assertIn("opencode-proposer", workload_sources)
+        self.assertIn("opencode-apply-executor", workload_sources)
+
     def test_control_plane_release_pin_check_runs_in_python_contracts_ci(self) -> None:
         workflow = YAML_PARSER.load(
             (REPO_ROOT / ".github" / "workflows" / "ci.yaml").read_text()

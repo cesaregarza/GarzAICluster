@@ -1,0 +1,86 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mandate-skill-bundle-sync-now
+  namespace: agent-control-plane
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+  labels:
+    app.kubernetes.io/name: agent-control-plane
+    app.kubernetes.io/component: skills
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-control-plane
+        app.kubernetes.io/component: skills
+    spec:
+      restartPolicy: Never
+      serviceAccountName: mandate-skill-bundle-sync
+      imagePullSecrets:
+        - name: regcred
+      initContainers:
+        - name: bundle
+          image: registry.digitalocean.com/sendouq/agent-workloads-skills:main
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: bundle
+              mountPath: /work
+      containers:
+        - name: materialize
+          image: alpine/k8s:1.33.4@sha256:b0523f0a244ddc4c8e055aa335c040d3d78b3ead5528f4544395f7f9f69c7b68
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ceu
+            - |
+              cd /bundle
+              test -s manifest.json
+              test -s SHA256SUMS
+              sha256sum -c SHA256SUMS
+              grep -q '"schema_version": "agent-control-plane-skill-bundle.v1"' manifest.json
+
+              set -- "--from-file=manifest.json=/bundle/manifest.json"
+              found=0
+              for path in /bundle/skills/*.md; do
+                test -e "$path" || continue
+                key="$(basename "$path")"
+                case "$key" in
+                  ""|"."|".."|*/*|*[!A-Za-z0-9._-]*)
+                    echo "invalid skill bundle key: $key" >&2
+                    exit 1
+                    ;;
+                esac
+                set -- "$@" "--from-file=$key=$path"
+                found=$((found + 1))
+              done
+              test "$found" -gt 0
+
+              kubectl -n agent-control-plane create configmap mandate-skill-packs "$@" \
+                --dry-run=client \
+                -o yaml \
+                | kubectl -n agent-control-plane apply \
+                    --server-side \
+                    --field-manager=mandate-skill-bundle-sync \
+                    --force-conflicts \
+                    -f -
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: bundle
+              mountPath: /bundle
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: bundle
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

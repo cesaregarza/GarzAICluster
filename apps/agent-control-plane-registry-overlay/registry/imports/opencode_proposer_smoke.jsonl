@@ -1,0 +1,1 @@
+{"case_id":"opencode_proposal_artifact","capability":"agent_workloads.opencode_propose","input":{"text":"Draft a bounded proposal."},"expected":{"status":"succeeded","artifact_class":"opencode_proposal"}}

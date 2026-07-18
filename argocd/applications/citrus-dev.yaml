@@ -1,8 +1,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: splatvote-secrets
+  name: citrus-dev
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -10,10 +12,15 @@ spec:
   source:
     repoURL: https://github.com/cesaregarza/GarzAICluster
     targetRevision: main
-    path: secrets/splatvote-prod
+    path: helm/citrus
+    helm:
+      releaseName: citrus-dev
+      valueFiles:
+        - values.yaml
+        - values-dev.yaml
   destination:
     server: https://kubernetes.default.svc
-    namespace: splatvote-prod
+    namespace: citrus-dev
   syncPolicy:
     automated:
       prune: true
@@ -21,4 +28,4 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ApplyOutOfSyncOnly=true
-  revisionHistoryLimit: 5
+  revisionHistoryLimit: 10

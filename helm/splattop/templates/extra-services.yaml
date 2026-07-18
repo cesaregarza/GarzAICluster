@@ -43,7 +43,7 @@ spec:
 
 {{- range $component, $config := dict "fastapi" .Values.fastapi "react" .Values.react "celeryWorker" .Values.celeryWorker "celeryBeat" .Values.celeryBeat "redis" .Values.redis "splatnlp" .Values.splatnlp -}}
   {{- $extraServices := dig "service" "extraServices" list $config -}}
-  {{- $enabled := default true (dig "enabled" nil $config) -}}
+  {{- $enabled := dig "enabled" true $config -}}
   {{- if and $enabled $extraServices }}
     {{- range $service := $extraServices }}
 ---

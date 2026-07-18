@@ -2,8 +2,9 @@
 
 Encrypted secrets consumed by the `agent-control-plane-secrets` Argo CD app.
 
-- `runtime-secret.enc.yaml`: API database URL and service tokens for OpenClaw,
-  internal workers, external worker services, approval handlers, audit
+- `runtime-secret.enc.yaml`: API database URL and service tokens for
+  trusted-edge/OpenClaw ingress, internal workers, external worker services,
+  approval handlers, audit
   readers/writers, the OpenClaw callback hook URL/token, and the
   callback-adapter-only Discord token used for deterministic approval cards.
   It also holds the model-gateway signing secret, Codex ChatGPT `auth.json`,
@@ -15,6 +16,10 @@ Encrypted secrets consumed by the `agent-control-plane-secrets` Argo CD app.
   Contents and Pull Requests read/write.
 - `regcred.enc.yaml`: DOCR pull credentials for
   `registry.digitalocean.com/sendouq/agent-platform`.
+
+The trusted-edge token currently reuses the legacy OpenClaw service-token value
+so the Edge host does not need a coordinated bearer-token rotation during the
+CES-293 rename.
 
 Regenerate with:
 
@@ -33,7 +38,8 @@ approval-card Discord token. Set `AGENT_PLATFORM_GIT_DELIVERY_GITHUB_TOKEN` to
 include the deliverer-scoped GitHub credential.
 
 Add or rotate only the read-only SQL broker credential without rotating service
-tokens:
+tokens. The default target is the `bots` readonly SQL role and writes
+`AGENT_PLATFORM_READONLY_SQL_DATABASE_URL`:
 
 ```bash
 SOPS_AGE_KEY_FILE=keys/age-private.txt \
@@ -41,10 +47,23 @@ SOPS_AGE_KEY_FILE=keys/age-private.txt \
   uv run python scripts/provision_agent_control_plane_readonly_sql.py
 ```
 
+Prepare the xscraper analytical role for `agent_workloads.readonly_query` without
+touching the bots URL:
+
+```bash
+SOPS_AGE_KEY_FILE=keys/age-private.txt \
+  AGENT_CONTROL_PLANE_READONLY_SQL_TARGET=xscraper_analytical \
+  XSCRAPER_DB_ADMIN_URL=postgresql://admin:***@private-db:25060/xscraper?sslmode=require \
+  AGENT_CONTROL_PLANE_XSCRAPER_READONLY_SQL_PASSWORD=... \
+  uv run python scripts/provision_agent_control_plane_readonly_sql.py
+```
+
 That helper creates a separate weak login role and stores
-`AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` in `runtime-secret.enc.yaml`. The
-relation list is mandatory: CES-263 forbids blanket schema grants. The helper
-grants `SELECT` only on the approved schema-qualified tables/views, pins the role
+the selected runtime secret key in `runtime-secret.enc.yaml`
+(`AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` for bots,
+`AGENT_PLATFORM_READONLY_SQL_ANALYTICAL_DATABASE_URL` for xscraper). The relation
+list is mandatory: CES-263 forbids blanket schema grants. The helper grants
+`SELECT` only on the approved schema-qualified tables/views, pins the role
 `search_path` to those schemas, removes database `CREATE`/`TEMPORARY`, revokes
 broad/default table grants from the role, and rejects approved views unless they
 are `security_invoker=true`.

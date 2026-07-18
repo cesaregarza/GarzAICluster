@@ -4,12 +4,11 @@ global:
   runtimeSecretName: agent-workloads-secrets
 nameOverride: agent-workloads
 fullnameOverride: agent-workloads
-# CES-236: keep the readonly-query worker parallel under burst load.
 replicaCount: 2
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-0c31c23c1eb2
-  digest: sha256:52e9104458bf1efebbe26fdeeb84081ba26cc49cf5c072386c62a8ae26374650
+  tag: sha-e995e6c2953d
+  digest: sha256:92cb6d90f77dfa7ddbf6ab876c81742b93a62b77340b55340773ca2c38c19159
   pullPolicy: IfNotPresent
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
@@ -21,13 +20,11 @@ env:
   AGENT_WORKLOADS_POLL_SECONDS: '2'
   AGENT_WORKLOADS_READONLY_QUERY_MAX_PASSES: '3'
   AGENT_WORKLOADS_READONLY_QUERY_MAX_ROWS: '50'
-  AGENT_WORKLOADS_READONLY_QUERY_CONNECT_TIMEOUT_SECONDS: '5'
   OPENAI_SQL_BROKER_MODEL: gpt-5.3-codex-spark
   OPENAI_SQL_BROKER_REASONING_EFFORT: low
   OPENAI_SQL_BROKER_TIMEOUT_SECONDS: '45'
 secretKeys:
 - AGENT_WORKLOADS_DATABASE_URL
-- XSCRAPER_READONLY_DATABASE_URL
 secretEnv: {}
 extraVolumes:
 - name: workload-identity-token
@@ -41,7 +38,7 @@ extraVolumeMounts:
   mountPath: /var/run/mandate/workload-identity
   readOnly: true
 rolloutChecksums:
-  workloadIdentityTokenSecret: sha256:889097c9e28f6cb3c6acefd85334b751c94648dc37db935767a421cb7ed3782c
+  workloadIdentityTokenSecret: sha256:6b9e2353999209d4d9154658483d68de3fb209fa1e3dc01c617e3d6279cbcaa1
 resources:
   requests:
     cpu: 25m
@@ -90,6 +87,8 @@ networkPolicy:
       ports:
       - port: 25060
         protocol: TCP
+opencodeArtifactHandoff:
+  mode: governedCore
 workspaceSeedBundle:
   base64: IyB2MiBnaXQgYnVuZGxlCmQyZTJjYmVmM2EzMTMwYTZhY2FmN2U3OTRhNjNkNTA3OTMxNjc3NzcgcmVmcy9oZWFkcy9tYWluCgpQQUNLAAAAAgAAAAORQHicfZPJrqtGFEXnfEXNrVzTN9JL9Mpg+guUwdh4hoGiB5vGGL4+Tl4GGUTZwyVt6ehor2nIMiDxNGZIhhYSEnMiJ5JZeqcY/CFkiu8pL7JkFmMxIeJ5KvoBJNkYD1keD1sMfrAkTXMkSe3+RX/OYzaMX10/ZI9m/crLqZjvX0nf/gEoQaQoTmBZHuxIiiSJD23LacoGoJWTPt/Bj39qP/+3lj/ysczBb3/lcNQMB3iaB3xDc2BwPh3/5gQgwDKqyQHCgwwhOiDzadWcJp9kKkbCPHPnooEQDpuBoK0z/qJ3vFdR77pO8tOV/U5VkwA3B/Fi10F8eKJeX59YLRULspGvKVvefD/Hm5tcRkvRFScSknKN48sYodt9xEdeenKIAL4th0cDditjl9P7aiWhxFmajTTJVlkl0059LGf366am++dbFi5Fpe3CZDqm1DL4jwtJANv1MPT42Eaww+ID5WTbxE2bvrbU/8ZasxWpmiTzLEzrWHRFy5SQxraedq3n6dUtJ8AgRkxXC+GyJub1agmkR/Lm07FrHyXFcy7omnMnh0O0EdSJLF05NuQs9nBlhrY6hx77+eQ+oOlqerkT7yksZY7n98E5lZav77qcl0a5HtsKarB5NciaZPehQ1wo97LbTt59ZCQCINFhwmBsmKuOyLM9bY0ivNuLqtJCk1FKPfWmg/CqMOXrttom3fvZ5NWme0acUM+3PQF0KjWC4HLJl5fpW5GxD4X8hL5P7LPvpqauX72uNa7Tqmxnj2FLrxncnGvx1sVTLqsXmgAeTgzVLlU5wvTIz91he++8W9IO6qFmhZkWuSndpG3oi620305VhUvkp7CxKjsNXvvPDcpNLBrWnKrOC4OaK3EHRUPyhmO47o/J+96mVyflthL7Uk+/dpykXs6X/bJFYp1Yiu8SYFaESpNJXlwWXXIHXAjzFrkaVQvzk53rKN9rXBUw8vh47QPdD7rFdlXjPLyRlvZ2QhFgdT7WzadOw1nl0SGS81gnwO+fOYXELyeOjvLfRhBGV05l3IBf4v0JzgJGGqUCeJwzNDAwMzFRCHJ1dPF11ctNYUj9dWGi3szc46/3vV1yZO1Z7rQdT5QB+BsQYL4FeJxTVshNzEtJLEnVLQbSSfkVXL4QvkJ+QWpecn5KqgJUQkFXIT2/LLUoLzVFoaAovyC/ODFHP7GgIKdSoSSxKD21REHD2TVY19DAVB9MG5lrcgEAQHsftwQVocG6EFZbspuJ7gS5xCZ+WWpK
 opencodeProposer:
@@ -97,17 +96,30 @@ opencodeProposer:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-0c31c23c1eb2
-    digest: sha256:2bbb05b77006cbd99a0c84d8b913da9a1c0fe9d4dd4c5ddade9ab95778fe1631
+    tag: sha-abfc7278947e
+    digest: sha256:0b5d0f1e86b40c4d70157e0e4b4c5a13ef58554e8dee0788a3157903cbe55c7c
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
   secretEnvSecretName: agent-workloads-workload-identity-tokens
+  identity:
+    workerId: opencode.proposer
+    serviceAccountNamePrefix: agent-workloads
+    mode: hmac
+    serviceAccount:
+      create: true
+      annotations: {}
+    token:
+      audience: mandate-api
+      expirationSeconds: 3600
+      mountPath: /var/run/mandate/workload-identity
+      fileName: token
+    previousRelease: null
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
     AGENT_WORKLOADS_WORKER_ID: opencode.proposer
-    AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_propose,agent_workloads.opencode_task
+    AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_propose,agent_workloads.opencode_task,agent_workloads.opencode_orchestrate
     AGENT_WORKLOADS_POLL_SECONDS: '2'
     AGENT_WORKLOADS_ENVIRONMENT: production
     AGENT_WORKLOADS_OPENCODE_WORKSPACE_DIR: /workspace/job
@@ -167,6 +179,20 @@ opencodeProposer:
           matchLabels:
             app.kubernetes.io/name: agent-control-plane
             app.kubernetes.io/instance: agent-control-plane
+            app.kubernetes.io/component: api
+        ports:
+        - port: 80
+          protocol: TCP
+        - port: 8000
+          protocol: TCP
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: agent-control-plane
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: agent-control-plane
+            app.kubernetes.io/instance: agent-control-plane
+            app.kubernetes.io/component: model-gateway
         ports:
         - port: 80
           protocol: TCP
@@ -176,12 +202,25 @@ opencodeApplyExecutor:
   enabled: true
   image:
     repository: registry.digitalocean.com/sendouq/opencode-apply-executor
-    tag: sha-0c31c23c1eb2
-    digest: sha256:17aea942e3f24936a080c7f849da320b44edee3f5130389620f967602b5d2244
+    tag: sha-abfc7278947e
+    digest: sha256:981e648d0000ab88a90a05d10790fa258fd396803c2d2cff9206dcb0cd22a93d
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN
   secretEnvSecretName: agent-workloads-workload-identity-tokens
+  identity:
+    workerId: opencode.apply_executor
+    serviceAccountNamePrefix: agent-workloads
+    mode: hmac
+    serviceAccount:
+      create: true
+      annotations: {}
+    token:
+      audience: mandate-api
+      expirationSeconds: 3600
+      mountPath: /var/run/mandate/workload-identity
+      fileName: token
+    previousRelease: null
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
@@ -213,7 +252,6 @@ opencodeApplyExecutor:
       head="$(git rev-parse --verify HEAD)"
       test "$head" = "$pin"
       tree="$(git rev-parse --verify 'HEAD^{tree}')"
-      mkdir -p /workspace/proposals
       printf '{"schema_version":"agent_workloads_opencode_workspace_seed_v1","base_repo":"https://github.com/cesaregarza/mandate-sandbox","base_ref_name":"main","base_commit_sha":"%s","base_tree_sha":"%s"}\n' "$head" "$tree" > /workspace/seed/apply-workspace-seed.json
   resources:
     requests:
@@ -222,16 +260,47 @@ opencodeApplyExecutor:
     limits:
       cpu: 500m
       memory: 512Mi
+  networkPolicy:
+    enabled: true
+    egress:
+      dns:
+        enabled: true
+        destinations:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+        ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+      destinations:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: agent-control-plane
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: agent-control-plane
+            app.kubernetes.io/instance: agent-control-plane
+            app.kubernetes.io/component: api
+        ports:
+        - port: 80
+          protocol: TCP
+        - port: 8000
+          protocol: TCP
 mandateReleasePins:
   data.workspace_probe:
-    codeDigest: sha256:cc423bd0d8343a18fa5f73b488261cce019ef78d8bbb0e7be87d820aa39fc921
-    manifestDigest: sha256:e85f7d72db9de59b5e14277d80df13c5afe1bc8df60cc54f9384758259b75f6b
-    imageDigest: sha256:52e9104458bf1efebbe26fdeeb84081ba26cc49cf5c072386c62a8ae26374650
+    codeDigest: sha256:40c5a58d4ff67cd17609acaa90e9ce29aa1ea2f6bc4c2c8b68ccfea369b1d64a
+    manifestDigest: sha256:fbecfcb4015aa778a5b0c40d9471dcaee18e82cc4c3cc24e358078204351480b
+    imageDigest: sha256:92cb6d90f77dfa7ddbf6ab876c81742b93a62b77340b55340773ca2c38c19159
   opencode.apply_executor:
-    codeDigest: sha256:329aac0923f26f161fbcdbe1e1debce038874f8335d422bf47fef358ac1b78a2
-    manifestDigest: sha256:8d81131525374a7a38320f5dcd9a8fb8b8dae2386158b02e39b4141777cc97e3
-    imageDigest: sha256:17aea942e3f24936a080c7f849da320b44edee3f5130389620f967602b5d2244
+    codeDigest: sha256:fc4fa6abb95be4b268757d7669766de52949f4b13787724270fbaf287acc2053
+    manifestDigest: sha256:ed0c6fc748f1392dc76e2171400cf8af848a1aa7ce145d8bb71195957d703100
+    imageDigest: sha256:981e648d0000ab88a90a05d10790fa258fd396803c2d2cff9206dcb0cd22a93d
   opencode.proposer:
-    codeDigest: sha256:09f75cf849fec5eb3da811741d163ba8fc427980bed33a11bb2ca84b47a13d09
-    manifestDigest: sha256:14bd06d15cc574947db349fa8098441f11776d0e2010d559a7b041e5fce82a5e
-    imageDigest: sha256:2bbb05b77006cbd99a0c84d8b913da9a1c0fe9d4dd4c5ddade9ab95778fe1631
+    codeDigest: sha256:dbec5952b5513338e8f0dd7d3063c2822e3dc1d53590525c4c429e92acf317d6
+    manifestDigest: sha256:b52ef8af8ce62beb02255623739019d44cbdeba03b5c13d7cc335ef106c1a9d2
+    imageDigest: sha256:0b5d0f1e86b40c4d70157e0e4b4c5a13ef58554e8dee0788a3157903cbe55c7c

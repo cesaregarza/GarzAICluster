@@ -1,0 +1,28 @@
+{{- if and .Values.monitoring.kube_state_metrics.enabled .Values.monitoring.networkPolicies.kube_state_metrics.enabled }}
+{{- $root := . -}}
+{{- $ns := include "garzObservability.monitoringNamespace" . -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kube-state-metrics-allow-prometheus
+  namespace: {{ $ns }}
+  labels:
+    {{- include "garzObservability.componentLabels" (dict "component" "monitoring-netpol-kube-state-metrics" "root" $root) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "garzObservability.componentSelectorLabels" (dict "component" "kube-state-metrics" "root" $root) | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $ns }}
+          podSelector:
+            matchLabels:
+              {{- include "garzObservability.componentSelectorLabels" (dict "component" "prometheus" "root" $root) | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.monitoring.kube_state_metrics.service.port }}
+{{- end }}

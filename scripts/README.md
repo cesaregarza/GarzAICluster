@@ -35,13 +35,22 @@ Utilities that were previously bundled with the app repo move here when they are
   ```
 
 - `provision_agent_control_plane_readonly_sql.py` – creates or rotates only the
-  Agent Control Plane read-only SQL broker role and stores
-  `AGENT_PLATFORM_READONLY_SQL_DATABASE_URL` in the encrypted runtime secret
-  without rotating service tokens. It grants `CONNECT`, schema `USAGE`, and
-  `SELECT` on the configured schemas only:
+  Agent Control Plane read-only SQL broker role and stores the selected database
+  URL in the encrypted runtime secret without rotating service tokens. The
+  default `bots` target writes `AGENT_PLATFORM_READONLY_SQL_DATABASE_URL`; the
+  `xscraper_analytical` target writes
+  `AGENT_PLATFORM_READONLY_SQL_ANALYTICAL_DATABASE_URL`. It grants `CONNECT`,
+  schema `USAGE`, and `SELECT` on the configured relations only:
 
   ```bash
   SOPS_AGE_KEY_FILE=keys/age-private.txt \
+    uv run python scripts/provision_agent_control_plane_readonly_sql.py
+  ```
+
+  ```bash
+  SOPS_AGE_KEY_FILE=keys/age-private.txt \
+    AGENT_CONTROL_PLANE_READONLY_SQL_TARGET=xscraper_analytical \
+    XSCRAPER_DB_ADMIN_URL=postgresql://admin:***@private-db:25060/xscraper?sslmode=require \
     uv run python scripts/provision_agent_control_plane_readonly_sql.py
   ```
 

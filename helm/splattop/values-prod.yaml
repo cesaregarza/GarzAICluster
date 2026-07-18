@@ -76,6 +76,9 @@ redis:
 
 # SplatNLP compatibility service overrides
 splatnlp:
+  # Retired in production: the service has no active consumers and its loaded
+  # model held roughly 529 MiB of working-set memory continuously.
+  enabled: false
   service:
     extraServices:
     - name: splatnlp-service
