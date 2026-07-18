@@ -4,7 +4,6 @@ namespace: agent-control-plane
 
 resources:
   - restart-rbac.yaml
-  - restart-hook.yaml
 
 generatorOptions:
   disableNameSuffixHash: true

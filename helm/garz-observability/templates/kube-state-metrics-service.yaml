@@ -1,0 +1,19 @@
+{{- if .Values.monitoring.kube_state_metrics.enabled }}
+{{- $ksm := .Values.monitoring.kube_state_metrics -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "garzObservability.fullname" . }}-kube-state-metrics
+  namespace: {{ include "garzObservability.monitoringNamespace" . }}
+  labels:
+    {{- include "garzObservability.componentLabels" (dict "component" "kube-state-metrics" "root" .) | nindent 4 }}
+spec:
+  type: {{ $ksm.service.type }}
+  ports:
+    - name: http-metrics
+      port: {{ $ksm.service.port }}
+      targetPort: http-metrics
+      protocol: TCP
+  selector:
+    {{- include "garzObservability.componentSelectorLabels" (dict "component" "kube-state-metrics" "root" .) | nindent 4 }}
+{{- end }}

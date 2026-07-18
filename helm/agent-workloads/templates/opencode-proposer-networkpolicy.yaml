@@ -1,4 +1,4 @@
-{{- if and .Values.opencodeProposer.enabled .Values.opencodeProposer.networkPolicy.enabled }}
+{{- if and .Values.opencodeProposer.enabled .Values.opencodeProposer.networkPolicy.enabled (eq .Values.opencodeArtifactHandoff.mode "legacySharedVolume") }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

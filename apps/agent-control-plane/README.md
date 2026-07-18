@@ -61,10 +61,25 @@ Required before activation:
   `agent-control-plane-model-gateway-controls` as a directory so operator edits
   project without pod restarts. See
   [model-gateway controls](../../docs/model-gateway-controls.md).
-- `postgresSweep.enabled=false` while the current
-  `db-postgresql-nyc3-xscraper` `db-amd-1vcpu-2gb` plan is connection-slot
-  saturated by the live control-plane services. Re-enable it only after the
-  database connection budget is raised or the service pool footprint is reduced.
+- The `agent-control-plane-model-gateway-codex-auth` PVC is mounted by both the
+  API and standalone model-gateway. The API therefore reads the same rotated
+  `auth.json` as the gateway instead of restarting from the static bootstrap
+  Secret. The live DigitalOcean block claim is `ReadWriteOnce`, so the chart
+  co-locates the API with the gateway on one node; use ReadWriteMany storage
+  before scaling this pair across nodes.
+- `apps/agent-control-plane-runtime-controls/postgres-sweep-cronjob.yaml` owns
+  the production maintenance schedule. It runs `mandate-postgres-sweep` every
+  ten minutes with `concurrencyPolicy: Forbid`, a five-minute missed-start
+  deadline, and a zero-minimum/one-maximum Postgres pool. That single transient
+  connection ceiling supersedes the July 5 connection-pressure suspension
+  without restoring a long-lived maintenance pool. Keep the reusable chart's
+  `postgresSweep.enabled=false` to prevent a second CronJob from running.
+- The production terminal-row retention decision is 30 days. The sweep archives
+  eligible terminal control-job rows and their dependent rows transactionally
+  before deleting the live copies, skips jobs whose callbacks are not terminal,
+  and leaves permanent `agent_runs` and `run_events` audit history in place.
+  Queued-lease and approval expiry sweeps run on every invocation regardless of
+  whether any terminal rows are old enough to archive.
 - `syntheticLiveVerify.enabled=true` runs the scheduled deployment smoke and
   readonly-query probes every five minutes through the trusted-edge `/v1/tasks`
   path with signed `mctx_v2` assertions. The dedicated

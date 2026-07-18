@@ -100,7 +100,10 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             REPO_ROOT / "argocd" / "projects" / "splattop-project.yaml"
         )
         cls.registry_overlay_restart_hook = _load_yaml(
-            REGISTRY_OVERLAY_DIR / "restart-hook.yaml"
+            REGISTRY_OVERLAY_DIR / "hooks" / "restart-hook.yaml"
+        )
+        cls.registry_overlay_restart_rbac = _load_yaml_documents(
+            REGISTRY_OVERLAY_DIR / "restart-rbac.yaml"
         )
         cls.model_gateway_controls = _load_yaml(
             REPO_ROOT
@@ -113,8 +116,11 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         kustomization = _load_yaml(REGISTRY_OVERLAY_DIR / "kustomization.yaml")
         self.assertFalse((REGISTRY_OVERLAY_DIR / "configmap.yaml").exists())
         self.assertEqual(kustomization["kind"], "Kustomization")
-        self.assertIn("restart-rbac.yaml", kustomization["resources"])
-        self.assertIn("restart-hook.yaml", kustomization["resources"])
+        self.assertEqual(kustomization["resources"], ["restart-rbac.yaml"])
+        self.assertTrue(
+            (REGISTRY_OVERLAY_DIR / "hooks" / "restart-hook.yaml").exists()
+        )
+        self.assertFalse((REGISTRY_OVERLAY_DIR / "hooks" / "kustomization.yaml").exists())
         self.assertTrue(kustomization["generatorOptions"]["disableNameSuffixHash"])
 
         generator = next(
@@ -147,6 +153,8 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             readonly_query["skills"],
             ["xscraper-schema", "xscraper-glossary"],
         )
+        self.assertEqual(readonly_query["broker_bounds"]["max_runtime_seconds"], 120)
+        self.assertEqual(readonly_query["broker_bounds"]["statement_timeout_ms"], 20000)
 
         skills = self.control_plane_values["skills"]
         self.assertEqual(
@@ -272,6 +280,13 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertNotIn("kubectl create -f", script)
 
     def test_registry_overlay_restart_hook_runs_without_selective_sync(self) -> None:
+        expected_deployments = [
+            "agent-control-plane",
+            "agent-control-plane-callback-adapter",
+            "agent-control-plane-git-deliverer",
+            "agent-control-plane-local-worker",
+            "agent-control-plane-model-gateway",
+        ]
         annotations = self.registry_overlay_restart_hook["metadata"]["annotations"]
         self.assertEqual(annotations["argocd.argoproj.io/hook"], "PostSync")
         self.assertEqual(
@@ -279,10 +294,47 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             "BeforeHookCreation",
         )
         self.assertEqual(
-            self.registry_overlay_restart_hook["metadata"]["name"],
-            "agent-control-plane-registry-overlay-restart",
+            self.registry_overlay_restart_hook["metadata"]["generateName"],
+            "registry-overlay-restart-",
         )
-        self.assertNotIn("generateName", self.registry_overlay_restart_hook["metadata"])
+        self.assertNotIn("name", self.registry_overlay_restart_hook["metadata"])
+
+        restart_script = self.registry_overlay_restart_hook["spec"]["template"]["spec"][
+            "containers"
+        ][0]["command"][-1]
+        self.assertEqual(
+            restart_script.split('deploys="', 1)[1].split('"', 1)[0].split(),
+            expected_deployments,
+        )
+        restart_role = next(
+            document
+            for document in self.registry_overlay_restart_rbac
+            if document["kind"] == "Role"
+        )
+        restart_rule = next(
+            rule
+            for rule in restart_role["rules"]
+            if rule["resources"] == ["deployments"] and "resourceNames" in rule
+        )
+        self.assertEqual(restart_rule["resourceNames"], expected_deployments)
+
+        self.assertNotIn("source", self.registry_overlay_application["spec"])
+        self.assertEqual(
+            self.registry_overlay_application["spec"]["sources"],
+            [
+                {
+                    "repoURL": "https://github.com/cesaregarza/GarzAICluster",
+                    "targetRevision": "main",
+                    "path": "apps/agent-control-plane-registry-overlay",
+                },
+                {
+                    "repoURL": "https://github.com/cesaregarza/GarzAICluster",
+                    "targetRevision": "main",
+                    "path": "apps/agent-control-plane-registry-overlay/hooks",
+                    "directory": {"recurse": False},
+                },
+            ],
+        )
 
         sync_options = set(
             self.registry_overlay_application["spec"]["syncPolicy"].get(
@@ -332,12 +384,12 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertEqual(opencode["agent"]["network_access"], "broker_only")
 
         capability = opencode["capabilities"]["agent_workloads.opencode_propose"]
-        self.assertEqual(capability["model_lease"]["allowed_tier"], "fast")
+        self.assertEqual(capability["model_bounds"]["allowed_tier"], "fast")
         self.assertEqual(
-            capability["model_lease"]["allowed_profiles"],
+            capability["model_bounds"]["allowed_profiles"],
             ["openai.gpt-5.3-codex-spark"],
         )
-        self.assertEqual(capability["model_lease"]["max_cost_usd"], 0.25)
+        self.assertEqual(capability["model_bounds"]["max_cost_usd"], 0.25)
         self.assertEqual(capability["session_authority_budget"]["max_operations"], 100)
         self.assertEqual(
             capability["disclosure"]["artifact_classes_allowed"],
@@ -399,8 +451,8 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertEqual(capability["session_authority_budget"]["max_operations"], 1)
         self.assertEqual(
-            capability["session_authority_budget"]["session_taint"],
-            "prod_authority",
+            capability["session_authority_budget"]["influence"],
+            "principal",
         )
         self.assertEqual(
             capability["artifacts"],
@@ -461,7 +513,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertIn(
             "Remote ref and PR URL arrive only through the deliverer callback after "
             "confirmed write.",
-            capability["negative_affordances"],
+            capability["limitations"],
         )
 
         manifest = json.loads(self.data["agent-opencode.apply_executor.json"])
@@ -522,6 +574,17 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             "admin_confirm",
         )
         self.assertEqual(policy["defaults"]["max_cost_usd_per_job"], 10.0)
+        self.assertEqual(policy["defaults"]["max_runtime_seconds_per_job"], 60)
+        self.assertEqual(
+            policy["defaults"]["max_runtime_seconds_per_capability"],
+            {
+                "agent_workloads.readonly_query": 180,
+                "agent_workloads.opencode_propose": 900,
+                "agent_workloads.opencode_task": 900,
+                "agent_workloads.opencode_orchestrate": 900,
+                "agent_workloads.opencode_apply": 300,
+            },
+        )
         self.assertEqual(
             policy["defaults"]["aggregate_budget"]["per_capability_daily_usd"][
                 "agent_workloads.opencode_propose"
@@ -649,6 +712,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             'kube_job_status_failed{namespace="agent-control-plane"}',
             rules_template,
         )
+        self.assertIn("kube_job_owner", rules_template)
 
     def test_hosted_harness_safe_floor_and_token_handoff_are_configured(self) -> None:
         values = self.control_plane_values
@@ -781,20 +845,17 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             set(gateway_pins),
             {"model_gateway"},
         )
-        self.assertEqual(
-            api_pins["model_gateway"]["digest"],
-            "sha256:a1bca8321b19f748de5b56ecfeb02081f7be44f2d362b00f79043db56805835e",
-        )
+        self.assertEqual(api_pins["model_gateway"], gateway_pins["model_gateway"])
         self.assertEqual(
             api_pins["readonly-sql-broker"]["digest"],
-            "sha256:6cdbd880eb2e8912359878e903b9c98ff415d7045d9a4feb159a1919640827de",
+            "sha256:73203a3ff8309cb762966f7559abf871f46a239c3136e7a5658eb069f52066c1",
         )
         self.assertEqual(
             gateway_pins["model_gateway"],
             {
                 "digest": (
                     "sha256:"
-                    "dbb0d981c69e9d6f9ba7b2ce1de76f1e9eb88381f81be65314bfc9c4b5fa3a69"
+                    "2010eb78000580e9bc9ad74b57b70500318014a397193133005fae153b39c336"
                 ),
                 "protocol": "model_gateway",
             },

@@ -1,0 +1,29 @@
+{{- if eq .Values.opencodeArtifactHandoff.mode "governedCore" -}}
+{{- if or (not .Values.opencodeProposer.enabled) (not .Values.opencodeApplyExecutor.enabled) -}}
+{{- fail "governedCore requires both opencodeProposer and opencodeApplyExecutor" -}}
+{{- end -}}
+{{- if not .Values.opencodeProposer.networkPolicy.enabled -}}
+{{- fail "governedCore requires opencodeProposer.networkPolicy.enabled" -}}
+{{- end -}}
+{{- if not .Values.opencodeApplyExecutor.networkPolicy.enabled -}}
+{{- fail "governedCore requires opencodeApplyExecutor.networkPolicy.enabled" -}}
+{{- end -}}
+{{- include "agent-workloads.validateOpencodeIdentity" (dict "root" . "values" .Values.opencodeProposer "identity" .Values.opencodeProposer.identity "label" "opencodeProposer") -}}
+{{- include "agent-workloads.validateOpencodeIdentity" (dict "root" . "values" .Values.opencodeApplyExecutor "identity" .Values.opencodeApplyExecutor.identity "label" "opencodeApplyExecutor") -}}
+{{- if eq .Values.opencodeProposer.identity.workerId .Values.opencodeApplyExecutor.identity.workerId -}}
+{{- fail "governedCore proposer and apply worker ids must differ" -}}
+{{- end -}}
+{{- $proposerServiceAccount := include "agent-workloads.opencodeIdentityServiceAccountName" (dict "root" . "identity" .Values.opencodeProposer.identity "identityLabel" "opencodeProposer.identity") -}}
+{{- $applyServiceAccount := include "agent-workloads.opencodeIdentityServiceAccountName" (dict "root" . "identity" .Values.opencodeApplyExecutor.identity "identityLabel" "opencodeApplyExecutor.identity") -}}
+{{- if eq $proposerServiceAccount $applyServiceAccount -}}
+{{- fail "governedCore proposer and apply ServiceAccounts must differ" -}}
+{{- end -}}
+{{- if and (eq .Values.opencodeProposer.identity.mode "hmac") (eq .Values.opencodeApplyExecutor.identity.mode "hmac") -}}
+{{- if eq (index .Values.opencodeProposer.secretEnv "MANDATE_WORKLOAD_IDENTITY_TOKEN") (index .Values.opencodeApplyExecutor.secretEnv "MANDATE_WORKLOAD_IDENTITY_TOKEN") -}}
+{{- fail "governedCore proposer and apply HMAC secret keys must differ" -}}
+{{- end -}}
+{{- end -}}
+{{- if hasKey .Values.opencodeApplyExecutor.env "MANDATE_MODEL_GATEWAY_BASE_URL" -}}
+{{- fail "governedCore apply executor must not receive model-gateway access" -}}
+{{- end -}}
+{{- end -}}

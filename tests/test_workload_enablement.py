@@ -42,7 +42,7 @@ class WorkloadEnablementTests(unittest.TestCase):
                 "workload": "data.workspace_probe",
                 "capability": "agent_workloads.readonly_query",
                 "grant": {"binding": "private-admin-controlled-capabilities"},
-                "model_lease": {
+                "model_bounds": {
                     "allowed_profile": "openai.gpt-5.3-codex-spark",
                 },
                 "worker": {"claims": True},
@@ -153,7 +153,7 @@ class WorkloadEnablementTests(unittest.TestCase):
                 "kind": "MandateWorkloadEnablement",
                 "workload": "data.workspace_probe",
                 "capability": "agent_workloads.readonly_query",
-                "model_lease": {
+                "model_bounds": {
                     "allowed_profiles": [
                         "openai.gpt-5.3-codex-spark",
                         "openai.gpt-5.3-codex-large",
@@ -164,7 +164,7 @@ class WorkloadEnablementTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             WorkloadEnablementError,
-            "model_lease contains unsupported keys: allowed_profiles",
+            "model_bounds contains unsupported keys: allowed_profiles",
         ):
             plan_workload_enablement(repo_root=root, document_path=document)
 

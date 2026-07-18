@@ -1,0 +1,99 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: agent-control-plane-postgres-sweep
+  namespace: agent-control-plane
+  labels:
+    app.kubernetes.io/name: agent-control-plane
+    app.kubernetes.io/instance: agent-control-plane
+    app.kubernetes.io/component: postgres-sweep
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    mandate.cesaregarza.io/purpose: expire-orphaned-jobs-and-archive-terminal-rows
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 600
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: agent-control-plane
+            app.kubernetes.io/instance: agent-control-plane
+            app.kubernetes.io/component: postgres-sweep
+        spec:
+          serviceAccountName: agent-control-plane
+          automountServiceAccountToken: false
+          imagePullSecrets:
+            - name: regcred
+          restartPolicy: Never
+          terminationGracePeriodSeconds: 30
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: postgres-sweep
+              image: registry.digitalocean.com/sendouq/agent-platform:sha-11df8fcd999c
+              imagePullPolicy: IfNotPresent
+              command:
+                - mandate-postgres-sweep
+              args:
+                - --queued-lease-expiry-limit
+                - "100"
+                - --approval-expiry-limit
+                - "100"
+                - --retention-days
+                - "30"
+                - --batch-size
+                - "100"
+              envFrom:
+                - secretRef:
+                    name: agent-control-plane-secrets
+              env:
+                - name: AGENT_PLATFORM_ENVIRONMENT
+                  value: prod
+                - name: AGENT_PLATFORM_POSTGRES_POOL_MIN_SIZE
+                  value: "0"
+                - name: AGENT_PLATFORM_POSTGRES_POOL_MAX_SIZE
+                  value: "1"
+                - name: AGENT_PLATFORM_WORKLOAD_IDENTITY_MODE
+                  value: hmac
+                - name: AGENT_PLATFORM_WORKLOAD_IDENTITY_ISSUER
+                  value: kubernetes
+                - name: AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE
+                  value: mandate-api
+                - name: AGENT_PLATFORM_WORKLOAD_IDENTITY_REQUIRED_SCOPES
+                  value: worker_service
+                - name: AGENT_PLATFORM_WORKLOAD_IDENTITY_ALLOWED_SUBJECTS_JSON
+                  value: '{"worker_service":["data.workspace_probe","opencode.apply_executor","opencode.proposer"]}'
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 96Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}

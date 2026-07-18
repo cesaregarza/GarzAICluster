@@ -13,8 +13,10 @@ Read them in roughly this order when contributing here:
    workload capability wiring.
 8. `runbooks/postgres-restore.md` – DigitalOcean managed Postgres restore
    procedure for the live Mandate `agent-control-plane` deployment.
-9. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
-10. `k8s/secrets.template.yaml` → `k8s/secrets.enc.yaml` – example flow for encrypted secrets.
+9. `runbooks/citrus-spaces-cors.md` – DigitalOcean Spaces CORS procedure for
+   Citrus Grace browser media uploads.
+10. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
+11. `k8s/secrets.template.yaml` → `k8s/secrets.enc.yaml` – example flow for encrypted secrets.
 
 Supplemental references:
 
