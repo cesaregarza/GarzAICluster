@@ -441,7 +441,10 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
         result = _render_process(values)
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("opencodeArtifactHandoff.mode", result.stderr)
+        self.assertIn("opencodeArtifactHandoff", result.stderr)
+        self.assertIn("mode", result.stderr)
+        self.assertIn("legacySharedVolume", result.stderr)
+        self.assertIn("governedCore", result.stderr)
 
 
 if __name__ == "__main__":
