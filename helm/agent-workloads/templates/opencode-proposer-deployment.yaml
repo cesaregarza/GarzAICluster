@@ -1,4 +1,4 @@
-{{- if .Values.opencodeProposer.enabled }}
+{{- if and .Values.opencodeProposer.enabled (eq .Values.opencodeArtifactHandoff.mode "legacySharedVolume") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -110,6 +110,8 @@ spec:
           {{- end }}
           env:
             {{- include "agent-workloads.envFromValues" (dict "root" . "values" .Values.opencodeProposer) | nindent 12 }}
+            - name: AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE
+              value: legacy_shared_volume
           resources:
             {{- toYaml .Values.opencodeProposer.resources | nindent 12 }}
           securityContext:
@@ -136,6 +138,8 @@ spec:
           {{- end }}
           env:
             {{- include "agent-workloads.envFromValues" (dict "root" . "values" .Values.opencodeApplyExecutor) | nindent 12 }}
+            - name: AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE
+              value: legacy_shared_volume
           resources:
             {{- toYaml .Values.opencodeApplyExecutor.resources | nindent 12 }}
           securityContext:

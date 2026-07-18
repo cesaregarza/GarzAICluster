@@ -111,6 +111,11 @@ networkPolicy:
 workspaceSeedBundle:
   base64: ""
 
+# legacySharedVolume preserves the pre-CES-577 co-located rollback path.
+# governedCore renders two pods and carries exact proposal bytes through Core.
+opencodeArtifactHandoff:
+  mode: legacySharedVolume
+
 opencodeProposer:
   enabled: false
   replicaCount: 1
@@ -127,6 +132,19 @@ opencodeProposer:
   args: []
   secretKeys: []
   secretEnv: {}
+  identity:
+    workerId: opencode.proposer
+    serviceAccountNamePrefix: agent-workloads
+    mode: hmac
+    serviceAccount:
+      create: true
+      annotations: {}
+    token:
+      audience: mandate-api
+      expirationSeconds: 3600
+      mountPath: /var/run/mandate/workload-identity
+      fileName: token
+    previousRelease: null
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
@@ -175,16 +193,33 @@ opencodeProposer:
 
 opencodeApplyExecutor:
   enabled: false
+  replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-apply-executor
     tag: dev
     digest: ""
     pullPolicy: IfNotPresent
+  podAnnotations: {}
+  podLabels:
+    mandate.cesaregarza.io/egress-profile: control-plane-only
   command:
     - agent-workloads-worker
   args: []
   secretKeys: []
   secretEnv: {}
+  identity:
+    workerId: opencode.apply_executor
+    serviceAccountNamePrefix: agent-workloads
+    mode: hmac
+    serviceAccount:
+      create: true
+      annotations: {}
+    token:
+      audience: mandate-api
+      expirationSeconds: 3600
+      mountPath: /var/run/mandate/workload-identity
+      fileName: token
+    previousRelease: null
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
@@ -201,7 +236,7 @@ opencodeApplyExecutor:
       - -c
     script: |
       set -eu
-      mkdir -p /workspace/job /workspace/proposals
+      mkdir -p /workspace/job
       cd /workspace/job
       git init -q
       git config --global --add safe.directory /workspace/job
@@ -217,3 +252,15 @@ opencodeApplyExecutor:
     limits:
       cpu: 500m
       memory: 512Mi
+  networkPolicy:
+    enabled: false
+    egress:
+      dns:
+        enabled: false
+        destinations: []
+        ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+      destinations: []

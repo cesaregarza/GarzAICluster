@@ -1,0 +1,257 @@
+{{- if eq .Values.opencodeArtifactHandoff.mode "governedCore" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent-workloads.opencodeProposerName" . }}
+  labels:
+    {{- include "agent-workloads.opencodeProposerLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.opencodeProposer.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "agent-workloads.opencodeProposerSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "agent-workloads.opencodeProposerSelectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: opencode-proposer
+        {{- with .Values.opencodeProposer.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum.garz.ai/agent-workloads-release-pins: {{ include "agent-workloads.releasePinsChecksum" . | quote }}
+        {{- if eq .Values.opencodeProposer.identity.mode "hmac" }}
+        checksum.garz.ai/agent-workloads-token-secret: {{ include "agent-workloads.workloadIdentityTokenSecretChecksum" . | quote }}
+        {{- end }}
+        {{- with .Values.opencodeProposer.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: {{ include "agent-workloads.opencodeIdentityServiceAccountName" (dict "root" . "identity" .Values.opencodeProposer.identity "identityLabel" "opencodeProposer.identity") }}
+      enableServiceLinks: false
+      {{- include "agent-workloads.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.opencodeProposer.initWorkspace.enabled }}
+      initContainers:
+        - name: init-workspace
+          image: "{{ include "agent-workloads.imageRef" .Values.opencodeProposer.image }}"
+          imagePullPolicy: {{ .Values.opencodeProposer.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.opencodeProposer.initWorkspace.command | nindent 12 }}
+          args:
+            - {{ .Values.opencodeProposer.initWorkspace.script | quote }}
+          env:
+            - name: HOME
+              value: /tmp
+            - name: TMPDIR
+              value: /tmp
+          resources:
+            {{- toYaml .Values.opencodeProposer.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: proposer-tmp
+              mountPath: /tmp
+            - name: proposer-workspace
+              mountPath: /workspace/job
+            - name: proposer-artifacts
+              mountPath: /workspace/proposals
+            - name: proposer-workspace-seed
+              mountPath: /workspace/seed
+            {{- if .Values.workspaceSeedBundle.base64 }}
+            - name: seed-bundle
+              mountPath: /seed-bundle
+              readOnly: true
+            {{- end }}
+      {{- end }}
+      containers:
+        - name: opencode-proposer
+          image: "{{ include "agent-workloads.imageRef" .Values.opencodeProposer.image }}"
+          imagePullPolicy: {{ .Values.opencodeProposer.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.opencodeProposer.command | nindent 12 }}
+          {{- with .Values.opencodeProposer.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- include "agent-workloads.envFromValues" (dict "root" . "values" .Values.opencodeProposer) | nindent 12 }}
+            - name: AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE
+              value: governed_core
+            {{- if eq .Values.opencodeProposer.identity.mode "projected" }}
+            - name: MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE
+              value: {{ include "agent-workloads.opencodeIdentityTokenPath" (dict "identity" .Values.opencodeProposer.identity) | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.opencodeProposer.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: proposer-tmp
+              mountPath: /tmp
+            - name: proposer-workspace
+              mountPath: /workspace/job
+            - name: proposer-artifacts
+              mountPath: /workspace/proposals
+            - name: proposer-workspace-seed
+              mountPath: /workspace/seed
+              readOnly: true
+            {{- if eq .Values.opencodeProposer.identity.mode "projected" }}
+            - name: projected-workload-identity-token
+              mountPath: {{ .Values.opencodeProposer.identity.token.mountPath | quote }}
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: proposer-tmp
+          emptyDir: {}
+        - name: proposer-workspace
+          emptyDir: {}
+        - name: proposer-artifacts
+          emptyDir:
+            sizeLimit: 4Mi
+        - name: proposer-workspace-seed
+          emptyDir:
+            sizeLimit: 8Mi
+        {{- if eq .Values.opencodeProposer.identity.mode "projected" }}
+        - name: projected-workload-identity-token
+          projected:
+            defaultMode: 288
+            sources:
+              - serviceAccountToken:
+                  audience: {{ .Values.opencodeProposer.identity.token.audience | quote }}
+                  expirationSeconds: {{ int .Values.opencodeProposer.identity.token.expirationSeconds }}
+                  path: {{ .Values.opencodeProposer.identity.token.fileName | quote }}
+        {{- end }}
+        {{- if .Values.workspaceSeedBundle.base64 }}
+        - name: seed-bundle
+          configMap:
+            name: {{ include "agent-workloads.opencodeProposerName" . }}-seed-bundle
+        {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent-workloads.opencodeApplyExecutorName" . }}
+  labels:
+    {{- include "agent-workloads.opencodeApplyExecutorLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.opencodeApplyExecutor.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "agent-workloads.opencodeApplyExecutorSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "agent-workloads.opencodeApplyExecutorSelectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: opencode-apply-executor
+        {{- with .Values.opencodeApplyExecutor.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum.garz.ai/agent-workloads-release-pins: {{ include "agent-workloads.releasePinsChecksum" . | quote }}
+        {{- if eq .Values.opencodeApplyExecutor.identity.mode "hmac" }}
+        checksum.garz.ai/agent-workloads-token-secret: {{ include "agent-workloads.workloadIdentityTokenSecretChecksum" . | quote }}
+        {{- end }}
+        {{- with .Values.opencodeApplyExecutor.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: {{ include "agent-workloads.opencodeIdentityServiceAccountName" (dict "root" . "identity" .Values.opencodeApplyExecutor.identity "identityLabel" "opencodeApplyExecutor.identity") }}
+      enableServiceLinks: false
+      {{- include "agent-workloads.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.opencodeApplyExecutor.initWorkspace.enabled }}
+      initContainers:
+        - name: init-apply-workspace
+          image: "{{ include "agent-workloads.imageRef" .Values.opencodeApplyExecutor.image }}"
+          imagePullPolicy: {{ .Values.opencodeApplyExecutor.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.opencodeApplyExecutor.initWorkspace.command | nindent 12 }}
+          args:
+            - {{ .Values.opencodeApplyExecutor.initWorkspace.script | quote }}
+          env:
+            - name: HOME
+              value: /tmp
+            - name: TMPDIR
+              value: /tmp
+          resources:
+            {{- toYaml .Values.opencodeApplyExecutor.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: apply-tmp
+              mountPath: /tmp
+            - name: apply-workspace
+              mountPath: /workspace/job
+            - name: apply-workspace-seed
+              mountPath: /workspace/seed
+            {{- if .Values.workspaceSeedBundle.base64 }}
+            - name: seed-bundle
+              mountPath: /seed-bundle
+              readOnly: true
+            {{- end }}
+      {{- end }}
+      containers:
+        - name: opencode-apply-executor
+          image: "{{ include "agent-workloads.imageRef" .Values.opencodeApplyExecutor.image }}"
+          imagePullPolicy: {{ .Values.opencodeApplyExecutor.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.opencodeApplyExecutor.command | nindent 12 }}
+          {{- with .Values.opencodeApplyExecutor.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- $applyEnvValues := dict "secretKeys" .Values.opencodeApplyExecutor.secretKeys "secretEnv" .Values.opencodeApplyExecutor.secretEnv "secretEnvSecretName" .Values.opencodeApplyExecutor.secretEnvSecretName "env" (omit .Values.opencodeApplyExecutor.env "AGENT_WORKLOADS_OPENCODE_APPLY_PROPOSALS_DIR") }}
+            {{- include "agent-workloads.envFromValues" (dict "root" . "values" $applyEnvValues) | nindent 12 }}
+            - name: AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE
+              value: governed_core
+            {{- if eq .Values.opencodeApplyExecutor.identity.mode "projected" }}
+            - name: MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE
+              value: {{ include "agent-workloads.opencodeIdentityTokenPath" (dict "identity" .Values.opencodeApplyExecutor.identity) | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.opencodeApplyExecutor.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: apply-tmp
+              mountPath: /tmp
+            - name: apply-workspace
+              mountPath: /workspace/job
+            - name: apply-workspace-seed
+              mountPath: /workspace/seed
+              readOnly: true
+            {{- if eq .Values.opencodeApplyExecutor.identity.mode "projected" }}
+            - name: projected-workload-identity-token
+              mountPath: {{ .Values.opencodeApplyExecutor.identity.token.mountPath | quote }}
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: apply-tmp
+          emptyDir: {}
+        - name: apply-workspace
+          emptyDir: {}
+        - name: apply-workspace-seed
+          emptyDir:
+            sizeLimit: 8Mi
+        {{- if eq .Values.opencodeApplyExecutor.identity.mode "projected" }}
+        - name: projected-workload-identity-token
+          projected:
+            defaultMode: 288
+            sources:
+              - serviceAccountToken:
+                  audience: {{ .Values.opencodeApplyExecutor.identity.token.audience | quote }}
+                  expirationSeconds: {{ int .Values.opencodeApplyExecutor.identity.token.expirationSeconds }}
+                  path: {{ .Values.opencodeApplyExecutor.identity.token.fileName | quote }}
+        {{- end }}
+        {{- if .Values.workspaceSeedBundle.base64 }}
+        - name: seed-bundle
+          configMap:
+            name: {{ include "agent-workloads.opencodeProposerName" . }}-seed-bundle
+        {{- end }}
+{{- end }}

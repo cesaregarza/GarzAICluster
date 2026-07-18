@@ -82,8 +82,8 @@ imports:
           select_limited: external
 - id: opencode.proposer
   manifest_path: registries/imports/agent-opencode.proposer.json
-  manifest_digest: sha256:64215f46f922b4d31fbcb0fb28d9b226b89a20f59a71d2995f8aba0877ecddbe
-  image_digest: sha256:35dc7321922441ec260b1ba0627fc54208bbd071dd4a0466f78e0de5c513f4c9
+  manifest_digest: sha256:b52ef8af8ce62beb02255623739019d44cbdeba03b5c13d7cc335ef106c1a9d2
+  image_digest: sha256:0b5d0f1e86b40c4d70157e0e4b4c5a13ef58554e8dee0788a3157903cbe55c7c
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -294,8 +294,8 @@ imports:
       - Must not be used as a local fallback when no governed capability matches.
 - id: opencode.apply_executor
   manifest_path: registries/imports/agent-opencode.apply_executor.json
-  manifest_digest: sha256:f40dddc19e40c58112ffcc40f31c03138904b932ba37557c54d021ab2f4b25cb
-  image_digest: sha256:fabede5708fb05d45b76614e370c7479b88528ccfa3dc20db367530fad6923d9
+  manifest_digest: sha256:ed0c6fc748f1392dc76e2171400cf8af848a1aa7ce145d8bb71195957d703100
+  image_digest: sha256:981e648d0000ab88a90a05d10790fa258fd396803c2d2cff9206dcb0cd22a93d
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads

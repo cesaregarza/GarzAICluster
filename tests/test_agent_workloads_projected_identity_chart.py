@@ -112,6 +112,27 @@ def _environment(container: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {entry["name"]: entry for entry in container.get("env", [])}
 
 
+def _opencode_service_account_name(
+    values: dict[str, Any],
+    *,
+    worker_id: str,
+    worker_key: str,
+) -> str:
+    release = values["mandateReleasePins"][worker_id]
+    payload = {
+        "schema_version": "workload_identity_bundle.v1",
+        "code_digest": release["codeDigest"],
+        "manifest_digest": release["manifestDigest"],
+        "image_digest": release["imageDigest"],
+    }
+    suffix = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()[:20]
+    prefix = values[worker_key]["identity"]["serviceAccountNamePrefix"]
+    normalized_worker = worker_id.replace(".", "-").replace("_", "-")
+    return f"{prefix}-{normalized_worker}-{suffix}"
+
+
 class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -144,7 +165,9 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
         values["extraVolumeMounts"] = []
         return values
 
-    def test_production_values_remain_legacy_and_render_successfully(self) -> None:
+    def test_production_values_render_workspace_hmac_and_opencode_canary(
+        self,
+    ) -> None:
         documents = _render()
         worker = _find_document(
             documents,
@@ -176,23 +199,55 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             for document in documents
             if document.get("kind") == "ServiceAccount"
         ]
+        opencode_accounts = {
+            worker_id: _opencode_service_account_name(
+                self.production_values,
+                worker_id=worker_id,
+                worker_key=worker_key,
+            )
+            for worker_id, worker_key in (
+                ("opencode.proposer", "opencodeProposer"),
+                ("opencode.apply_executor", "opencodeApplyExecutor"),
+            )
+        }
         self.assertEqual(
             {account["metadata"]["name"] for account in service_accounts},
-            {"agent-workloads"},
+            {"agent-workloads", *opencode_accounts.values()},
         )
 
-        opencode = _find_document(
-            documents,
-            kind="Deployment",
-            name="agent-workloads-opencode-proposer",
-        )
-        opencode_pod = opencode["spec"]["template"]["spec"]
-        self.assertIs(opencode_pod["automountServiceAccountToken"], False)
-        self.assertEqual(opencode_pod["serviceAccountName"], "agent-workloads")
-        self.assertNotIn(
-            "projected-workload-identity-token",
-            {volume["name"] for volume in opencode_pod["volumes"]},
-        )
+        for worker_id, deployment_name, container_name in (
+            (
+                "opencode.proposer",
+                "agent-workloads-opencode-proposer",
+                "opencode-proposer",
+            ),
+            (
+                "opencode.apply_executor",
+                "agent-workloads-opencode-apply-executor",
+                "opencode-apply-executor",
+            ),
+        ):
+            opencode = _find_document(
+                documents,
+                kind="Deployment",
+                name=deployment_name,
+            )
+            opencode_pod = opencode["spec"]["template"]["spec"]
+            self.assertIs(opencode_pod["automountServiceAccountToken"], False)
+            self.assertEqual(
+                opencode_pod["serviceAccountName"],
+                opencode_accounts[worker_id],
+            )
+            self.assertNotIn(
+                "projected-workload-identity-token",
+                {volume["name"] for volume in opencode_pod["volumes"]},
+            )
+            self.assertIn(
+                "secretKeyRef",
+                _environment(_container(opencode, container_name))[
+                    "MANDATE_WORKLOAD_IDENTITY_TOKEN"
+                ]["valueFrom"],
+            )
 
     def test_projected_current_and_previous_release_identity_render(self) -> None:
         canonical_payload = {
@@ -216,12 +271,24 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             for document in documents
             if document.get("kind") == "ServiceAccount"
         }
+        opencode_accounts = {
+            worker_id: _opencode_service_account_name(
+                self.production_values,
+                worker_id=worker_id,
+                worker_key=worker_key,
+            )
+            for worker_id, worker_key in (
+                ("opencode.proposer", "opencodeProposer"),
+                ("opencode.apply_executor", "opencodeApplyExecutor"),
+            )
+        }
         self.assertEqual(
             set(service_accounts),
             {
                 "agent-workloads",
                 CURRENT_SERVICE_ACCOUNT,
                 PREVIOUS_SERVICE_ACCOUNT,
+                *opencode_accounts.values(),
             },
         )
         self.assertNotEqual(CURRENT_SERVICE_ACCOUNT, PREVIOUS_SERVICE_ACCOUNT)
@@ -270,24 +337,38 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
         )
         self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN", worker_env)
 
-        opencode = _find_document(
-            documents,
-            kind="Deployment",
-            name="agent-workloads-opencode-proposer",
-        )
-        opencode_template = opencode["spec"]["template"]
-        opencode_pod = opencode_template["spec"]
-        self.assertIs(opencode_pod["automountServiceAccountToken"], False)
-        self.assertEqual(opencode_pod["serviceAccountName"], "agent-workloads")
-        self.assertNotIn(
-            "projected-workload-identity-token",
-            {volume["name"] for volume in opencode_pod["volumes"]},
-        )
-        self.assertIn(
-            "checksum.garz.ai/agent-workloads-token-secret",
-            opencode_template["metadata"]["annotations"],
-        )
-        for container_name in ("opencode-proposer", "opencode-apply-executor"):
+        for worker_id, deployment_name, container_name in (
+            (
+                "opencode.proposer",
+                "agent-workloads-opencode-proposer",
+                "opencode-proposer",
+            ),
+            (
+                "opencode.apply_executor",
+                "agent-workloads-opencode-apply-executor",
+                "opencode-apply-executor",
+            ),
+        ):
+            opencode = _find_document(
+                documents,
+                kind="Deployment",
+                name=deployment_name,
+            )
+            opencode_template = opencode["spec"]["template"]
+            opencode_pod = opencode_template["spec"]
+            self.assertIs(opencode_pod["automountServiceAccountToken"], False)
+            self.assertEqual(
+                opencode_pod["serviceAccountName"],
+                opencode_accounts[worker_id],
+            )
+            self.assertNotIn(
+                "projected-workload-identity-token",
+                {volume["name"] for volume in opencode_pod["volumes"]},
+            )
+            self.assertIn(
+                "checksum.garz.ai/agent-workloads-token-secret",
+                opencode_template["metadata"]["annotations"],
+            )
             token = _environment(_container(opencode, container_name))[
                 "MANDATE_WORKLOAD_IDENTITY_TOKEN"
             ]
