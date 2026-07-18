@@ -3,6 +3,10 @@ defaults:
   max_runtime_seconds_per_job: 60
   max_runtime_seconds_per_capability:
     agent_workloads.readonly_query: 180
+    agent_workloads.opencode_propose: 900
+    agent_workloads.opencode_task: 900
+    agent_workloads.opencode_orchestrate: 900
+    agent_workloads.opencode_apply: 300
   aggregate_budget:
     platform_daily_usd: 250.0
     per_capability_daily_usd_default: 100.0

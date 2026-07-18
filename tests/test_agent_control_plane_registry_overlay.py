@@ -577,7 +577,13 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertEqual(policy["defaults"]["max_runtime_seconds_per_job"], 60)
         self.assertEqual(
             policy["defaults"]["max_runtime_seconds_per_capability"],
-            {"agent_workloads.readonly_query": 180},
+            {
+                "agent_workloads.readonly_query": 180,
+                "agent_workloads.opencode_propose": 900,
+                "agent_workloads.opencode_task": 900,
+                "agent_workloads.opencode_orchestrate": 900,
+                "agent_workloads.opencode_apply": 300,
+            },
         )
         self.assertEqual(
             policy["defaults"]["aggregate_budget"]["per_capability_daily_usd"][
