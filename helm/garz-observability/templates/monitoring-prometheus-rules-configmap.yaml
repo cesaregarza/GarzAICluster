@@ -155,6 +155,40 @@ data:
               summary: Mandate synthetic live verify failed
               description: The scheduled Mandate synthetic live verify CronJob has a failed Job; inspect the agent-control-plane synthetic-live-verify logs before the next deploy.
 
+          - alert: HermesGovernedRuntimeDown
+            expr: |
+              absent(up{job="hermes-governed-runtime"})
+                or up{job="hermes-governed-runtime"} == 0
+            for: 2m
+            labels:
+              severity: critical
+              service: hermes
+            annotations:
+              summary: Hermes governed runtime is unreachable
+              description: Prometheus cannot scrape the Hermes governed runtime on the nyc3 private endpoint.
+
+          - alert: HermesGovernedRuntimeNotReady
+            expr: |
+              absent(hermes_governed_runtime_ready{job="hermes-governed-runtime"})
+                or hermes_governed_runtime_ready{job="hermes-governed-runtime"} == 0
+            for: 2m
+            labels:
+              severity: critical
+              service: hermes
+            annotations:
+              summary: Hermes governed runtime readiness failed
+              description: The Hermes runtime exporter is reachable, but the governed profile, provenance, operations, or observed runtime gate is not ready.
+
+          - alert: HermesGovernedRuntimeCheckFailed
+            expr: hermes_governed_runtime_check_ok{job="hermes-governed-runtime"} == 0
+            for: 2m
+            labels:
+              severity: critical
+              service: hermes
+            annotations:
+              summary: Hermes governed runtime check failed
+              description: One of the Hermes governed-runtime checks is failing; inspect the check label and runtime evidence before continuing cutover.
+
           - alert: GrafanaDown
             expr: sum(up{job="grafana"}) == 0
             for: 5m

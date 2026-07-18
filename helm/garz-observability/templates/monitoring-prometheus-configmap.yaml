@@ -31,12 +31,13 @@ data:
 
       - job_name: fastapi
         metrics_path: /metrics
+        sample_limit: {{ .Values.monitoring.prometheus.fastapiScrape.sampleLimit }}
         kubernetes_sd_configs:
           - role: endpoints
         relabel_configs:
           - action: keep
             source_labels: [__meta_kubernetes_namespace]
-            regex: {{ .Release.Namespace | quote }}
+            regex: {{ .Values.monitoring.prometheus.fastapiScrape.namespace | quote }}
           - action: keep
             source_labels:
               - __meta_kubernetes_service_name
@@ -55,6 +56,66 @@ data:
           - targets:
               - alertmanager.monitoring.svc.cluster.local:9093
 
+{{- if .Values.monitoring.prometheus.kubeletScrape.enabled }}
+      - job_name: kubernetes-cadvisor
+        scheme: https
+        kubernetes_sd_configs:
+          - role: node
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        relabel_configs:
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels:
+              - __meta_kubernetes_node_name
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+
+      - job_name: kubernetes-kubelet
+        scheme: https
+        kubernetes_sd_configs:
+          - role: node
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        relabel_configs:
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels:
+              - __meta_kubernetes_node_name
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics
+
+{{- end }}
+{{- if .Values.monitoring.kube_state_metrics.enabled }}
+      - job_name: kube-state-metrics
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - {{ printf "%s-kube-state-metrics.%s.svc.cluster.local:%v" $fullName (include "garzObservability.monitoringNamespace" .) (.Values.monitoring.kube_state_metrics.service.port | int) | quote }}
+
+{{- end }}
+{{- range $scrape := .Values.monitoring.prometheus.staticScrapeConfigs }}
+      - job_name: {{ $scrape.jobName | quote }}
+        metrics_path: {{ default "/metrics" $scrape.metricsPath | quote }}
+        {{- with $scrape.scheme }}
+        scheme: {{ . | quote }}
+        {{- end }}
+        {{- with $scrape.scrapeInterval }}
+        scrape_interval: {{ . | quote }}
+        {{- end }}
+        static_configs:
+          - targets:
+            {{- range $target := $scrape.targets }}
+              - {{ $target | quote }}
+            {{- end }}
+            {{- with $scrape.labels }}
+            labels:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+
+{{- end }}
       - job_name: kubernetes-pods
         kubernetes_sd_configs:
           - role: pod

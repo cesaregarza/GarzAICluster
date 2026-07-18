@@ -7,8 +7,8 @@ fullnameOverride: agent-workloads
 replicaCount: 2
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-aaf267914cb1
-  digest: sha256:cd2b2b3aa851833c8718b5d92541fb9822b1594d9b6983aebf0b6615215aed9a
+  tag: sha-e995e6c2953d
+  digest: sha256:92cb6d90f77dfa7ddbf6ab876c81742b93a62b77340b55340773ca2c38c19159
   pullPolicy: IfNotPresent
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
@@ -38,7 +38,7 @@ extraVolumeMounts:
   mountPath: /var/run/mandate/workload-identity
   readOnly: true
 rolloutChecksums:
-  workloadIdentityTokenSecret: sha256:a5b0b3868cd3bb0b88345dbcbaaf0749ed226c34fad8bcebb17d887284f0ab8b
+  workloadIdentityTokenSecret: sha256:6b9e2353999209d4d9154658483d68de3fb209fa1e3dc01c617e3d6279cbcaa1
 resources:
   requests:
     cpu: 25m
@@ -87,6 +87,8 @@ networkPolicy:
       ports:
       - port: 25060
         protocol: TCP
+opencodeArtifactHandoff:
+  mode: governedCore
 workspaceSeedBundle:
   base64: IyB2MiBnaXQgYnVuZGxlCmQyZTJjYmVmM2EzMTMwYTZhY2FmN2U3OTRhNjNkNTA3OTMxNjc3NzcgcmVmcy9oZWFkcy9tYWluCgpQQUNLAAAAAgAAAAORQHicfZPJrqtGFEXnfEXNrVzTN9JL9Mpg+guUwdh4hoGiB5vGGL4+Tl4GGUTZwyVt6ehor2nIMiDxNGZIhhYSEnMiJ5JZeqcY/CFkiu8pL7JkFmMxIeJ5KvoBJNkYD1keD1sMfrAkTXMkSe3+RX/OYzaMX10/ZI9m/crLqZjvX0nf/gEoQaQoTmBZHuxIiiSJD23LacoGoJWTPt/Bj39qP/+3lj/ysczBb3/lcNQMB3iaB3xDc2BwPh3/5gQgwDKqyQHCgwwhOiDzadWcJp9kKkbCPHPnooEQDpuBoK0z/qJ3vFdR77pO8tOV/U5VkwA3B/Fi10F8eKJeX59YLRULspGvKVvefD/Hm5tcRkvRFScSknKN48sYodt9xEdeenKIAL4th0cDditjl9P7aiWhxFmajTTJVlkl0059LGf366am++dbFi5Fpe3CZDqm1DL4jwtJANv1MPT42Eaww+ID5WTbxE2bvrbU/8ZasxWpmiTzLEzrWHRFy5SQxraedq3n6dUtJ8AgRkxXC+GyJub1agmkR/Lm07FrHyXFcy7omnMnh0O0EdSJLF05NuQs9nBlhrY6hx77+eQ+oOlqerkT7yksZY7n98E5lZav77qcl0a5HtsKarB5NciaZPehQ1wo97LbTt59ZCQCINFhwmBsmKuOyLM9bY0ivNuLqtJCk1FKPfWmg/CqMOXrttom3fvZ5NWme0acUM+3PQF0KjWC4HLJl5fpW5GxD4X8hL5P7LPvpqauX72uNa7Tqmxnj2FLrxncnGvx1sVTLqsXmgAeTgzVLlU5wvTIz91he++8W9IO6qFmhZkWuSndpG3oi620305VhUvkp7CxKjsNXvvPDcpNLBrWnKrOC4OaK3EHRUPyhmO47o/J+96mVyflthL7Uk+/dpykXs6X/bJFYp1Yiu8SYFaESpNJXlwWXXIHXAjzFrkaVQvzk53rKN9rXBUw8vh47QPdD7rFdlXjPLyRlvZ2QhFgdT7WzadOw1nl0SGS81gnwO+fOYXELyeOjvLfRhBGV05l3IBf4v0JzgJGGqUCeJwzNDAwMzFRCHJ1dPF11ctNYUj9dWGi3szc46/3vV1yZO1Z7rQdT5QB+BsQYL4FeJxTVshNzEtJLEnVLQbSSfkVXL4QvkJ+QWpecn5KqgJUQkFXIT2/LLUoLzVFoaAovyC/ODFHP7GgIKdSoSSxKD21REHD2TVY19DAVB9MG5lrcgEAQHsftwQVocG6EFZbspuJ7gS5xCZ+WWpK
 opencodeProposer:
@@ -94,12 +96,25 @@ opencodeProposer:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-16659a2e9c72
-    digest: sha256:3c80986e64e6b766ef76cc99c348e498bc71d76ae283396c17e6dcdf261ebe8f
+    tag: sha-abfc7278947e
+    digest: sha256:0b5d0f1e86b40c4d70157e0e4b4c5a13ef58554e8dee0788a3157903cbe55c7c
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
   secretEnvSecretName: agent-workloads-workload-identity-tokens
+  identity:
+    workerId: opencode.proposer
+    serviceAccountNamePrefix: agent-workloads
+    mode: hmac
+    serviceAccount:
+      create: true
+      annotations: {}
+    token:
+      audience: mandate-api
+      expirationSeconds: 3600
+      mountPath: /var/run/mandate/workload-identity
+      fileName: token
+    previousRelease: null
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
@@ -164,6 +179,20 @@ opencodeProposer:
           matchLabels:
             app.kubernetes.io/name: agent-control-plane
             app.kubernetes.io/instance: agent-control-plane
+            app.kubernetes.io/component: api
+        ports:
+        - port: 80
+          protocol: TCP
+        - port: 8000
+          protocol: TCP
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: agent-control-plane
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: agent-control-plane
+            app.kubernetes.io/instance: agent-control-plane
+            app.kubernetes.io/component: model-gateway
         ports:
         - port: 80
           protocol: TCP
@@ -173,12 +202,25 @@ opencodeApplyExecutor:
   enabled: true
   image:
     repository: registry.digitalocean.com/sendouq/opencode-apply-executor
-    tag: sha-aaf267914cb1
-    digest: sha256:48a475ef25fb46ee05376099cf318750acdda4f8259fd0491f71611fe15a7e3b
+    tag: sha-abfc7278947e
+    digest: sha256:981e648d0000ab88a90a05d10790fa258fd396803c2d2cff9206dcb0cd22a93d
     pullPolicy: IfNotPresent
   secretEnv:
     MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN
   secretEnvSecretName: agent-workloads-workload-identity-tokens
+  identity:
+    workerId: opencode.apply_executor
+    serviceAccountNamePrefix: agent-workloads
+    mode: hmac
+    serviceAccount:
+      create: true
+      annotations: {}
+    token:
+      audience: mandate-api
+      expirationSeconds: 3600
+      mountPath: /var/run/mandate/workload-identity
+      fileName: token
+    previousRelease: null
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
@@ -210,7 +252,6 @@ opencodeApplyExecutor:
       head="$(git rev-parse --verify HEAD)"
       test "$head" = "$pin"
       tree="$(git rev-parse --verify 'HEAD^{tree}')"
-      mkdir -p /workspace/proposals
       printf '{"schema_version":"agent_workloads_opencode_workspace_seed_v1","base_repo":"https://github.com/cesaregarza/mandate-sandbox","base_ref_name":"main","base_commit_sha":"%s","base_tree_sha":"%s"}\n' "$head" "$tree" > /workspace/seed/apply-workspace-seed.json
   resources:
     requests:
@@ -219,16 +260,47 @@ opencodeApplyExecutor:
     limits:
       cpu: 500m
       memory: 512Mi
+  networkPolicy:
+    enabled: true
+    egress:
+      dns:
+        enabled: true
+        destinations:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+        ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+      destinations:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: agent-control-plane
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: agent-control-plane
+            app.kubernetes.io/instance: agent-control-plane
+            app.kubernetes.io/component: api
+        ports:
+        - port: 80
+          protocol: TCP
+        - port: 8000
+          protocol: TCP
 mandateReleasePins:
   data.workspace_probe:
-    codeDigest: sha256:2b2e8637872c744496e769765537105fc516a031ee83af9cb02e7bad76147999
-    manifestDigest: sha256:ad0fc7d1a71d263d7da00cc1adb61251ba4b79937bc1aa3b7d69f7c6ba3c9877
-    imageDigest: sha256:cd2b2b3aa851833c8718b5d92541fb9822b1594d9b6983aebf0b6615215aed9a
+    codeDigest: sha256:40c5a58d4ff67cd17609acaa90e9ce29aa1ea2f6bc4c2c8b68ccfea369b1d64a
+    manifestDigest: sha256:fbecfcb4015aa778a5b0c40d9471dcaee18e82cc4c3cc24e358078204351480b
+    imageDigest: sha256:92cb6d90f77dfa7ddbf6ab876c81742b93a62b77340b55340773ca2c38c19159
   opencode.apply_executor:
-    codeDigest: sha256:05b77d442e4657e96fb8ba2b660d5b289a522ae5c11a5a152878fddd9cfa6204
-    manifestDigest: sha256:96275e43165c5c338e1a1b0be26dc4e19293c6d5045ec8a712ce5ba2924c5169
-    imageDigest: sha256:48a475ef25fb46ee05376099cf318750acdda4f8259fd0491f71611fe15a7e3b
+    codeDigest: sha256:fc4fa6abb95be4b268757d7669766de52949f4b13787724270fbaf287acc2053
+    manifestDigest: sha256:ed0c6fc748f1392dc76e2171400cf8af848a1aa7ce145d8bb71195957d703100
+    imageDigest: sha256:981e648d0000ab88a90a05d10790fa258fd396803c2d2cff9206dcb0cd22a93d
   opencode.proposer:
-    codeDigest: sha256:20744321330f8ce2643802cec7aaf118f5cfb700cd8566a68e60cf472f031c60
-    manifestDigest: sha256:10afb7af367e0d958edeb00840e14aadd96029b7e26b607283da2481f8176951
-    imageDigest: sha256:3c80986e64e6b766ef76cc99c348e498bc71d76ae283396c17e6dcdf261ebe8f
+    codeDigest: sha256:dbec5952b5513338e8f0dd7d3063c2822e3dc1d53590525c4c429e92acf317d6
+    manifestDigest: sha256:b52ef8af8ce62beb02255623739019d44cbdeba03b5c13d7cc335ef106c1a9d2
+    imageDigest: sha256:0b5d0f1e86b40c4d70157e0e4b4c5a13ef58554e8dee0788a3157903cbe55c7c

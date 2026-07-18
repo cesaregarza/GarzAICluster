@@ -62,7 +62,7 @@ class GrantOwnershipTests(unittest.TestCase):
 
         source_path = root / OWNERSHIP_SOURCE_PATH
         source_contract = YAML_PARSER.load(source_path.read_text())
-        source_contract["deployment_owned_capability_keys"].remove("model_lease")
+        source_contract["deployment_owned_capability_keys"].remove("model_bounds")
         _write_yaml(source_path, source_contract)
 
         current = build_ownership_map(repo_root=REPO_ROOT)
@@ -70,11 +70,11 @@ class GrantOwnershipTests(unittest.TestCase):
 
         self.assertNotEqual(changed, current)
         self.assertIn(
-            "model_lease",
+            "model_bounds",
             render_ownership_markdown(changed),
         )
 
-    def test_set_grant_unsets_deployment_owned_model_lease_key(self) -> None:
+    def test_set_grant_unsets_deployment_owned_model_bounds_key(self) -> None:
         root = _fixture_repo()
         _inject_model_completion_tokens(root, 4000)
         pr_body = root / "grant-edit-pr.md"
@@ -82,13 +82,13 @@ class GrantOwnershipTests(unittest.TestCase):
         result = apply_grant_edit(
             repo_root=root,
             capability_id="agent_workloads.opencode_propose",
-            key_path="model_lease.max_completion_tokens",
+            key_path="model_bounds.max_completion_tokens",
             raw_value="unset",
             pr_body_path=pr_body,
         )
 
         capability = _capability(root, "agent_workloads.opencode_propose")
-        self.assertNotIn("max_completion_tokens", capability["model_lease"])
+        self.assertNotIn("max_completion_tokens", capability["model_bounds"])
         self.assertEqual(result.action, "unset")
         self.assertEqual(result.old_value, 4000)
         body = pr_body.read_text()
@@ -157,7 +157,7 @@ def _inject_model_completion_tokens(root: Path, value: int) -> None:
     data = load_registry_overlay_data(root)
     workload_imports = YAML_PARSER.load(data["workload_imports.yaml"])
     capability = _find_capability(workload_imports, "agent_workloads.opencode_propose")
-    capability["model_lease"]["max_completion_tokens"] = value
+    capability["model_bounds"]["max_completion_tokens"] = value
     write_registry_overlay_values(root, {"workload_imports.yaml": _yaml_text(workload_imports)})
 
 

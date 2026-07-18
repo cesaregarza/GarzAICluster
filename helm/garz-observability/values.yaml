@@ -34,6 +34,9 @@ monitoring:
       - monitoring
       - default
       - ingress-nginx
+      extraEgress: []
+    kube_state_metrics:
+      enabled: true
     alertmanager:
       enabled: true
       outboundCIDR: 0.0.0.0/0
@@ -61,6 +64,27 @@ monitoring:
           targetPort: http
     configMapName: prometheus-config
     retention: 15d
+    # Keep the Go runtime below the 2 GiB container limit so Prometheus retains
+    # headroom for queries, WAL replay, and compaction instead of relying on the
+    # cgroup OOM killer.
+    goMemoryLimit: 1200MiB
+    query:
+      # Quote large integers so Helm does not render them in scientific
+      # notation, which Prometheus's integer flag parser does not accept.
+      maxSamples: "5000000"
+      maxConcurrency: 5
+      timeout: 60s
+    fastapiScrape:
+      # The SplatTop application runs in default while this chart is released
+      # into monitoring, so discovery must not use .Release.Namespace.
+      namespace: default
+      # This is per target. Two FastAPI replicas can expose at most 30k samples
+      # per scrape, while a runaway per-player label cannot return hundreds of
+      # thousands of samples to Prometheus again.
+      sampleLimit: 15000
+    kubeletScrape:
+      enabled: false
+    staticScrapeConfigs: []
     persistence:
       enabled: true
       accessMode: ReadWriteOnce
@@ -76,6 +100,36 @@ monitoring:
     rules:
       enabled: false
       configMapName: prometheus-rules
+
+  # kube-state-metrics exposes Kubernetes object state for alerting and
+  # reservation right-sizing. Leave watched_namespaces empty to watch all
+  # namespaces with a ClusterRole.
+  kube_state_metrics:
+    enabled: false
+    replicas: 1
+    image:
+      repository: registry.k8s.io/kube-state-metrics/kube-state-metrics
+      tag: v2.19.1
+      pull_policy: IfNotPresent
+    watched_namespaces: []
+    resources_to_collect:
+      - pods
+      - nodes
+      - deployments
+      - replicasets
+      - statefulsets
+      - daemonsets
+      - jobs
+    service:
+      type: ClusterIP
+      port: 8080
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
 
   # Grafana configuration
   grafana:

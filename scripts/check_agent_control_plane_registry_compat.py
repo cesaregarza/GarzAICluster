@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import inspect
 import importlib
 import json
 import os
@@ -24,6 +25,9 @@ REGISTRY_OVERLAY_DIR = Path("apps/agent-control-plane-registry-overlay")
 REGISTRY_OVERLAY_CONFIGMAP_PATH = REGISTRY_OVERLAY_DIR / "configmap.yaml"
 REGISTRY_OVERLAY_KUSTOMIZATION_PATH = REGISTRY_OVERLAY_DIR / "kustomization.yaml"
 REGISTRY_OVERLAY_CONFIGMAP_NAME = "agent-control-plane-registry-overlay"
+SKILL_BUNDLE_DIR = Path("apps/agent-control-plane-skills")
+SKILL_BUNDLE_COMPAT_FIXTURE_DIR = Path("tests/fixtures/agent-control-plane-skills")
+SKILL_BUNDLE_CONFIGMAP_NAME = "mandate-skill-packs"
 AGENT_PLATFORM_REPO_URLS = {
     "git@github.com:cesaregarza/agent-platform.git",
     "https://github.com/cesaregarza/agent-platform",
@@ -116,6 +120,7 @@ def validate_deployed_registry_compat(
         ignore = shutil.ignore_patterns(".git", ".venv", "__pycache__", ".mypy_cache")
         shutil.copytree(agent_platform_repo, temp_repo, ignore=ignore)
         materialize_registry_overlay(temp_repo, data)
+        materialize_skill_bundle(temp_repo, _compat_skill_bundle_data(repo_root))
         _import_registry_snapshot_from(temp_repo, environment=environment)
 
     return (
@@ -163,6 +168,39 @@ def registry_overlay_data(overlay_path: Path) -> dict[str, str]:
             "registry overlay must contain kustomization.yaml or configmap.yaml"
         )
     return _registry_overlay_data_from_configmap(overlay_path)
+
+
+def skill_bundle_data(bundle_path: Path) -> dict[str, str]:
+    """Read optional local skill bundle ConfigMap data for compatibility checks."""
+    if not bundle_path.exists():
+        return {}
+    kustomization_path = bundle_path / "kustomization.yaml"
+    if not kustomization_path.exists():
+        return {}
+    rendered = _render_kustomization(bundle_path)
+    if rendered is not None:
+        with contextlib.suppress(RegistryCompatError):
+            return _named_configmap_data_from_rendered_yaml(
+                rendered,
+                configmap_name=SKILL_BUNDLE_CONFIGMAP_NAME,
+                label="skill bundle",
+            )
+    kustomization = _load_yaml(kustomization_path)
+    if "configMapGenerator" not in kustomization:
+        return {}
+    return _configmap_data_from_kustomization_sources(
+        source_dir=bundle_path,
+        kustomization_path=kustomization_path,
+        configmap_name=SKILL_BUNDLE_CONFIGMAP_NAME,
+        label="skill bundle",
+    )
+
+
+def _compat_skill_bundle_data(repo_root: Path) -> dict[str, str]:
+    data = skill_bundle_data(repo_root / SKILL_BUNDLE_DIR)
+    if data:
+        return data
+    return skill_bundle_data(repo_root / SKILL_BUNDLE_COMPAT_FIXTURE_DIR)
 
 
 def _assert_render_equivalent_to_base_configmap(
@@ -338,6 +376,19 @@ def _registry_overlay_data_from_rendered_kustomization(
 
 
 def _registry_overlay_data_from_rendered_yaml(rendered: str) -> dict[str, str]:
+    return _named_configmap_data_from_rendered_yaml(
+        rendered,
+        configmap_name=REGISTRY_OVERLAY_CONFIGMAP_NAME,
+        label="registry overlay",
+    )
+
+
+def _named_configmap_data_from_rendered_yaml(
+    rendered: str,
+    *,
+    configmap_name: str,
+    label: str,
+) -> dict[str, str]:
     for document in YAML_PARSER.load_all(rendered):
         if not isinstance(document, dict):
             continue
@@ -346,21 +397,21 @@ def _registry_overlay_data_from_rendered_yaml(rendered: str) -> dict[str, str]:
         metadata = document.get("metadata")
         if not isinstance(metadata, dict):
             continue
-        if metadata.get("name") != REGISTRY_OVERLAY_CONFIGMAP_NAME:
+        if metadata.get("name") != configmap_name:
             continue
         data = document.get("data")
         if not isinstance(data, dict):
-            raise RegistryCompatError("rendered registry overlay ConfigMap missing data")
+            raise RegistryCompatError(f"rendered {label} ConfigMap missing data")
         strings: dict[str, str] = {}
         for key, value in data.items():
             _validate_registry_overlay_key(key)
             if not isinstance(value, str) or not value.strip():
                 raise RegistryCompatError(
-                    f"rendered registry overlay ConfigMap value is empty: {key}"
+                    f"rendered {label} ConfigMap value is empty: {key}"
                 )
             strings[key] = value
         return strings
-    raise RegistryCompatError("rendered registry overlay ConfigMap not found")
+    raise RegistryCompatError(f"rendered {label} ConfigMap not found")
 
 
 def _render_kustomization(overlay_dir: Path) -> str | None:
@@ -388,37 +439,52 @@ def _registry_overlay_data_from_kustomization_sources(
     overlay_dir: Path,
     kustomization_path: Path,
 ) -> dict[str, str]:
+    return _configmap_data_from_kustomization_sources(
+        source_dir=overlay_dir,
+        kustomization_path=kustomization_path,
+        configmap_name=REGISTRY_OVERLAY_CONFIGMAP_NAME,
+        label="registry overlay",
+    )
+
+
+def _configmap_data_from_kustomization_sources(
+    *,
+    source_dir: Path,
+    kustomization_path: Path,
+    configmap_name: str,
+    label: str,
+) -> dict[str, str]:
     kustomization = _load_yaml(kustomization_path)
     generators = kustomization.get("configMapGenerator")
     if not isinstance(generators, list):
-        raise RegistryCompatError("registry overlay kustomization missing configMapGenerator")
+        raise RegistryCompatError(f"{label} kustomization missing configMapGenerator")
 
     generator = None
     for item in generators:
-        if isinstance(item, dict) and item.get("name") == REGISTRY_OVERLAY_CONFIGMAP_NAME:
+        if isinstance(item, dict) and item.get("name") == configmap_name:
             generator = item
             break
     if generator is None:
         raise RegistryCompatError(
-            f"registry overlay kustomization missing {REGISTRY_OVERLAY_CONFIGMAP_NAME} generator"
+            f"{label} kustomization missing {configmap_name} generator"
         )
 
     file_specs = generator.get("files")
     if not isinstance(file_specs, list) or not file_specs:
-        raise RegistryCompatError("registry overlay ConfigMap generator must contain files")
+        raise RegistryCompatError(f"{label} ConfigMap generator must contain files")
 
     data: dict[str, str] = {}
     for raw_spec in file_specs:
         if not isinstance(raw_spec, str) or not raw_spec:
-            raise RegistryCompatError("registry overlay ConfigMap file spec is invalid")
+            raise RegistryCompatError(f"{label} ConfigMap file spec is invalid")
         key, relative_path = _parse_kustomize_file_spec(raw_spec)
         _validate_registry_overlay_key(key)
         if key in data:
-            raise RegistryCompatError(f"registry overlay ConfigMap key is duplicated: {key}")
-        source_path = _resolve_overlay_source_path(overlay_dir, relative_path)
+            raise RegistryCompatError(f"{label} ConfigMap key is duplicated: {key}")
+        source_path = _resolve_overlay_source_path(source_dir, relative_path)
         value = source_path.read_text(encoding="utf-8")
         if not value.strip():
-            raise RegistryCompatError(f"registry overlay ConfigMap value is empty: {key}")
+            raise RegistryCompatError(f"{label} ConfigMap value is empty: {key}")
         data[key] = value
 
     return data
@@ -465,6 +531,16 @@ def materialize_registry_overlay(agent_platform_repo: Path, data: dict[str, str]
         target_dir = registry_dir if key in REGISTRY_ROOT_KEYS else imports_dir
         target = target_dir / key
         target.write_text(value, encoding="utf-8")
+
+
+def materialize_skill_bundle(agent_platform_repo: Path, data: dict[str, str]) -> None:
+    if not data:
+        return
+    skills_dir = agent_platform_repo / "skills"
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    for key, value in data.items():
+        _validate_registry_overlay_key(key)
+        (skills_dir / key).write_text(value, encoding="utf-8")
 
 
 def _validate_agent_platform_checkout(
@@ -519,8 +595,18 @@ def _import_registry_snapshot_from(repo_root: Path, *, environment: str) -> None
             raise RegistryCompatError(
                 "pinned agent-platform registry code does not expose RegistrySnapshot"
             )
+        kwargs: dict[str, Any] = {"environment": environment}
+        signature = inspect.signature(registry_snapshot.from_repo)
+        skills_dir = repo_root / "skills"
+        if skills_dir.exists() and "skill_store" in signature.parameters:
+            skills_module = importlib.import_module("mandate.loaders.skills")
+            kwargs["skill_store"] = skills_module.load_skill_store(skills_dir)
+            if "skill_store_loader" in signature.parameters:
+                kwargs["skill_store_loader"] = lambda: skills_module.load_skill_store(
+                    skills_dir
+                )
         try:
-            registry_snapshot.from_repo(repo_root, environment=environment)
+            registry_snapshot.from_repo(repo_root, **kwargs)
         except registry_error as exc:
             raise RegistryCompatError(str(exc)) from exc
         except Exception as exc:  # noqa: BLE001 - fail closed on any boot-time break.

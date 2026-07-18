@@ -1,0 +1,41 @@
+image:
+  tag: 8eff27883f7661a4c9b5f14d18a2cbb236fc4f72 # allow-latest
+
+application:
+  # Standalone generated-secret file (KSOPS: secrets/citrus-dev/django-app-key.enc.yaml)
+  # holding a real DJANGO_SECRET_KEY, encrypted with the public age recipient only.
+  generatedSecretName: citrus-dev-app-key
+  configData:
+    DJANGO_DEBUG: "False"
+    SITE_NAME: "Citrus Grace Dev"
+    DB_SCHEMA: "citrus"
+    ALLOWED_HOSTS: "dev.citrus-grace.com"
+    CSRF_TRUSTED_ORIGINS: "https://dev.citrus-grace.com"
+    DEFAULT_FROM_EMAIL: "orders@citrus-grace.com"
+    MEDIA_EMAIL: "media@citrus-grace.com"
+    HELP_EMAIL: "help@citrus-grace.com"
+    ORDERS_EMAIL: "orders@citrus-grace.com"
+    BUSINESS_TIME_ZONE: "America/Chicago"
+    EMAIL_HOST: "smtp-relay.gmail.com"
+    EMAIL_PORT: "587"
+    EMAIL_USE_TLS: "True"
+    EMAIL_USE_AUTH: "False"
+    EMAIL_TIMEOUT: "10"
+    AWS_STORAGE_BUCKET_NAME: "citrus-media-dev"
+    AWS_S3_CUSTOM_DOMAIN: "citrus-media-dev.nyc3.cdn.digitaloceanspaces.com"
+
+worker:
+  enabled: true
+
+mediaRequeue:
+  enabled: true
+
+mediaGc:
+  enabled: true
+
+ingress:
+  hosts:
+    - dev.citrus-grace.com
+  tls:
+    enabled: true
+    secretName: citrus-dev-grace-tls

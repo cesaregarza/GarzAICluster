@@ -2,8 +2,8 @@ schema_version: workload-imports.v1
 imports:
 - id: data.workspace_probe
   manifest_path: registries/imports/agent-data.workspace_probe.json
-  manifest_digest: sha256:ad0fc7d1a71d263d7da00cc1adb61251ba4b79937bc1aa3b7d69f7c6ba3c9877
-  image_digest: sha256:cd2b2b3aa851833c8718b5d92541fb9822b1594d9b6983aebf0b6615215aed9a
+  manifest_digest: sha256:fbecfcb4015aa778a5b0c40d9471dcaee18e82cc4c3cc24e358078204351480b
+  image_digest: sha256:92cb6d90f77dfa7ddbf6ab876c81742b93a62b77340b55340773ca2c38c19159
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -31,18 +31,12 @@ imports:
       output_gate:
         policy_id: deterministic-public-result-v1
         projection_id: agent_workloads.readonly_query
-      model_lease:
-        required: true
-        allowed_tier: fast
-        allowed_profiles:
-        - openai.gpt-5.3-codex-spark
-        max_prompt_tokens: 12000
-        max_completion_tokens: 32000
-        max_total_tokens: 44000
-        max_cost_usd: 10.0
+      skills:
+      - xscraper-schema
+      - xscraper-glossary
       session_authority_budget:
-        max_operations: 4
-        session_taint: prod_authority
+        max_operations: 16
+        influence: principal
       artifacts:
         allowed: false
         broker_required: true
@@ -50,7 +44,17 @@ imports:
         allowed_broker: readonly-sql-broker
         allowed_presets:
         - analytical-read
-      broker_lease:
+      model_bounds:
+        required: true
+        allowed_tier: fast
+        allowed_profiles:
+        - openai.gpt-5.3-codex-spark
+        max_prompt_tokens: null
+        max_completion_tokens: null
+        max_total_tokens: null
+        max_cost_usd: 10.0
+        max_influence: external
+      broker_bounds:
         required: true
         preset: analytical-read
         allowed_source_schemas:
@@ -72,12 +76,14 @@ imports:
         max_rows: 50
         max_runtime_seconds: 120
         max_cost_usd: 10.0
-        statement_timeout_ms: 60000
+        statement_timeout_ms: 20000
         max_concurrency: 1
+        operation_max_influence:
+          select_limited: external
 - id: opencode.proposer
   manifest_path: registries/imports/agent-opencode.proposer.json
-  manifest_digest: sha256:10afb7af367e0d958edeb00840e14aadd96029b7e26b607283da2481f8176951
-  image_digest: sha256:3c80986e64e6b766ef76cc99c348e498bc71d76ae283396c17e6dcdf261ebe8f
+  manifest_digest: sha256:b52ef8af8ce62beb02255623739019d44cbdeba03b5c13d7cc335ef106c1a9d2
+  image_digest: sha256:0b5d0f1e86b40c4d70157e0e4b4c5a13ef58554e8dee0788a3157903cbe55c7c
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -99,15 +105,9 @@ imports:
       output_gate:
         policy_id: patch-aware-opencode-proposal-v1
         projection_id: agent_workloads.opencode_propose
-      model_lease:
-        required: true
-        allowed_tier: fast
-        allowed_profiles:
-        - openai.gpt-5.3-codex-spark
-        max_cost_usd: 0.25
       session_authority_budget:
         max_operations: 100
-        session_taint: prod_authority
+        influence: principal
       disclosure:
         raw_inputs_returnable: false
         internal_sources_returnable: false
@@ -148,7 +148,14 @@ imports:
         - proposal diff bytes
         - raw task inputs
         - internal sources and broker internals
-      negative_affordances:
+      model_bounds:
+        required: true
+        allowed_tier: fast
+        allowed_profiles:
+        - openai.gpt-5.3-codex-spark
+        max_cost_usd: 0.25
+        max_influence: principal
+      limitations:
       - Returns metadata only; cannot show proposal diff bytes.
       - Must not be used for answer-style tasks.
     agent_workloads.opencode_task:
@@ -183,19 +190,9 @@ imports:
         - raw task inputs
         - internal sources and broker internals
         - proposal diff bytes
-      negative_affordances:
-      - Does not create proposal diffs or apply changes.
-      - Answer is agent output under governance, not platform-verified truth.
-      - Must not be used as a fallback when no capability matches.
-      model_lease:
-        required: true
-        allowed_tier: fast
-        allowed_profiles:
-        - openai.gpt-5.3-codex-spark
-        max_cost_usd: 0.25
       session_authority_budget:
         max_operations: 8
-        session_taint: prod_authority
+        influence: principal
       disclosure:
         raw_inputs_returnable: false
         internal_sources_returnable: false
@@ -209,6 +206,17 @@ imports:
       artifacts:
         allowed: false
         broker_required: false
+      model_bounds:
+        required: true
+        allowed_tier: fast
+        allowed_profiles:
+        - openai.gpt-5.3-codex-spark
+        max_cost_usd: 0.25
+        max_influence: principal
+      limitations:
+      - Does not create proposal diffs or apply changes.
+      - Answer is agent output under governance, not platform-verified truth.
+      - Must not be used as a fallback when no capability matches.
     agent_workloads.opencode_orchestrate:
       description: Imported OpenCode orchestrator that may select one server-authorized
         delegated child capability under the parent worker claim.
@@ -232,15 +240,17 @@ imports:
         - output_text
         - answer_text
         - answer_is_platform_verified
-        - capability_id
+        - delegated_capability_id
         - child_job_id
         - released_result
         - evidence
       disclosure_summary:
-        summary: Returns either a bounded no-match/local answer or the platform-released
-          result of one parent_only child job.
+        summary: Returns either a bounded no-match/local answer, the platform-released
+          result of one parent_only child job, or a parent failure for a terminal
+          non-success child.
         released_result: Orchestrator mode, answer text or child released result,
-          child id, delegated capability id, and evidence metadata.
+          child id, delegated capability id, terminal child status/error code when
+          a child fails, and evidence metadata.
         released_artifacts: No artifacts are expected from this capability.
         artifact_classes_allowed: []
         withheld:
@@ -249,24 +259,13 @@ imports:
         - child raw errors
         - broker internals
         - model transcripts
-      negative_affordances:
-      - Cannot create more than one child job.
-      - Cannot route to undelegated or invented capabilities.
-      - Cannot expose child jobs independently to the host channel.
-      - Must not be used as a local fallback when no governed capability matches.
-      model_lease:
-        required: true
-        allowed_tier: fast
-        allowed_profiles:
-        - openai.gpt-5.3-codex-spark
-        max_cost_usd: 10.0
       delegation:
         max_children: 1
         allowed_children:
         - agent_workloads.readonly_query
       session_authority_budget:
-        max_operations: 8
-        session_taint: prod_authority
+        max_operations: 32
+        influence: principal
       disclosure:
         raw_inputs_returnable: false
         internal_sources_returnable: false
@@ -280,10 +279,23 @@ imports:
       artifacts:
         allowed: false
         broker_required: false
+      model_bounds:
+        required: true
+        allowed_tier: fast
+        allowed_profiles:
+        - openai.gpt-5.3-codex-spark
+        max_cost_usd: 10.0
+        max_influence: principal
+      limitations:
+      - Cannot create more than one child job.
+      - Cannot retry child dispatch after an active or terminal child result.
+      - Cannot route to undelegated or invented capabilities.
+      - Cannot expose child jobs independently to the host channel.
+      - Must not be used as a local fallback when no governed capability matches.
 - id: opencode.apply_executor
   manifest_path: registries/imports/agent-opencode.apply_executor.json
-  manifest_digest: sha256:96275e43165c5c338e1a1b0be26dc4e19293c6d5045ec8a712ce5ba2924c5169
-  image_digest: sha256:48a475ef25fb46ee05376099cf318750acdda4f8259fd0491f71611fe15a7e3b
+  manifest_digest: sha256:ed0c6fc748f1392dc76e2171400cf8af848a1aa7ce145d8bb71195957d703100
+  image_digest: sha256:981e648d0000ab88a90a05d10790fa258fd396803c2d2cff9206dcb0cd22a93d
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -348,11 +360,11 @@ imports:
         - remote ref and draft PR URL until deliverer confirmation
         - raw task inputs
         - internal sources and broker internals
-      negative_affordances:
+      limitations:
       - Does not push, open, merge, or claim a remote PR.
       - Remote ref and PR URL arrive only through the deliverer callback after confirmed
         write.
       - Must not be used as a fallback when no capability matches.
       session_authority_budget:
         max_operations: 1
-        session_taint: prod_authority
+        influence: principal

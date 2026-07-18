@@ -1,0 +1,23 @@
+{
+  "CORSRules": [
+    {
+      "ID": "citrus-grace-browser-media-upload",
+      "AllowedOrigins": [
+        "https://citrus-grace.com",
+        "https://www.citrus-grace.com",
+        "https://dev.citrus-grace.com"
+      ],
+      "AllowedMethods": [
+        "GET",
+        "POST"
+      ],
+      "AllowedHeaders": [
+        "*"
+      ],
+      "ExposeHeaders": [
+        "ETag"
+      ],
+      "MaxAgeSeconds": 3600
+    }
+  ]
+}
