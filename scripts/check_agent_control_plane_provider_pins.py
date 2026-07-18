@@ -316,6 +316,7 @@ def _validate_agent_platform_checkout(
 def _provider_pin_locations(values: Mapping[str, Any]) -> tuple[PinLocation, ...]:
     control_env = _control_api_process_env(values)
     gateway_env = _model_gateway_process_env(values)
+    local_worker_env = _local_worker_process_env(values)
     return (
         PinLocation(
             process="control-api",
@@ -326,6 +327,11 @@ def _provider_pin_locations(values: Mapping[str, Any]) -> tuple[PinLocation, ...
             process="model-gateway",
             value_path=("modelGateway", "env", PROVIDER_PINS_ENV),
             env=gateway_env,
+        ),
+        PinLocation(
+            process="control-api",
+            value_path=("localWorker", "env", PROVIDER_PINS_ENV),
+            env=local_worker_env,
         ),
     )
 
@@ -344,6 +350,27 @@ def _control_api_process_env(values: Mapping[str, Any]) -> dict[str, str]:
         env,
         _optional_mapping(values.get("modelGateway")),
     )
+    env.pop(PROVIDER_PINS_ENV, None)
+    return env
+
+
+def _local_worker_process_env(values: Mapping[str, Any]) -> dict[str, str]:
+    env = _secret_env(values)
+    operator_env = _string_map(
+        values.get("env"),
+        label="agent-control-plane values env",
+    )
+    local_worker = _optional_mapping(values.get("localWorker"))
+    local_worker_env = _string_map(
+        local_worker.get("env") if local_worker else None,
+        label="agent-control-plane values localWorker.env",
+    )
+    for key, value in operator_env.items():
+        if key not in local_worker_env:
+            env[key] = value
+    _add_startup_migration_env(env, values, operator_env)
+    _add_skills_env(env, values, operator_env)
+    env.update(local_worker_env)
     env.pop(PROVIDER_PINS_ENV, None)
     return env
 

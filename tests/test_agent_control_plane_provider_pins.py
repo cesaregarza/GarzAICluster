@@ -34,6 +34,16 @@ API_PINS = {
         "protocol": "readonly_sql",
     },
 }
+WORKER_PINS = {
+    "model_gateway": {
+        "digest": "sha256:" + "4" * 64,
+        "protocol": "model_gateway",
+    },
+    "readonly-sql-broker": {
+        "digest": "sha256:" + "2" * 64,
+        "protocol": "readonly_sql",
+    },
+}
 GATEWAY_PINS = {
     "model_gateway": {
         "digest": "sha256:" + "3" * 64,
@@ -50,7 +60,7 @@ class AgentControlPlaneProviderPinTests(unittest.TestCase):
             tmp = Path(raw_tmp)
             platform_repo, target_revision = _fake_agent_platform_repo(tmp)
             config_repo = _config_repo(tmp, target_revision=target_revision)
-            seen_env: dict[str, dict[str, str]] = {}
+            seen_env: dict[str, list[dict[str, str]]] = {}
             seen_images: list[str] = []
 
             result = check_agent_control_plane_provider_pins(
@@ -69,17 +79,36 @@ class AgentControlPlaneProviderPinTests(unittest.TestCase):
                     f"sha-{target_revision[:12]}"
                 ],
             )
-            self.assertNotIn(PROVIDER_PINS_ENV, seen_env["control-api"])
+            self.assertEqual(len(seen_env["control-api"]), 2)
+            api_env = next(
+                env
+                for env in seen_env["control-api"]
+                if MODEL_GATEWAY_CODEX_AUTH_STORE_PATH_ENV in env
+            )
+            worker_env = next(
+                env
+                for env in seen_env["control-api"]
+                if MODEL_GATEWAY_CODEX_AUTH_STORE_PATH_ENV not in env
+            )
+            self.assertNotIn(PROVIDER_PINS_ENV, api_env)
+            self.assertNotIn(PROVIDER_PINS_ENV, worker_env)
             self.assertEqual(
-                seen_env["control-api"]["AGENT_PLATFORM_READONLY_SQL_DATABASE_URL"],
+                api_env["AGENT_PLATFORM_READONLY_SQL_DATABASE_URL"],
                 "postgresql://provider-pin-check@localhost/provider_pin_check",
             )
             self.assertEqual(
-                seen_env["control-api"][MODEL_GATEWAY_CODEX_AUTH_STORE_PATH_ENV],
-                "/var/lib/mandate/codex-auth/auth.json",
+                worker_env["AGENT_PLATFORM_READONLY_SQL_DATABASE_URL"],
+                "postgresql://provider-pin-check@localhost/provider_pin_check",
             )
             self.assertEqual(
-                seen_env["model-gateway"][MODEL_GATEWAY_CODEX_AUTH_STORE_PATH_ENV],
+                api_env[MODEL_GATEWAY_CODEX_AUTH_STORE_PATH_ENV],
+                "/var/lib/mandate/codex-auth/auth.json",
+            )
+            self.assertEqual(len(seen_env["model-gateway"]), 1)
+            self.assertEqual(
+                seen_env["model-gateway"][0][
+                    MODEL_GATEWAY_CODEX_AUTH_STORE_PATH_ENV
+                ],
                 "/var/lib/mandate/codex-auth/auth.json",
             )
 
@@ -143,6 +172,37 @@ class AgentControlPlaneProviderPinTests(unittest.TestCase):
                 message,
             )
             self.assertIn("sha256:" + "3" * 64, message)
+            self.assertIn("sha256:" + "8" * 64, message)
+
+    def test_stale_local_worker_pin_reports_expected_and_values_location(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            tmp = Path(raw_tmp)
+            platform_repo, target_revision = _fake_agent_platform_repo(tmp)
+            stale_worker_pins = dict(WORKER_PINS)
+            stale_worker_pins["model_gateway"] = {
+                "digest": "sha256:" + "8" * 64,
+                "protocol": "model_gateway",
+            }
+            config_repo = _config_repo(
+                tmp,
+                target_revision=target_revision,
+                worker_pins=stale_worker_pins,
+            )
+
+            with self.assertRaises(ProviderPinGateError) as raised:
+                check_agent_control_plane_provider_pins(
+                    repo_root=config_repo,
+                    agent_platform_repo=platform_repo,
+                    fingerprint_runner=_fingerprint_runner({}),
+                )
+
+            message = str(raised.exception)
+            self.assertIn(
+                "apps/agent-control-plane/values.yaml "
+                f"localWorker.env.{PROVIDER_PINS_ENV}",
+                message,
+            )
+            self.assertIn("sha256:" + "4" * 64, message)
             self.assertIn("sha256:" + "8" * 64, message)
 
     def test_target_revision_must_be_agent_platform_main_ancestor(self) -> None:
@@ -244,12 +304,17 @@ class AgentControlPlaneProviderPinTests(unittest.TestCase):
 
 
 def _fingerprint_runner(
-    seen_env: dict[str, dict[str, str]],
+    seen_env: dict[str, list[dict[str, str]]],
 ) -> Any:
     def run(process: str, env: dict[str, str], _agent_platform_repo: Path) -> str:
-        seen_env[process] = dict(env)
+        seen_env.setdefault(process, []).append(dict(env))
         if process == "control-api":
-            return _pins_json(API_PINS)
+            pins = (
+                API_PINS
+                if MODEL_GATEWAY_CODEX_AUTH_STORE_PATH_ENV in env
+                else WORKER_PINS
+            )
+            return _pins_json(pins)
         if process == "model-gateway":
             return _pins_json(GATEWAY_PINS)
         raise AssertionError(f"unexpected process: {process}")
@@ -292,6 +357,7 @@ def _config_repo(
     image_tag: str | None = None,
     api_pins: dict[str, Any] | None = None,
     gateway_pins: dict[str, Any] | None = None,
+    worker_pins: dict[str, Any] | None = None,
 ) -> Path:
     repo = tmp / f"config-{target_revision[:8]}"
     application_path = repo / "argocd" / "applications" / "agent-control-plane.yaml"
@@ -362,6 +428,11 @@ def _config_repo(
             "service": {
                 "targetPort": 8000,
             },
+            "localWorker": {
+                "env": {
+                    PROVIDER_PINS_ENV: _pins_json(worker_pins or WORKER_PINS),
+                },
+            },
             "modelGateway": {
                 "enabled": True,
                 "env": {
@@ -394,6 +465,9 @@ def _chart_values() -> dict[str, Any]:
         },
         "service": {
             "targetPort": 8000,
+        },
+        "localWorker": {
+            "env": {},
         },
         "modelGateway": {
             "env": {},
