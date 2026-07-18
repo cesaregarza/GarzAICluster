@@ -279,6 +279,9 @@ extraVolumeMounts:
     readOnly: true
 
 postgresSweep:
+  # CES-608: production owns this as a raw runtime-control CronJob so it can
+  # set startingDeadlineSeconds and a one-connection pool ceiling. Keep the
+  # reusable chart CronJob disabled to prevent duplicate sweeps.
   enabled: false
 
 syntheticLiveVerify:
