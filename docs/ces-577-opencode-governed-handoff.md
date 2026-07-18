@@ -1,7 +1,7 @@
 # CES-577 OpenCode governed handoff
 
-The OpenCode proposer and apply executor currently remain in
-`legacySharedVolume` in production. That mode is an explicit rollback boundary:
+Production activates `governedCore` as an HMAC canary for the OpenCode proposer
+and apply executor. `legacySharedVolume` remains an explicit rollback boundary:
 one pod, the existing per-container HMAC environment values, and the shared
 proposal `emptyDir`.
 

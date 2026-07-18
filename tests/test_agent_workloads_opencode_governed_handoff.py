@@ -135,7 +135,7 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
         values["opencodeArtifactHandoff"] = {"mode": "governedCore"}
         return values
 
-    def test_production_remains_explicit_legacy_rollback_mode(self) -> None:
+    def test_production_activates_governed_hmac_canary(self) -> None:
         values = _load_values()
         documents = _render(values)
         opencode_deployments = [
@@ -149,8 +149,62 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
 
         self.assertEqual(
             values["opencodeArtifactHandoff"]["mode"],
-            "legacySharedVolume",
+            "governedCore",
         )
+        self.assertEqual(
+            values["opencodeProposer"]["identity"]["mode"],
+            "hmac",
+        )
+        self.assertEqual(
+            values["opencodeApplyExecutor"]["identity"]["mode"],
+            "hmac",
+        )
+        self.assertEqual(
+            sorted(
+                document["metadata"]["name"]
+                for document in opencode_deployments
+            ),
+            [
+                "agent-workloads-opencode-apply-executor",
+                "agent-workloads-opencode-proposer",
+            ],
+        )
+        self.assertEqual(
+            [
+                container["name"]
+                for container in _find(
+                    documents,
+                    kind="Deployment",
+                    name="agent-workloads-opencode-proposer",
+                )["spec"]["template"]["spec"]["containers"]
+            ],
+            ["opencode-proposer"],
+        )
+        self.assertEqual(
+            [
+                container["name"]
+                for container in _find(
+                    documents,
+                    kind="Deployment",
+                    name="agent-workloads-opencode-apply-executor",
+                )["spec"]["template"]["spec"]["containers"]
+            ],
+            ["opencode-apply-executor"],
+        )
+
+    def test_legacy_shared_volume_remains_available_for_rollback(self) -> None:
+        values = copy.deepcopy(_load_values())
+        values["opencodeArtifactHandoff"] = {"mode": "legacySharedVolume"}
+        documents = _render(values)
+        opencode_deployments = [
+            document
+            for document in documents
+            if document.get("kind") == "Deployment"
+            and document.get("metadata", {}).get("name", "").startswith(
+                "agent-workloads-opencode"
+            )
+        ]
+
         self.assertEqual(
             [document["metadata"]["name"] for document in opencode_deployments],
             ["agent-workloads-opencode-proposer"],

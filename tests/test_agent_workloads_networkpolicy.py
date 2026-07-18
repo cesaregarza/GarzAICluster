@@ -179,6 +179,7 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             for name in (
                 "agent-workloads",
                 "agent-workloads-opencode-proposer",
+                "agent-workloads-opencode-apply-executor",
             )
         }
         expected_token_checksum = self.values["rolloutChecksums"][
@@ -260,20 +261,32 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
     def test_opencode_apply_executor_runs_without_model_or_provider_credentials(
         self,
     ) -> None:
-        deployment = _find_doc(
+        proposer_deployment = _find_doc(
             self.docs,
             kind="Deployment",
             name="agent-workloads-opencode-proposer",
         )
-        pod_spec = deployment["spec"]["template"]["spec"]
-        containers = {container["name"] for container in pod_spec["containers"]}
+        apply_deployment = _find_doc(
+            self.docs,
+            kind="Deployment",
+            name="agent-workloads-opencode-apply-executor",
+        )
+        proposer_pod = proposer_deployment["spec"]["template"]["spec"]
+        apply_pod = apply_deployment["spec"]["template"]["spec"]
         self.assertEqual(
-            containers,
-            {"opencode-proposer", "opencode-apply-executor"},
+            {container["name"] for container in proposer_pod["containers"]},
+            {"opencode-proposer"},
+        )
+        self.assertEqual(
+            {container["name"] for container in apply_pod["containers"]},
+            {"opencode-apply-executor"},
         )
 
-        proposer = _container_by_name(deployment, "opencode-proposer")
-        apply_executor = _container_by_name(deployment, "opencode-apply-executor")
+        proposer = _container_by_name(proposer_deployment, "opencode-proposer")
+        apply_executor = _container_by_name(
+            apply_deployment,
+            "opencode-apply-executor",
+        )
         proposer_env = _env_by_name(proposer)
         apply_env = _env_by_name(apply_executor)
 
@@ -332,9 +345,12 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
         self.assertNotIn("proposer-tmp", apply_mounts)
         self.assertNotIn("apply-tmp", proposer_mounts)
         self.assertEqual(apply_mounts["apply-workspace"], "/workspace/job")
-        self.assertEqual(proposer_mounts["job-workspace"], "/workspace/job")
-        self.assertEqual(apply_mounts["proposals"], "/workspace/proposals")
-        self.assertEqual(proposer_mounts["proposals"], "/workspace/proposals")
+        self.assertEqual(proposer_mounts["proposer-workspace"], "/workspace/job")
+        self.assertEqual(
+            proposer_mounts["proposer-artifacts"],
+            "/workspace/proposals",
+        )
+        self.assertNotIn("/workspace/proposals", apply_mounts.values())
 
     def test_opencode_pod_network_policy_is_broker_jailed(self) -> None:
         policy = _find_doc(
