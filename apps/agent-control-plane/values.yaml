@@ -204,6 +204,13 @@ networkPolicy:
             app.kubernetes.io/instance: agent-workloads
       - namespaceSelector:
           matchLabels:
+            kubernetes.io/metadata.name: agent-workloads
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: opencode-apply-executor
+            app.kubernetes.io/instance: agent-workloads
+      - namespaceSelector:
+          matchLabels:
             kubernetes.io/metadata.name: monitoring
         podSelector:
           matchLabels:
