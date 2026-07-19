@@ -79,3 +79,23 @@ bindings:
         - agent_workloads.opencode_orchestrate
         - agent_workloads.opencode_task
         - audit.digest
+  - id: private-admin-second-canary-account
+    description: >-
+      Second non-admin trusted account on the private-admin surface for driving
+      the OpenCode propose/task/orchestrate canary (CES-611/CES-577). Read/query
+      + OpenCode propose/task/orchestrate only; no apply, ops, deploy, or probes.
+      Cannot approve admin-gated actions or act on other users' jobs.
+    surface_identifiers:
+      guild_id: "1523242748822425750"
+      channel_id: "1523242750043226234"
+    users:
+      admins: []
+      authorized:
+        - "457258175939346455"
+    capabilities:
+      allow:
+        - agent_workloads.opencode_propose
+        - agent_workloads.opencode_task
+        - agent_workloads.opencode_orchestrate
+        - agent_workloads.readonly_query
+        - audit.digest
