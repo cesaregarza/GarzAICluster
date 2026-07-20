@@ -458,6 +458,12 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             capability["artifacts"],
             {"allowed": True, "broker_required": False},
         )
+        self.assertEqual(capability["model_bounds"]["allowed_tier"], "fast")
+        self.assertEqual(
+            capability["model_bounds"]["allowed_profiles"],
+            ["openai.gpt-5.3-codex-spark"],
+        )
+        self.assertEqual(capability["model_bounds"]["max_cost_usd"], 0.25)
         self.assertEqual(
             capability["disclosure"]["artifact_classes_allowed"],
             ["opencode_apply_result"],
@@ -589,13 +595,13 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             policy["defaults"]["aggregate_budget"]["per_capability_daily_usd"][
                 "agent_workloads.opencode_propose"
             ],
-            1.0,
+            10.0,
         )
         self.assertEqual(
             policy["defaults"]["aggregate_budget"]["per_capability_daily_usd"][
                 "agent_workloads.opencode_apply"
             ],
-            1.0,
+            10.0,
         )
 
         evals = YAML_PARSER.load(self.data["evals.yaml"])
