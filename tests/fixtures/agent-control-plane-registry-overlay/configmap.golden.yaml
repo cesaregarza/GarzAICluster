@@ -268,8 +268,8 @@ data:
         platform_daily_usd: 250.0
         per_capability_daily_usd_default: 100.0
         per_capability_daily_usd:
-          agent_workloads.opencode_apply: 1.0
-          agent_workloads.opencode_propose: 1.0
+          agent_workloads.opencode_apply: 10.0
+          agent_workloads.opencode_propose: 10.0
 
     bindings:
       - id: private-admin-controlled-capabilities
@@ -705,6 +705,10 @@ data:
           artifacts:
             allowed: true
             broker_required: false
+          model_bounds:
+            required: true
+            max_cost_usd: 0.25
+            max_influence: principal
           disclosure_summary:
             summary: OpenCode apply releases local apply metadata for the governed delivery
               arc.

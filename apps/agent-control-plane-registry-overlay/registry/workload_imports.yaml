@@ -346,6 +346,10 @@ imports:
       artifacts:
         allowed: true
         broker_required: false
+      model_bounds:
+        required: true
+        max_cost_usd: 0.25
+        max_influence: principal
       disclosure_summary:
         summary: OpenCode apply releases local apply metadata for the governed delivery
           arc.

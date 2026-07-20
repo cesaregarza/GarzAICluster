@@ -43,6 +43,7 @@ control-plane restart and do not require re-minting.
 | `agent_workloads.opencode_apply` | `disclosure` | `deployment_overlay` | `control_plane_restart` |
 | `agent_workloads.opencode_apply` | `disclosure_summary` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_apply` | `limitations` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.opencode_apply` | `model_bounds` | `deployment_overlay` | `control_plane_restart` |
 | `agent_workloads.opencode_apply` | `output_gate` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_apply` | `output_schema` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_apply` | `result_contract` | `workload_release` | `digest_moves_repin_remint` |
