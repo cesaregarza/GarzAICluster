@@ -396,12 +396,6 @@ capabilities:
         remint_required: true
         digest_moves: true
         source: workload agent.yaml
-      model_bounds:
-        owner: deployment_overlay
-        deploy_consequence: control_plane_restart
-        remint_required: false
-        digest_moves: false
-        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
       output_gate:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint

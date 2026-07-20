@@ -458,9 +458,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             capability["artifacts"],
             {"allowed": True, "broker_required": False},
         )
-        self.assertNotIn("allowed_tier", capability["model_bounds"])
-        self.assertNotIn("allowed_profiles", capability["model_bounds"])
-        self.assertEqual(capability["model_bounds"]["max_cost_usd"], 0.25)
+        self.assertNotIn("model_bounds", capability)
         self.assertEqual(
             capability["disclosure"]["artifact_classes_allowed"],
             ["opencode_apply_result"],
@@ -598,7 +596,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             policy["defaults"]["aggregate_budget"]["per_capability_daily_usd"][
                 "agent_workloads.opencode_apply"
             ],
-            10.0,
+            50.0,
         )
 
         evals = YAML_PARSER.load(self.data["evals.yaml"])
