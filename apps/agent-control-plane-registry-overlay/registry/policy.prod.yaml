@@ -11,7 +11,7 @@ defaults:
     platform_daily_usd: 250.0
     per_capability_daily_usd_default: 100.0
     per_capability_daily_usd:
-      agent_workloads.opencode_apply: 10.0
+      agent_workloads.opencode_apply: 50.0
       agent_workloads.opencode_propose: 10.0
 
 bindings:
