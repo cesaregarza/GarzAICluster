@@ -384,8 +384,11 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertEqual(opencode["agent"]["network_access"], "broker_only")
 
         capability = opencode["capabilities"]["agent_workloads.opencode_propose"]
-        self.assertNotIn("allowed_tier", capability["model_bounds"])
-        self.assertNotIn("allowed_profiles", capability["model_bounds"])
+        self.assertEqual(capability["model_bounds"]["allowed_tier"], "fast")
+        self.assertEqual(
+            capability["model_bounds"]["allowed_profiles"],
+            ["openai.gpt-5.3-codex-spark"],
+        )
         self.assertEqual(capability["model_bounds"]["max_cost_usd"], 0.25)
         self.assertEqual(capability["session_authority_budget"]["max_operations"], 100)
         self.assertEqual(
@@ -455,11 +458,8 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             capability["artifacts"],
             {"allowed": True, "broker_required": False},
         )
-        self.assertEqual(capability["model_bounds"]["allowed_tier"], "fast")
-        self.assertEqual(
-            capability["model_bounds"]["allowed_profiles"],
-            ["openai.gpt-5.3-codex-spark"],
-        )
+        self.assertNotIn("allowed_tier", capability["model_bounds"])
+        self.assertNotIn("allowed_profiles", capability["model_bounds"])
         self.assertEqual(capability["model_bounds"]["max_cost_usd"], 0.25)
         self.assertEqual(
             capability["disclosure"]["artifact_classes_allowed"],

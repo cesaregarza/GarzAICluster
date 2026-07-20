@@ -150,6 +150,9 @@ imports:
         - internal sources and broker internals
       model_bounds:
         required: true
+        allowed_tier: fast
+        allowed_profiles:
+        - openai.gpt-5.3-codex-spark
         max_cost_usd: 0.25
         max_influence: principal
       limitations:
@@ -345,9 +348,6 @@ imports:
         broker_required: false
       model_bounds:
         required: true
-        allowed_tier: fast
-        allowed_profiles:
-        - openai.gpt-5.3-codex-spark
         max_cost_usd: 0.25
         max_influence: principal
       disclosure_summary:
