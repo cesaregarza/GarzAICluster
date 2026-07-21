@@ -1,0 +1,248 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: registry-overlay-restart-
+  namespace: agent-control-plane
+  labels:
+    app.kubernetes.io/name: agent-control-plane
+    app.kubernetes.io/component: registry-overlay-restart
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    # generateName creates a fresh hook for every sync. Argo removes successful
+    # hooks; failed hooks remain available for the bounded diagnostic window.
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  # A retry would restart already-healthy predecessors again. Fail the Argo
+  # operation immediately and leave the exact failed deployment in hook logs.
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  # Five sequential 240-second rollout budgets plus scheduling overhead.
+  activeDeadlineSeconds: 1500
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-control-plane
+        app.kubernetes.io/component: registry-overlay-restart
+    spec:
+      serviceAccountName: registry-overlay-restart
+      restartPolicy: Never
+      containers:
+        - name: rollout-restart
+          # CES-108/CES-538: the control plane boot-caches the registry
+          # snapshot; an overlay sync without a rollout leaves stale authority.
+          image: alpine/k8s:1.33.4@sha256:b0523f0a244ddc4c8e055aa335c040d3d78b3ead5528f4544395f7f9f69c7b68
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              namespace="agent-control-plane"
+              rollout_timeout_seconds="${ROLLOUT_TIMEOUT_SECONDS:-240}"
+              rollout_poll_seconds="${ROLLOUT_POLL_SECONDS:-5}"
+
+              # Keep the shared RWO auth-volume pair together first: the API
+              # replacement is constrained to the live gateway node, then the
+              # gateway replacement prefers the newly healthy API node. Only
+              # after that core pair is healthy do boot-cached consumers roll.
+              deployments="agent-control-plane agent-control-plane-model-gateway agent-control-plane-callback-adapter agent-control-plane-git-deliverer agent-control-plane-local-worker"
+
+              log() {
+                printf '[registry-overlay-restart] %s\n' "$*"
+              }
+
+              component_for_deployment() {
+                case "$1" in
+                  agent-control-plane) printf '%s\n' api ;;
+                  agent-control-plane-model-gateway) printf '%s\n' model-gateway ;;
+                  agent-control-plane-callback-adapter) printf '%s\n' callback-adapter ;;
+                  agent-control-plane-git-deliverer) printf '%s\n' git-deliverer ;;
+                  agent-control-plane-local-worker) printf '%s\n' local-worker ;;
+                  *) return 1 ;;
+                esac
+              }
+
+              kubectl_with_deadline() {
+                deployment="$1"
+                phase="$2"
+                deadline="$3"
+                shift 3
+
+                if ! now="$(date +%s)"; then
+                  log "deployment=$deployment phase=$phase result=failed reason=clock-read" >&2
+                  return 1
+                fi
+                remaining_seconds="$((deadline - now))"
+                if [ "$remaining_seconds" -le 0 ]; then
+                  log "deployment=$deployment phase=$phase result=failed reason=timeout timeout_seconds=$rollout_timeout_seconds" >&2
+                  return 1
+                fi
+
+                if kubectl --request-timeout="${remaining_seconds}s" "$@"; then
+                  return 0
+                else
+                  kubectl_status="$?"
+                fi
+
+                if ! now="$(date +%s)"; then
+                  log "deployment=$deployment phase=$phase result=failed reason=clock-read kubectl_exit_code=$kubectl_status" >&2
+                  return "$kubectl_status"
+                fi
+                remaining_seconds="$((deadline - now))"
+                if [ "$remaining_seconds" -le 0 ]; then
+                  log "deployment=$deployment phase=$phase result=failed reason=timeout timeout_seconds=$rollout_timeout_seconds" >&2
+                else
+                  log "deployment=$deployment phase=$phase result=failed reason=api-error kubectl_exit_code=$kubectl_status remaining_seconds=$remaining_seconds" >&2
+                fi
+                return "$kubectl_status"
+              }
+
+              list_component_pods() {
+                deployment="$1"
+                component="$2"
+                phase="$3"
+                deadline="$4"
+                selector="app.kubernetes.io/name=agent-control-plane,app.kubernetes.io/instance=agent-control-plane,app.kubernetes.io/component=$component"
+                kubectl_with_deadline "$deployment" "$phase" "$deadline" \
+                  -n "$namespace" get pods -l "$selector" \
+                  -o 'jsonpath={range .items[*]}{.metadata.name}{"\n"}{end}'
+              }
+
+              wait_for_rollout() {
+                deployment="$1"
+                deadline="$2"
+
+                while true; do
+                  if ! state="$(
+                    kubectl_with_deadline "$deployment" wait "$deadline" \
+                      -n "$namespace" get "deployment/$deployment" \
+                      -o 'jsonpath={.metadata.generation}|{.status.observedGeneration}|{.spec.replicas}|{.status.replicas}|{.status.updatedReplicas}|{.status.readyReplicas}|{.status.availableReplicas}'
+                  )"; then
+                    return 1
+                  fi
+
+                  old_ifs="$IFS"
+                  IFS='|'
+                  set -- $state
+                  IFS="$old_ifs"
+                  generation="${1:-0}"
+                  observed="${2:-0}"
+                  desired="${3:-1}"
+                  replicas="${4:-0}"
+                  updated="${5:-0}"
+                  ready="${6:-0}"
+                  available="${7:-0}"
+
+                  log "deployment=$deployment phase=wait generation=$generation observed=$observed desired=$desired replicas=$replicas updated=$updated ready=$ready available=$available"
+
+                  if [ "$observed" -ge "$generation" ] \
+                    && [ "$replicas" -eq "$desired" ] \
+                    && [ "$updated" -eq "$desired" ] \
+                    && [ "$ready" -eq "$desired" ] \
+                    && [ "$available" -eq "$desired" ]; then
+                    return 0
+                  fi
+
+                  if [ "$(date +%s)" -ge "$deadline" ]; then
+                    log "deployment=$deployment phase=wait result=failed reason=timeout timeout_seconds=$rollout_timeout_seconds" >&2
+                    return 1
+                  fi
+                  sleep "$rollout_poll_seconds"
+                done
+              }
+
+              wait_for_old_pods_deleted() {
+                deployment="$1"
+                component="$2"
+                old_pods="$3"
+                deadline="$4"
+
+                if [ -z "$old_pods" ]; then
+                  log "deployment=$deployment phase=drain result=completed remaining_old_pods=0"
+                  return 0
+                fi
+
+                while true; do
+                  if ! current_pods="$(
+                    list_component_pods "$deployment" "$component" drain "$deadline"
+                  )"; then
+                    return 1
+                  fi
+
+                  remaining_pods=""
+                  remaining_count=0
+                  for old_pod in $old_pods; do
+                    for current_pod in $current_pods; do
+                      if [ "$current_pod" = "$old_pod" ]; then
+                        remaining_pods="${remaining_pods}${remaining_pods:+ }$old_pod"
+                        remaining_count="$((remaining_count + 1))"
+                        break
+                      fi
+                    done
+                  done
+
+                  log "deployment=$deployment phase=drain remaining_old_pods=$remaining_count names=${remaining_pods:-none}"
+                  if [ "$remaining_count" -eq 0 ]; then
+                    return 0
+                  fi
+
+                  if [ "$(date +%s)" -ge "$deadline" ]; then
+                    log "deployment=$deployment phase=drain result=failed reason=timeout remaining_old_pods=$remaining_count names=$remaining_pods timeout_seconds=$rollout_timeout_seconds" >&2
+                    return 1
+                  fi
+                  sleep "$rollout_poll_seconds"
+                done
+              }
+
+              for deployment in $deployments; do
+                if ! component="$(component_for_deployment "$deployment")"; then
+                  log "deployment=$deployment phase=capture result=failed reason=unknown-component" >&2
+                  exit 1
+                fi
+                deadline="$(( $(date +%s) + rollout_timeout_seconds ))"
+                if ! old_pods="$(
+                  list_component_pods "$deployment" "$component" capture "$deadline"
+                )"; then
+                  exit 1
+                fi
+                old_pod_count=0
+                old_pod_names=""
+                for old_pod in $old_pods; do
+                  old_pod_count="$((old_pod_count + 1))"
+                  old_pod_names="${old_pod_names}${old_pod_names:+ }$old_pod"
+                done
+                log "deployment=$deployment phase=capture result=completed old_pods=$old_pod_count names=${old_pod_names:-none}"
+
+                log "deployment=$deployment phase=restart result=started"
+                if ! kubectl_with_deadline "$deployment" restart "$deadline" \
+                  -n "$namespace" rollout restart "deployment/$deployment"; then
+                  exit 1
+                fi
+                log "deployment=$deployment phase=restart result=completed"
+
+                log "deployment=$deployment phase=wait result=started timeout_seconds=$rollout_timeout_seconds"
+                if ! wait_for_rollout "$deployment" "$deadline"; then
+                  exit 1
+                fi
+                log "deployment=$deployment phase=wait result=completed"
+
+                log "deployment=$deployment phase=drain result=started timeout_seconds=$rollout_timeout_seconds"
+                if ! wait_for_old_pods_deleted "$deployment" "$component" "$old_pods" "$deadline"; then
+                  exit 1
+                fi
+                log "deployment=$deployment phase=drain result=completed"
+              done
+
+              log "phase=complete result=succeeded deployments=5"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

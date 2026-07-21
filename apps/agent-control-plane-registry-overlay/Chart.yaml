@@ -1,0 +1,5 @@
+apiVersion: v2
+name: agent-control-plane-registry-overlay
+description: Production registry overlay and fail-closed restart hook
+type: application
+version: 0.1.0

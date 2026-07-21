@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-control-plane-registry-overlay
+  namespace: agent-control-plane
+  labels:
+    app.kubernetes.io/name: agent-control-plane
+    app.kubernetes.io/component: registry-overlay
+data:
+  workload_imports.yaml: |
+{{ .Files.Get "registry/workload_imports.yaml" | indent 4 }}
+  policy.prod.yaml: |
+{{ .Files.Get "registry/policy.prod.yaml" | indent 4 }}
+  evals.yaml: |
+{{ .Files.Get "registry/evals.yaml" | indent 4 }}
+  agent-data.workspace_probe.json: |
+{{ .Files.Get "registry/imports/agent-data.workspace_probe.json" | indent 4 }}
+  agent-opencode.proposer.json: |
+{{ .Files.Get "registry/imports/agent-opencode.proposer.json" | indent 4 }}
+  agent-opencode.apply_executor.json: |
+{{ .Files.Get "registry/imports/agent-opencode.apply_executor.json" | indent 4 }}
+  opencode_proposer_smoke.jsonl: |
+{{ .Files.Get "registry/imports/opencode_proposer_smoke.jsonl" | indent 4 }}
+  opencode_apply_smoke.jsonl: |
+{{ .Files.Get "registry/imports/opencode_apply_smoke.jsonl" | indent 4 }}

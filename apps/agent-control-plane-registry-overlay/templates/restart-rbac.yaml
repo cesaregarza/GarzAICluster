@@ -20,14 +20,17 @@ rules:
     resources: ["deployments"]
     resourceNames:
       - agent-control-plane
+      - agent-control-plane-model-gateway
       - agent-control-plane-callback-adapter
       - agent-control-plane-git-deliverer
       - agent-control-plane-local-worker
-      - agent-control-plane-model-gateway
-    verbs: ["get", "watch", "patch"]
-  - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["list", "watch"]
+    verbs: ["get", "patch"]
+  # Generated pod names cannot be constrained with resourceNames. List-only
+  # access is the narrowest permission that lets the hook capture each
+  # component's pre-restart pods and wait for their full deletion.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

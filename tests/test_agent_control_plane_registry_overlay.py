@@ -1,15 +1,42 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
 
 from ruamel.yaml import YAML
+from scripts.check_agent_control_plane_registry_overlay_render import (
+    render_registry_overlay_application,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_OVERLAY_DIR = REPO_ROOT / "apps" / "agent-control-plane-registry-overlay"
 REGISTRY_OVERLAY_CONFIGMAP_NAME = "agent-control-plane-registry-overlay"
+REGISTRY_OVERLAY_RESTART_HOOK_PATH = (
+    REGISTRY_OVERLAY_DIR / "templates" / "restart-hook.yaml"
+)
+REGISTRY_OVERLAY_RESTART_RBAC_PATH = (
+    REGISTRY_OVERLAY_DIR / "templates" / "restart-rbac.yaml"
+)
+REGISTRY_OVERLAY_RESTART_ORDER = [
+    "agent-control-plane",
+    "agent-control-plane-model-gateway",
+    "agent-control-plane-callback-adapter",
+    "agent-control-plane-git-deliverer",
+    "agent-control-plane-local-worker",
+]
+REGISTRY_OVERLAY_COMPONENTS = {
+    "agent-control-plane": "api",
+    "agent-control-plane-model-gateway": "model-gateway",
+    "agent-control-plane-callback-adapter": "callback-adapter",
+    "agent-control-plane-git-deliverer": "git-deliverer",
+    "agent-control-plane-local-worker": "local-worker",
+}
 SKILL_BUNDLE_DIR = REPO_ROOT / "apps" / "agent-control-plane-skills"
 YAML_PARSER = YAML(typ="safe")
 
@@ -100,10 +127,10 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             REPO_ROOT / "argocd" / "projects" / "splattop-project.yaml"
         )
         cls.registry_overlay_restart_hook = _load_yaml(
-            REGISTRY_OVERLAY_DIR / "hooks" / "restart-hook.yaml"
+            REGISTRY_OVERLAY_RESTART_HOOK_PATH
         )
         cls.registry_overlay_restart_rbac = _load_yaml_documents(
-            REGISTRY_OVERLAY_DIR / "restart-rbac.yaml"
+            REGISTRY_OVERLAY_RESTART_RBAC_PATH
         )
         cls.model_gateway_controls = _load_yaml(
             REPO_ROOT
@@ -112,15 +139,18 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             / "configmap.yaml"
         )
 
-    def test_registry_overlay_is_authored_as_kustomize_file_generator(self) -> None:
+    def test_registry_overlay_is_authored_as_single_source_helm_chart(self) -> None:
         kustomization = _load_yaml(REGISTRY_OVERLAY_DIR / "kustomization.yaml")
         self.assertFalse((REGISTRY_OVERLAY_DIR / "configmap.yaml").exists())
+        chart = _load_yaml(REGISTRY_OVERLAY_DIR / "Chart.yaml")
+        self.assertEqual(chart["name"], "agent-control-plane-registry-overlay")
         self.assertEqual(kustomization["kind"], "Kustomization")
-        self.assertEqual(kustomization["resources"], ["restart-rbac.yaml"])
-        self.assertTrue(
-            (REGISTRY_OVERLAY_DIR / "hooks" / "restart-hook.yaml").exists()
+        self.assertEqual(
+            kustomization["resources"], ["templates/restart-rbac.yaml"]
         )
-        self.assertFalse((REGISTRY_OVERLAY_DIR / "hooks" / "kustomization.yaml").exists())
+        self.assertTrue(REGISTRY_OVERLAY_RESTART_HOOK_PATH.exists())
+        self.assertTrue(REGISTRY_OVERLAY_RESTART_RBAC_PATH.exists())
+        self.assertFalse(any((REGISTRY_OVERLAY_DIR / "hooks").glob("*.yaml")))
         self.assertTrue(kustomization["generatorOptions"]["disableNameSuffixHash"])
 
         generator = next(
@@ -279,61 +309,70 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertIn("--field-manager=mandate-skill-bundle-sync", script)
         self.assertNotIn("kubectl create -f", script)
 
-    def test_registry_overlay_restart_hook_runs_without_selective_sync(self) -> None:
-        expected_deployments = [
-            "agent-control-plane",
-            "agent-control-plane-callback-adapter",
-            "agent-control-plane-git-deliverer",
-            "agent-control-plane-local-worker",
-            "agent-control-plane-model-gateway",
-        ]
+    def test_registry_overlay_restart_hook_is_fail_closed_and_least_privilege(
+        self,
+    ) -> None:
         annotations = self.registry_overlay_restart_hook["metadata"]["annotations"]
         self.assertEqual(annotations["argocd.argoproj.io/hook"], "PostSync")
         self.assertEqual(
             annotations["argocd.argoproj.io/hook-delete-policy"],
-            "BeforeHookCreation",
+            "HookSucceeded",
         )
         self.assertEqual(
             self.registry_overlay_restart_hook["metadata"]["generateName"],
             "registry-overlay-restart-",
         )
         self.assertNotIn("name", self.registry_overlay_restart_hook["metadata"])
+        self.assertEqual(self.registry_overlay_restart_hook["spec"]["backoffLimit"], 0)
+        self.assertEqual(
+            self.registry_overlay_restart_hook["spec"]["ttlSecondsAfterFinished"],
+            86400,
+        )
+        self.assertEqual(
+            self.registry_overlay_restart_hook["spec"]["activeDeadlineSeconds"],
+            1500,
+        )
 
         restart_script = self.registry_overlay_restart_hook["spec"]["template"]["spec"][
             "containers"
         ][0]["command"][-1]
         self.assertEqual(
-            restart_script.split('deploys="', 1)[1].split('"', 1)[0].split(),
-            expected_deployments,
+            restart_script.split('deployments="', 1)[1].split('"', 1)[0].split(),
+            REGISTRY_OVERLAY_RESTART_ORDER,
         )
+        self.assertNotIn("rollout status", restart_script)
+        self.assertIn('get "deployment/$deployment"', restart_script)
         restart_role = next(
             document
             for document in self.registry_overlay_restart_rbac
             if document["kind"] == "Role"
         )
-        restart_rule = next(
-            rule
-            for rule in restart_role["rules"]
-            if rule["resources"] == ["deployments"] and "resourceNames" in rule
-        )
-        self.assertEqual(restart_rule["resourceNames"], expected_deployments)
-
-        self.assertNotIn("source", self.registry_overlay_application["spec"])
         self.assertEqual(
-            self.registry_overlay_application["spec"]["sources"],
+            restart_role["rules"],
             [
                 {
-                    "repoURL": "https://github.com/cesaregarza/GarzAICluster",
-                    "targetRevision": "main",
-                    "path": "apps/agent-control-plane-registry-overlay",
+                    "apiGroups": ["apps"],
+                    "resources": ["deployments"],
+                    "resourceNames": REGISTRY_OVERLAY_RESTART_ORDER,
+                    "verbs": ["get", "patch"],
                 },
                 {
-                    "repoURL": "https://github.com/cesaregarza/GarzAICluster",
-                    "targetRevision": "main",
-                    "path": "apps/agent-control-plane-registry-overlay/hooks",
-                    "directory": {"recurse": False},
+                    "apiGroups": [""],
+                    "resources": ["pods"],
+                    "verbs": ["list"],
                 },
             ],
+        )
+
+    def test_registry_overlay_application_is_one_indivisible_helm_source(self) -> None:
+        self.assertNotIn("sources", self.registry_overlay_application["spec"])
+        self.assertEqual(
+            self.registry_overlay_application["spec"]["source"],
+            {
+                "repoURL": "https://github.com/cesaregarza/GarzAICluster",
+                "targetRevision": "main",
+                "path": "apps/agent-control-plane-registry-overlay",
+            },
         )
 
         sync_options = set(
@@ -344,7 +383,283 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertIn("CreateNamespace=true", sync_options)
         self.assertNotIn("ApplyOutOfSyncOnly=true", sync_options)
 
-    def test_ci_runs_real_registry_overlay_kustomize_render_gate(self) -> None:
+    def test_complete_application_render_contains_generated_postsync_job(self) -> None:
+        helm = shutil.which("helm")
+        if helm is None:
+            self.skipTest("helm is required for complete Application render test")
+
+        documents = render_registry_overlay_application(
+            repo_root=REPO_ROOT,
+            helm=helm,
+        )
+        hooks = [
+            document
+            for document in documents
+            if document.get("kind") == "Job"
+            and document.get("metadata", {}).get("generateName")
+            == "registry-overlay-restart-"
+        ]
+        self.assertEqual(len(documents), 5)
+        self.assertEqual(len(hooks), 1)
+        self.assertEqual(
+            hooks[0]["metadata"]["annotations"]["argocd.argoproj.io/hook"],
+            "PostSync",
+        )
+
+    def test_restart_script_waits_for_each_deployment_before_restarting_next(
+        self,
+    ) -> None:
+        restart_script = self.registry_overlay_restart_hook["spec"]["template"]["spec"][
+            "containers"
+        ][0]["command"][-1]
+        result, calls = self._run_restart_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        expected_calls = []
+        request_timeout = "--request-timeout=1s "
+        for deployment in REGISTRY_OVERLAY_RESTART_ORDER:
+            component = REGISTRY_OVERLAY_COMPONENTS[deployment]
+            pod_list = (
+                request_timeout
+                + "-n agent-control-plane get pods -l "
+                "app.kubernetes.io/name=agent-control-plane,"
+                "app.kubernetes.io/instance=agent-control-plane,"
+                f"app.kubernetes.io/component={component} -o "
+                'jsonpath={range .items[*]}{.metadata.name}{"\\n"}{end}'
+            )
+            expected_calls.extend(
+                [
+                    pod_list,
+                    (
+                        request_timeout
+                        + "-n agent-control-plane rollout restart "
+                        f"deployment/{deployment}"
+                    ),
+                    (
+                        request_timeout
+                        + "-n agent-control-plane get "
+                        f"deployment/{deployment} -o "
+                        "jsonpath={.metadata.generation}|"
+                        "{.status.observedGeneration}|{.spec.replicas}|"
+                        "{.status.replicas}|{.status.updatedReplicas}|"
+                        "{.status.readyReplicas}|{.status.availableReplicas}"
+                    ),
+                    pod_list,
+                ]
+            )
+        self.assertEqual(calls, expected_calls)
+        self.assertIn("phase=complete result=succeeded deployments=5", result.stdout)
+        self.assertIn(
+            'wait_for_rollout "$deployment" "$deadline"', restart_script
+        )
+        self.assertIn(
+            'wait_for_old_pods_deleted "$deployment" "$component" '
+            '"$old_pods" "$deadline"',
+            restart_script,
+        )
+        self.assertEqual(
+            restart_script.count(
+                'deadline="$(( $(date +%s) + rollout_timeout_seconds ))"'
+            ),
+            1,
+            "rollout readiness and old-pod drain must share one deadline",
+        )
+
+    def test_restart_script_timeout_names_deployment_and_stops_later_restarts(
+        self,
+    ) -> None:
+        failed = "agent-control-plane-model-gateway"
+        result, calls = self._run_restart_script(fail_wait_deployment=failed)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            f"deployment={failed} phase=wait result=failed reason=timeout",
+            result.stderr,
+        )
+        self.assertFalse(
+            any("agent-control-plane-callback-adapter" in call for call in calls)
+        )
+
+    def test_restart_script_restart_error_names_deployment_and_stops(self) -> None:
+        failed = "agent-control-plane-git-deliverer"
+        result, calls = self._run_restart_script(fail_restart_deployment=failed)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            f"deployment={failed} phase=restart result=failed",
+            result.stderr,
+        )
+        self.assertIn("reason=api-error kubectl_exit_code=17", result.stderr)
+        self.assertFalse(any("agent-control-plane-local-worker" in call for call in calls))
+
+    def test_restart_script_bounds_hanging_capture_and_stops(self) -> None:
+        failed = "agent-control-plane-model-gateway"
+        result, calls = self._run_restart_script(
+            hang_capture_deployment=failed,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            f"deployment={failed} phase=capture result=failed reason=timeout",
+            result.stderr,
+        )
+        self.assertTrue(
+            any(
+                call.startswith("--request-timeout=1s ")
+                and "app.kubernetes.io/component=model-gateway" in call
+                for call in calls
+            )
+        )
+        self.assertFalse(
+            any(f"rollout restart deployment/{failed}" in call for call in calls)
+        )
+        self.assertFalse(
+            any("agent-control-plane-callback-adapter" in call for call in calls)
+        )
+
+    def test_restart_script_waits_for_lingering_old_pod_and_stops(self) -> None:
+        failed = "agent-control-plane-model-gateway"
+        component = REGISTRY_OVERLAY_COMPONENTS[failed]
+        result, calls = self._run_restart_script(
+            linger_old_pod_deployment=failed,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            f"deployment={failed} phase=drain result=failed reason=timeout "
+            f"remaining_old_pods=1 names={component}-old",
+            result.stderr,
+        )
+        self.assertFalse(
+            any("agent-control-plane-callback-adapter" in call for call in calls)
+        )
+
+    def _run_restart_script(
+        self,
+        *,
+        fail_wait_deployment: str = "",
+        fail_restart_deployment: str = "",
+        linger_old_pod_deployment: str = "",
+        hang_capture_deployment: str = "",
+    ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+        restart_script = self.registry_overlay_restart_hook["spec"]["template"]["spec"][
+            "containers"
+        ][0]["command"][-1]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            kubectl_log = tmp_path / "kubectl.log"
+            deadline_expired = tmp_path / "deadline-expired"
+            fake_date = tmp_path / "date"
+            fake_date.write_text(
+                """#!/bin/sh
+if [ -f "$DEADLINE_EXPIRED_FILE" ]; then
+  printf '1001\\n'
+else
+  printf '1000\\n'
+fi
+""",
+                encoding="utf-8",
+            )
+            fake_date.chmod(0o755)
+            fake_kubectl = tmp_path / "kubectl"
+            fake_kubectl.write_text(
+                """#!/bin/sh
+printf '%s\\n' "$*" >> "$KUBECTL_LOG"
+case "$1" in
+  --request-timeout=*s)
+    request_timeout_seconds="${1#--request-timeout=}"
+    request_timeout_seconds="${request_timeout_seconds%s}"
+    shift
+    ;;
+  *)
+    exit 65
+    ;;
+esac
+case "$3" in
+  rollout)
+    deployment="${5#deployment/}"
+    if [ "$deployment" = "$FAIL_RESTART_DEPLOYMENT" ]; then
+      exit 17
+    fi
+    exit 0
+    ;;
+  get)
+    case "$4" in
+      deployment/*)
+        deployment="${4#deployment/}"
+        if [ "$deployment" = "$FAIL_WAIT_DEPLOYMENT" ]; then
+          : > "$DEADLINE_EXPIRED_FILE"
+          printf '2|1|1|1|0|0|0'
+        else
+          printf '2|2|1|1|1|1|1'
+        fi
+        exit 0
+        ;;
+      pods)
+        selector="$6"
+        component="${selector##*app.kubernetes.io/component=}"
+        state_file="$POD_LIST_STATE_DIR/$component"
+        pod_list_count=0
+        if [ -f "$state_file" ]; then
+          IFS= read -r pod_list_count < "$state_file"
+        fi
+        if [ "$component" = "$HANG_CAPTURE_COMPONENT" ] \
+          && [ "$pod_list_count" -eq 0 ]; then
+          sleep "$request_timeout_seconds"
+          : > "$DEADLINE_EXPIRED_FILE"
+          exit 28
+        fi
+        pod_list_count="$((pod_list_count + 1))"
+        printf '%s\\n' "$pod_list_count" > "$state_file"
+        if [ "$component" = "$LINGERING_OLD_POD_COMPONENT" ] \
+          && [ "$pod_list_count" -gt 1 ]; then
+          : > "$DEADLINE_EXPIRED_FILE"
+        fi
+        if [ "$pod_list_count" -eq 1 ] \
+          || [ "$component" = "$LINGERING_OLD_POD_COMPONENT" ]; then
+          printf '%s-old\\n' "$component"
+        fi
+        exit 0
+        ;;
+    esac
+    exit 64
+    ;;
+esac
+exit 64
+""",
+                encoding="utf-8",
+            )
+            fake_kubectl.chmod(0o755)
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{tmp_path}:{env['PATH']}",
+                    "KUBECTL_LOG": str(kubectl_log),
+                    "FAIL_WAIT_DEPLOYMENT": fail_wait_deployment,
+                    "FAIL_RESTART_DEPLOYMENT": fail_restart_deployment,
+                    "DEADLINE_EXPIRED_FILE": str(deadline_expired),
+                    "HANG_CAPTURE_COMPONENT": REGISTRY_OVERLAY_COMPONENTS.get(
+                        hang_capture_deployment, ""
+                    ),
+                    "LINGERING_OLD_POD_COMPONENT": REGISTRY_OVERLAY_COMPONENTS.get(
+                        linger_old_pod_deployment, ""
+                    ),
+                    "POD_LIST_STATE_DIR": str(tmp_path),
+                    "ROLLOUT_TIMEOUT_SECONDS": "1",
+                    "ROLLOUT_POLL_SECONDS": "0",
+                }
+            )
+            result = subprocess.run(
+                ["/bin/sh", "-ec", restart_script],
+                cwd=REPO_ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            calls = (
+                kubectl_log.read_text(encoding="utf-8").splitlines()
+                if kubectl_log.exists()
+                else []
+            )
+        return result, calls
+
+    def test_ci_runs_complete_registry_overlay_application_render_gate(self) -> None:
         workflow = _load_yaml(REPO_ROOT / ".github" / "workflows" / "ci.yaml")
         job = workflow["jobs"]["agent-control-plane-registry-overlay-render"]
         run_steps = [
@@ -352,17 +667,35 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             for step in job["steps"]
             if isinstance(step, dict) and "run" in step
         ]
+        uses_steps = [
+            step.get("uses", "")
+            for step in job["steps"]
+            if isinstance(step, dict) and "uses" in step
+        ]
 
+        self.assertIn("azure/setup-helm@v4", uses_steps)
         self.assertTrue(
             any("kustomize version" in step for step in run_steps),
-            "registry overlay render job must install standalone kustomize",
+            "render job must retain the source-file Kustomize equivalence check",
         )
         self.assertTrue(
             any(
                 "scripts/check_agent_control_plane_registry_overlay_render.py" in step
                 for step in run_steps
             ),
-            "registry overlay render job must run the real kustomize render gate",
+            "render job must run the complete Application render gate",
+        )
+        chart_matrix = workflow["jobs"]["helm-and-kubeconform"]["strategy"][
+            "matrix"
+        ]["chart"]
+        self.assertIn(
+            {
+                "name": "agent-control-plane-registry-overlay",
+                "path": "apps/agent-control-plane-registry-overlay",
+                "release": "agent-control-plane-registry-overlay",
+                "prod_values": "apps/agent-control-plane-registry-overlay/values.yaml",
+            },
+            chart_matrix,
         )
 
     def test_opencode_proposer_import_is_overlay_pinned_and_proposal_only(self) -> None:
