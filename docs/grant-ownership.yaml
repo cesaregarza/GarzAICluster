@@ -8,6 +8,10 @@ generated_from:
   - model_bounds
   preserve_existing_capability_keys:
   - approval_mode
+  spend_limit_keys:
+  - max_cost_usd
+  spend_limit_preserving_mapping_keys:
+  - broker_bounds
   session_authority_budget_preserved_keys:
   - influence
   - max_operations
@@ -16,7 +20,7 @@ consumers:
 - mandate doctor deployment-layout checks
 policy_overlay:
   owner: deployment_overlay
-  file: apps/agent-control-plane-registry-overlay/configmap.yaml
+  file: apps/agent-control-plane-registry-overlay/registry/policy.prod.yaml
   embedded_file: policy.prod.yaml
   deploy_consequence: control_plane_restart
   remint_required: false
@@ -32,7 +36,7 @@ capabilities:
       repo: agent-workloads
       repo_url: https://github.com/cesaregarza/agent-workloads
       path: agents/db-workspace-probe/agent.yaml
-    config_path: apps/agent-control-plane-registry-overlay/configmap.yaml:data.workload_imports.yaml.imports[id=data.workspace_probe].capabilities.agent_workloads.db_probe
+    config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=data.workspace_probe].capabilities.agent_workloads.db_probe
     keys:
       description:
         owner: workload_release
@@ -58,7 +62,7 @@ capabilities:
       repo: agent-workloads
       repo_url: https://github.com/cesaregarza/agent-workloads
       path: agents/db-workspace-probe/agent.yaml
-    config_path: apps/agent-control-plane-registry-overlay/configmap.yaml:data.workload_imports.yaml.imports[id=data.workspace_probe].capabilities.agent_workloads.readonly_query
+    config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=data.workspace_probe].capabilities.agent_workloads.readonly_query
     keys:
       artifacts:
         owner: deployment_overlay
@@ -73,11 +77,14 @@ capabilities:
         digest_moves: true
         source: workload agent.yaml
       broker_bounds:
-        owner: workload_release
-        deploy_consequence: digest_moves_repin_remint
-        remint_required: true
-        digest_moves: true
-        source: workload agent.yaml
+        owner: mixed
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        deployment_owned_subkeys:
+        - max_cost_usd
+        release_owned_subkeys: '*'
+        source: SPEND_LIMIT_PRESERVING_MAPPING_KEYS/SPEND_LIMIT_KEYS
       description:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
@@ -124,7 +131,7 @@ capabilities:
       repo: agent-workloads
       repo_url: https://github.com/cesaregarza/agent-workloads
       path: agents/opencode-proposer/agent.yaml
-    config_path: apps/agent-control-plane-registry-overlay/configmap.yaml:data.workload_imports.yaml.imports[id=opencode.proposer].capabilities.agent_workloads.opencode_orchestrate
+    config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=opencode.proposer].capabilities.agent_workloads.opencode_orchestrate
     keys:
       artifacts:
         owner: deployment_overlay
@@ -208,7 +215,7 @@ capabilities:
       repo: agent-workloads
       repo_url: https://github.com/cesaregarza/agent-workloads
       path: agents/opencode-proposer/agent.yaml
-    config_path: apps/agent-control-plane-registry-overlay/configmap.yaml:data.workload_imports.yaml.imports[id=opencode.proposer].capabilities.agent_workloads.opencode_propose
+    config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=opencode.proposer].capabilities.agent_workloads.opencode_propose
     keys:
       artifacts:
         owner: deployment_overlay
@@ -280,7 +287,7 @@ capabilities:
       repo: agent-workloads
       repo_url: https://github.com/cesaregarza/agent-workloads
       path: agents/opencode-proposer/agent.yaml
-    config_path: apps/agent-control-plane-registry-overlay/configmap.yaml:data.workload_imports.yaml.imports[id=opencode.proposer].capabilities.agent_workloads.opencode_task
+    config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=opencode.proposer].capabilities.agent_workloads.opencode_task
     keys:
       artifacts:
         owner: deployment_overlay
@@ -358,7 +365,7 @@ capabilities:
       repo: agent-workloads
       repo_url: https://github.com/cesaregarza/agent-workloads
       path: agents/opencode-apply-executor/agent.yaml
-    config_path: apps/agent-control-plane-registry-overlay/configmap.yaml:data.workload_imports.yaml.imports[id=opencode.apply_executor].capabilities.agent_workloads.opencode_apply
+    config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=opencode.apply_executor].capabilities.agent_workloads.opencode_apply
     keys:
       approval_mode:
         owner: deployment_overlay

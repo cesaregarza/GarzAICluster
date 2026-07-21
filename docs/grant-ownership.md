@@ -17,6 +17,8 @@ normal publish, re-pin, and re-mint flow.
 - Source: `cesaregarza/agent-workloads/scripts/apply_garzaicluster_release_artifacts.py`
 - Deployment-owned capability roots: `artifacts`, `disclosure`, `model_bounds`
 - Preserved existing capability roots: `approval_mode`
+- Spend-limit-preserving mapping roots: `broker_bounds`
+- Preserved spend-limit subkeys: `max_cost_usd`
 - Session authority preserved subkeys: `session_authority_budget.influence`, `session_authority_budget.max_operations`
 
 ## Consumers
@@ -82,7 +84,7 @@ control-plane restart and do not require re-minting.
 | `agent_workloads.opencode_task` | `task_contract` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.readonly_query` | `artifacts` | `deployment_overlay` | `control_plane_restart` |
 | `agent_workloads.readonly_query` | `broker` | `workload_release` | `digest_moves_repin_remint` |
-| `agent_workloads.readonly_query` | `broker_bounds` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.readonly_query` | `broker_bounds` | `mixed` | `control_plane_restart` |
 | `agent_workloads.readonly_query` | `description` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.readonly_query` | `model_bounds` | `deployment_overlay` | `control_plane_restart` |
 | `agent_workloads.readonly_query` | `output_gate` | `workload_release` | `digest_moves_repin_remint` |
