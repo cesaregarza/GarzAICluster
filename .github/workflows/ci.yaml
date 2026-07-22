@@ -280,6 +280,10 @@ jobs:
           expect_failure "must remain cesar@cegarza.com" \
             -f helm/poetry/values-ci.yaml \
             --set application.cloudflareAccess.allowedEmail=attacker@example.com
+          expect_failure "proxying requires application.cloudflareAccess.enabled=true" \
+            -f helm/poetry/values-ci.yaml \
+            --set-string ingress.cloudflareProxied=true \
+            --set application.cloudflareAccess.enabled=false
 
       - name: Run kubeconform
         run: |

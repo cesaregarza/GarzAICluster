@@ -28,6 +28,9 @@ Activate in reviewed stages:
    `/admin/` challenges at the edge, an authenticated request reaches Wagtail,
    and a direct origin request is still denied.
 
+The chart refuses to render a proxied Ingress unless origin JWT validation is
+enabled in that same revision.
+
 Do not use `nginx.ingress.kubernetes.io/whitelist-source-range` for this control
 unless the shared ingress controller is separately changed and verified to
 preserve Cloudflare source IPs. The current controller does not provide that

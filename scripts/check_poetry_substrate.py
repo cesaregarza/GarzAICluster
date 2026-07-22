@@ -213,6 +213,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
         "Access-signed RS256 JWT",
         "does not interfere with HTTP-01 certificate renewal",
         "same GitOps revision restarts the Deployment",
+        "refuses to render a proxied Ingress",
     ):
         assert required_text in rollout_notes
 
