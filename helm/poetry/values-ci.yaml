@@ -1,0 +1,12 @@
+# Render all resources in CI without changing the disabled production default.
+enabled: true
+
+application:
+  cloudflareAccess:
+    enabled: true
+    teamDomain: https://poetry-ci.cloudflareaccess.com
+    audience: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    allowedEmail: cesar@cegarza.com
+
+ingress:
+  enabled: true

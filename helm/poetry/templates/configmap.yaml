@@ -1,0 +1,32 @@
+{{- if and .Values.enabled .Values.application.cloudflareAccess.enabled }}
+{{- $teamDomain := required "application.cloudflareAccess.teamDomain is required when Cloudflare Access validation is enabled" .Values.application.cloudflareAccess.teamDomain }}
+{{- $audience := required "application.cloudflareAccess.audience is required when Cloudflare Access validation is enabled" .Values.application.cloudflareAccess.audience }}
+{{- $allowedEmail := required "application.cloudflareAccess.allowedEmail is required when Cloudflare Access validation is enabled" .Values.application.cloudflareAccess.allowedEmail }}
+{{- if not (regexMatch "^https://[a-z0-9-]+\\.cloudflareaccess\\.com$" $teamDomain) }}
+{{- fail "application.cloudflareAccess.teamDomain must be an https://<team>.cloudflareaccess.com origin without a path" }}
+{{- end }}
+{{- if not (regexMatch "^[A-Za-z0-9_-]{20,}$" $audience) }}
+{{- fail "application.cloudflareAccess.audience must be a Cloudflare Access AUD tag" }}
+{{- end }}
+{{- if ne $allowedEmail "cesar@cegarza.com" }}
+{{- fail "application.cloudflareAccess.allowedEmail must remain cesar@cegarza.com" }}
+{{- end }}
+{{- end }}
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.application.configMapName }}
+  labels:
+    {{- include "poetry.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.application.configData }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  CLOUDFLARE_ACCESS_REQUIRED: {{ ternary "true" "false" .Values.application.cloudflareAccess.enabled | quote }}
+  {{- if .Values.application.cloudflareAccess.enabled }}
+  CLOUDFLARE_ACCESS_TEAM_DOMAIN: {{ .Values.application.cloudflareAccess.teamDomain | quote }}
+  CLOUDFLARE_ACCESS_AUD: {{ .Values.application.cloudflareAccess.audience | quote }}
+  CLOUDFLARE_ACCESS_ALLOWED_EMAIL: {{ .Values.application.cloudflareAccess.allowedEmail | quote }}
+  {{- end }}
+{{- end }}
