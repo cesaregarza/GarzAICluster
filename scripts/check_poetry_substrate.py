@@ -121,9 +121,11 @@ def check(default_render: Path, enabled_render: Path) -> None:
     assert values["ingress"]["enabled"] is False
     assert values["ingress"]["cloudflareProxied"] == "false"
     assert values["application"]["cloudflareAccess"] == {
-        "enabled": False,
-        "teamDomain": "",
-        "audience": "",
+        "enabled": True,
+        "teamDomain": "https://rapid-bird-dbce.cloudflareaccess.com",
+        "audience": (
+            "aaeced7b6693e5b64f4a03c8704989bc89de070986793107baf1b03a9ce589db"
+        ),
         "allowedEmail": "cesar@cegarza.com",
     }
     assert re.fullmatch(r"sha-[a-f0-9]{40}", values["image"]["tag"])
@@ -139,7 +141,16 @@ def check(default_render: Path, enabled_render: Path) -> None:
     assert all(document["kind"] != "PersistentVolumeClaim" for document in runtime_docs)
     _assert_no_key(runtime_docs, "persistentVolumeClaim")
     runtime_config = _find(runtime_docs, "ConfigMap", "poetry-config")
-    assert runtime_config["data"]["CLOUDFLARE_ACCESS_REQUIRED"] == "false"
+    assert runtime_config["data"]["CLOUDFLARE_ACCESS_REQUIRED"] == "true"
+    assert runtime_config["data"]["CLOUDFLARE_ACCESS_TEAM_DOMAIN"] == (
+        "https://rapid-bird-dbce.cloudflareaccess.com"
+    )
+    assert runtime_config["data"]["CLOUDFLARE_ACCESS_AUD"] == (
+        "aaeced7b6693e5b64f4a03c8704989bc89de070986793107baf1b03a9ce589db"
+    )
+    assert runtime_config["data"]["CLOUDFLARE_ACCESS_ALLOWED_EMAIL"] == (
+        "cesar@cegarza.com"
+    )
     runtime_service = _find(runtime_docs, "Service", "poetry")
     assert runtime_service["spec"]["type"] == "ClusterIP"
     runtime_deployment = _find(runtime_docs, "Deployment", "poetry")
@@ -151,7 +162,14 @@ def check(default_render: Path, enabled_render: Path) -> None:
     runtime_job_container = runtime_job["spec"]["template"]["spec"]["containers"][0]
     assert {item["name"]: item["value"] for item in runtime_job_container["env"]} == {
         **values["application"]["configData"],
-        "CLOUDFLARE_ACCESS_REQUIRED": "false",
+        "CLOUDFLARE_ACCESS_REQUIRED": "true",
+        "CLOUDFLARE_ACCESS_TEAM_DOMAIN": values["application"]["cloudflareAccess"][
+            "teamDomain"
+        ],
+        "CLOUDFLARE_ACCESS_AUD": values["application"]["cloudflareAccess"]["audience"],
+        "CLOUDFLARE_ACCESS_ALLOWED_EMAIL": values["application"]["cloudflareAccess"][
+            "allowedEmail"
+        ],
     }
     assert all(
         "configMapRef" not in source for source in runtime_job_container["envFrom"]
@@ -159,7 +177,6 @@ def check(default_render: Path, enabled_render: Path) -> None:
     assert [
         source["secretRef"]["name"] for source in runtime_job_container["envFrom"]
     ] == EXPECTED_SECRETS
-
     docs = _load_all(enabled_render)
     assert [document["kind"] for document in docs] == [
         "ConfigMap",
@@ -242,6 +259,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
     annotations = ingress["metadata"]["annotations"]
     assert annotations["external-dns.alpha.kubernetes.io/cloudflare-proxied"] == "false"
     assert annotations["cert-manager.io/cluster-issuer"] == "letsencrypt-prod"
+    assert annotations["nginx.ingress.kubernetes.io/ssl-redirect"] == "true"
     assert "nginx.ingress.kubernetes.io/whitelist-source-range" not in annotations
 
     _assert_application(
@@ -293,7 +311,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
         "Let's Encrypt HTTP-01 issuance",
         "Access-signed RS256 JWT",
         "does not interfere with HTTP-01 certificate renewal",
-        "same GitOps revision restarts the Deployment",
+        "GitOps revision restarts the Deployment",
         "refuses to render a proxied Ingress",
     ):
         assert required_text in rollout_notes
