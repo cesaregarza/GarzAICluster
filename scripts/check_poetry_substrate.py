@@ -14,6 +14,21 @@ from ruamel.yaml import YAML
 REPO_ROOT = Path(__file__).resolve().parents[1]
 YAML_PARSER = YAML(typ="safe")
 EXPECTED_SECRETS = ["poetry-database", "poetry-django", "poetry-media"]
+AGE_RECIPIENT = "age16yxsawhpecdrhas2q3z246q3tjq8889m552lqhjcgf8jnt7naszqqgz8vt"
+EXPECTED_SECRET_FILES = {
+    "database.enc.yaml": ("poetry-database", "Opaque", {"DATABASE_URL"}),
+    "django.enc.yaml": ("poetry-django", "Opaque", {"DJANGO_SECRET_KEY"}),
+    "media.enc.yaml": (
+        "poetry-media",
+        "Opaque",
+        {"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"},
+    ),
+    "regcred.enc.yaml": (
+        "regcred",
+        "kubernetes.io/dockerconfigjson",
+        {".dockerconfigjson"},
+    ),
+}
 EXPECTED_HEADERS = {
     "Host": "poetry.cegarza.com",
     "X-Forwarded-Proto": "https",
@@ -41,7 +56,10 @@ def _load_all(path: Path) -> list[dict[str, Any]]:
 
 def _find(docs: Iterable[dict[str, Any]], kind: str, name: str) -> dict[str, Any]:
     for document in docs:
-        if document.get("kind") == kind and document.get("metadata", {}).get("name") == name:
+        if (
+            document.get("kind") == kind
+            and document.get("metadata", {}).get("name") == name
+        ):
             return document
     raise AssertionError(f"missing {kind}/{name}")
 
@@ -57,14 +75,14 @@ def _assert_no_key(value: Any, forbidden_key: str) -> None:
             _assert_no_key(nested, forbidden_key)
 
 
-def _assert_application(
-    path: Path, *, name: str, wave: str, source_path: str
-) -> None:
+def _assert_application(path: Path, *, name: str, wave: str, source_path: str) -> None:
     application = _load_one(path)
     assert application["kind"] == "Application"
     assert application["metadata"]["name"] == name
     assert application["metadata"]["namespace"] == "argocd"
-    assert application["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"] == wave
+    assert (
+        application["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"] == wave
+    )
     assert application["spec"]["source"]["path"] == source_path
     assert application["spec"]["destination"] == {
         "server": "https://kubernetes.default.svc",
@@ -75,6 +93,25 @@ def _assert_application(
         "selfHeal": True,
     }
     assert "CreateNamespace=true" in application["spec"]["syncPolicy"]["syncOptions"]
+
+
+def _assert_encrypted_secret(
+    path: Path, *, name: str, secret_type: str, data_keys: set[str]
+) -> None:
+    secret = _load_one(path)
+    assert secret["apiVersion"] == "v1"
+    assert secret["kind"] == "Secret"
+    assert secret["metadata"] == {"name": name, "namespace": "poetry"}
+    assert secret["type"] == secret_type
+    assert "data" not in secret
+    assert set(secret["stringData"]) == data_keys
+    assert all(
+        isinstance(value, str) and value.startswith("ENC[AES256_GCM,")
+        for value in secret["stringData"].values()
+    )
+    sops = secret["sops"]
+    assert sops["encrypted_regex"] == "^(data|stringData)$"
+    assert {entry["recipient"] for entry in sops["age"]} == {AGE_RECIPIENT}
 
 
 def check(default_render: Path, enabled_render: Path) -> None:
@@ -184,9 +221,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
     poetry_application = _load_one(
         REPO_ROOT / "argocd" / "applications" / "poetry.yaml"
     )
-    assert poetry_application["spec"]["source"]["helm"]["valueFiles"] == [
-        "values.yaml"
-    ]
+    assert poetry_application["spec"]["source"]["helm"]["valueFiles"] == ["values.yaml"]
     _assert_application(
         REPO_ROOT / "argocd" / "applications" / "poetry-secrets.yaml",
         name="poetry-secrets",
@@ -203,6 +238,19 @@ def check(default_render: Path, enabled_render: Path) -> None:
     )
     assert secret_kustomization["namespace"] == "poetry"
     assert secret_kustomization["resources"] == []
+    assert secret_kustomization["generators"] == ["ksops.yaml"]
+    secret_ksops = _load_one(REPO_ROOT / "secrets" / "poetry" / "ksops.yaml")
+    assert secret_ksops["apiVersion"] == "viaduct.ai/v1"
+    assert secret_ksops["kind"] == "ksops"
+    assert secret_ksops["metadata"]["name"] == "poetry-secrets"
+    assert secret_ksops["files"] == list(EXPECTED_SECRET_FILES)
+    for filename, (name, secret_type, data_keys) in EXPECTED_SECRET_FILES.items():
+        _assert_encrypted_secret(
+            REPO_ROOT / "secrets" / "poetry" / filename,
+            name=name,
+            secret_type=secret_type,
+            data_keys=data_keys,
+        )
 
     rollout_notes = (REPO_ROOT / "helm" / "poetry" / "README.md").read_text(
         encoding="utf-8"
