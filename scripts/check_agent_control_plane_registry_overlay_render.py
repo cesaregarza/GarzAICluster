@@ -287,10 +287,15 @@ def _assert_complete_application_resources(documents: list[dict[str, Any]]) -> N
             "generated PostSync Job must contain exactly one container"
         )
     restart_container = containers[0]
-    expected_env = [{"name": "HOME", "value": "/tmp"}]
+    expected_env = [
+        {"name": "HOME", "value": "/tmp"},
+        {"name": "KUBERNETES_SERVICE_HOST", "value": "kubernetes.default.svc"},
+        {"name": "KUBERNETES_SERVICE_PORT", "value": "443"},
+    ]
     if restart_container.get("env") != expected_env:
         raise RegistryOverlayRenderError(
-            "generated PostSync Job must give non-root kubectl an accessible HOME:\n"
+            "generated PostSync Job must give non-root kubectl an accessible HOME "
+            "and explicit in-cluster API endpoint:\n"
             + _json_diff(expected_env, restart_container.get("env"))
         )
     expected_mounts = [{"name": "tmp", "mountPath": "/tmp"}]

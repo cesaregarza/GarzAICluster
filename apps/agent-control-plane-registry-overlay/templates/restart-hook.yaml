@@ -32,11 +32,17 @@ spec:
           # snapshot; an overlay sync without a rollout leaves stale authority.
           image: alpine/k8s:1.33.4@sha256:b0523f0a244ddc4c8e055aa335c040d3d78b3ead5528f4544395f7f9f69c7b68
           # The image defaults HOME to /root, but this container runs as UID
-          # 65534. Give kubectl an accessible home so it falls back to the
-          # projected in-cluster ServiceAccount configuration.
+          # 65534. Give kubectl an accessible home and explicitly identify the
+          # stable in-cluster API endpoint. Some clusters omit the legacy
+          # KUBERNETES_SERVICE_* environment variables even though the
+          # projected ServiceAccount token and CA are mounted correctly.
           env:
             - name: HOME
               value: /tmp
+            - name: KUBERNETES_SERVICE_HOST
+              value: kubernetes.default.svc
+            - name: KUBERNETES_SERVICE_PORT
+              value: "443"
           command:
             - /bin/sh
             - -ec
