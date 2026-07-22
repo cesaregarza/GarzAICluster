@@ -2,7 +2,7 @@
 
 This app installs the production registry overlay for live `agent-workloads` worker-service paths.
 
-The overlay is authored as ordinary source files under `registry/` and assembled into the `agent-control-plane-registry-overlay` ConfigMap by Kustomize. Do not hand-edit a rendered ConfigMap literal; keep changes in these files instead:
+The overlay is authored as ordinary source files under `registry/` and assembled into the `agent-control-plane-registry-overlay` ConfigMap by the small Helm chart in this directory. Do not hand-edit a rendered ConfigMap literal; keep changes in these files instead:
 
 - `registry/workload_imports.yaml` imports deployment-pinned workload manifests and image digests for `data.workspace_probe`, `opencode.proposer`, and `opencode.apply_executor`.
 - `registry/policy.prod.yaml` carries the production binding/budget overlay for the imported capabilities and synthetic smoke actor.
@@ -23,9 +23,13 @@ The generated ConfigMap keeps the existing runtime shape:
 
 ## Sync behavior
 
-The control plane builds its `RegistrySnapshot` once at boot and never re-reads the mounted overlay, so every overlay change requires a restart of all five control-plane Deployments to take effect. The `PostSync` hook Job in `hooks/restart-hook.yaml`, using the narrowly scoped ServiceAccount/Role in `restart-rbac.yaml`, performs the rollout restart and waits on rollout status for each target deployment.
+The control plane builds its `RegistrySnapshot` once at boot and never re-reads the mounted overlay, so every overlay change requires a restart of all five control-plane Deployments to take effect. The `PostSync` hook Job in `templates/restart-hook.yaml`, using the ServiceAccount/Role in `templates/restart-rbac.yaml` with mutation restricted to the five named Deployments and list-only pod observation, processes the Deployments one at a time. For each Deployment it captures the existing component pods, issues the restart, waits for the new generation to become fully updated, ready, and available, and then waits for every captured pod to disappear before proceeding. Rollout and old-pod drain share one 240-second budget, and every Kubernetes API call uses only the seconds remaining in that budget. A timeout or API error names the Deployment and phase in the hook log and fails the sync without retrying earlier restarts. Argo deletes successful generated hooks; failed Jobs and their logs remain for up to 24 hours for diagnosis.
 
-The hook is an Argo CD raw-directory source rather than a Kustomize resource: Kubernetes must receive its native `generateName` field so Argo creates a fresh hook Job on every sync. Kustomize requires a fixed `metadata.name`, which can cause an operation-resume to silently skip the hook.
+The chart is intentionally a single Argo CD source. Kustomize cannot transform a resource that has only `metadata.generateName`, and the former Kustomize-plus-raw-directory Application could be synced through Argo's legacy singular-source operation shape. That operation rendered only the first source, omitted the hook from `syncResult`, and still reported success. Helm preserves the native `generateName` Job while making the ConfigMap, RBAC, and hook an indivisible render.
+
+The rollout order is API, model gateway, callback adapter, git deliverer, then local worker. Restarting the API while the live model gateway anchors its required affinity keeps the shared RWO auth volume node-local; restarting the gateway immediately afterward lets it prefer the newly healthy API node. The remaining boot-cached consumers do not start until that core pair is healthy, and the hook does not overlap their old pods' termination windows. This bounds the choreography to one Deployment's surge and terminating pods at a time, but it does not replace CES-352's required hard topology guarantee for the shared RWO volume.
+
+`kustomization.yaml` remains only as a local render-equivalence input for existing source-file tooling. CI renders the actual Helm Application source and requires the ConfigMap, scoped RBAC, and generated PostSync Job to appear together.
 
 The Argo Application intentionally does not set `ApplyOutOfSyncOnly=true`; selective syncs skip hooks, which would skip the restart job and leave the control plane serving the previous boot-cached registry snapshot.
 

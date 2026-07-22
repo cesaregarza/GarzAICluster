@@ -91,6 +91,16 @@ Utilities that were previously bundled with the app repo move here when they are
   in `argocd/applications/agent-control-plane.yaml`. Use
   `--print-target-revision` to retrieve that SHA for automation.
 
+- `check_agent_control_plane_registry_overlay_render.py` – renders the actual
+  single-source registry-overlay Helm chart and requires the ConfigMap, scoped
+  RBAC, and generated PostSync Job to appear together. It also renders the
+  local Kustomize source-file view and compares both ConfigMaps with the
+  committed golden:
+
+  ```bash
+  uv run python scripts/check_agent_control_plane_registry_overlay_render.py
+  ```
+
 - `mandate_apply.py` – plans or writes a local CES-123
   `MandateWorkloadEnablement` document into deployment-owned files only. Dry-run
   is the default; `--write` edits files for a normal PR. It never reads or

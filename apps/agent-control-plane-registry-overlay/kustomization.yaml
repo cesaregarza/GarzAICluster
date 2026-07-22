@@ -3,7 +3,9 @@ kind: Kustomization
 namespace: agent-control-plane
 
 resources:
-  - restart-rbac.yaml
+  # Local source-file tooling still uses this render-equivalence target. Argo
+  # renders Chart.yaml so the generateName hook shares one indivisible source.
+  - templates/restart-rbac.yaml
 
 generatorOptions:
   disableNameSuffixHash: true

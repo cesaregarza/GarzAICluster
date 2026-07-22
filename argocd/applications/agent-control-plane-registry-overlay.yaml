@@ -9,17 +9,13 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: splattop
-  sources:
-    - repoURL: https://github.com/cesaregarza/GarzAICluster
-      targetRevision: main
-      path: apps/agent-control-plane-registry-overlay
-    # Kustomize requires metadata.name on resources. Keep the PostSync Job as
-    # a raw directory source so Kubernetes receives its native generateName.
-    - repoURL: https://github.com/cesaregarza/GarzAICluster
-      targetRevision: main
-      path: apps/agent-control-plane-registry-overlay/hooks
-      directory:
-        recurse: false
+  # Keep the overlay and generated PostSync Job in one Helm source. A legacy
+  # singular-source sync request can otherwise silently omit a second source
+  # while reporting the Kustomize resources as successfully synced.
+  source:
+    repoURL: https://github.com/cesaregarza/GarzAICluster
+    targetRevision: main
+    path: apps/agent-control-plane-registry-overlay
   destination:
     server: https://kubernetes.default.svc
     namespace: agent-control-plane
