@@ -119,7 +119,7 @@ probes:
     failureThreshold: 3
 
 ingress:
-  enabled: false
+  enabled: true
   className: nginx
   host: poetry.cegarza.com
   annotations:
