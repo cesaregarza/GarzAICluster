@@ -372,6 +372,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
                 "repoURL": "https://github.com/cesaregarza/GarzAICluster",
                 "targetRevision": "main",
                 "path": "apps/agent-control-plane-registry-overlay",
+                "helm": {},
             },
         )
 

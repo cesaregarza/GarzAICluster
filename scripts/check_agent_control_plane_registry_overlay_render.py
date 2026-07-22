@@ -137,6 +137,7 @@ def _assert_single_helm_application_source(repo_root: Path) -> None:
         "repoURL": "https://github.com/cesaregarza/GarzAICluster",
         "targetRevision": "main",
         "path": str(REGISTRY_OVERLAY_DIR),
+        "helm": {},
     }
     if spec.get("source") != expected:
         raise RegistryOverlayRenderError(
