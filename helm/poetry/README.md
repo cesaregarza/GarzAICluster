@@ -1,15 +1,15 @@
 # Poetry chart rollout stages
 
-`values.yaml` enables the public DNS-only TLS stage: the runtime, signed
-Cloudflare Access origin validation, and Ingress are enabled while Cloudflare
-proxying remains disabled. `values-ci.yaml` exercises the same public Ingress
-with isolated Access identifiers in CI and must not be added to the Argo CD
-Application.
+`values.yaml` enables the final public launch stage: the runtime, signed
+Cloudflare Access origin validation, Ingress, and Cloudflare proxying are all
+enabled. `values-ci.yaml` exercises the same public Ingress with isolated Access
+identifiers in CI and must not be added to the Argo CD Application.
 
-During this stage, unauthenticated `/admin/` requests are rejected by the Django
-origin with `403` even when sent directly to the public load balancer. Do not
-create staff or superuser accounts until both this raw-origin denial and the
-later Cloudflare edge challenge have been proven.
+During this stage, public routes remain unauthenticated, `/admin/` is challenged
+by Cloudflare Access, and direct load-balancer requests to `/admin/` are still
+rejected by the Django origin with `403`. Do not create staff or superuser
+accounts until the edge policy accepts only `cesar@cegarza.com` through one-time
+PIN authentication and the raw-origin denial has been re-proven.
 
 Activate in reviewed stages:
 
@@ -34,7 +34,9 @@ Activate in reviewed stages:
    `cloudflareProxied: "false"`. Prove that a raw load-balancer request with
    `Host: poetry.cegarza.com` still receives `403` for `/admin/`, then complete
    nginx routing and the initial Let's Encrypt HTTP-01 issuance.
-5. Switch Cloudflare proxying on. Confirm public routes remain unauthenticated,
+5. Deploy a hostname-scoped Cloudflare Configuration Rule that sets Full
+   (strict) origin TLS for `poetry.cegarza.com`, then switch Cloudflare proxying
+   on. Confirm public routes remain unauthenticated without redirect loops,
    `/admin/` challenges at the edge, an authenticated request reaches Wagtail,
    and a direct origin request is still denied.
 
