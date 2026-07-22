@@ -88,7 +88,11 @@ spec:
                   return 1
                 fi
 
-                if kubectl --request-timeout="${remaining_seconds}s" "$@"; then
+                # alpine/k8s 1.33.4 loses its in-cluster client configuration
+                # when kubectl's native request-timeout flag is set. Keep the
+                # same hard deadline outside kubectl so projected
+                # ServiceAccount auth is retained.
+                if timeout "${remaining_seconds}s" kubectl "$@"; then
                   return 0
                 else
                   kubectl_status="$?"
