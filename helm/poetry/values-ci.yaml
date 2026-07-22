@@ -1,4 +1,4 @@
-# Render all resources in CI without changing the disabled production default.
+# Render the public-launch Access and Ingress variant in CI.
 enabled: true
 
 application:
