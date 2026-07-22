@@ -124,7 +124,7 @@ ingress:
   host: poetry.cegarza.com
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-  cloudflareProxied: "true"
+  cloudflareProxied: "false"
   tls:
     enabled: true
     clusterIssuer: letsencrypt-prod

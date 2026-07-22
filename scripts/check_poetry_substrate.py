@@ -119,7 +119,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
     assert values["enabled"] is True
     assert values["replicaCount"] == 1
     assert values["ingress"]["enabled"] is True
-    assert values["ingress"]["cloudflareProxied"] == "true"
+    assert values["ingress"]["cloudflareProxied"] == "false"
     assert values["application"]["cloudflareAccess"] == {
         "enabled": True,
         "teamDomain": "https://rapid-bird-dbce.cloudflareaccess.com",
@@ -192,7 +192,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
         runtime_ingress_annotations[
             "external-dns.alpha.kubernetes.io/cloudflare-proxied"
         ]
-        == "true"
+        == "false"
     )
     assert (
         runtime_ingress_annotations["cert-manager.io/cluster-issuer"]
@@ -287,7 +287,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
         }
     ]
     annotations = ingress["metadata"]["annotations"]
-    assert annotations["external-dns.alpha.kubernetes.io/cloudflare-proxied"] == "true"
+    assert annotations["external-dns.alpha.kubernetes.io/cloudflare-proxied"] == "false"
     assert annotations["cert-manager.io/cluster-issuer"] == "letsencrypt-prod"
     assert annotations["nginx.ingress.kubernetes.io/ssl-redirect"] == "true"
     assert "nginx.ingress.kubernetes.io/whitelist-source-range" not in annotations
