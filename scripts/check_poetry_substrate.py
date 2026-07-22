@@ -124,6 +124,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
     ] == EXPECTED_SECRETS
 
     config_map = _find(docs, "ConfigMap", "poetry-config")
+    assert config_map["data"]["CLOUDFLARE_ACCESS_REQUIRED"] == "true"
     assert config_map["data"]["CLOUDFLARE_ACCESS_TEAM_DOMAIN"] == (
         "https://poetry-ci.cloudflareaccess.com"
     )

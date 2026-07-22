@@ -13,6 +13,8 @@ Activate in reviewed stages:
    `Synced` and `Healthy` before enabling the chart.
 2. Pin a published immutable image, set `enabled: true`, keep ingress disabled,
    and verify the Service plus `/healthz` and `/readyz` from inside the cluster.
+   While Access is disabled the chart explicitly sets
+   `CLOUDFLARE_ACCESS_REQUIRED=false` for this ingress-free staging phase.
 3. Set `ingress.enabled: true` with `cloudflareProxied: "false"`. Complete nginx
    routing and the initial Let's Encrypt HTTP-01 issuance before proxying the
    hostname.
@@ -29,7 +31,9 @@ Activate in reviewed stages:
    and a direct origin request is still denied.
 
 The chart refuses to render a proxied Ingress unless origin JWT validation is
-enabled in that same revision.
+enabled in that same revision. Enabling validation also derives
+`CLOUDFLARE_ACCESS_REQUIRED=true`; the pod will then fail startup rather than
+run a production admin origin without the issuer and audience.
 
 Do not use `nginx.ingress.kubernetes.io/whitelist-source-range` for this control
 unless the shared ingress controller is separately changed and verified to

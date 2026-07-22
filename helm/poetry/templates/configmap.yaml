@@ -23,6 +23,7 @@ data:
   {{- range $key, $value := .Values.application.configData }}
   {{ $key }}: {{ $value | quote }}
   {{- end }}
+  CLOUDFLARE_ACCESS_REQUIRED: {{ ternary "true" "false" .Values.application.cloudflareAccess.enabled | quote }}
   {{- if .Values.application.cloudflareAccess.enabled }}
   CLOUDFLARE_ACCESS_TEAM_DOMAIN: {{ .Values.application.cloudflareAccess.teamDomain | quote }}
   CLOUDFLARE_ACCESS_AUD: {{ .Values.application.cloudflareAccess.audience | quote }}
