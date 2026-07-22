@@ -1,9 +1,14 @@
 # Poetry chart rollout stages
 
-`values.yaml` enables the private, ingress-free runtime: `enabled` is true while
-`ingress.enabled` remains false. `values-ci.yaml` exists only to exercise the
-later public-launch Access and Ingress variant in CI and must not be added to the
-Argo CD Application.
+`values.yaml` enables the public, DNS-only TLS stage: `enabled` and
+`ingress.enabled` are true while Cloudflare proxying and Access validation remain
+false. `values-ci.yaml` exists only to exercise the later Access-enabled variant
+in CI and must not be added to the Argo CD Application.
+
+During this bounded certificate-issuance stage, `/admin/` is reachable through
+nginx with Wagtail authentication and Axes lockout only. Do not create staff or
+superuser accounts until Cloudflare Access and the signed origin validator are
+active.
 
 Activate in reviewed stages:
 

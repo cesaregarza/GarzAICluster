@@ -118,7 +118,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
     values = _load_one(REPO_ROOT / "helm" / "poetry" / "values.yaml")
     assert values["enabled"] is True
     assert values["replicaCount"] == 1
-    assert values["ingress"]["enabled"] is False
+    assert values["ingress"]["enabled"] is True
     assert values["ingress"]["cloudflareProxied"] == "false"
     assert values["application"]["cloudflareAccess"] == {
         "enabled": False,
@@ -134,12 +134,17 @@ def check(default_render: Path, enabled_render: Path) -> None:
         "Service",
         "Deployment",
         "Job",
+        "Ingress",
     ]
-    assert all(document["kind"] != "Ingress" for document in runtime_docs)
     assert all(document["kind"] != "PersistentVolumeClaim" for document in runtime_docs)
     _assert_no_key(runtime_docs, "persistentVolumeClaim")
     runtime_config = _find(runtime_docs, "ConfigMap", "poetry-config")
     assert runtime_config["data"]["CLOUDFLARE_ACCESS_REQUIRED"] == "false"
+    assert not {
+        key
+        for key in runtime_config["data"]
+        if key.startswith("CLOUDFLARE_ACCESS_") and key != "CLOUDFLARE_ACCESS_REQUIRED"
+    }
     runtime_service = _find(runtime_docs, "Service", "poetry")
     assert runtime_service["spec"]["type"] == "ClusterIP"
     runtime_deployment = _find(runtime_docs, "Deployment", "poetry")
@@ -159,6 +164,35 @@ def check(default_render: Path, enabled_render: Path) -> None:
     assert [
         source["secretRef"]["name"] for source in runtime_job_container["envFrom"]
     ] == EXPECTED_SECRETS
+    runtime_ingress = _find(runtime_docs, "Ingress", "poetry")
+    runtime_ingress_spec = runtime_ingress["spec"]
+    assert runtime_ingress_spec["ingressClassName"] == "nginx"
+    assert runtime_ingress_spec["rules"][0]["host"] == "poetry.cegarza.com"
+    assert runtime_ingress_spec["tls"] == [
+        {
+            "hosts": ["poetry.cegarza.com"],
+            "secretName": "poetry-cegarza-com-tls",
+        }
+    ]
+    runtime_ingress_annotations = runtime_ingress["metadata"]["annotations"]
+    assert (
+        runtime_ingress_annotations[
+            "external-dns.alpha.kubernetes.io/cloudflare-proxied"
+        ]
+        == "false"
+    )
+    assert (
+        runtime_ingress_annotations["cert-manager.io/cluster-issuer"]
+        == "letsencrypt-prod"
+    )
+    assert (
+        runtime_ingress_annotations["nginx.ingress.kubernetes.io/ssl-redirect"]
+        == "true"
+    )
+    assert (
+        "nginx.ingress.kubernetes.io/whitelist-source-range"
+        not in runtime_ingress_annotations
+    )
 
     docs = _load_all(enabled_render)
     assert [document["kind"] for document in docs] == [
@@ -242,6 +276,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
     annotations = ingress["metadata"]["annotations"]
     assert annotations["external-dns.alpha.kubernetes.io/cloudflare-proxied"] == "false"
     assert annotations["cert-manager.io/cluster-issuer"] == "letsencrypt-prod"
+    assert annotations["nginx.ingress.kubernetes.io/ssl-redirect"] == "true"
     assert "nginx.ingress.kubernetes.io/whitelist-source-range" not in annotations
 
     _assert_application(
