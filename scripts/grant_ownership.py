@@ -20,6 +20,19 @@ OWNERSHIP_SOURCE_PATH = Path("docs/grant-ownership-source.yaml")
 OWNERSHIP_MAP_PATH = Path("docs/grant-ownership.yaml")
 OWNERSHIP_DOC_PATH = Path("docs/grant-ownership.md")
 APPLIER_PATH = Path("scripts/apply_garzaicluster_release_artifacts.py")
+APPLIER_CONTRACT_CONSTANT_NAMES = frozenset(
+    {
+        "DEPLOYMENT_OWNED_CAPABILITY_KEYS",
+        "PRESERVE_EXISTING_CAPABILITY_KEYS",
+        "SPEND_LIMIT_KEYS",
+        "SPEND_LIMIT_PRESERVING_MAPPING_KEYS",
+        "SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS",
+        "INFLUENCE_KEY",
+    }
+)
+APPLIER_COLLECTION_CONSTANT_NAMES = APPLIER_CONTRACT_CONSTANT_NAMES.difference(
+    {"INFLUENCE_KEY"}
+)
 
 YAML_SAFE = YAML(typ="safe")
 YAML_RT = YAML()
@@ -45,6 +58,8 @@ class GrantEditError(RuntimeError):
 class ApplierContract:
     deployment_owned_capability_keys: tuple[str, ...]
     preserve_existing_capability_keys: tuple[str, ...]
+    spend_limit_keys: tuple[str, ...]
+    spend_limit_preserving_mapping_keys: tuple[str, ...]
     influence_key: str
     session_authority_budget_preserved_keys: tuple[str, ...]
 
@@ -66,23 +81,34 @@ def find_agent_workloads_repo(
     repo_root: Path = REPO_ROOT,
     explicit: Path | None = None,
 ) -> Path:
-    candidates: list[Path] = []
     if explicit is not None:
-        candidates.append(explicit)
+        candidate = explicit.resolve()
+        if (candidate / APPLIER_PATH).is_file():
+            return candidate
+        raise GrantOwnershipError(
+            "explicit agent-workloads checkout does not contain the expected "
+            f"applier {APPLIER_PATH}: {candidate}"
+        )
+
     env_path = os.environ.get("AGENT_WORKLOADS_REPO")
     if env_path:
-        candidates.append(Path(env_path))
-    candidates.extend(
-        [
-            repo_root / ".ci" / "agent-workloads",
-            repo_root.parent / "agent-workloads",
-        ]
-    )
+        candidate = Path(env_path).resolve()
+        if (candidate / APPLIER_PATH).is_file():
+            return candidate
+        raise GrantOwnershipError(
+            "AGENT_WORKLOADS_REPO does not contain the expected "
+            f"applier {APPLIER_PATH}: {candidate}"
+        )
+
+    candidates = [
+        repo_root / ".ci" / "agent-workloads",
+        repo_root.parent / "agent-workloads",
+    ]
 
     for candidate in candidates:
         applier = candidate / APPLIER_PATH
-        if applier.exists():
-            return candidate
+        if applier.is_file():
+            return candidate.resolve()
 
     searched = ", ".join(str(path) for path in candidates)
     raise GrantOwnershipError(
@@ -107,39 +133,22 @@ def load_applier_contract(
     source_path = repo_root / OWNERSHIP_SOURCE_PATH
     if source_path.exists():
         source = _load_yaml(source_path)
-        preserved_keys = tuple(
-            sorted(
-                str(key)
-                for key in source.get("session_authority_budget_preserved_keys")
-                or [_required_str(source.get("influence_key"), "influence_key")]
-            )
-        )
-        influence_key = _required_str(
-            source.get("influence_key") or "influence",
-            "influence_key",
-        )
-        if influence_key not in preserved_keys:
-            preserved_keys = tuple(sorted((*preserved_keys, influence_key)))
-
-        return ApplierContract(
-            deployment_owned_capability_keys=tuple(
-                sorted(
-                    _required_list(
-                        source.get("deployment_owned_capability_keys"),
-                        "deployment_owned_capability_keys",
-                    )
-                )
+        return _validated_applier_contract(
+            deployment_owned_capability_keys=source.get(
+                "deployment_owned_capability_keys"
             ),
-            preserve_existing_capability_keys=tuple(
-                sorted(
-                    _required_list(
-                        source.get("preserve_existing_capability_keys"),
-                        "preserve_existing_capability_keys",
-                    )
-                )
+            preserve_existing_capability_keys=source.get(
+                "preserve_existing_capability_keys"
             ),
-            influence_key=influence_key,
-            session_authority_budget_preserved_keys=preserved_keys,
+            spend_limit_keys=source.get("spend_limit_keys"),
+            spend_limit_preserving_mapping_keys=source.get(
+                "spend_limit_preserving_mapping_keys"
+            ),
+            influence_key=source.get("influence_key"),
+            session_authority_budget_preserved_keys=source.get(
+                "session_authority_budget_preserved_keys"
+            ),
+            label=str(source_path),
         )
 
     return extract_applier_contract(find_agent_workloads_repo(repo_root=repo_root))
@@ -147,45 +156,149 @@ def load_applier_contract(
 
 def extract_applier_contract(agent_workloads_repo: Path) -> ApplierContract:
     source_path = agent_workloads_repo / APPLIER_PATH
-    module = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
-    wanted = {
-        "DEPLOYMENT_OWNED_CAPABILITY_KEYS",
-        "PRESERVE_EXISTING_CAPABILITY_KEYS",
-        "SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS",
-        "INFLUENCE_KEY",
-    }
-    values: dict[str, Any] = {}
-    for node in module.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        for target in node.targets:
-            if isinstance(target, ast.Name) and target.id in wanted:
-                values[target.id] = ast.literal_eval(node.value)
-
     try:
-        deployment_owned = tuple(sorted(values["DEPLOYMENT_OWNED_CAPABILITY_KEYS"]))
-        preserve_existing = tuple(sorted(values["PRESERVE_EXISTING_CAPABILITY_KEYS"]))
-        influence_key = str(values["INFLUENCE_KEY"])
-        preserved_keys = tuple(
-            sorted(
-                str(key)
-                for key in values.get(
-                    "SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS",
-                    {influence_key},
-                )
-            )
+        module = ast.parse(
+            source_path.read_text(encoding="utf-8"),
+            filename=str(source_path),
         )
-    except KeyError as exc:
+    except (OSError, SyntaxError) as exc:
         raise GrantOwnershipError(
-            f"{source_path} is missing expected applier contract constant {exc.args[0]}"
+            f"cannot read the agent-workloads applier contract at {source_path}: {exc}"
         ) from exc
 
+    values: dict[str, Any] = {}
+    for node in module.body:
+        targets: list[ast.expr]
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        for target in targets:
+            if (
+                isinstance(target, ast.Name)
+                and target.id in APPLIER_CONTRACT_CONSTANT_NAMES
+            ):
+                try:
+                    value = ast.literal_eval(node.value)
+                except (TypeError, ValueError) as exc:
+                    raise GrantOwnershipError(
+                        f"{source_path} applier contract constant {target.id} "
+                        "must be a literal value"
+                    ) from exc
+                if target.id in APPLIER_COLLECTION_CONSTANT_NAMES:
+                    _reject_duplicate_collection_literals(
+                        node.value,
+                        source_path=source_path,
+                        constant_name=target.id,
+                    )
+                values[target.id] = value
+
+    missing = sorted(APPLIER_CONTRACT_CONSTANT_NAMES.difference(values))
+    if missing:
+        raise GrantOwnershipError(
+            f"{source_path} is missing expected applier contract constant(s): "
+            + ", ".join(missing)
+        )
+
+    return _validated_applier_contract(
+        deployment_owned_capability_keys=values[
+            "DEPLOYMENT_OWNED_CAPABILITY_KEYS"
+        ],
+        preserve_existing_capability_keys=values[
+            "PRESERVE_EXISTING_CAPABILITY_KEYS"
+        ],
+        spend_limit_keys=values["SPEND_LIMIT_KEYS"],
+        spend_limit_preserving_mapping_keys=values[
+            "SPEND_LIMIT_PRESERVING_MAPPING_KEYS"
+        ],
+        influence_key=values["INFLUENCE_KEY"],
+        session_authority_budget_preserved_keys=values[
+            "SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS"
+        ],
+        label=str(source_path),
+    )
+
+
+def _validated_applier_contract(
+    *,
+    deployment_owned_capability_keys: Any,
+    preserve_existing_capability_keys: Any,
+    spend_limit_keys: Any,
+    spend_limit_preserving_mapping_keys: Any,
+    influence_key: Any,
+    session_authority_budget_preserved_keys: Any,
+    label: str,
+) -> ApplierContract:
+    deployment_owned = _nonempty_string_collection(
+        deployment_owned_capability_keys,
+        f"{label} deployment-owned capability keys",
+    )
+    preserve_existing = _nonempty_string_collection(
+        preserve_existing_capability_keys,
+        f"{label} preserve-existing capability keys",
+    )
+    preserved_spend_limits = _nonempty_string_collection(
+        spend_limit_keys,
+        f"{label} spend-limit keys",
+    )
+    spend_limit_mappings = _nonempty_string_collection(
+        spend_limit_preserving_mapping_keys,
+        f"{label} spend-limit-preserving mapping keys",
+    )
+    influence = _required_str(influence_key, f"{label} influence key")
+    preserved_keys = _nonempty_string_collection(
+        session_authority_budget_preserved_keys,
+        f"{label} session-authority preserved keys",
+    )
+    if influence not in preserved_keys:
+        raise GrantOwnershipError(
+            f"{label} session-authority preserved keys must include influence key "
+            f"{influence!r}"
+        )
     return ApplierContract(
         deployment_owned_capability_keys=deployment_owned,
         preserve_existing_capability_keys=preserve_existing,
-        influence_key=influence_key,
+        spend_limit_keys=preserved_spend_limits,
+        spend_limit_preserving_mapping_keys=spend_limit_mappings,
+        influence_key=influence,
         session_authority_budget_preserved_keys=preserved_keys,
     )
+
+
+def _nonempty_string_collection(value: Any, label: str) -> tuple[str, ...]:
+    if not isinstance(value, list | tuple | set | frozenset) or not value:
+        raise GrantOwnershipError(
+            f"{label} must be a non-empty collection of non-empty strings"
+        )
+    items: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not item:
+            raise GrantOwnershipError(
+                f"{label} must be a non-empty collection of non-empty strings"
+            )
+        items.append(item)
+    if len(set(items)) != len(items):
+        raise GrantOwnershipError(f"{label} must not contain duplicate keys")
+    return tuple(sorted(items))
+
+
+def _reject_duplicate_collection_literals(
+    node: ast.expr | None,
+    *,
+    source_path: Path,
+    constant_name: str,
+) -> None:
+    if not isinstance(node, ast.List | ast.Tuple | ast.Set):
+        return
+    literal_items = [ast.literal_eval(element) for element in node.elts]
+    for index, item in enumerate(literal_items):
+        if item in literal_items[:index]:
+            raise GrantOwnershipError(
+                f"{source_path} applier contract constant {constant_name} "
+                "must not contain duplicate literal values"
+            )
 
 
 def build_ownership_map(
@@ -202,6 +315,11 @@ def build_ownership_map(
         _required_str(data.get("workload_imports.yaml"), "data.workload_imports.yaml")
     )
     imports = _required_list(workload_imports.get("imports"), "workload imports")
+    workload_imports_reference = _registry_overlay_value_reference(
+        repo_root,
+        "workload_imports.yaml",
+    )
+    policy_path = registry_overlay_value_path(repo_root, "policy.prod.yaml")
 
     capabilities: dict[str, Any] = {}
     for entry in imports:
@@ -232,8 +350,7 @@ def build_ownership_map(
                     "path": expected_source.get("path"),
                 },
                 "config_path": (
-                    "apps/agent-control-plane-registry-overlay/configmap.yaml:"
-                    f"data.workload_imports.yaml.imports[id={agent_id}]"
+                    f"{workload_imports_reference}imports[id={agent_id}]"
                     f".capabilities.{capability_id}"
                 ),
                 "keys": keys,
@@ -250,6 +367,10 @@ def build_ownership_map(
             "preserve_existing_capability_keys": list(
                 contract.preserve_existing_capability_keys
             ),
+            "spend_limit_keys": list(contract.spend_limit_keys),
+            "spend_limit_preserving_mapping_keys": list(
+                contract.spend_limit_preserving_mapping_keys
+            ),
             "session_authority_budget_preserved_keys": list(
                 contract.session_authority_budget_preserved_keys
             ),
@@ -260,7 +381,7 @@ def build_ownership_map(
         ],
         "policy_overlay": {
             "owner": DEPLOYMENT_OWNER,
-            "file": str(CONFIGMAP_PATH),
+            "file": str(policy_path),
             "embedded_file": "policy.prod.yaml",
             "deploy_consequence": CONTROL_PLANE_RESTART,
             "remint_required": False,
@@ -299,6 +420,13 @@ def render_ownership_markdown(ownership: dict[str, Any]) -> str:
         + ", ".join(f"`{key}`" for key in generated_from["deployment_owned_capability_keys"]),
         "- Preserved existing capability roots: "
         + ", ".join(f"`{key}`" for key in generated_from["preserve_existing_capability_keys"]),
+        "- Spend-limit-preserving mapping roots: "
+        + ", ".join(
+            f"`{key}`"
+            for key in generated_from["spend_limit_preserving_mapping_keys"]
+        ),
+        "- Preserved spend-limit subkeys: "
+        + ", ".join(f"`{key}`" for key in generated_from["spend_limit_keys"]),
         "- Session authority preserved subkeys: "
         + ", ".join(
             f"`session_authority_budget.{key}`"
@@ -345,37 +473,23 @@ def write_ownership_outputs(
     repo_root: Path = REPO_ROOT,
     agent_workloads_repo: Path | None = None,
 ) -> None:
-    contract = load_applier_contract(
+    exact_agent_workloads_repo = find_agent_workloads_repo(
         repo_root=repo_root,
-        agent_workloads_repo=agent_workloads_repo,
+        explicit=agent_workloads_repo,
     )
-    _write_yaml(
-        repo_root / OWNERSHIP_SOURCE_PATH,
-        {
-            "schema_version": "grant-ownership-source.v1",
-            "generated_from": {
-                "repo": "cesaregarza/agent-workloads",
-                "path": str(APPLIER_PATH),
-            },
-            "deployment_owned_capability_keys": list(
-                contract.deployment_owned_capability_keys
-            ),
-            "preserve_existing_capability_keys": list(
-                contract.preserve_existing_capability_keys
-            ),
-            "influence_key": contract.influence_key,
-            "session_authority_budget_preserved_keys": list(
-                contract.session_authority_budget_preserved_keys
-            ),
-        },
-    )
+    contract = extract_applier_contract(exact_agent_workloads_repo)
     ownership = build_ownership_map(
         repo_root=repo_root,
-        agent_workloads_repo=None,
+        agent_workloads_repo=exact_agent_workloads_repo,
     )
-    _write_yaml(repo_root / OWNERSHIP_MAP_PATH, ownership)
+    source_yaml = _dump_yaml(_ownership_source(contract))
+    ownership_yaml = _dump_yaml(ownership)
+    ownership_markdown = render_ownership_markdown(ownership)
+
+    (repo_root / OWNERSHIP_SOURCE_PATH).write_text(source_yaml, encoding="utf-8")
+    (repo_root / OWNERSHIP_MAP_PATH).write_text(ownership_yaml, encoding="utf-8")
     (repo_root / OWNERSHIP_DOC_PATH).write_text(
-        render_ownership_markdown(ownership),
+        ownership_markdown,
         encoding="utf-8",
     )
 
@@ -385,6 +499,17 @@ def check_ownership_outputs(
     repo_root: Path = REPO_ROOT,
     agent_workloads_repo: Path | None = None,
 ) -> None:
+    contract = load_applier_contract(
+        repo_root=repo_root,
+        agent_workloads_repo=agent_workloads_repo,
+    )
+    expected_source = _dump_yaml(_ownership_source(contract))
+    actual_source = (repo_root / OWNERSHIP_SOURCE_PATH).read_text(encoding="utf-8")
+    if actual_source != expected_source:
+        raise GrantOwnershipError(
+            f"{OWNERSHIP_SOURCE_PATH} is stale; run scripts/generate_grant_ownership.py"
+        )
+
     ownership = build_ownership_map(
         repo_root=repo_root,
         agent_workloads_repo=agent_workloads_repo,
@@ -402,6 +527,30 @@ def check_ownership_outputs(
         raise GrantOwnershipError(
             f"{OWNERSHIP_DOC_PATH} is stale; run scripts/generate_grant_ownership.py"
         )
+
+
+def _ownership_source(contract: ApplierContract) -> dict[str, Any]:
+    return {
+        "schema_version": "grant-ownership-source.v1",
+        "generated_from": {
+            "repo": "cesaregarza/agent-workloads",
+            "path": str(APPLIER_PATH),
+        },
+        "deployment_owned_capability_keys": list(
+            contract.deployment_owned_capability_keys
+        ),
+        "preserve_existing_capability_keys": list(
+            contract.preserve_existing_capability_keys
+        ),
+        "spend_limit_keys": list(contract.spend_limit_keys),
+        "spend_limit_preserving_mapping_keys": list(
+            contract.spend_limit_preserving_mapping_keys
+        ),
+        "influence_key": contract.influence_key,
+        "session_authority_budget_preserved_keys": list(
+            contract.session_authority_budget_preserved_keys
+        ),
+    }
 
 
 def apply_grant_edit(
@@ -460,8 +609,8 @@ def apply_grant_edit(
         new_value=new_value,
         deploy_consequence=key_info["deploy_consequence"],
         config_path=(
-            "apps/agent-control-plane-registry-overlay/configmap.yaml:"
-            f"data.workload_imports.yaml.imports[id={import_entry['id']}]"
+            f"{_registry_overlay_value_reference(repo_root, 'workload_imports.yaml')}"
+            f"imports[id={import_entry['id']}]"
             f".capabilities.{capability_id}.{key_path}"
         ),
         owner=key_info["owner"],
@@ -567,6 +716,18 @@ def _ownership_for_key(key: str, contract: ApplierContract) -> dict[str, Any]:
             "remint_required": False,
             "digest_moves": False,
             "source": "PRESERVE_EXISTING_CAPABILITY_KEYS",
+        }
+    if key in contract.spend_limit_preserving_mapping_keys:
+        return {
+            "owner": MIXED_OWNER,
+            "deploy_consequence": CONTROL_PLANE_RESTART,
+            "remint_required": False,
+            "digest_moves": False,
+            "deployment_owned_subkeys": list(contract.spend_limit_keys),
+            "release_owned_subkeys": "*",
+            "source": (
+                "SPEND_LIMIT_PRESERVING_MAPPING_KEYS/SPEND_LIMIT_KEYS"
+            ),
         }
     if key == "session_authority_budget":
         return {
@@ -748,6 +909,13 @@ def registry_overlay_value_path(repo_root: Path, key: str) -> Path:
     if source_path is None:
         raise GrantOwnershipError(f"registry overlay ConfigMap key not found: {key}")
     return source_path.relative_to(repo_root)
+
+
+def _registry_overlay_value_reference(repo_root: Path, key: str) -> str:
+    path = registry_overlay_value_path(repo_root, key)
+    if path == CONFIGMAP_PATH:
+        return f"{path}:data.{key}."
+    return f"{path}:"
 
 
 def registry_overlay_source_paths(repo_root: Path) -> dict[str, Path]:

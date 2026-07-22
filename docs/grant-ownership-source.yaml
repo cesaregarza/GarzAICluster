@@ -8,6 +8,10 @@ deployment_owned_capability_keys:
 - model_bounds
 preserve_existing_capability_keys:
 - approval_mode
+spend_limit_keys:
+- max_cost_usd
+spend_limit_preserving_mapping_keys:
+- broker_bounds
 influence_key: influence
 session_authority_budget_preserved_keys:
 - influence

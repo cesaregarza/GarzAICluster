@@ -222,7 +222,7 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn(
-                "worker_service model call lease must declare exactly one allowed profile",
+                "worker_service model call bounds must declare exactly one allowed profile",
                 result.stderr,
             )
 
@@ -384,14 +384,14 @@ def _fake_agent_platform_repo(tmp: Path) -> tuple[Path, str, str]:
                             import_entry.get("capabilities") or {}
                         ).items():
                             profiles = (
-                                (capability.get("model_lease") or {}).get(
+                                (capability.get("model_bounds") or {}).get(
                                     "allowed_profiles"
                                 )
                                 or []
                             )
                             if len(profiles) != 1:
                                 raise RegistryError(
-                                    "worker_service model call lease must declare "
+                                    "worker_service model call bounds must declare "
                                     f"exactly one allowed profile: {capability_id}"
                                 )
                     return cls()
@@ -497,7 +497,7 @@ def _write_overlay_configmap(
                 "image_digest": "sha256:" + "b" * 64,
                 "capabilities": {
                     "agent_workloads.opencode_propose": {
-                        "model_lease": {"allowed_profiles": allowed_profiles}
+                        "model_bounds": {"allowed_profiles": allowed_profiles}
                     }
                 },
             }
