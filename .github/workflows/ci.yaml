@@ -190,6 +190,10 @@ jobs:
             path: helm/skyquiet-server
             release: skyquiet-server
             prod_values: helm/skyquiet-server/values.yaml
+          - name: poetry
+            path: helm/poetry
+            release: poetry
+            prod_values: helm/poetry/values-ci.yaml
           - name: agent-workloads
             path: helm/agent-workloads
             release: agent-workloads
@@ -221,6 +225,61 @@ jobs:
           mkdir -p rendered
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" > "rendered/${{ matrix.chart.name }}-default.yaml"
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" -f "${{ matrix.chart.prod_values }}" > "rendered/${{ matrix.chart.name }}-prod.yaml"
+
+      - name: Install uv for Poetry semantic checks
+        if: matrix.chart.name == 'poetry'
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python for Poetry semantic checks
+        if: matrix.chart.name == 'poetry'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry semantic-check dependencies
+        if: matrix.chart.name == 'poetry'
+        run: uv sync
+
+      - name: Run Poetry semantic checks
+        if: matrix.chart.name == 'poetry'
+        run: >-
+          uv run python scripts/check_poetry_substrate.py
+          --default-render rendered/poetry-default.yaml
+          --enabled-render rendered/poetry-prod.yaml
+
+      - name: Verify Poetry Access configuration fails closed
+        if: matrix.chart.name == 'poetry'
+        run: |
+          set -euo pipefail
+          chart=helm/poetry
+          expect_failure() {
+            expected=$1
+            shift
+            if helm template poetry "$chart" "$@" >/dev/null 2>rendered/poetry-negative.err; then
+              echo "Expected Helm render to fail: $expected" >&2
+              exit 1
+            fi
+            grep -F "$expected" rendered/poetry-negative.err >/dev/null
+          }
+          expect_failure "teamDomain is required" \
+            --set enabled=true \
+            --set application.cloudflareAccess.enabled=true
+          expect_failure "audience is required" \
+            --set enabled=true \
+            --set application.cloudflareAccess.enabled=true \
+            --set application.cloudflareAccess.teamDomain=https://poetry-ci.cloudflareaccess.com
+          expect_failure "allowedEmail is required" \
+            --set enabled=true \
+            --set application.cloudflareAccess.enabled=true \
+            --set application.cloudflareAccess.teamDomain=https://poetry-ci.cloudflareaccess.com \
+            --set application.cloudflareAccess.audience=0123456789abcdef0123456789abcdef \
+            --set application.cloudflareAccess.allowedEmail=
+          expect_failure "must be an https://" \
+            -f helm/poetry/values-ci.yaml \
+            --set application.cloudflareAccess.teamDomain=http://bad.example.com
+          expect_failure "must remain cesar@cegarza.com" \
+            -f helm/poetry/values-ci.yaml \
+            --set application.cloudflareAccess.allowedEmail=attacker@example.com
 
       - name: Run kubeconform
         run: |
