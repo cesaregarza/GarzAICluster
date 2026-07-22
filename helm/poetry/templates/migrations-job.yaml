@@ -34,8 +34,10 @@ spec:
             - -c
           args:
             - {{ .Values.migrations.command | quote }}
+          env:
+            {{- include "poetry.runtimeEnv" . | nindent 12 }}
           envFrom:
-            {{- include "poetry.envFrom" . | nindent 12 }}
+            {{- include "poetry.secretEnvFrom" . | nindent 12 }}
           resources:
             {{- toYaml .Values.migrations.resources | nindent 12 }}
           securityContext:

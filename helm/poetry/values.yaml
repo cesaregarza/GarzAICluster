@@ -1,6 +1,6 @@
-# The application is introduced inertly. A later, reviewed activation change must
-# provision encrypted secrets, pin a published image, and set enabled to true.
-enabled: false
+# Runtime activation follows the live encrypted-secret and immutable-image gates.
+# Public ingress remains a separate, explicitly reviewed launch step.
+enabled: true
 
 replicaCount: 1
 

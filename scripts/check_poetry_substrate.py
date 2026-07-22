@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Semantic CI assertions for the inert Poetry GitOps substrate."""
+"""Semantic CI assertions for the staged Poetry GitOps release."""
 
 from __future__ import annotations
 
@@ -116,7 +116,7 @@ def _assert_encrypted_secret(
 
 def check(default_render: Path, enabled_render: Path) -> None:
     values = _load_one(REPO_ROOT / "helm" / "poetry" / "values.yaml")
-    assert values["enabled"] is False
+    assert values["enabled"] is True
     assert values["replicaCount"] == 1
     assert values["ingress"]["enabled"] is False
     assert values["ingress"]["cloudflareProxied"] == "false"
@@ -128,7 +128,38 @@ def check(default_render: Path, enabled_render: Path) -> None:
     }
     assert re.fullmatch(r"sha-[a-f0-9]{40}", values["image"]["tag"])
 
-    assert _load_all(default_render) == [], "disabled values must render no resources"
+    runtime_docs = _load_all(default_render)
+    assert [document["kind"] for document in runtime_docs] == [
+        "ConfigMap",
+        "Service",
+        "Deployment",
+        "Job",
+    ]
+    assert all(document["kind"] != "Ingress" for document in runtime_docs)
+    assert all(document["kind"] != "PersistentVolumeClaim" for document in runtime_docs)
+    _assert_no_key(runtime_docs, "persistentVolumeClaim")
+    runtime_config = _find(runtime_docs, "ConfigMap", "poetry-config")
+    assert runtime_config["data"]["CLOUDFLARE_ACCESS_REQUIRED"] == "false"
+    runtime_service = _find(runtime_docs, "Service", "poetry")
+    assert runtime_service["spec"]["type"] == "ClusterIP"
+    runtime_deployment = _find(runtime_docs, "Deployment", "poetry")
+    assert (
+        runtime_deployment["spec"]["template"]["spec"]["containers"][0]["image"]
+        == f"{values['image']['repository']}:{values['image']['tag']}"
+    )
+    runtime_job = _find(runtime_docs, "Job", "poetry-migrate")
+    runtime_job_container = runtime_job["spec"]["template"]["spec"]["containers"][0]
+    assert {item["name"]: item["value"] for item in runtime_job_container["env"]} == {
+        **values["application"]["configData"],
+        "CLOUDFLARE_ACCESS_REQUIRED": "false",
+    }
+    assert all(
+        "configMapRef" not in source for source in runtime_job_container["envFrom"]
+    )
+    assert [
+        source["secretRef"]["name"] for source in runtime_job_container["envFrom"]
+    ] == EXPECTED_SECRETS
+
     docs = _load_all(enabled_render)
     assert [document["kind"] for document in docs] == [
         "ConfigMap",
@@ -191,6 +222,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
     assert job_pod_spec["imagePullSecrets"] == [{"name": "regcred"}]
     job_container = job_pod_spec["containers"][0]
     assert IMAGE_PATTERN.fullmatch(job_container["image"])
+    assert all("configMapRef" not in source for source in job_container["envFrom"])
     assert [
         source["secretRef"]["name"]
         for source in job_container["envFrom"]

@@ -1,8 +1,9 @@
 # Poetry chart rollout stages
 
-`values.yaml` is intentionally inert: both `enabled` and `ingress.enabled` are
-false. `values-ci.yaml` exists only to exercise every template in CI and must not
-be added to the Argo CD Application.
+`values.yaml` enables the private, ingress-free runtime: `enabled` is true while
+`ingress.enabled` remains false. `values-ci.yaml` exists only to exercise the
+later public-launch Access and Ingress variant in CI and must not be added to the
+Argo CD Application.
 
 Activate in reviewed stages:
 

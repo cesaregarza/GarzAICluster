@@ -57,6 +57,32 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- end }}
 
+{{/* Secret-only environment sources for PreSync hooks. */}}
+{{- define "poetry.secretEnvFrom" -}}
+{{- range .Values.application.secretRefs }}
+- secretRef:
+    name: {{ . }}
+{{- end }}
+{{- end }}
+
+{{/* Non-secret runtime configuration for PreSync hooks. */}}
+{{- define "poetry.runtimeEnv" -}}
+{{- range $key, $value := .Values.application.configData }}
+- name: {{ $key }}
+  value: {{ $value | quote }}
+{{- end }}
+- name: CLOUDFLARE_ACCESS_REQUIRED
+  value: {{ ternary "true" "false" .Values.application.cloudflareAccess.enabled | quote }}
+{{- if .Values.application.cloudflareAccess.enabled }}
+- name: CLOUDFLARE_ACCESS_TEAM_DOMAIN
+  value: {{ .Values.application.cloudflareAccess.teamDomain | quote }}
+- name: CLOUDFLARE_ACCESS_AUD
+  value: {{ .Values.application.cloudflareAccess.audience | quote }}
+- name: CLOUDFLARE_ACCESS_ALLOWED_EMAIL
+  value: {{ .Values.application.cloudflareAccess.allowedEmail | quote }}
+{{- end }}
+{{- end }}
+
 {{/* Shared image pull secrets. */}}
 {{- define "poetry.imagePullSecrets" -}}
 {{- with .Values.imagePullSecrets }}
