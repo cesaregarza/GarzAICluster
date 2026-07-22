@@ -1,15 +1,15 @@
 # Poetry chart rollout stages
 
-`values.yaml` enables the private Access-validation stage: the runtime and signed
-Cloudflare Access origin validation are enabled while ingress and Cloudflare
-proxying remain disabled. `values-ci.yaml` exercises the later public Ingress
+`values.yaml` enables the public DNS-only TLS stage: the runtime, signed
+Cloudflare Access origin validation, and Ingress are enabled while Cloudflare
+proxying remains disabled. `values-ci.yaml` exercises the same public Ingress
 with isolated Access identifiers in CI and must not be added to the Argo CD
 Application.
 
-During this stage, in-cluster unauthenticated `/admin/` requests must be rejected
-by the Django origin with `403` before any public Ingress exists. Do not create
-staff or superuser accounts until both the later raw-origin denial and the
-Cloudflare edge challenge have been proven.
+During this stage, unauthenticated `/admin/` requests are rejected by the Django
+origin with `403` even when sent directly to the public load balancer. Do not
+create staff or superuser accounts until both this raw-origin denial and the
+later Cloudflare edge challenge have been proven.
 
 Activate in reviewed stages:
 
