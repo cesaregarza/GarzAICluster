@@ -17,9 +17,11 @@ spec:
     targetRevision: main
     path: apps/agent-control-plane-registry-overlay
     # This path intentionally retains kustomization.yaml for local render
-    # equivalence. Select Helm explicitly so Argo does not auto-detect the
-    # Kustomize input and silently omit templates/restart-hook.yaml.
-    helm: {}
+    # equivalence. Select Helm with a non-empty field that survives Kubernetes
+    # CRD normalization so Argo cannot auto-detect the Kustomize input and
+    # silently omit templates/restart-hook.yaml.
+    helm:
+      releaseName: agent-control-plane-registry-overlay
   destination:
     server: https://kubernetes.default.svc
     namespace: agent-control-plane
