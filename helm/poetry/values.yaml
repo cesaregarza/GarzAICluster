@@ -1,0 +1,139 @@
+# The application is introduced inertly. A later, reviewed activation change must
+# provision encrypted secrets, pin a published image, and set enabled to true.
+enabled: false
+
+replicaCount: 1
+
+image:
+  repository: registry.digitalocean.com/sendouq/poetry
+  # Bot-owned path. The source repository updates this exact key after publishing.
+  tag: sha-0000000000000000000000000000000000000000
+  # Optional digest pin. When set, it takes precedence over tag.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - regcred
+
+nameOverride: ""
+fullnameOverride: ""
+
+application:
+  workingDirectory: /app
+  command: >-
+    exec gunicorn poetry_site.wsgi:application --bind 0.0.0.0:8000 --workers 2
+    --timeout 120 --access-logfile - --error-logfile -
+  configMapName: poetry-config
+  secretRefs:
+    - poetry-database
+    - poetry-django
+    - poetry-media
+  configData:
+    DJANGO_DEBUG: "false"
+    DJANGO_ALLOWED_HOSTS: poetry.cegarza.com
+    DJANGO_CSRF_TRUSTED_ORIGINS: https://poetry.cegarza.com
+    WAGTAILADMIN_BASE_URL: https://poetry.cegarza.com
+    SITE_HOSTNAME: poetry.cegarza.com
+    DATABASE_SSL_REQUIRE: "true"
+    AWS_STORAGE_BUCKET_NAME: cegarza-poetry-media
+    AWS_S3_REGION_NAME: nyc3
+    AWS_S3_ENDPOINT_URL: https://nyc3.digitaloceanspaces.com
+    AWS_S3_CUSTOM_DOMAIN: cegarza-poetry-media.nyc3.cdn.digitaloceanspaces.com
+    TMPDIR: /tmp
+  # Disabled until the Cloudflare Access application exists. When enabled, the
+  # Django origin validates the signed Access JWT on /admin and /admin/* so a
+  # direct request to the load-balancer cannot bypass the edge policy.
+  cloudflareAccess:
+    enabled: false
+    teamDomain: ""
+    audience: ""
+    allowedEmail: cesar@cegarza.com
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+deployment:
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 600
+  terminationGracePeriodSeconds: 30
+
+migrations:
+  enabled: true
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  command: >-
+    python manage.py migrate --noinput && python manage.py bootstrap_site --hostname
+    poetry.cegarza.com
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+podSecurityContext:
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+  runAsGroup: 10001
+  runAsNonRoot: true
+  runAsUser: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsGroup: 10001
+  runAsNonRoot: true
+  runAsUser: 10001
+  capabilities:
+    drop:
+      - ALL
+
+tmp:
+  sizeLimit: 128Mi
+
+probes:
+  httpHeaders:
+    - name: Host
+      value: poetry.cegarza.com
+    - name: X-Forwarded-Proto
+      value: https
+  startup:
+    path: /healthz
+    periodSeconds: 2
+    timeoutSeconds: 2
+    failureThreshold: 30
+  liveness:
+    path: /healthz
+    periodSeconds: 30
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    path: /readyz
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+ingress:
+  enabled: false
+  className: nginx
+  host: poetry.cegarza.com
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  cloudflareProxied: "false"
+  tls:
+    enabled: true
+    clusterIssuer: letsencrypt-prod
+    secretName: poetry-cegarza-com-tls
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
