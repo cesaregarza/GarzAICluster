@@ -337,7 +337,14 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         restart_container = pod_spec["containers"][0]
         self.assertEqual(
             restart_container["env"],
-            [{"name": "HOME", "value": "/tmp"}],
+            [
+                {"name": "HOME", "value": "/tmp"},
+                {
+                    "name": "KUBERNETES_SERVICE_HOST",
+                    "value": "kubernetes.default.svc",
+                },
+                {"name": "KUBERNETES_SERVICE_PORT", "value": "443"},
+            ],
         )
         self.assertEqual(
             restart_container["volumeMounts"],
