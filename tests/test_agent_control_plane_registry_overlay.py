@@ -433,12 +433,10 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         result, calls = self._run_restart_script()
         self.assertEqual(result.returncode, 0, result.stderr)
         expected_calls = []
-        request_timeout = "--request-timeout=1s "
         for deployment in REGISTRY_OVERLAY_RESTART_ORDER:
             component = REGISTRY_OVERLAY_COMPONENTS[deployment]
             pod_list = (
-                request_timeout
-                + "-n agent-control-plane get pods -l "
+                "-n agent-control-plane get pods -l "
                 "app.kubernetes.io/name=agent-control-plane,"
                 "app.kubernetes.io/instance=agent-control-plane,"
                 f"app.kubernetes.io/component={component} -o "
@@ -448,13 +446,11 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
                 [
                     pod_list,
                     (
-                        request_timeout
-                        + "-n agent-control-plane rollout restart "
+                        "-n agent-control-plane rollout restart "
                         f"deployment/{deployment}"
                     ),
                     (
-                        request_timeout
-                        + "-n agent-control-plane get "
+                        "-n agent-control-plane get "
                         f"deployment/{deployment} -o "
                         "jsonpath={.metadata.generation}|"
                         "{.status.observedGeneration}|{.spec.replicas}|"
@@ -474,6 +470,8 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             '"$old_pods" "$deadline"',
             restart_script,
         )
+        self.assertIn('timeout "${remaining_seconds}s" kubectl "$@"', restart_script)
+        self.assertNotIn("--request-timeout=", restart_script)
         self.assertEqual(
             restart_script.count(
                 'deadline="$(( $(date +%s) + rollout_timeout_seconds ))"'
@@ -519,8 +517,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertTrue(
             any(
-                call.startswith("--request-timeout=1s ")
-                and "app.kubernetes.io/component=model-gateway" in call
+                "app.kubernetes.io/component=model-gateway" in call
                 for call in calls
             )
         )
@@ -578,16 +575,6 @@ fi
             fake_kubectl.write_text(
                 """#!/bin/sh
 printf '%s\\n' "$*" >> "$KUBECTL_LOG"
-case "$1" in
-  --request-timeout=*s)
-    request_timeout_seconds="${1#--request-timeout=}"
-    request_timeout_seconds="${request_timeout_seconds%s}"
-    shift
-    ;;
-  *)
-    exit 65
-    ;;
-esac
 case "$3" in
   rollout)
     deployment="${5#deployment/}"
@@ -618,8 +605,8 @@ case "$3" in
         fi
         if [ "$component" = "$HANG_CAPTURE_COMPONENT" ] \
           && [ "$pod_list_count" -eq 0 ]; then
-          sleep "$request_timeout_seconds"
-          : > "$DEADLINE_EXPIRED_FILE"
+          trap ': > "$DEADLINE_EXPIRED_FILE"; exit 28' TERM
+          sleep 5
           exit 28
         fi
         pod_list_count="$((pod_list_count + 1))"
