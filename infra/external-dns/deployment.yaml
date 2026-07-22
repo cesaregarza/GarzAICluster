@@ -33,6 +33,7 @@ spec:
             # Add one domain filter per public zone/TLD that this cluster should manage.
             - --domain-filter=splat.top
             - --domain-filter=garz.ai
+            - --domain-filter=cegarza.com
             - --provider=cloudflare
             - --policy=sync
             - --registry=txt
