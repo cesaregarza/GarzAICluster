@@ -31,6 +31,12 @@ spec:
           # CES-108/CES-538: the control plane boot-caches the registry
           # snapshot; an overlay sync without a rollout leaves stale authority.
           image: alpine/k8s:1.33.4@sha256:b0523f0a244ddc4c8e055aa335c040d3d78b3ead5528f4544395f7f9f69c7b68
+          # The image defaults HOME to /root, but this container runs as UID
+          # 65534. Give kubectl an accessible home so it falls back to the
+          # projected in-cluster ServiceAccount configuration.
+          env:
+            - name: HOME
+              value: /tmp
           command:
             - /bin/sh
             - -ec
@@ -246,3 +252,9 @@ spec:
             limits:
               cpu: 100m
               memory: 64Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
