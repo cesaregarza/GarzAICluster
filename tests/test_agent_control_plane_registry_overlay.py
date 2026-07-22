@@ -333,9 +333,19 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             1500,
         )
 
-        restart_script = self.registry_overlay_restart_hook["spec"]["template"]["spec"][
-            "containers"
-        ][0]["command"][-1]
+        pod_spec = self.registry_overlay_restart_hook["spec"]["template"]["spec"]
+        restart_container = pod_spec["containers"][0]
+        self.assertEqual(
+            restart_container["env"],
+            [{"name": "HOME", "value": "/tmp"}],
+        )
+        self.assertEqual(
+            restart_container["volumeMounts"],
+            [{"name": "tmp", "mountPath": "/tmp"}],
+        )
+        self.assertEqual(pod_spec["volumes"], [{"name": "tmp", "emptyDir": {}}])
+
+        restart_script = restart_container["command"][-1]
         self.assertEqual(
             restart_script.split('deployments="', 1)[1].split('"', 1)[0].split(),
             REGISTRY_OVERLAY_RESTART_ORDER,

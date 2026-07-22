@@ -278,6 +278,33 @@ def _assert_complete_application_resources(documents: list[dict[str, Any]]) -> N
         raise RegistryOverlayRenderError(
             "generated PostSync Job must retain failed logs for one bounded day"
         )
+    pod_spec = (hook_spec.get("template") or {}).get("spec")
+    if not isinstance(pod_spec, dict):
+        raise RegistryOverlayRenderError("generated PostSync Job Pod spec is missing")
+    containers = pod_spec.get("containers")
+    if not isinstance(containers, list) or len(containers) != 1:
+        raise RegistryOverlayRenderError(
+            "generated PostSync Job must contain exactly one container"
+        )
+    restart_container = containers[0]
+    expected_env = [{"name": "HOME", "value": "/tmp"}]
+    if restart_container.get("env") != expected_env:
+        raise RegistryOverlayRenderError(
+            "generated PostSync Job must give non-root kubectl an accessible HOME:\n"
+            + _json_diff(expected_env, restart_container.get("env"))
+        )
+    expected_mounts = [{"name": "tmp", "mountPath": "/tmp"}]
+    if restart_container.get("volumeMounts") != expected_mounts:
+        raise RegistryOverlayRenderError(
+            "generated PostSync Job writable-home mount drifted:\n"
+            + _json_diff(expected_mounts, restart_container.get("volumeMounts"))
+        )
+    expected_volumes = [{"name": "tmp", "emptyDir": {}}]
+    if pod_spec.get("volumes") != expected_volumes:
+        raise RegistryOverlayRenderError(
+            "generated PostSync Job writable-home volume drifted:\n"
+            + _json_diff(expected_volumes, pod_spec.get("volumes"))
+        )
 
     role = next(document for document in documents if document.get("kind") == "Role")
     expected_rules = [
