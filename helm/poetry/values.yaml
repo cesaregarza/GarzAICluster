@@ -40,13 +40,13 @@ application:
     AWS_S3_ENDPOINT_URL: https://nyc3.digitaloceanspaces.com
     AWS_S3_CUSTOM_DOMAIN: cegarza-poetry-media.nyc3.cdn.digitaloceanspaces.com
     TMPDIR: /tmp
-  # Disabled until the Cloudflare Access application exists. When enabled, the
-  # Django origin validates the signed Access JWT on /admin and /admin/* so a
-  # direct request to the load-balancer cannot bypass the edge policy.
+  # The Django origin validates the signed Access JWT on /admin and /admin/* so
+  # a direct request to the load-balancer cannot bypass the edge policy. Keep
+  # this enabled before the public Ingress is created or Cloudflare is proxied.
   cloudflareAccess:
-    enabled: false
-    teamDomain: ""
-    audience: ""
+    enabled: true
+    teamDomain: https://rapid-bird-dbce.cloudflareaccess.com
+    audience: aaeced7b6693e5b64f4a03c8704989bc89de070986793107baf1b03a9ce589db
     allowedEmail: cesar@cegarza.com
 
 service:
@@ -119,7 +119,7 @@ probes:
     failureThreshold: 3
 
 ingress:
-  enabled: true
+  enabled: false
   className: nginx
   host: poetry.cegarza.com
   annotations:

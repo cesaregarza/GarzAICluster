@@ -272,11 +272,13 @@ jobs:
           }
           expect_failure "teamDomain is required" \
             --set enabled=true \
-            --set application.cloudflareAccess.enabled=true
+            --set application.cloudflareAccess.enabled=true \
+            --set application.cloudflareAccess.teamDomain=
           expect_failure "audience is required" \
             --set enabled=true \
             --set application.cloudflareAccess.enabled=true \
-            --set application.cloudflareAccess.teamDomain=https://poetry-ci.cloudflareaccess.com
+            --set application.cloudflareAccess.teamDomain=https://poetry-ci.cloudflareaccess.com \
+            --set application.cloudflareAccess.audience=
           expect_failure "allowedEmail is required" \
             --set enabled=true \
             --set application.cloudflareAccess.enabled=true \

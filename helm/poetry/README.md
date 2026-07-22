@@ -1,14 +1,15 @@
 # Poetry chart rollout stages
 
-`values.yaml` enables the public, DNS-only TLS stage: `enabled` and
-`ingress.enabled` are true while Cloudflare proxying and Access validation remain
-false. `values-ci.yaml` exists only to exercise the later Access-enabled variant
-in CI and must not be added to the Argo CD Application.
+`values.yaml` enables the private Access-validation stage: the runtime and signed
+Cloudflare Access origin validation are enabled while ingress and Cloudflare
+proxying remain disabled. `values-ci.yaml` exercises the later public Ingress
+with isolated Access identifiers in CI and must not be added to the Argo CD
+Application.
 
-During this bounded certificate-issuance stage, `/admin/` is reachable through
-nginx with Wagtail authentication and Axes lockout only. Do not create staff or
-superuser accounts until Cloudflare Access and the signed origin validator are
-active.
+During this stage, in-cluster unauthenticated `/admin/` requests must be rejected
+by the Django origin with `403` before any public Ingress exists. Do not create
+staff or superuser accounts until both the later raw-origin denial and the
+Cloudflare edge challenge have been proven.
 
 Activate in reviewed stages:
 
@@ -21,17 +22,18 @@ Activate in reviewed stages:
    and verify the Service plus `/healthz` and `/readyz` from inside the cluster.
    While Access is disabled the chart explicitly sets
    `CLOUDFLARE_ACCESS_REQUIRED=false` for this ingress-free staging phase.
-3. Set `ingress.enabled: true` with `cloudflareProxied: "false"`. Complete nginx
-   routing and the initial Let's Encrypt HTTP-01 issuance before proxying the
-   hostname.
-4. Configure and verify Cloudflare Access for `/admin` and `/admin/*`. Copy the
-   application's exact team domain and audience tag into
-   `application.cloudflareAccess`, enable the origin validator, and prove that
-   a raw load-balancer request with `Host: poetry.cegarza.com` receives `403` for
-   `/admin/`. The validator checks the Access-signed RS256 JWT, issuer, audience,
-   and exact `cesar@cegarza.com` identity; the normal Wagtail login remains the
-   second authentication step. The ConfigMap checksum in the pod template makes
-   sure this same GitOps revision restarts the Deployment with validation active.
+3. Configure Cloudflare Access for `/admin` and `/admin/*`, then enable
+   `application.cloudflareAccess` with the application's exact team domain and
+   audience tag while keeping `ingress.enabled: false`. The validator checks the
+   Access-signed RS256 JWT, issuer, audience, and exact `cesar@cegarza.com`
+   identity; the normal Wagtail login remains the second authentication step.
+   The ConfigMap checksum makes sure this GitOps revision restarts the Deployment
+   with validation active. Prove the new pod is Ready and an in-cluster request
+   to `/admin/` without a signed assertion receives `403` before continuing.
+4. In a separate reviewed revision, set `ingress.enabled: true` with
+   `cloudflareProxied: "false"`. Prove that a raw load-balancer request with
+   `Host: poetry.cegarza.com` still receives `403` for `/admin/`, then complete
+   nginx routing and the initial Let's Encrypt HTTP-01 issuance.
 5. Switch Cloudflare proxying on. Confirm public routes remain unauthenticated,
    `/admin/` challenges at the edge, an authenticated request reaches Wagtail,
    and a direct origin request is still denied.
