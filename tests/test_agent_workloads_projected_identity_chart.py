@@ -118,7 +118,19 @@ def _opencode_service_account_name(
     worker_id: str,
     worker_key: str,
 ) -> str:
-    release = values["mandateReleasePins"][worker_id]
+    return _release_service_account_name(
+        worker_id,
+        values["mandateReleasePins"][worker_id],
+        prefix=values[worker_key]["identity"]["serviceAccountNamePrefix"],
+    )
+
+
+def _release_service_account_name(
+    worker_id: str,
+    release: dict[str, str],
+    *,
+    prefix: str,
+) -> str:
     payload = {
         "schema_version": "workload_identity_bundle.v1",
         "code_digest": release["codeDigest"],
@@ -128,7 +140,6 @@ def _opencode_service_account_name(
     suffix = hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()[:20]
-    prefix = values[worker_key]["identity"]["serviceAccountNamePrefix"]
     normalized_worker = worker_id.replace(".", "-").replace("_", "-")
     return f"{prefix}-{normalized_worker}-{suffix}"
 
@@ -160,12 +171,12 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             CURRENT_RELEASE
         )
         values["image"]["digest"] = CURRENT_RELEASE["imageDigest"]
-        values["env"].pop("MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE")
+        values["env"].pop("MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE", None)
         values["extraVolumes"] = []
         values["extraVolumeMounts"] = []
         return values
 
-    def test_production_values_render_workspace_hmac_and_opencode_canary(
+    def test_production_values_render_workspace_projected_and_opencode_hmac(
         self,
     ) -> None:
         documents = _render()
@@ -176,12 +187,31 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
         )
         worker_pod = worker["spec"]["template"]["spec"]
         worker_volumes = {volume["name"]: volume for volume in worker_pod["volumes"]}
+        workspace_account = _release_service_account_name(
+            "data.workspace_probe",
+            self.production_values["mandateReleasePins"]["data.workspace_probe"],
+            prefix=self.production_values["projectedWorkloadIdentity"][
+                "serviceAccountNamePrefix"
+            ],
+        )
 
         self.assertIs(worker_pod["automountServiceAccountToken"], False)
-        self.assertEqual(worker_pod["serviceAccountName"], "agent-workloads")
+        self.assertEqual(worker_pod["serviceAccountName"], workspace_account)
+        self.assertNotIn("workload-identity-token", worker_volumes)
         self.assertEqual(
-            worker_volumes["workload-identity-token"]["secret"]["secretName"],
-            "agent-workloads-workload-identity-tokens",
+            worker_volumes["projected-workload-identity-token"]["projected"],
+            {
+                "defaultMode": 0o440,
+                "sources": [
+                    {
+                        "serviceAccountToken": {
+                            "audience": "mandate-api",
+                            "expirationSeconds": 3600,
+                            "path": "token",
+                        }
+                    }
+                ],
+            },
         )
         self.assertEqual(
             _environment(_container(worker, "worker"))[
@@ -189,7 +219,7 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             ]["value"],
             "/var/run/mandate/workload-identity/token",
         )
-        self.assertIn(
+        self.assertNotIn(
             "checksum.garz.ai/agent-workloads-token-secret",
             worker["spec"]["template"]["metadata"]["annotations"],
         )
@@ -212,7 +242,7 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
         }
         self.assertEqual(
             {account["metadata"]["name"] for account in service_accounts},
-            {"agent-workloads", *opencode_accounts.values()},
+            {"agent-workloads", workspace_account, *opencode_accounts.values()},
         )
 
         for worker_id, deployment_name, container_name in (

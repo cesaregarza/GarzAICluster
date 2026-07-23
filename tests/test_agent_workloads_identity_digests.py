@@ -188,6 +188,65 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
         self.assertIn("match release pins", result)
 
+    def test_gate_accepts_workspace_projected_subject_with_current_hmac_rollback(
+        self,
+    ) -> None:
+        root = _fixture_repo()
+        _configure_workspace_projected_identity(root)
+
+        result = _check(root)
+
+        self.assertIn("retained rollback tuples", result)
+
+    def test_gate_rejects_workspace_projected_subject_drift(self) -> None:
+        root = _fixture_repo()
+        _configure_workspace_projected_identity(root)
+        configmap_path = (
+            root
+            / "apps"
+            / "agent-control-plane-registry-overlay"
+            / "configmap.yaml"
+        )
+        configmap = YAML_PARSER.load(configmap_path.read_text())
+        imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
+        workspace = next(
+            entry for entry in imports["imports"] if entry["id"] == "data.workspace_probe"
+        )
+        workspace["agent"]["service_account_subject"] = (
+            "system:serviceaccount:agent-workloads:wrong-release"
+        )
+        configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
+        _write_yaml(configmap_path, configmap)
+
+        with self.assertRaisesRegex(
+            DriftGateError,
+            "service_account_subject differs from projected render",
+        ):
+            _check(root)
+
+    def test_gate_accepts_workspace_previous_tuple_hmac_during_projected_overlap(
+        self,
+    ) -> None:
+        previous_release = {
+            "codeDigest": "sha256:" + "4" * 64,
+            "manifestDigest": "sha256:" + "5" * 64,
+            "imageDigest": "sha256:" + "6" * 64,
+        }
+        root = _fixture_repo()
+        _configure_workspace_projected_identity(
+            root,
+            previous_release=previous_release,
+        )
+        _configure_retained_hmac_token(
+            root,
+            agent_id="data.workspace_probe",
+            release=previous_release,
+        )
+
+        result = _check(root)
+
+        self.assertIn("retained rollback tuples", result)
+
     def test_gate_accepts_previous_tuple_hmac_during_projected_overlap(self) -> None:
         previous_release = {
             "codeDigest": "sha256:" + "4" * 64,
@@ -642,6 +701,51 @@ def _configure_governed_release_subjects(
                 "manifest_digest": previous["manifestDigest"],
                 "image_digest": previous["imageDigest"],
             }
+    configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
+    _write_yaml(configmap_path, configmap)
+
+
+def _configure_workspace_projected_identity(
+    root: Path,
+    *,
+    previous_release: dict[str, str] | None = None,
+) -> None:
+    agent_id = "data.workspace_probe"
+    values_path = root / "apps" / "agent-workloads" / "values.yaml"
+    values = YAML_PARSER.load(values_path.read_text())
+    values["projectedWorkloadIdentity"] = {
+        "enabled": True,
+        "workerId": agent_id,
+        "serviceAccountNamePrefix": "agent-workloads",
+        "token": {"audience": "mandate-api"},
+        "previousRelease": previous_release,
+    }
+    _write_yaml(values_path, values)
+
+    configmap_path = (
+        root / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
+    )
+    configmap = YAML_PARSER.load(configmap_path.read_text())
+    imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
+    workspace = next(
+        entry for entry in imports["imports"] if entry["id"] == agent_id
+    )
+    agent = workspace.setdefault("agent", {})
+    agent["identity_audience"] = "mandate-api"
+    agent["service_account_subject"] = _release_subject(
+        agent_id,
+        DIGESTS[agent_id],
+    )
+    if previous_release is not None:
+        agent["previous_release"] = {
+            "service_account_subject": _release_subject(
+                agent_id,
+                previous_release,
+            ),
+            "code_digest": previous_release["codeDigest"],
+            "manifest_digest": previous_release["manifestDigest"],
+            "image_digest": previous_release["imageDigest"],
+        }
     configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
     _write_yaml(configmap_path, configmap)
 

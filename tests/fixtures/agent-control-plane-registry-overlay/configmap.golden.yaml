@@ -371,6 +371,7 @@ data:
         execution_posture: capability_worker
         network_access: database_only
         service_account_ref: agent-workloads-worker
+        service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-a3404f79b15b11b8b7f3
         identity_audience: mandate-api
         capacity_tier: 4
         concurrency: 1
