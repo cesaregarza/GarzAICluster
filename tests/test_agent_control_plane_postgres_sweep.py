@@ -98,13 +98,17 @@ class AgentControlPlanePostgresSweepTests(unittest.TestCase):
 
         for name in (
             "AGENT_PLATFORM_ENVIRONMENT",
-            "AGENT_PLATFORM_WORKLOAD_IDENTITY_MODE",
             "AGENT_PLATFORM_WORKLOAD_IDENTITY_ISSUER",
             "AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE",
             "AGENT_PLATFORM_WORKLOAD_IDENTITY_REQUIRED_SCOPES",
             "AGENT_PLATFORM_WORKLOAD_IDENTITY_ALLOWED_SUBJECTS_JSON",
         ):
             self.assertEqual(env[name], self.values["env"][name])
+        self.assertEqual(env["AGENT_PLATFORM_WORKLOAD_IDENTITY_MODE"], "hmac")
+        self.assertEqual(
+            self.values["env"]["AGENT_PLATFORM_WORKLOAD_IDENTITY_MODE"],
+            "kubernetes_hybrid",
+        )
 
     def test_cronjob_is_non_root_and_covered_by_control_plane_egress(self) -> None:
         pod_spec = _pod_spec(self.cronjob)

@@ -10,11 +10,23 @@ image:
   tag: sha-51102759737c
   digest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
   pullPolicy: IfNotPresent
+projectedWorkloadIdentity:
+  enabled: true
+  workerId: data.workspace_probe
+  serviceAccountNamePrefix: agent-workloads
+  serviceAccount:
+    create: true
+    annotations: {}
+  token:
+    audience: mandate-api
+    expirationSeconds: 3600
+    mountPath: /var/run/mandate/workload-identity
+    fileName: token
+  previousRelease: null
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
   AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
   AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe,agent_workloads.readonly_query
-  MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE: /var/run/mandate/workload-identity/token
   AGENT_WORKLOADS_ENVIRONMENT: production
   AGENT_WORKLOADS_SCHEMA: agent_workloads
   AGENT_WORKLOADS_POLL_SECONDS: '2'
@@ -26,17 +38,6 @@ env:
 secretKeys:
 - AGENT_WORKLOADS_DATABASE_URL
 secretEnv: {}
-extraVolumes:
-- name: workload-identity-token
-  secret:
-    secretName: agent-workloads-workload-identity-tokens
-    items:
-    - key: MANDATE_WORKLOAD_IDENTITY_TOKEN
-      path: token
-extraVolumeMounts:
-- name: workload-identity-token
-  mountPath: /var/run/mandate/workload-identity
-  readOnly: true
 rolloutChecksums:
   workloadIdentityTokenSecret: sha256:11af48d70445c45732fb09cf141c083ba82df8bc79aa1da8c84c2f493473ce9f
 resources:

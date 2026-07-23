@@ -1,0 +1,30 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: agent-control-plane-tokenreview
+  labels:
+    app.kubernetes.io/name: agent-control-plane
+    app.kubernetes.io/component: api-tokenreview
+rules:
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: agent-control-plane-tokenreview
+  labels:
+    app.kubernetes.io/name: agent-control-plane
+    app.kubernetes.io/component: api-tokenreview
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: agent-control-plane-tokenreview
+subjects:
+  - kind: ServiceAccount
+    name: agent-control-plane-tokenreview
+    namespace: agent-control-plane

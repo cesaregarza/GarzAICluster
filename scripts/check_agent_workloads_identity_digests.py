@@ -131,6 +131,12 @@ def check_agent_workloads_identity_digests(
             values,
             release_pins[agent_id],
         )
+    _assert_workspace_release_subject_binding(
+        values=values,
+        overlay_pins=overlay_pins,
+        overlay_imports=overlay_imports,
+        workload_namespace=workload_namespace,
+    )
     _assert_opencode_release_subject_bindings(
         values=values,
         overlay_pins=overlay_pins,
@@ -228,6 +234,118 @@ def _load_overlay_release_state(
             "imageDigest": image_digest,
         }
     return pins, imports_by_id
+
+
+def _assert_workspace_release_subject_binding(
+    *,
+    values: dict[str, Any],
+    overlay_pins: dict[str, dict[str, str]],
+    overlay_imports: dict[str, dict[str, Any]],
+    workload_namespace: str,
+) -> None:
+    agent_id = "data.workspace_probe"
+    identity = values.get("projectedWorkloadIdentity")
+    import_entry = overlay_imports[agent_id]
+    agent = import_entry.get("agent")
+    actual_subject = agent.get("service_account_subject") if isinstance(agent, dict) else None
+    imported_previous = agent.get("previous_release") if isinstance(agent, dict) else None
+
+    if not isinstance(identity, dict) or identity.get("enabled") is not True:
+        if actual_subject is not None or imported_previous is not None:
+            raise DriftGateError(
+                "data.workspace_probe HMAC identity must not declare projected release subjects"
+            )
+        return
+    if not isinstance(workload_namespace, str) or not workload_namespace.strip():
+        raise DriftGateError("workload namespace must be non-empty")
+    if not isinstance(agent, dict):
+        raise DriftGateError("data.workspace_probe import agent must be a mapping")
+
+    worker_id = _required_str(
+        identity,
+        "workerId",
+        "projectedWorkloadIdentity",
+    )
+    if worker_id != agent_id:
+        raise DriftGateError(
+            "projectedWorkloadIdentity.workerId must equal data.workspace_probe"
+        )
+    prefix = _required_str(
+        identity,
+        "serviceAccountNamePrefix",
+        "projectedWorkloadIdentity",
+    )
+    current_subject = _release_service_account_subject(
+        namespace=workload_namespace,
+        prefix=prefix,
+        worker_id=agent_id,
+        release=overlay_pins[agent_id],
+    )
+    if actual_subject != current_subject:
+        raise DriftGateError(
+            "data.workspace_probe service_account_subject differs from projected render: "
+            f"expected {current_subject}, got {actual_subject}"
+        )
+
+    token = _required_mapping(
+        identity,
+        "token",
+        "projectedWorkloadIdentity",
+    )
+    expected_audience = _required_str(
+        token,
+        "audience",
+        "projectedWorkloadIdentity.token",
+    )
+    if agent.get("identity_audience") != expected_audience:
+        raise DriftGateError(
+            "data.workspace_probe identity_audience differs from projected render: "
+            f"expected {expected_audience}, got {agent.get('identity_audience')}"
+        )
+
+    configured_previous = identity.get("previousRelease")
+    if configured_previous is None:
+        if imported_previous is not None:
+            raise DriftGateError(
+                "data.workspace_probe registry previous_release is not rendered by Helm values"
+            )
+        return
+    if not isinstance(configured_previous, dict):
+        raise DriftGateError(
+            "projectedWorkloadIdentity.previousRelease must be a mapping"
+        )
+    if not isinstance(imported_previous, dict):
+        raise DriftGateError(
+            "data.workspace_probe registry previous_release is required for rollout overlap"
+        )
+    previous_subject = _release_service_account_subject(
+        namespace=workload_namespace,
+        prefix=prefix,
+        worker_id=agent_id,
+        release=configured_previous,
+    )
+    expected_previous = {
+        "service_account_subject": previous_subject,
+        "code_digest": _required_str(
+            configured_previous,
+            "codeDigest",
+            "projectedWorkloadIdentity.previousRelease",
+        ),
+        "manifest_digest": _required_str(
+            configured_previous,
+            "manifestDigest",
+            "projectedWorkloadIdentity.previousRelease",
+        ),
+        "image_digest": _required_str(
+            configured_previous,
+            "imageDigest",
+            "projectedWorkloadIdentity.previousRelease",
+        ),
+    }
+    if imported_previous != expected_previous:
+        raise DriftGateError(
+            "data.workspace_probe registry previous_release differs from projected render"
+        )
 
 
 def _assert_opencode_release_subject_bindings(
@@ -375,6 +493,34 @@ def _retained_hmac_release_pins(
         agent_id: dict(release)
         for agent_id, release in overlay_pins.items()
     }
+    workspace_identity = values.get("projectedWorkloadIdentity")
+    if (
+        isinstance(workspace_identity, dict)
+        and workspace_identity.get("enabled") is True
+    ):
+        previous_release = workspace_identity.get("previousRelease")
+        if previous_release is not None:
+            if not isinstance(previous_release, dict):
+                raise DriftGateError(
+                    "projectedWorkloadIdentity.previousRelease must be a mapping"
+                )
+            retained_pins["data.workspace_probe"] = {
+                "codeDigest": _required_str(
+                    previous_release,
+                    "codeDigest",
+                    "projectedWorkloadIdentity.previousRelease",
+                ),
+                "manifestDigest": _required_str(
+                    previous_release,
+                    "manifestDigest",
+                    "projectedWorkloadIdentity.previousRelease",
+                ),
+                "imageDigest": _required_str(
+                    previous_release,
+                    "imageDigest",
+                    "projectedWorkloadIdentity.previousRelease",
+                ),
+            }
     handoff = values.get("opencodeArtifactHandoff")
     if not isinstance(handoff, dict) or handoff.get("mode") != "governedCore":
         return retained_pins

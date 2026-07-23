@@ -131,7 +131,7 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
         self.assertIn((53, "UDP"), ports)
         self.assertIn((53, "TCP"), ports)
 
-    def test_workspace_probe_workload_identity_uses_dedicated_token_secret(self) -> None:
+    def test_workspace_probe_workload_identity_uses_projected_token(self) -> None:
         deployment = _find_doc(
             self.docs,
             kind="Deployment",
@@ -142,15 +142,19 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             for volume in deployment["spec"]["template"]["spec"]["volumes"]
         }
 
-        token_volume = volumes["workload-identity-token"]["secret"]
+        self.assertNotIn("workload-identity-token", volumes)
+        token_volume = volumes["projected-workload-identity-token"]["projected"]
         self.assertEqual(
             token_volume,
             {
-                "secretName": "agent-workloads-workload-identity-tokens",
-                "items": [
+                "defaultMode": 0o440,
+                "sources": [
                     {
-                        "key": "MANDATE_WORKLOAD_IDENTITY_TOKEN",
-                        "path": "token",
+                        "serviceAccountToken": {
+                            "audience": "mandate-api",
+                            "expirationSeconds": 3600,
+                            "path": "token",
+                        }
                     }
                 ],
             },
@@ -187,12 +191,26 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
         ]
         expected_release_checksum = _release_pins_checksum(self.values)
 
-        for deployment in deployments.values():
-            annotations = deployment["spec"]["template"]["metadata"]["annotations"]
+        workspace_annotations = deployments["agent-workloads"]["spec"]["template"][
+            "metadata"
+        ]["annotations"]
+        self.assertNotIn(
+            "checksum.garz.ai/agent-workloads-token-secret",
+            workspace_annotations,
+        )
+        for name in (
+            "agent-workloads-opencode-proposer",
+            "agent-workloads-opencode-apply-executor",
+        ):
+            annotations = deployments[name]["spec"]["template"]["metadata"][
+                "annotations"
+            ]
             self.assertEqual(
                 annotations["checksum.garz.ai/agent-workloads-token-secret"],
                 expected_token_checksum,
             )
+        for deployment in deployments.values():
+            annotations = deployment["spec"]["template"]["metadata"]["annotations"]
             self.assertEqual(
                 annotations["checksum.garz.ai/agent-workloads-release-pins"],
                 expected_release_checksum,
@@ -216,11 +234,9 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             changed_token_annotations = changed_token_deployment["spec"]["template"][
                 "metadata"
             ]["annotations"]
-            self.assertNotEqual(
-                changed_token_annotations[
-                    "checksum.garz.ai/agent-workloads-token-secret"
-                ],
-                expected_token_checksum,
+            self.assertEqual(
+                changed_token_annotations,
+                workspace_annotations,
             )
             self.assertEqual(
                 changed_token_annotations[
@@ -245,11 +261,9 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             changed_pins_annotations = changed_pins_deployment["spec"]["template"][
                 "metadata"
             ]["annotations"]
-            self.assertEqual(
-                changed_pins_annotations[
-                    "checksum.garz.ai/agent-workloads-token-secret"
-                ],
-                expected_token_checksum,
+            self.assertNotIn(
+                "checksum.garz.ai/agent-workloads-token-secret",
+                changed_pins_annotations,
             )
             self.assertNotEqual(
                 changed_pins_annotations[

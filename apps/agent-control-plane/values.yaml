@@ -8,6 +8,22 @@ fullnameOverride: agent-control-plane
 
 replicaCount: 1
 
+apiServiceAccount:
+  create: true
+  name: agent-control-plane-tokenreview
+  automountServiceAccountToken: false
+  annotations: {}
+
+workloadIdentity:
+  kubernetesTokenReview:
+    enabled: true
+    apiServerUrl: https://kubernetes.default.svc
+    reviewerTokenAudience: ""
+    tokenMountPath: /var/run/mandate/tokenreview/token
+    caMountPath: /var/run/mandate/tokenreview/ca.crt
+    tokenExpirationSeconds: 3600
+    timeoutSeconds: 5.0
+
 apiPodAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "9090"
@@ -55,7 +71,7 @@ env:
   AGENT_PLATFORM_MODEL_GATEWAY_TIMEOUT_SECONDS: "90"
   AGENT_PLATFORM_MODEL_GATEWAY_KILL_SWITCH_FILE: /app/model-gateway-controls/kill-switch
   AGENT_PLATFORM_MODEL_GATEWAY_REVOCATION_FILE: /app/model-gateway-controls/revocations.txt
-  AGENT_PLATFORM_WORKLOAD_IDENTITY_MODE: hmac
+  AGENT_PLATFORM_WORKLOAD_IDENTITY_MODE: kubernetes_hybrid
   AGENT_PLATFORM_WORKLOAD_IDENTITY_ISSUER: kubernetes
   AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE: mandate-api
   AGENT_PLATFORM_WORKLOAD_IDENTITY_REQUIRED_SCOPES: worker_service
