@@ -51,8 +51,8 @@ class PostgresRestoreRunbookTests(unittest.TestCase):
         self.assertIn("PostgreSQL 16", self.runbook)
         self.assertIn("nyc3", self.runbook)
         self.assertIn("db-amd-1vcpu-2gb", self.runbook)
-        self.assertIn("2026-06-17", self.runbook)
-        self.assertIn("2026-06-24T02:32:18Z", self.runbook)
+        self.assertIn("2026-07-16", self.runbook)
+        self.assertIn("2026-07-23T02:29:54Z", self.runbook)
 
         self.assertIn(hostname, self.runbook)
         self.assertIn(runtime_secret_name, self.runbook)
@@ -106,12 +106,24 @@ class PostgresRestoreRunbookTests(unittest.TestCase):
         for phrase in required_phrases:
             self.assertIn(phrase, self.normalized)
 
-    def test_runbook_does_not_claim_operator_drill_completed(self) -> None:
+    def test_runbook_records_completed_operator_drill(self) -> None:
         self.assertIn(
-            "Live scratch-restore drill status: pending operator approval",
+            "Live scratch-restore drill status: completed on 2026-07-23",
             self.runbook,
         )
-        self.assertIn("No scratch resource created", self.runbook)
+        self.assertIn(
+            "e97cbca4-fcc6-41d6-8d99-925702e19260",
+            self.runbook,
+        )
+        self.assertIn(
+            "job_3e5f312cdb3a4b2bb2340a64e3d2f684",
+            self.runbook,
+        )
+        self.assertIn("21m51s", self.runbook)
+        self.assertIn(
+            "Deleted the scratch database and all labeled temporary Kubernetes",
+            self.runbook,
+        )
         self.assertIn("Cost-bearing restore drills", self.runbook)
         self.assertIn("must not create, fork, delete, or repoint", self.normalized)
 

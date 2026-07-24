@@ -15,7 +15,7 @@ create, fork, delete, or repoint managed database clusters unattended.
 
 ## Current Posture
 
-Observed on 2026-06-24 with read-only `doctl` commands against the `cegarza`
+Observed on 2026-07-23 with read-only `doctl` commands against the `cegarza`
 DigitalOcean context:
 
 | Field | Value |
@@ -27,8 +27,8 @@ DigitalOcean context:
 | Nodes | 1 |
 | Plan | `db-amd-1vcpu-2gb` |
 | Status | online |
-| Latest observed daily backup | `2026-06-24T02:32:18Z` |
-| Observed backup range | `2026-06-17` through `2026-06-24` |
+| Latest observed daily backup | `2026-07-23T02:29:54Z` |
+| Observed backup range | `2026-07-16` through `2026-07-23` |
 | Live namespace | `agent-control-plane` |
 | Live Argo apps | `agent-control-plane`, `agent-control-plane-secrets` |
 | Runtime Kubernetes Secret | `agent-control-plane-secrets` |
@@ -273,9 +273,10 @@ audit hash chain is no longer automatically continuous. The expected behavior is
 | Date | Type | Operator | Restore point | Schema check | `/readyz` | Smoke task | Elapsed RTO | Cleanup |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-06-24 | Read-only posture check | Codex via `doctl` | No restore created; confirmed live cluster metadata and daily backups from 2026-06-17 through 2026-06-24. | Not run | Not run | Not run | Not measured | No scratch resource created |
+| 2026-07-23 | Rehearsed isolated PITR scratch restore | Codex with explicit operator approval from Cesar | Latest available PITR from `db-postgresql-nyc3-xscraper`; scratch cluster `mandate-restore-ces49-20260723t074131z` (`e97cbca4-fcc6-41d6-8d99-925702e19260`). | Passed: `mandate-postgres-schema-check` reported migrations current. | Passed on an isolated API copy: `{"ok":true,"environment":"prod"}`. | Passed: `mandate.deploy.smoke` job `job_3e5f312cdb3a4b2bb2340a64e3d2f684` reached `result.released` with accepted/progress/succeeded callbacks. | 21m51s from fork request to completed smoke; target is 4h. | Deleted the scratch database and all labeled temporary Kubernetes Deployments, Service, Secret, Jobs, and NetworkPolicy; production stayed ready and was never repointed. |
 
-Live scratch-restore drill status: pending operator approval. A completed drill
-must add a row above with the scratch cluster name, restore point, schema-check
+Live scratch-restore drill status: completed on 2026-07-23. Future rehearsals
+must add a new row with the scratch cluster name, restore point, schema-check
 result, `/readyz` result, smoke-task result, elapsed RTO, and cleanup outcome.
 
 ## References
