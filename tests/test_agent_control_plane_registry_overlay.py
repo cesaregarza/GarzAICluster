@@ -39,6 +39,8 @@ REGISTRY_OVERLAY_COMPONENTS = {
 }
 SKILL_BUNDLE_DIR = REPO_ROOT / "apps" / "agent-control-plane-skills"
 YAML_PARSER = YAML(typ="safe")
+SYNTHETIC_LIVE_VERIFY_MIN_SETTLEMENT_MARGIN_SECONDS = 30
+SYNTHETIC_LIVE_VERIFY_JOB_STARTUP_HEADROOM_SECONDS = 30
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -1032,6 +1034,69 @@ exit 64
             ["xscraper-schema", "xscraper-glossary"],
         )
         self.assertIn("tool.started", readonly_query["required_event_types"])
+
+    def test_synthetic_live_verify_runtime_budgets_and_deadline_are_coherent(
+        self,
+    ) -> None:
+        policy = YAML_PARSER.load(self.data["policy.prod.yaml"])
+        defaults = policy["defaults"]
+        synthetic = self.control_plane_values["syntheticLiveVerify"]
+        journey_specs = synthetic["journeys"]
+        journeys = {
+            journey["capability_id"]: journey
+            for journey in journey_specs
+        }
+
+        global_runtime = defaults["max_runtime_seconds_per_job"]
+        readonly_runtime = defaults["max_runtime_seconds_per_capability"][
+            "agent_workloads.readonly_query"
+        ]
+        self.assertEqual(global_runtime, 60)
+        self.assertEqual(
+            journeys["mandate.deploy.smoke"]["max_runtime_seconds"],
+            global_runtime,
+        )
+        self.assertEqual(readonly_runtime, 180)
+        self.assertEqual(
+            journeys["agent_workloads.readonly_query"]["max_runtime_seconds"],
+            readonly_runtime,
+        )
+
+        for journey in journey_specs:
+            self.assertGreaterEqual(
+                journey["timeout_seconds"] - journey["max_runtime_seconds"],
+                SYNTHETIC_LIVE_VERIFY_MIN_SETTLEMENT_MARGIN_SECONDS,
+            )
+        sequential_timeout_budget = sum(
+            journey["timeout_seconds"] for journey in journey_specs
+        )
+
+        args = synthetic["args"]
+        http_timeout_index = args.index("--http-timeout-seconds") + 1
+        http_timeout_seconds = int(args[http_timeout_index])
+        control_evidence_budget = 0
+        for journey in journey_specs:
+            # Submission and one status request can sit outside the journey's
+            # polling deadline. Worker dispatch, callbacks, and audit evidence
+            # each add another bounded request when that stage is configured.
+            bounded_requests = 2
+            bounded_requests += int(journey.get("run_local_worker", False))
+            bounded_requests += int(
+                bool(journey.get("required_callback_types", ("runtime-default",)))
+            )
+            bounded_requests += int(
+                bool(journey.get("required_event_types", ("runtime-default",)))
+            )
+            control_evidence_budget += bounded_requests * http_timeout_seconds
+
+        required_deadline = (
+            sequential_timeout_budget
+            + control_evidence_budget
+            + SYNTHETIC_LIVE_VERIFY_JOB_STARTUP_HEADROOM_SECONDS
+        )
+        active_deadline = synthetic["activeDeadlineSeconds"]
+        self.assertEqual(active_deadline, 480)
+        self.assertGreaterEqual(active_deadline, required_deadline)
 
     def test_prometheus_alerts_on_failed_synthetic_live_verify_job(self) -> None:
         rules_template = (

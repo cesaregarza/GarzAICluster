@@ -35,7 +35,7 @@ metrics:
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-5efddce68417
+  tag: sha-a7a5a116d60c
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -310,6 +310,15 @@ postgresSweep:
 syntheticLiveVerify:
   enabled: true
   schedule: "*/5 * * * *"
+  # Journeys run sequentially: 120s + 210s polling, 60s of bounded
+  # control/evidence calls per journey, and 30s of Job startup headroom.
+  # At 480s the chart's Forbid policy skips at most the next five-minute tick.
+  activeDeadlineSeconds: 480
+  # Make the HTTP bound explicit so the deadline budget cannot drift from the
+  # pinned verifier's current default without this values contract changing.
+  args:
+    - --http-timeout-seconds
+    - "15"
   baseUrl: http://agent-control-plane:80
   principal:
     issuer: synthetic
@@ -361,8 +370,9 @@ syntheticLiveVerify:
       capability_id: agent_workloads.readonly_query
       text: Show 3 recent X Power schedule windows from xscraper.schedules.
       max_cost_usd: 1.0
-      max_runtime_seconds: 60
-      timeout_seconds: 180
+      max_runtime_seconds: 180
+      # Keep queueing and result-settlement time outside the requested runtime.
+      timeout_seconds: 210
       poll_seconds: 5
       expected_status: succeeded
       required_result_fields:
