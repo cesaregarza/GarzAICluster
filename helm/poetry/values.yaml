@@ -7,7 +7,7 @@ replicaCount: 1
 image:
   repository: registry.digitalocean.com/sendouq/poetry
   # Bot-owned path. The source repository updates this exact key after publishing.
-  tag: "sha-cc7131ee623c611e7d4dff5cd62bbf29eb928f0c"
+  tag: "sha-fc9c40cd7ea9d78ef928662a8883113825d4be25"
   # Optional digest pin. When set, it takes precedence over tag.
   digest: ""
   pullPolicy: IfNotPresent
