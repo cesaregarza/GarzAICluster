@@ -132,7 +132,7 @@ spec:
         name: cegarza-blog-secrets
       - group: ''
         kind: Secret
-        name: cegarza-preview-tls
+        name: cegarza-dev-tls
       - group: ''
         kind: Secret
         name: cegarza-apex-tls

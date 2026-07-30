@@ -401,7 +401,7 @@ jobs:
           grep -F 'matchName: "private-db-postgresql-nyc3-xscraper-do-user-15543770-0.c.db.ondigitalocean.com"' \
             "$cegarza_render" >/dev/null
           grep -F 'matchPattern: "*"' "$cegarza_render" >/dev/null
-          grep -F 'secretName: cegarza-preview-tls' "$cegarza_render" >/dev/null
+          grep -F 'secretName: cegarza-dev-tls' "$cegarza_render" >/dev/null
           assert_cegarza_template_contains() {
             template=$1
             expected=$2

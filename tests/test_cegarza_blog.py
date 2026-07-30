@@ -77,7 +77,7 @@ def _document(
 
 
 class CegarzaBlogContractTests(unittest.TestCase):
-    def test_values_are_dedicated_preview_configuration(self) -> None:
+    def test_values_are_dedicated_dev_configuration(self) -> None:
         values = _load_yaml(VALUES_PATH)
         self.assertEqual(values["global"]["environment"], "production")
         self.assertEqual(values["global"]["databaseSecretName"], "cegarza-blog-secrets")
@@ -96,14 +96,14 @@ class CegarzaBlogContractTests(unittest.TestCase):
         self.assertEqual(blog["secretKeys"], ["DATABASE_URL", "DJANGO_SECRET_KEY"])
 
         environment = blog["env"]
-        self.assertEqual(environment["ALLOWED_HOSTS"], "preview.cegarza.com")
+        self.assertEqual(environment["ALLOWED_HOSTS"], "dev.cegarza.com")
         self.assertEqual(
             environment["CSRF_TRUSTED_ORIGINS"],
-            "https://preview.cegarza.com",
+            "https://dev.cegarza.com",
         )
         self.assertEqual(
             environment["WAGTAILADMIN_BASE_URL"],
-            "https://preview.cegarza.com/admin/",
+            "https://dev.cegarza.com/admin/",
         )
         self.assertEqual(environment["SITE_NAME"], "Bringing Down The Gauss")
         self.assertEqual(environment["SITE_DESCRIPTION"], "Thoughts, stories and ideas.")
@@ -121,7 +121,7 @@ class CegarzaBlogContractTests(unittest.TestCase):
         self.assertEqual(persistence["size"], "5Gi")
         self.assertTrue(persistence["retainOnDelete"])
         self.assertTrue(blog["migrations"]["enabled"])
-        self.assertEqual(blog["health"]["hostHeader"], "preview.cegarza.com")
+        self.assertEqual(blog["health"]["hostHeader"], "dev.cegarza.com")
         self.assertEqual(
             blog["databaseTLS"],
             {
@@ -134,11 +134,13 @@ class CegarzaBlogContractTests(unittest.TestCase):
         )
 
         ingress = values["ingress"]
-        self.assertEqual([entry["host"] for entry in ingress["hosts"]], ["preview.cegarza.com"])
-        self.assertEqual(ingress["tls"]["secretName"], "cegarza-preview-tls")
+        self.assertEqual(
+            [entry["host"] for entry in ingress["hosts"]], ["dev.cegarza.com"]
+        )
+        self.assertEqual(ingress["tls"]["secretName"], "cegarza-dev-tls")
         self.assertEqual(
             ingress["tls"]["certificate"]["dnsNames"],
-            ["preview.cegarza.com"],
+            ["dev.cegarza.com"],
         )
         self.assertNotIn("cert-manager.io/cluster-issuer", ingress["annotations"])
         self.assertEqual(
@@ -183,18 +185,9 @@ class CegarzaBlogContractTests(unittest.TestCase):
         self.assertIn("CreateNamespace=false", workload_options)
         secret_options = secrets["spec"]["syncPolicy"]["syncOptions"]
         self.assertIn("CreateNamespace=true", secret_options)
-        self.assertIn("RespectIgnoreDifferences=true", secret_options)
-        self.assertEqual(
-            secrets["spec"]["ignoreDifferences"],
-            [
-                {
-                    "group": "",
-                    "kind": "Secret",
-                    "name": "cegarza-apex-tls",
-                    "jsonPointers": ["/data"],
-                }
-            ],
-        )
+        self.assertIn("ServerSideApply=true", secret_options)
+        self.assertNotIn("RespectIgnoreDifferences=true", secret_options)
+        self.assertNotIn("ignoreDifferences", secrets["spec"])
 
     def test_project_and_sops_scope_are_explicit(self) -> None:
         project = _load_yaml(REPO_ROOT / "argocd/projects/splattop-project.yaml")
@@ -206,6 +199,13 @@ class CegarzaBlogContractTests(unittest.TestCase):
             },
             destinations,
         )
+        ignored_secret_names = {
+            resource["name"]
+            for resource in project["spec"]["orphanedResources"]["ignore"]
+            if resource.get("group") == "" and resource.get("kind") == "Secret"
+        }
+        self.assertIn("cegarza-dev-tls", ignored_secret_names)
+        self.assertNotIn("cegarza-preview-tls", ignored_secret_names)
 
         sops_config = _load_yaml(REPO_ROOT / ".sops.yaml")
         rules = {
@@ -304,19 +304,19 @@ class CegarzaBlogContractTests(unittest.TestCase):
         ingress = _document(documents, kind="Ingress", name="cegarza-blog")
         self.assertEqual(
             [rule["host"] for rule in ingress["spec"]["rules"]],
-            ["preview.cegarza.com"],
+            ["dev.cegarza.com"],
         )
         self.assertEqual(
             ingress["spec"]["tls"],
-            [{"hosts": ["preview.cegarza.com"], "secretName": "cegarza-preview-tls"}],
+            [{"hosts": ["dev.cegarza.com"], "secretName": "cegarza-dev-tls"}],
         )
         certificate = _document(
             documents,
             kind="Certificate",
             name="cegarza-blog-cert",
         )
-        self.assertEqual(certificate["spec"]["secretName"], "cegarza-preview-tls")
-        self.assertEqual(certificate["spec"]["dnsNames"], ["preview.cegarza.com"])
+        self.assertEqual(certificate["spec"]["secretName"], "cegarza-dev-tls")
+        self.assertEqual(certificate["spec"]["dnsNames"], ["dev.cegarza.com"])
 
         cilium_policy = _document(
             documents,
