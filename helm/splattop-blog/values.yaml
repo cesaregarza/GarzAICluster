@@ -12,6 +12,11 @@ blog:
   enabled: true
   replicas: 1
 
+  # Optional Kubernetes Deployment strategy override. Persistent media defaults
+  # to, and only accepts, Recreate; Recreate also clears any live rollingUpdate
+  # state. With persistence disabled, empty retains Kubernetes' RollingUpdate.
+  strategy: {}
+
   image:
     repository: registry.digitalocean.com/sendouq/splattop-blog
     tag: v1.0.1
@@ -50,6 +55,8 @@ blog:
     accessMode: ReadWriteOnce
     size: 5Gi
     storageClass: ""
+    # Protect chart-managed media from Helm uninstall and Argo CD pruning.
+    retainOnDelete: true
 
   health:
     enabled: true
@@ -65,6 +72,8 @@ blog:
 ingress:
   enabled: false
   className: nginx
+  # cert-manager issuer annotations drive ingress-shim only when the explicit
+  # ingress.tls.certificate resource below is disabled.
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"

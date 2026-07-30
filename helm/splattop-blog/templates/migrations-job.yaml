@@ -17,6 +17,7 @@ spec:
         {{- include "splattop-blog.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: migrations
     spec:
+      automountServiceAccountToken: false
       {{- include "splattop-blog.imagePullSecrets" . | nindent 6 }}
       restartPolicy: Never
       securityContext:
