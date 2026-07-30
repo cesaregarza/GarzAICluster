@@ -183,6 +183,10 @@ jobs:
             path: helm/splattop
             release: splattop
             prod_values: helm/splattop/values-prod.yaml
+          - name: splattop-blog
+            path: helm/splattop-blog
+            release: splattop-blog
+            prod_values: helm/splattop-blog/values-prod.yaml
           - name: garz-observability
             path: helm/garz-observability
             release: garz-observability
@@ -234,6 +238,155 @@ jobs:
           mkdir -p rendered
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" > "rendered/${{ matrix.chart.name }}-default.yaml"
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" -f "${{ matrix.chart.prod_values }}" > "rendered/${{ matrix.chart.name }}-prod.yaml"
+
+      - name: Verify SplatTop Blog safety semantics
+        if: matrix.chart.name == 'splattop-blog'
+        run: |
+          set -euo pipefail
+          chart=helm/splattop-blog
+          default_render=rendered/splattop-blog-default.yaml
+          prod_render=rendered/splattop-blog-prod.yaml
+
+          if grep -F '  strategy:' "$default_render" >/dev/null; then
+            echo "Ephemeral media must retain the default Deployment strategy" >&2
+            exit 1
+          fi
+          assert_pod_tokens_disabled() {
+            file=$1
+            awk '
+              function finish_document() {
+                if (kind == "Deployment" || kind == "Job") {
+                  workload_count++
+                  if (automount_count != 1 || automount_value != "false") {
+                    printf "%s: %s/%s PodSpec must set exactly one automountServiceAccountToken: false\n", FILENAME, kind, name > "/dev/stderr"
+                    failed = 1
+                  }
+                }
+                kind = ""
+                name = ""
+                root_spec = 0
+                pod_template = 0
+                pod_spec = 0
+                automount_count = 0
+                automount_value = ""
+              }
+              /^---[[:space:]]*$/ {
+                finish_document()
+                next
+              }
+              /^kind:[[:space:]]*/ {
+                kind = $0
+                sub(/^kind:[[:space:]]*/, "", kind)
+                next
+              }
+              /^  name:[[:space:]]*/ && name == "" {
+                name = $0
+                sub(/^  name:[[:space:]]*/, "", name)
+                next
+              }
+              /^spec:[[:space:]]*$/ {
+                root_spec = 1
+                next
+              }
+              root_spec && /^  template:[[:space:]]*$/ {
+                pod_template = 1
+                next
+              }
+              pod_template && /^    spec:[[:space:]]*$/ {
+                pod_spec = 1
+                next
+              }
+              pod_spec && /^      automountServiceAccountToken:[[:space:]]*/ {
+                automount_count++
+                automount_value = $0
+                sub(/^      automountServiceAccountToken:[[:space:]]*/, "", automount_value)
+                sub(/[[:space:]]+$/, "", automount_value)
+              }
+              END {
+                finish_document()
+                if (workload_count == 0) {
+                  printf "%s: no Deployment or Job documents found\n", FILENAME > "/dev/stderr"
+                  failed = 1
+                }
+                exit failed
+              }
+            ' "$file"
+          }
+          assert_pod_tokens_disabled "$default_render"
+          assert_pod_tokens_disabled "$prod_render"
+          grep -F '    type: Recreate' "$prod_render" >/dev/null
+          grep -F '    rollingUpdate: null' "$prod_render" >/dev/null
+          grep -F 'argocd.argoproj.io/sync-options: Prune=false' "$prod_render" >/dev/null
+          grep -F 'helm.sh/resource-policy: keep' "$prod_render" >/dev/null
+
+          certificate_count=$(grep -c '^kind: Certificate$' "$prod_render" || true)
+          test "$certificate_count" -eq 1
+          if grep -E 'cert-manager.io/(cluster-issuer|issuer):' "$prod_render" >/dev/null; then
+            echo "Explicit Certificate and ingress-shim must not share TLS secret ownership" >&2
+            exit 1
+          fi
+
+          helm template splattop-blog "$chart" \
+            -f helm/splattop-blog/values-prod.yaml \
+            --set ingress.tls.certificate.enabled=false \
+            --show-only templates/ingress.yaml \
+            > rendered/splattop-blog-ingress-shim.yaml
+          grep -F 'cert-manager.io/cluster-issuer: letsencrypt-prod' \
+            rendered/splattop-blog-ingress-shim.yaml >/dev/null
+
+          helm template splattop-blog "$chart" \
+            --set blog.persistence.enabled=true \
+            --set blog.strategy.type=Recreate \
+            --set blog.strategy.rollingUpdate.maxSurge=1 \
+            --show-only templates/deployment.yaml \
+            > rendered/splattop-blog-explicit-recreate.yaml
+          grep -F '    rollingUpdate: null' \
+            rendered/splattop-blog-explicit-recreate.yaml >/dev/null
+          if grep -F 'maxSurge:' \
+            rendered/splattop-blog-explicit-recreate.yaml >/dev/null; then
+            echo "Recreate must clear rollingUpdate settings" >&2
+            exit 1
+          fi
+
+          helm template splattop-blog "$chart" \
+            -f helm/splattop-blog/values-prod.yaml \
+            --set blog.persistence.retainOnDelete=false \
+            --show-only templates/media-pvc.yaml \
+            > rendered/splattop-blog-prunable-pvc.yaml
+          if grep -E 'argocd.argoproj.io/sync-options|helm.sh/resource-policy' \
+            rendered/splattop-blog-prunable-pvc.yaml >/dev/null; then
+            echo "retainOnDelete=false must remove PVC retention annotations" >&2
+            exit 1
+          fi
+
+      - name: Verify SplatTop Blog unsafe persistence fails closed
+        if: matrix.chart.name == 'splattop-blog'
+        run: |
+          set -euo pipefail
+          chart=helm/splattop-blog
+          expect_failure() {
+            expected=$1
+            shift
+            if helm template splattop-blog "$chart" "$@" \
+              >/dev/null 2>rendered/splattop-blog-negative.err; then
+              echo "Expected Helm render to fail: $expected" >&2
+              exit 1
+            fi
+            grep -F "$expected" rendered/splattop-blog-negative.err >/dev/null
+          }
+          expect_failure \
+            "blog.replicas must be 1 when blog.persistence.enabled=true and blog.persistence.accessMode=ReadWriteOnce" \
+            --set blog.persistence.enabled=true \
+            --set blog.persistence.accessMode=ReadWriteOnce \
+            --set blog.replicas=2
+          expect_failure \
+            "blog.strategy.type must be Recreate when blog.persistence.enabled=true" \
+            --set blog.persistence.enabled=true \
+            --set blog.strategy.type=RollingUpdate
+          expect_failure \
+            "blog.strategy.type must be Recreate when blog.persistence.enabled=true" \
+            --set blog.persistence.enabled=true \
+            --set blog.strategy.rollingUpdate.maxSurge=1
 
       - name: Install uv for Poetry semantic checks
         if: matrix.chart.name == 'poetry'

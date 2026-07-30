@@ -1,4 +1,14 @@
 {{- if .Values.blog.enabled }}
+{{- $strategy := default (dict) .Values.blog.strategy -}}
+{{- $strategyType := get $strategy "type" | default "" -}}
+{{- if .Values.blog.persistence.enabled }}
+{{- if and (eq .Values.blog.persistence.accessMode "ReadWriteOnce") (ne (int .Values.blog.replicas) 1) }}
+{{- fail "blog.replicas must be 1 when blog.persistence.enabled=true and blog.persistence.accessMode=ReadWriteOnce" }}
+{{- end }}
+{{- if and $strategy (ne $strategyType "Recreate") }}
+{{- fail "blog.strategy.type must be Recreate when blog.persistence.enabled=true" }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,6 +17,20 @@ metadata:
     {{- include "splattop-blog.labels" . | nindent 4 }}
     app.kubernetes.io/component: blog
 spec:
+  {{- if $strategy }}
+  {{- if eq $strategyType "Recreate" }}
+  strategy:
+    type: Recreate
+    rollingUpdate: null
+  {{- else }}
+  strategy:
+    {{- toYaml $strategy | nindent 4 }}
+  {{- end }}
+  {{- else if .Values.blog.persistence.enabled }}
+  strategy:
+    type: Recreate
+    rollingUpdate: null
+  {{- end }}
   replicas: {{ .Values.blog.replicas }}
   selector:
     matchLabels:
@@ -18,6 +42,7 @@ spec:
         {{- include "splattop-blog.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: blog
     spec:
+      automountServiceAccountToken: false
       {{- include "splattop-blog.imagePullSecrets" . | nindent 6 }}
       securityContext:
         fsGroup: 1000

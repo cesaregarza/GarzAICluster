@@ -1,11 +1,15 @@
 {{- if .Values.ingress.enabled }}
+{{- $annotations := default (dict) .Values.ingress.annotations -}}
+{{- if .Values.ingress.tls.certificate.enabled }}
+{{- $annotations = omit $annotations "cert-manager.io/cluster-issuer" "cert-manager.io/issuer" -}}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "splattop-blog.fullname" . }}
   labels:
     {{- include "splattop-blog.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
+  {{- with $annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}

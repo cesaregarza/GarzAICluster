@@ -3,6 +3,11 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "splattop-blog.fullname" . }}-media
+  {{- if .Values.blog.persistence.retainOnDelete }}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+    helm.sh/resource-policy: keep
+  {{- end }}
   labels:
     {{- include "splattop-blog.labels" . | nindent 4 }}
     app.kubernetes.io/component: media
