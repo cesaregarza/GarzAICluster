@@ -7,8 +7,8 @@ fullnameOverride: agent-workloads
 replicaCount: 2
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-51102759737c
-  digest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
+  tag: sha-e902051a3e08
+  digest: sha256:d3ba0154fb18c59e2d993551aa5fd0f9dafb6e2627f9bd7d662a79bffdeb0936
   pullPolicy: IfNotPresent
 projectedWorkloadIdentity:
   enabled: true
@@ -22,7 +22,10 @@ projectedWorkloadIdentity:
     expirationSeconds: 3600
     mountPath: /var/run/mandate/workload-identity
     fileName: token
-  previousRelease: null
+  previousRelease:
+    codeDigest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
+    manifestDigest: sha256:912222e0cf0adea2733166543213e6ff70aadff34f13815ca36038bdf30d123f
+    imageDigest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
   AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
@@ -295,8 +298,8 @@ opencodeApplyExecutor:
 mandateReleasePins:
   data.workspace_probe:
     codeDigest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
-    manifestDigest: sha256:912222e0cf0adea2733166543213e6ff70aadff34f13815ca36038bdf30d123f
-    imageDigest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
+    manifestDigest: sha256:d023bd0182c92ed06dcc8c22c4110d76a0a215a3b96f5bc3d4fec8ddbe749aca
+    imageDigest: sha256:d3ba0154fb18c59e2d993551aa5fd0f9dafb6e2627f9bd7d662a79bffdeb0936
   opencode.apply_executor:
     codeDigest: sha256:d11ad7afa0ded6cd81c03e6777fcbbc63a35f70d336a0fb994699bd98429d9e7
     manifestDigest: sha256:34103ec1c645b37d03ba9c85b6fe40bdc91a4ca9cc08cd87d28b75469054b544
