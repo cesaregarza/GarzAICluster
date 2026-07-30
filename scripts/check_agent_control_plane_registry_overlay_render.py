@@ -26,6 +26,12 @@ REGISTRY_OVERLAY_RESTART_ORDER = [
     "agent-control-plane-git-deliverer",
     "agent-control-plane-local-worker",
 ]
+REGISTRY_OVERLAY_ROLLING_DEPLOYMENTS = [
+    "agent-control-plane",
+    "agent-control-plane-callback-adapter",
+    "agent-control-plane-git-deliverer",
+    "agent-control-plane-local-worker",
+]
 GOLDEN_CONFIGMAP_PATH = Path(
     "tests/fixtures/agent-control-plane-registry-overlay/configmap.golden.yaml"
 )
@@ -41,8 +47,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Render the registry-overlay Application's real Helm source, require "
-            "the generated PostSync Job and scoped RBAC, and compare its ConfigMap "
-            "with both the local Kustomize source render and committed golden."
+            "the generated rollout-strategy Sync and restart PostSync Jobs with "
+            "scoped RBAC, and compare its ConfigMap with both the local Kustomize "
+            "source render and committed golden."
         )
     )
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
@@ -74,7 +81,8 @@ def main() -> int:
         return 1
     print(
         "registry overlay Helm Application render contains ConfigMap, scoped RBAC, "
-        "and generated PostSync Job; ConfigMap matches Kustomize and golden."
+        "rollout-strategy Sync Job, and restart PostSync Job; ConfigMap matches "
+        "Kustomize and golden."
     )
     return 0
 
@@ -211,9 +219,9 @@ def _extract_registry_configmap(
 
 
 def _assert_complete_application_resources(documents: list[dict[str, Any]]) -> None:
-    if len(documents) != 5:
+    if len(documents) != 6:
         raise RegistryOverlayRenderError(
-            f"complete Application must contain exactly five objects, got {len(documents)}"
+            f"complete Application must contain exactly six objects, got {len(documents)}"
         )
     expected_named = {
         ("v1", "ServiceAccount", "registry-overlay-restart"),
@@ -230,7 +238,7 @@ def _assert_complete_application_resources(documents: list[dict[str, Any]]) -> N
         ),
     }
     actual_named: set[tuple[Any, Any, Any]] = set()
-    generated_hooks: list[dict[str, Any]] = []
+    generated_hooks: dict[str, dict[str, Any]] = {}
     for document in documents:
         metadata = document.get("metadata")
         if not isinstance(metadata, dict):
@@ -243,19 +251,29 @@ def _assert_complete_application_resources(documents: list[dict[str, Any]]) -> N
         name = metadata.get("name")
         if isinstance(name, str):
             actual_named.add((document.get("apiVersion"), document.get("kind"), name))
-        if document.get("kind") == "Job" and metadata.get("generateName"):
-            generated_hooks.append(document)
+        generate_name = metadata.get("generateName")
+        if document.get("kind") == "Job" and isinstance(generate_name, str):
+            if generate_name in generated_hooks:
+                raise RegistryOverlayRenderError(
+                    f"duplicate generated Job prefix: {generate_name}"
+                )
+            generated_hooks[generate_name] = document
 
     if actual_named != expected_named:
         raise RegistryOverlayRenderError(
             "complete Application named-resource shape drifted:\n"
             + _json_diff(sorted(expected_named), sorted(actual_named))
         )
-    if len(generated_hooks) != 1:
+    expected_hook_prefixes = {
+        "registry-overlay-rollout-strategy-",
+        "registry-overlay-restart-",
+    }
+    if set(generated_hooks) != expected_hook_prefixes:
         raise RegistryOverlayRenderError(
-            f"complete Application must contain one generated Job, got {len(generated_hooks)}"
+            "complete Application generated Job prefixes drifted:\n"
+            + _json_diff(sorted(expected_hook_prefixes), sorted(generated_hooks))
         )
-    hook = generated_hooks[0]
+    hook = generated_hooks["registry-overlay-restart-"]
     metadata = hook["metadata"]
     if metadata.get("name") is not None:
         raise RegistryOverlayRenderError("generated PostSync Job must not set metadata.name")
@@ -309,6 +327,156 @@ def _assert_complete_application_resources(documents: list[dict[str, Any]]) -> N
         raise RegistryOverlayRenderError(
             "generated PostSync Job writable-home volume drifted:\n"
             + _json_diff(expected_volumes, pod_spec.get("volumes"))
+        )
+
+    strategy_hook = generated_hooks["registry-overlay-rollout-strategy-"]
+    strategy_metadata = strategy_hook["metadata"]
+    if strategy_metadata.get("name") is not None:
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job must not set metadata.name"
+        )
+    expected_strategy_annotations = {
+        "argocd.argoproj.io/hook": "Sync",
+        "argocd.argoproj.io/sync-wave": "1",
+        "argocd.argoproj.io/hook-delete-policy": "HookSucceeded",
+    }
+    if strategy_metadata.get("annotations") != expected_strategy_annotations:
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Job annotations drifted:\n"
+            + _json_diff(
+                expected_strategy_annotations,
+                strategy_metadata.get("annotations"),
+            )
+        )
+    strategy_spec = strategy_hook.get("spec")
+    if not isinstance(strategy_spec, dict) or strategy_spec.get("backoffLimit") != 0:
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job must fail without retry"
+        )
+    if strategy_spec.get("ttlSecondsAfterFinished") != 86400:
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job must retain failed logs for one day"
+        )
+    if strategy_spec.get("activeDeadlineSeconds") != 300:
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job deadline drifted"
+        )
+    strategy_pod_spec = (strategy_spec.get("template") or {}).get("spec")
+    if not isinstance(strategy_pod_spec, dict):
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job Pod spec is missing"
+        )
+    if strategy_pod_spec.get("serviceAccountName") != "registry-overlay-restart":
+        raise RegistryOverlayRenderError(
+            "rollout-strategy Sync Job must reuse the scoped restart ServiceAccount"
+        )
+    if strategy_pod_spec.get("restartPolicy") != "Never":
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job must not restart its container"
+        )
+    strategy_containers = strategy_pod_spec.get("containers")
+    if not isinstance(strategy_containers, list) or len(strategy_containers) != 1:
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job must contain one container"
+        )
+    strategy_container = strategy_containers[0]
+    expected_strategy_image = (
+        "alpine/k8s:1.33.4@sha256:"
+        "b0523f0a244ddc4c8e055aa335c040d3d78b3ead5528f4544395f7f9f69c7b68"
+    )
+    if strategy_container.get("name") != "rollout-strategy":
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job container name drifted"
+        )
+    if strategy_container.get("image") != expected_strategy_image:
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job image digest drifted"
+        )
+    if strategy_container.get("env") != expected_env:
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job in-cluster environment drifted:\n"
+            + _json_diff(expected_env, strategy_container.get("env"))
+        )
+    if strategy_container.get("volumeMounts") != expected_mounts:
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job writable-home mount drifted:\n"
+            + _json_diff(expected_mounts, strategy_container.get("volumeMounts"))
+        )
+    if strategy_pod_spec.get("volumes") != expected_volumes:
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job writable-home volume drifted:\n"
+            + _json_diff(expected_volumes, strategy_pod_spec.get("volumes"))
+        )
+    strategy_command = strategy_container.get("command")
+    if (
+        not isinstance(strategy_command, list)
+        or len(strategy_command) != 3
+        or strategy_command[:2] != ["/bin/sh", "-ec"]
+        or not isinstance(strategy_command[-1], str)
+    ):
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job must execute its script with /bin/sh -ec"
+        )
+    strategy_script = strategy_command[-1]
+    rendered_rolling_deployments = (
+        strategy_script.split('rolling_deployments="', 1)[1]
+        .split('"', 1)[0]
+        .split()
+        if 'rolling_deployments="' in strategy_script
+        else []
+    )
+    if rendered_rolling_deployments != REGISTRY_OVERLAY_ROLLING_DEPLOYMENTS:
+        raise RegistryOverlayRenderError(
+            "rollout-strategy target order drifted:\n"
+            + _json_diff(
+                REGISTRY_OVERLAY_ROLLING_DEPLOYMENTS,
+                rendered_rolling_deployments,
+            )
+        )
+    if '"maxSurge":0,"maxUnavailable":1' not in strategy_script:
+        raise RegistryOverlayRenderError(
+            "rollout-strategy Sync Job must enforce zero-surge singleton replacement"
+        )
+    if 'gateway_deployment="agent-control-plane-model-gateway"' not in strategy_script:
+        raise RegistryOverlayRenderError(
+            "rollout-strategy Sync Job must verify the RWO gateway separately"
+        )
+    if "expected=<generation>|<same-generation>|1|1|1|1|1|Recreate" not in (
+        strategy_script
+    ):
+        raise RegistryOverlayRenderError(
+            "rollout-strategy Sync Job must fail unless the RWO gateway is Recreate"
+        )
+    if "reason=deployment-not-settled" not in strategy_script:
+        raise RegistryOverlayRenderError(
+            "rollout-strategy Sync Job must reject pre-existing unsettled rollouts"
+        )
+    expected_strategy_security_context = {
+        "runAsNonRoot": True,
+        "runAsUser": 65534,
+        "allowPrivilegeEscalation": False,
+        "readOnlyRootFilesystem": True,
+        "capabilities": {"drop": ["ALL"]},
+    }
+    if strategy_container.get("securityContext") != expected_strategy_security_context:
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job security context drifted:\n"
+            + _json_diff(
+                expected_strategy_security_context,
+                strategy_container.get("securityContext"),
+            )
+        )
+    expected_strategy_resources = {
+        "requests": {"cpu": "10m", "memory": "32Mi"},
+        "limits": {"cpu": "100m", "memory": "64Mi"},
+    }
+    if strategy_container.get("resources") != expected_strategy_resources:
+        raise RegistryOverlayRenderError(
+            "generated rollout-strategy Sync Job resources drifted:\n"
+            + _json_diff(
+                expected_strategy_resources,
+                strategy_container.get("resources"),
+            )
         )
 
     role = next(document for document in documents if document.get("kind") == "Role")

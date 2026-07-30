@@ -197,12 +197,10 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
                 values[key]["secretEnv"]["MANDATE_WORKLOAD_IDENTITY_TOKEN"]
             )
 
-    def test_affected_argo_applications_remain_manual_sync(self) -> None:
-        for application_name in (
-            "agent-control-plane",
-            "agent-control-plane-registry-overlay",
-            "agent-workloads",
-        ):
+    def test_registry_overlay_auto_syncs_before_manual_workload_activation(
+        self,
+    ) -> None:
+        for application_name in ("agent-control-plane", "agent-workloads"):
             application = _load_yaml(
                 REPO_ROOT / "argocd" / "applications" / f"{application_name}.yaml"
             )
@@ -210,3 +208,18 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
                 "automated",
                 application["spec"].get("syncPolicy", {}),
             )
+
+        overlay = _load_yaml(
+            REPO_ROOT
+            / "argocd"
+            / "applications"
+            / "agent-control-plane-registry-overlay.yaml"
+        )
+        self.assertEqual(
+            overlay["spec"]["syncPolicy"]["automated"],
+            {"prune": True, "selfHeal": True},
+        )
+        self.assertNotIn(
+            "ApplyOutOfSyncOnly=true",
+            overlay["spec"]["syncPolicy"]["syncOptions"],
+        )

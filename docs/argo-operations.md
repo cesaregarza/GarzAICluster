@@ -7,7 +7,7 @@ This guide covers day-to-day management of Argo CD once it tracks the config rep
 - Production is the only environment managed from this repo today. The manifest lives at `argocd/projects/splattop-project.yaml`.
 - The project pins `sourceRepos` to `https://github.com/cesaregarza/GarzAICluster` and limits destinations to the `default` (app) and `monitoring` namespaces on the in-cluster API server.
 - Resource whitelists mirror the previous settings so Helm can continue to manage monitoring/cluster objects required by prod.
-- A weekday sync window (Mon–Fri, cron `0 15 * * 1-5`, `duration: 11h`) blocks off-hours deploys.
+- A weekday sync window (Mon–Fri, cron `0 15 * * 1-5`, `duration: 11h`) blocks off-hours deploys, including automated registry-overlay reconciliation.
 - Only the `splattop-admins` group is bound (role `proj:splattop:admin`). Set `policy.default: role:readonly` in `argocd-rbac-cm` so casual logins stay read-only.
 - Apply project changes via GitOps (`kubectl apply -f argocd/projects`) rather than editing the object in the UI.
 
@@ -15,9 +15,10 @@ This guide covers day-to-day management of Argo CD once it tracks the config rep
 
 | Environment | Sync Policy | Notes |
 | ----------- | ----------- | ----- |
-| prod        | manual sync only | `ApplyOutOfSyncOnly=true`, `RespectIgnoreDifferences=true`, namespace autocreation for monitoring objects, and the weekday sync window above. |
+| prod        | manual by default; registry overlay automated | The registry overlay uses prune/self-heal so a merged release mapping applies and its hooks run inside the existing weekday sync window. `agent-workloads` stays manual until the overlay is Synced and Healthy. Other production apps retain their declared manual policies. |
 
-All of the details are codified inside `argocd/applications/splattop-prod.yaml`; update that manifest rather than flipping settings in the UI.
+Application-specific details are codified under `argocd/applications/`; update
+the owning manifest rather than flipping settings in the UI.
 
 ## Repository & Registry Credentials
 

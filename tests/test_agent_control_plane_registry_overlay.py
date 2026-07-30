@@ -20,12 +20,21 @@ REGISTRY_OVERLAY_CONFIGMAP_NAME = "agent-control-plane-registry-overlay"
 REGISTRY_OVERLAY_RESTART_HOOK_PATH = (
     REGISTRY_OVERLAY_DIR / "templates" / "restart-hook.yaml"
 )
+REGISTRY_OVERLAY_ROLLOUT_STRATEGY_HOOK_PATH = (
+    REGISTRY_OVERLAY_DIR / "templates" / "rollout-strategy-hook.yaml"
+)
 REGISTRY_OVERLAY_RESTART_RBAC_PATH = (
     REGISTRY_OVERLAY_DIR / "templates" / "restart-rbac.yaml"
 )
 REGISTRY_OVERLAY_RESTART_ORDER = [
     "agent-control-plane",
     "agent-control-plane-model-gateway",
+    "agent-control-plane-callback-adapter",
+    "agent-control-plane-git-deliverer",
+    "agent-control-plane-local-worker",
+]
+REGISTRY_OVERLAY_ROLLING_DEPLOYMENTS = [
+    "agent-control-plane",
     "agent-control-plane-callback-adapter",
     "agent-control-plane-git-deliverer",
     "agent-control-plane-local-worker",
@@ -107,6 +116,9 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             / "applications"
             / "agent-control-plane-registry-overlay.yaml"
         )
+        cls.agent_workloads_application = _load_yaml(
+            REPO_ROOT / "argocd" / "applications" / "agent-workloads.yaml"
+        )
         cls.control_plane_skills_application = _load_yaml(
             REPO_ROOT / "argocd" / "applications" / "agent-control-plane-skills.yaml"
         )
@@ -131,6 +143,9 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         cls.registry_overlay_restart_hook = _load_yaml(
             REGISTRY_OVERLAY_RESTART_HOOK_PATH
         )
+        cls.registry_overlay_rollout_strategy_hook = _load_yaml(
+            REGISTRY_OVERLAY_ROLLOUT_STRATEGY_HOOK_PATH
+        )
         cls.registry_overlay_restart_rbac = _load_yaml_documents(
             REGISTRY_OVERLAY_RESTART_RBAC_PATH
         )
@@ -151,6 +166,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             kustomization["resources"], ["templates/restart-rbac.yaml"]
         )
         self.assertTrue(REGISTRY_OVERLAY_RESTART_HOOK_PATH.exists())
+        self.assertTrue(REGISTRY_OVERLAY_ROLLOUT_STRATEGY_HOOK_PATH.exists())
         self.assertTrue(REGISTRY_OVERLAY_RESTART_RBAC_PATH.exists())
         self.assertFalse(any((REGISTRY_OVERLAY_DIR / "hooks").glob("*.yaml")))
         self.assertTrue(kustomization["generatorOptions"]["disableNameSuffixHash"])
@@ -395,6 +411,10 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             },
         )
 
+        self.assertEqual(
+            self.registry_overlay_application["spec"]["syncPolicy"]["automated"],
+            {"prune": True, "selfHeal": True},
+        )
         sync_options = set(
             self.registry_overlay_application["spec"]["syncPolicy"].get(
                 "syncOptions", []
@@ -402,8 +422,32 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertIn("CreateNamespace=true", sync_options)
         self.assertNotIn("ApplyOutOfSyncOnly=true", sync_options)
+        self.assertNotIn(
+            "automated",
+            self.agent_workloads_application["spec"]["syncPolicy"],
+            "workloads must stay manual until a real overlay-first dependency exists",
+        )
+        allow_window = next(
+            window
+            for window in self.splattop_project["spec"]["syncWindows"]
+            if window["kind"] == "allow"
+        )
+        self.assertEqual(
+            allow_window,
+            {
+                "kind": "allow",
+                "schedule": "0 15 * * 1-5",
+                "duration": "11h",
+                "manualSync": True,
+                "applications": ["*"],
+                "clusters": ["*"],
+                "namespaces": ["*"],
+            },
+        )
 
-    def test_complete_application_render_contains_generated_postsync_job(self) -> None:
+    def test_complete_application_render_contains_strategy_and_restart_hooks(
+        self,
+    ) -> None:
         helm = shutil.which("helm")
         if helm is None:
             self.skipTest("helm is required for complete Application render test")
@@ -412,19 +456,300 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             repo_root=REPO_ROOT,
             helm=helm,
         )
-        hooks = [
-            document
+        hooks = {
+            document.get("metadata", {}).get("generateName"): document
             for document in documents
             if document.get("kind") == "Job"
-            and document.get("metadata", {}).get("generateName")
-            == "registry-overlay-restart-"
-        ]
-        self.assertEqual(len(documents), 5)
-        self.assertEqual(len(hooks), 1)
+        }
+        self.assertEqual(len(documents), 6)
         self.assertEqual(
-            hooks[0]["metadata"]["annotations"]["argocd.argoproj.io/hook"],
+            set(hooks),
+            {
+                "registry-overlay-rollout-strategy-",
+                "registry-overlay-restart-",
+            },
+        )
+        self.assertEqual(
+            hooks["registry-overlay-rollout-strategy-"]["metadata"]["annotations"],
+            {
+                "argocd.argoproj.io/hook": "Sync",
+                "argocd.argoproj.io/sync-wave": "1",
+                "argocd.argoproj.io/hook-delete-policy": "HookSucceeded",
+            },
+        )
+        self.assertEqual(
+            hooks["registry-overlay-restart-"]["metadata"]["annotations"][
+                "argocd.argoproj.io/hook"
+            ],
             "PostSync",
         )
+
+    def test_rollout_strategy_hook_prepares_capacity_safe_singleton_restarts(
+        self,
+    ) -> None:
+        hook = self.registry_overlay_rollout_strategy_hook
+        self.assertEqual(
+            hook["metadata"]["generateName"],
+            "registry-overlay-rollout-strategy-",
+        )
+        self.assertNotIn("name", hook["metadata"])
+        self.assertEqual(
+            hook["metadata"]["annotations"],
+            {
+                "argocd.argoproj.io/hook": "Sync",
+                "argocd.argoproj.io/sync-wave": "1",
+                "argocd.argoproj.io/hook-delete-policy": "HookSucceeded",
+            },
+        )
+        self.assertEqual(hook["spec"]["backoffLimit"], 0)
+        self.assertEqual(hook["spec"]["ttlSecondsAfterFinished"], 86400)
+        self.assertEqual(hook["spec"]["activeDeadlineSeconds"], 300)
+
+        pod_spec = hook["spec"]["template"]["spec"]
+        self.assertEqual(pod_spec["serviceAccountName"], "registry-overlay-restart")
+        self.assertEqual(pod_spec["restartPolicy"], "Never")
+        container = pod_spec["containers"][0]
+        self.assertEqual(container["name"], "rollout-strategy")
+        self.assertEqual(
+            container["image"],
+            "alpine/k8s:1.33.4@sha256:"
+            "b0523f0a244ddc4c8e055aa335c040d3d78b3ead5528f4544395f7f9f69c7b68",
+        )
+        script = container["command"][-1]
+        self.assertEqual(container["command"], ["/bin/sh", "-ec", script])
+        self.assertEqual(
+            container["securityContext"],
+            {
+                "runAsNonRoot": True,
+                "runAsUser": 65534,
+                "allowPrivilegeEscalation": False,
+                "readOnlyRootFilesystem": True,
+                "capabilities": {"drop": ["ALL"]},
+            },
+        )
+        self.assertEqual(
+            container["resources"],
+            {
+                "requests": {"cpu": "10m", "memory": "32Mi"},
+                "limits": {"cpu": "100m", "memory": "64Mi"},
+            },
+        )
+        self.assertEqual(
+            script.split('rolling_deployments="', 1)[1]
+            .split('"', 1)[0]
+            .split(),
+            REGISTRY_OVERLAY_ROLLING_DEPLOYMENTS,
+        )
+        self.assertIn(
+            'strategy_patch=\'{"spec":{"strategy":{"type":"RollingUpdate",'
+            '"rollingUpdate":{"maxSurge":0,"maxUnavailable":1}}}}\'',
+            script,
+        )
+        self.assertIn(
+            'gateway_deployment="agent-control-plane-model-gateway"',
+            script,
+        )
+        self.assertIn(
+            "expected=<generation>|<same-generation>|1|1|1|1|1|Recreate",
+            script,
+        )
+        self.assertNotIn("rollout restart", script)
+
+        ignored_strategy_fields = [
+            {
+                "group": "apps",
+                "kind": "Deployment",
+                "name": deployment,
+                "namespace": "agent-control-plane",
+                "jsonPointers": [
+                    "/spec/strategy/rollingUpdate/maxSurge",
+                    "/spec/strategy/rollingUpdate/maxUnavailable",
+                ],
+            }
+            for deployment in REGISTRY_OVERLAY_ROLLING_DEPLOYMENTS
+        ]
+        self.assertEqual(
+            self.control_plane_application["spec"]["ignoreDifferences"],
+            ignored_strategy_fields,
+        )
+        self.assertIn(
+            "RespectIgnoreDifferences=true",
+            self.control_plane_application["spec"]["syncPolicy"]["syncOptions"],
+        )
+
+        result, calls = self._run_rollout_strategy_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for deployment in REGISTRY_OVERLAY_ROLLING_DEPLOYMENTS:
+            self.assertTrue(
+                any(
+                    f"patch deployment/{deployment}" in call
+                    and '"maxSurge":0,"maxUnavailable":1' in call
+                    for call in calls
+                ),
+                deployment,
+            )
+        self.assertFalse(
+            any(
+                "patch deployment/agent-control-plane-model-gateway" in call
+                for call in calls
+            )
+        )
+        self.assertIn(
+            "phase=complete result=succeeded rolling_deployments=4 "
+            "gateway_strategy=Recreate",
+            result.stdout,
+        )
+
+    def test_rollout_strategy_hook_fails_before_patch_if_rwo_gateway_drifts(
+        self,
+    ) -> None:
+        result, calls = self._run_rollout_strategy_script(
+            gateway_state="7|7|1|1|1|1|1|RollingUpdate"
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("reason=unsafe-rwo-state", result.stderr)
+        self.assertFalse(any(" patch " in f" {call} " for call in calls))
+
+    def test_rollout_strategy_hook_rejects_unsettled_target_before_any_patch(
+        self,
+    ) -> None:
+        result, calls = self._run_rollout_strategy_script(
+            rolling_state="8|7|1|2|1|1|1"
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("reason=deployment-not-settled", result.stderr)
+        self.assertFalse(any(" patch " in f" {call} " for call in calls))
+
+    def test_rollout_strategy_hook_rejects_non_singleton_before_any_patch(
+        self,
+    ) -> None:
+        result, calls = self._run_rollout_strategy_script(
+            rolling_state="7|7|2|2|2|2|2"
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("reason=deployment-not-settled", result.stderr)
+        self.assertFalse(any(" patch " in f" {call} " for call in calls))
+
+    def test_rollout_strategy_hook_stops_on_inspection_error(self) -> None:
+        result, calls = self._run_rollout_strategy_script(
+            fail_match="get deployment/agent-control-plane ",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "deployment=agent-control-plane phase=inspect result=failed "
+            "kubectl_exit_code=70",
+            result.stderr,
+        )
+        self.assertFalse(any(" patch " in f" {call} " for call in calls))
+
+    def test_rollout_strategy_hook_stops_before_later_targets_on_patch_failure(
+        self,
+    ) -> None:
+        failed_deployment = "agent-control-plane-callback-adapter"
+        result, calls = self._run_rollout_strategy_script(
+            fail_match=f"patch deployment/{failed_deployment}",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            f"deployment={failed_deployment} phase=patch result=failed",
+            result.stderr,
+        )
+        self.assertFalse(
+            any(
+                "deployment/agent-control-plane-git-deliverer" in call
+                and " patch " in f" {call} "
+                for call in calls
+            )
+        )
+
+    def test_rollout_strategy_hook_fails_on_post_patch_verify_mismatch(
+        self,
+    ) -> None:
+        result, calls = self._run_rollout_strategy_script(
+            strategy_state="RollingUpdate|1|0",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("phase=verify result=failed", result.stderr)
+        patch_calls = [call for call in calls if " patch " in f" {call} "]
+        self.assertEqual(len(patch_calls), 1)
+
+    def _run_rollout_strategy_script(
+        self,
+        *,
+        rolling_state: str = "7|7|1|1|1|1|1",
+        gateway_state: str = "7|7|1|1|1|1|1|Recreate",
+        strategy_state: str = "RollingUpdate|0|1",
+        fail_match: str = "",
+    ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+        script = self.registry_overlay_rollout_strategy_hook["spec"]["template"]["spec"][
+            "containers"
+        ][0]["command"][-1]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            kubectl_log = tmp_path / "kubectl.log"
+            fake_kubectl = tmp_path / "kubectl"
+            fake_kubectl.write_text(
+                """#!/bin/sh
+printf '%s\\n' "$*" >> "$KUBECTL_LOG"
+if [ -n "$FAIL_MATCH" ]; then
+  case "$*" in
+    *"$FAIL_MATCH"*) exit 70 ;;
+  esac
+fi
+case "$3" in
+  get)
+    case "$6" in
+      'jsonpath={.metadata.generation}|{.status.observedGeneration}|{.spec.replicas}|{.status.replicas}|{.status.updatedReplicas}|{.status.readyReplicas}|{.status.availableReplicas}')
+        printf '%s' "$ROLLING_STATE"
+        ;;
+      'jsonpath={.metadata.generation}|{.status.observedGeneration}|{.spec.replicas}|{.status.replicas}|{.status.updatedReplicas}|{.status.readyReplicas}|{.status.availableReplicas}|{.spec.strategy.type}')
+        printf '%s' "$GATEWAY_STATE"
+        ;;
+      'jsonpath={.spec.strategy.type}|{.spec.strategy.rollingUpdate.maxSurge}|{.spec.strategy.rollingUpdate.maxUnavailable}')
+        printf '%s' "$STRATEGY_STATE"
+        ;;
+      *)
+        exit 64
+        ;;
+    esac
+    ;;
+  patch)
+    printf 'patched\\n'
+    ;;
+  *)
+    exit 65
+    ;;
+esac
+""",
+                encoding="utf-8",
+            )
+            fake_kubectl.chmod(0o755)
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{tmp_path}:{env['PATH']}",
+                    "KUBECTL_LOG": str(kubectl_log),
+                    "ROLLING_STATE": rolling_state,
+                    "GATEWAY_STATE": gateway_state,
+                    "STRATEGY_STATE": strategy_state,
+                    "FAIL_MATCH": fail_match,
+                    "API_TIMEOUT_SECONDS": "1",
+                }
+            )
+            result = subprocess.run(
+                ["/bin/sh", "-ec", script],
+                cwd=REPO_ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            calls = (
+                kubectl_log.read_text(encoding="utf-8").splitlines()
+                if kubectl_log.exists()
+                else []
+            )
+        return result, calls
 
     def test_restart_script_waits_for_each_deployment_before_restarting_next(
         self,
@@ -1028,12 +1353,35 @@ exit 64
             readonly_query["capability_id"],
             "agent_workloads.readonly_query",
         )
+        imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
+        workspace_probe = next(
+            entry
+            for entry in imports["imports"]
+            if entry["id"] == "data.workspace_probe"
+        )
+        self.assertIs(workspace_probe["agent"]["model_call"], True)
+        self.assertFalse(readonly_query.get("run_local_worker", False))
+        self.assertIs(
+            workspace_probe["capabilities"]["agent_workloads.readonly_query"][
+                "model_bounds"
+            ]["required"],
+            True,
+        )
         self.assertEqual(readonly_query["required_result_fields"], ["output_text"])
+        self.assertEqual(
+            readonly_query["required_event_types"],
+            [
+                "run.created",
+                "policy.evaluated",
+                "model_call.finished",
+                "tool.started",
+                "result.released",
+            ],
+        )
         self.assertEqual(
             readonly_query["required_skill_ids"],
             ["xscraper-schema", "xscraper-glossary"],
         )
-        self.assertIn("tool.started", readonly_query["required_event_types"])
 
     def test_synthetic_live_verify_runtime_budgets_and_deadline_are_coherent(
         self,

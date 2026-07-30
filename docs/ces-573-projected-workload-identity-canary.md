@@ -13,8 +13,8 @@ OpenCode proposer and apply remain distinct HMAC identities.
 - The reviewed registry maps that subject to one immutable
   code/manifest/image release tuple; worker-requested names or digests do not
   authorize a release.
-- The reviewed GitOps merge and ordered manual Argo sync remain the operator
-  authorization events.
+- The reviewed GitOps merge, automated window-governed registry-overlay sync,
+  and subsequent manual workload sync remain the operator authorization events.
 - This phase does not recompute runtime workflow digests or attest
   source-to-image integrity. That remains CES-576.
 
@@ -33,21 +33,28 @@ The immutable inputs for this canary are:
 
 ## Operator sequence
 
-All affected Argo applications are manual-sync. After review and merge:
+The original canary used manual sync for every affected app. With CES-668, the
+registry overlay now reconciles automatically inside the existing sync window;
+the control-plane and workload applications remain manual. After review and
+merge:
 
 1. Sync `agent-control-plane` first. Confirm the dedicated
    `agent-control-plane-tokenreview` ServiceAccount has only
    `authentication.k8s.io/tokenreviews/create`, the API becomes healthy, and
    non-API control-plane pods do not receive the reviewer token.
-2. Sync `agent-control-plane-registry-overlay`. Wait for the registry restart
-   hook and confirm Core has loaded the exact ServiceAccount subject and release
-   tuple above.
+2. Wait for `agent-control-plane-registry-overlay` to auto-sync. Confirm its
+   rollout-strategy Sync hook and restart PostSync hook complete and Core has
+   loaded the exact ServiceAccount subject and release tuple above. A successful
+   generated hook self-deletes, so use the Application operation plus
+   `SuccessfulCreate`/`Completed` events rather than expecting a surviving Job.
 3. Sync `agent-workloads`. Confirm the workspace-probe Deployment uses the
    release-scoped ServiceAccount, has no legacy token Secret volume, and
    projects only the `mandate-api` token.
-4. Run a workspace-probe claim through completion. Confirm the
-   workload-identity metric records `mode=kubernetes,outcome=accepted` and that
-   no HMAC mint command or SOPS edit occurred.
+4. Start a fresh `agent-control-plane-synthetic-live-verify` Job and require the
+   `readonly-query-skill-digests` journey to complete with a
+   `model_call.finished` audit event. Confirm the workload-identity metric
+   records `mode=kubernetes,outcome=accepted` and that no HMAC mint command or
+   SOPS edit occurred.
 5. Replace the projected token file atomically while the worker remains
    running, then prove a later request succeeds with the rotated token.
 6. Exercise wrong subject, wrong worker, wrong audience, expired token,

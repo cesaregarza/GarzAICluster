@@ -26,8 +26,42 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: agent-control-plane
+  # The registry-overlay rollout-strategy Sync hook owns these two fields for
+  # the four singleton RollingUpdate Deployments. The pinned reusable chart
+  # omits them, so ignore only the externally managed numeric strategy leaves.
+  # Model-gateway remains chart-owned Recreate for the shared RWO auth PVC.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: agent-control-plane
+      namespace: agent-control-plane
+      jsonPointers:
+        - /spec/strategy/rollingUpdate/maxSurge
+        - /spec/strategy/rollingUpdate/maxUnavailable
+    - group: apps
+      kind: Deployment
+      name: agent-control-plane-callback-adapter
+      namespace: agent-control-plane
+      jsonPointers:
+        - /spec/strategy/rollingUpdate/maxSurge
+        - /spec/strategy/rollingUpdate/maxUnavailable
+    - group: apps
+      kind: Deployment
+      name: agent-control-plane-git-deliverer
+      namespace: agent-control-plane
+      jsonPointers:
+        - /spec/strategy/rollingUpdate/maxSurge
+        - /spec/strategy/rollingUpdate/maxUnavailable
+    - group: apps
+      kind: Deployment
+      name: agent-control-plane-local-worker
+      namespace: agent-control-plane
+      jsonPointers:
+        - /spec/strategy/rollingUpdate/maxSurge
+        - /spec/strategy/rollingUpdate/maxUnavailable
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
       - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
   revisionHistoryLimit: 10

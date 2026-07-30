@@ -6,7 +6,8 @@ This directory contains ArgoCD manifests for deploying SplatTop using GitOps con
 
 SplatTop uses ArgoCD for declarative deployment management. This config repo currently drives the production environment only and provides:
 
-- **Manual-sync production deployments** (safety gate)
+- **Manual-sync production deployments** by default, with a window-governed
+  automated registry-overlay exception
 - **RBAC** scoped to administrators (`splattop-admins`)
 - **Helm-based** deployment using the charts in `/helm/splattop`
 
@@ -98,6 +99,14 @@ kubectl apply -f argocd/applications/splattop-prod.yaml
 - **Cutover**: Sync this app before pruning monitoring resources from
   `splattop-prod`; the chart preserves live object names/selectors until
   CES-257 performs the explicit state-preservation migration.
+
+#### Agent control-plane registry overlay (`agent-control-plane-registry-overlay.yaml`)
+- **Sync**: Automated with prune and self-heal, still constrained by the
+  production AppProject sync window.
+- **Ordering**: Wait for this app and its generated hooks to become Synced and
+  Healthy before manually syncing `agent-workloads`.
+- **Selective sync**: Disabled intentionally; `ApplyOutOfSyncOnly=true` would
+  skip the strategy and restart hooks.
 
 ### Project RBAC
 

@@ -9,7 +9,7 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: splattop
-  # Keep the overlay and generated PostSync Job in one Helm source. A legacy
+  # Keep the overlay and generated hook Jobs in one Helm source. A legacy
   # singular-source sync request can otherwise silently omit a second source
   # while reporting the Kustomize resources as successfully synced.
   source:
@@ -19,13 +19,16 @@ spec:
     # This path intentionally retains kustomization.yaml for local render
     # equivalence. Select Helm with a non-empty field that survives Kubernetes
     # CRD normalization so Argo cannot auto-detect the Kustomize input and
-    # silently omit templates/restart-hook.yaml.
+    # silently omit the rollout-strategy and restart hooks.
     helm:
       releaseName: agent-control-plane-registry-overlay
   destination:
     server: https://kubernetes.default.svc
     namespace: agent-control-plane
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
       # Do not add ApplyOutOfSyncOnly=true here. Argo CD selective syncs skip
