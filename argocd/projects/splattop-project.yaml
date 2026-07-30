@@ -36,6 +36,8 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: agent-workloads
       server: https://kubernetes.default.svc
+    - namespace: cegarza-blog
+      server: https://kubernetes.default.svc
     - namespace: kube-system
       server: https://kubernetes.default.svc
     - namespace: argocd
@@ -125,6 +127,15 @@ spec:
       - group: ''
         kind: Secret
         name: blog-tls-secret
+      - group: ''
+        kind: Secret
+        name: cegarza-blog-secrets
+      - group: ''
+        kind: Secret
+        name: cegarza-preview-tls
+      - group: ''
+        kind: Secret
+        name: cegarza-apex-tls
       - group: ''
         kind: Secret
         name: spotify-hot-100-tls

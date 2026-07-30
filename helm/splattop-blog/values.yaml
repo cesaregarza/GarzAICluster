@@ -20,6 +20,8 @@ blog:
   image:
     repository: registry.digitalocean.com/sendouq/splattop-blog
     tag: v1.0.1
+    # Optional immutable digest. When set, it takes precedence over tag.
+    digest: ""
     pullPolicy: Always
 
   service:
@@ -69,6 +71,15 @@ blog:
     hook: pre-install,pre-upgrade
     backoffLimit: 3
 
+  # Mount a database CA from the workload Secret when DATABASE_URL uses
+  # sslmode=verify-full and sslrootcert points at caMountPath/caFileName.
+  databaseTLS:
+    enabled: false
+    secretName: ""
+    secretKey: DB_CA_CERT
+    caMountPath: /etc/database-ca
+    caFileName: ca.crt
+
 ingress:
   enabled: false
   className: nginx
@@ -85,3 +96,23 @@ ingress:
       enabled: false
       # Defaults to ingress hostnames when empty.
       dnsNames: []
+
+# Optional Cilium policy for releases that use only local media plus one
+# managed PostgreSQL endpoint. Enabling this isolates both the web Deployment
+# and migration Job by their shared release label.
+networkPolicy:
+  enabled: false
+  ingress:
+    namespace: ingress-nginx
+    podLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/instance: nginx-ingress
+    port: 8000
+  egress:
+    dns:
+      namespace: kube-system
+      podLabels:
+        k8s-app: kube-dns
+    database:
+      host: ""
+      port: 25060

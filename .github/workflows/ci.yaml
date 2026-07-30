@@ -238,6 +238,16 @@ jobs:
           mkdir -p rendered
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" > "rendered/${{ matrix.chart.name }}-default.yaml"
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" -f "${{ matrix.chart.prod_values }}" > "rendered/${{ matrix.chart.name }}-prod.yaml"
+          if [[ "${{ matrix.chart.name }}" == "splattop-blog" ]]; then
+            helm lint helm/splattop-blog \
+              -f helm/splattop-blog/values.yaml \
+              -f helm/splattop-blog/values-cegarza.yaml
+            helm template cegarza-blog helm/splattop-blog \
+              --namespace cegarza-blog \
+              -f helm/splattop-blog/values.yaml \
+              -f helm/splattop-blog/values-cegarza.yaml \
+              > rendered/cegarza-blog-preview.yaml
+          fi
 
       - name: Verify SplatTop Blog safety semantics
         if: matrix.chart.name == 'splattop-blog'
@@ -316,7 +326,8 @@ jobs:
           assert_pod_tokens_disabled "$prod_render"
           grep -F '    type: Recreate' "$prod_render" >/dev/null
           grep -F '    rollingUpdate: null' "$prod_render" >/dev/null
-          grep -F 'argocd.argoproj.io/sync-options: Prune=false' "$prod_render" >/dev/null
+          grep -F 'argocd.argoproj.io/sync-options: Prune=false,Delete=false' \
+            "$prod_render" >/dev/null
           grep -F 'helm.sh/resource-policy: keep' "$prod_render" >/dev/null
 
           certificate_count=$(grep -c '^kind: Certificate$' "$prod_render" || true)
@@ -359,6 +370,86 @@ jobs:
             exit 1
           fi
 
+          digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          helm template splattop-blog "$chart" \
+            --set blog.migrations.enabled=true \
+            --set-string blog.image.digest="$digest" \
+            > rendered/splattop-blog-digest.yaml
+          test "$(grep -Fc "registry.digitalocean.com/sendouq/splattop-blog@${digest}" \
+            rendered/splattop-blog-digest.yaml)" -eq 2
+          grep -F -- '- /app/.venv/bin/python' \
+            rendered/splattop-blog-digest.yaml >/dev/null
+          if grep -F -- '- uv' rendered/splattop-blog-digest.yaml >/dev/null; then
+            echo "The migration Job must not invoke uv or install development dependencies" >&2
+            exit 1
+          fi
+
+          cegarza_render=rendered/cegarza-blog-preview.yaml
+          cegarza_digest=$(awk '
+            /^[[:space:]]*digest:/ {
+              value = $2
+              gsub(/"/, "", value)
+              print value
+              exit
+            }
+          ' helm/splattop-blog/values-cegarza.yaml)
+          test -n "$cegarza_digest"
+          test "$(grep -Fc "registry.digitalocean.com/sendouq/splattop-blog@${cegarza_digest}" \
+            "$cegarza_render")" -eq 2
+          grep -F 'name: cegarza-blog-secrets' "$cegarza_render" >/dev/null
+          grep -F 'storageClassName: do-block-storage' "$cegarza_render" >/dev/null
+          grep -F 'matchName: "private-db-postgresql-nyc3-xscraper-do-user-15543770-0.c.db.ondigitalocean.com"' \
+            "$cegarza_render" >/dev/null
+          grep -F 'matchPattern: "*"' "$cegarza_render" >/dev/null
+          grep -F 'secretName: cegarza-preview-tls' "$cegarza_render" >/dev/null
+          assert_cegarza_template_contains() {
+            template=$1
+            expected=$2
+            helm template cegarza-blog "$chart" \
+              --namespace cegarza-blog \
+              -f helm/splattop-blog/values.yaml \
+              -f helm/splattop-blog/values-cegarza.yaml \
+              --show-only "$template" |
+              grep -F "$expected" >/dev/null
+          }
+          assert_cegarza_template_contains \
+            templates/cilium-network-policy.yaml \
+            'argocd.argoproj.io/sync-wave: "-2"'
+          assert_cegarza_template_contains \
+            templates/migrations-job.yaml \
+            'argocd.argoproj.io/hook: Sync'
+          assert_cegarza_template_contains \
+            templates/migrations-job.yaml \
+            'argocd.argoproj.io/sync-wave: "-1"'
+          for serving_template in \
+            templates/deployment.yaml \
+            templates/service.yaml \
+            templates/ingress.yaml; do
+            assert_cegarza_template_contains \
+              "$serving_template" \
+              'argocd.argoproj.io/sync-wave: "0"'
+          done
+          test "$(grep -Fc 'argocd.argoproj.io/sync-wave: "-2"' \
+            "$cegarza_render")" -eq 1
+          test "$(grep -Fc 'argocd.argoproj.io/sync-wave: "-1"' \
+            "$cegarza_render")" -eq 1
+          test "$(grep -Fc 'argocd.argoproj.io/sync-wave: "0"' \
+            "$cegarza_render")" -eq 3
+          test "$(grep -Fc 'argocd.argoproj.io/hook: Sync' \
+            "$cegarza_render")" -eq 1
+          grep -F 'argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded' \
+            "$cegarza_render" >/dev/null
+          grep -F '"helm.sh/hook": pre-install,pre-upgrade' \
+            "$cegarza_render" >/dev/null
+          grep -F '"helm.sh/hook-weight": "-1"' \
+            "$cegarza_render" >/dev/null
+          grep -F '"helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded' \
+            "$cegarza_render" >/dev/null
+          if grep -F 'host: cegarza.com' "$cegarza_render" >/dev/null; then
+            echo "The preview release must not claim the apex hostname" >&2
+            exit 1
+          fi
+
       - name: Verify SplatTop Blog unsafe persistence fails closed
         if: matrix.chart.name == 'splattop-blog'
         run: |
@@ -387,6 +478,25 @@ jobs:
             "blog.strategy.type must be Recreate when blog.persistence.enabled=true" \
             --set blog.persistence.enabled=true \
             --set blog.strategy.rollingUpdate.maxSurge=1
+          expect_failure \
+            "blog.image.digest must be a lowercase sha256:<64 hex> digest" \
+            --set-string blog.image.digest=sha256:not-a-digest
+          expect_failure \
+            "networkPolicy.egress.database.host is required when networkPolicy.enabled=true" \
+            --set networkPolicy.enabled=true
+          expect_failure \
+            "networkPolicy.egress.database.host must be an exact hostname without wildcards" \
+            --set networkPolicy.enabled=true \
+            --set-string networkPolicy.egress.database.host=*.example.com
+          expect_failure \
+            "networkPolicy.egress.database.host must be a lowercase exact DNS hostname" \
+            --set networkPolicy.enabled=true \
+            --set-string networkPolicy.egress.database.host=DB.EXAMPLE.COM
+          expect_failure \
+            "networkPolicy.egress.database.port must be between 1 and 65535" \
+            --set networkPolicy.enabled=true \
+            --set-string networkPolicy.egress.database.host=db.example.com \
+            --set networkPolicy.egress.database.port=0
 
       - name: Install uv for Poetry semantic checks
         if: matrix.chart.name == 'poetry'

@@ -9,6 +9,9 @@ metadata:
     "helm.sh/hook": {{ .Values.blog.migrations.hook }}
     "helm.sh/hook-weight": "-1"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
 spec:
   backoffLimit: {{ .Values.blog.migrations.backoffLimit }}
   template:
@@ -25,9 +28,13 @@ spec:
           type: RuntimeDefault
       containers:
         - name: migrate
-          image: "{{ .Values.blog.image.repository }}:{{ include "splattop-blog.imageTag" . }}"
+          image: {{ include "splattop-blog.image" . | quote }}
           imagePullPolicy: {{ .Values.blog.image.pullPolicy }}
-          command: ["uv", "run", "python", "manage.py", "migrate", "--noinput"]
+          command:
+            - /app/.venv/bin/python
+            - manage.py
+            - migrate
+            - --noinput
           env:
             {{- range $key := .Values.blog.secretKeys }}
             - name: {{ $key }}
@@ -48,4 +55,19 @@ spec:
             capabilities:
               drop:
                 - ALL
+          {{- if .Values.blog.databaseTLS.enabled }}
+          volumeMounts:
+            - name: database-ca
+              mountPath: {{ .Values.blog.databaseTLS.caMountPath }}
+              readOnly: true
+          {{- end }}
+      {{- if .Values.blog.databaseTLS.enabled }}
+      volumes:
+        - name: database-ca
+          secret:
+            secretName: {{ required "blog.databaseTLS.secretName is required when blog.databaseTLS.enabled=true" .Values.blog.databaseTLS.secretName }}
+            items:
+              - key: {{ .Values.blog.databaseTLS.secretKey }}
+                path: {{ .Values.blog.databaseTLS.caFileName }}
+      {{- end }}
 {{- end }}

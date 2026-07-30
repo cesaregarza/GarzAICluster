@@ -5,7 +5,7 @@ metadata:
   name: {{ include "splattop-blog.fullname" . }}-media
   {{- if .Values.blog.persistence.retainOnDelete }}
   annotations:
-    argocd.argoproj.io/sync-options: Prune=false
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
     helm.sh/resource-policy: keep
   {{- end }}
   labels:

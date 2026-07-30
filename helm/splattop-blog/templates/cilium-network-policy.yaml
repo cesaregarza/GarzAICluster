@@ -1,0 +1,58 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $databaseHost := required "networkPolicy.egress.database.host is required when networkPolicy.enabled=true" .Values.networkPolicy.egress.database.host -}}
+{{- if contains "*" $databaseHost }}
+{{- fail "networkPolicy.egress.database.host must be an exact hostname without wildcards" }}
+{{- end }}
+{{- if or (contains ".." $databaseHost) (not (regexMatch "^[a-z0-9][a-z0-9.-]*[a-z0-9]$" $databaseHost)) }}
+{{- fail "networkPolicy.egress.database.host must be a lowercase exact DNS hostname" }}
+{{- end }}
+{{- $databasePort := int .Values.networkPolicy.egress.database.port -}}
+{{- if or (lt $databasePort 1) (gt $databasePort 65535) }}
+{{- fail "networkPolicy.egress.database.port must be between 1 and 65535" }}
+{{- end }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "splattop-blog.fullname" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    {{- include "splattop-blog.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "splattop-blog.selectorLabels" . | nindent 6 }}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            "k8s:io.kubernetes.pod.namespace": {{ .Values.networkPolicy.ingress.namespace | quote }}
+            {{- range $key, $value := .Values.networkPolicy.ingress.podLabels }}
+            {{ printf "k8s:%s" $key | quote }}: {{ $value | quote }}
+            {{- end }}
+      toPorts:
+        - ports:
+            - port: {{ .Values.networkPolicy.ingress.port | quote }}
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            "k8s:io.kubernetes.pod.namespace": {{ .Values.networkPolicy.egress.dns.namespace | quote }}
+            {{- range $key, $value := .Values.networkPolicy.egress.dns.podLabels }}
+            {{ printf "k8s:%s" $key | quote }}: {{ $value | quote }}
+            {{- end }}
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toFQDNs:
+        - matchName: {{ $databaseHost | quote }}
+      toPorts:
+        - ports:
+            - port: {{ $databasePort | quote }}
+              protocol: TCP
+{{- end }}
