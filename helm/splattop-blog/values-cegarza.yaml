@@ -23,8 +23,8 @@ blog:
   env:
     DJANGO_SETTINGS_MODULE: splattopblog.settings
     DEBUG: "false"
-    ALLOWED_HOSTS: preview.cegarza.com
-    CSRF_TRUSTED_ORIGINS: https://preview.cegarza.com
+    ALLOWED_HOSTS: dev.cegarza.com
+    CSRF_TRUSTED_ORIGINS: https://dev.cegarza.com
     SECURE_HSTS_SECONDS: "31536000"
     SECURE_HSTS_INCLUDE_SUBDOMAINS: "false"
     SECURE_HSTS_PRELOAD: "false"
@@ -33,7 +33,7 @@ blog:
     SITE_NAME: Bringing Down The Gauss
     SITE_DESCRIPTION: Thoughts, stories and ideas.
     SITE_AUTHOR: Cesar Garza
-    WAGTAILADMIN_BASE_URL: https://preview.cegarza.com/admin/
+    WAGTAILADMIN_BASE_URL: https://dev.cegarza.com/admin/
     ALLOWED_EMBED_HOSTS: cesaregarza.github.io
     CSP_ENFORCE: "true"
   resources:
@@ -54,7 +54,7 @@ blog:
     enabled: true
     path: /health/
     port: 8000
-    hostHeader: preview.cegarza.com
+    hostHeader: dev.cegarza.com
   migrations:
     enabled: true
     hook: pre-install,pre-upgrade
@@ -78,18 +78,18 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-body-size: "20m"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
-    - host: preview.cegarza.com
+    - host: dev.cegarza.com
       paths:
         - path: /
           pathType: Prefix
           servicePort: 8000
   tls:
     enabled: true
-    secretName: cegarza-preview-tls
+    secretName: cegarza-dev-tls
     certificate:
       enabled: true
       dnsNames:
-        - preview.cegarza.com
+        - dev.cegarza.com
 
 networkPolicy:
   enabled: true
