@@ -240,9 +240,27 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
                 ("opencode.apply_executor", "opencodeApplyExecutor"),
             )
         }
+        expected_service_accounts = {
+            "agent-workloads",
+            workspace_account,
+            *opencode_accounts.values(),
+        }
+        previous_release = self.production_values["projectedWorkloadIdentity"][
+            "previousRelease"
+        ]
+        if previous_release is not None:
+            expected_service_accounts.add(
+                _release_service_account_name(
+                    "data.workspace_probe",
+                    previous_release,
+                    prefix=self.production_values["projectedWorkloadIdentity"][
+                        "serviceAccountNamePrefix"
+                    ],
+                )
+            )
         self.assertEqual(
             {account["metadata"]["name"] for account in service_accounts},
-            {"agent-workloads", workspace_account, *opencode_accounts.values()},
+            expected_service_accounts,
         )
 
         for worker_id, deployment_name, container_name in (

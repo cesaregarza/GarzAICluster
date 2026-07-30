@@ -20,9 +20,14 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return value
 
 
-def _workspace_service_account_subject(values: dict[str, Any]) -> str:
+def _workspace_service_account_subject(
+    values: dict[str, Any],
+    *,
+    release: dict[str, str] | None = None,
+) -> str:
     worker_id = "data.workspace_probe"
-    release = values["mandateReleasePins"][worker_id]
+    if release is None:
+        release = values["mandateReleasePins"][worker_id]
     payload = {
         "schema_version": "workload_identity_bundle.v1",
         "code_digest": release["codeDigest"],
@@ -148,7 +153,6 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
         self.assertIs(projected["enabled"], True)
         self.assertEqual(projected["workerId"], "data.workspace_probe")
         self.assertEqual(projected["token"]["audience"], "mandate-api")
-        self.assertIsNone(projected["previousRelease"])
         self.assertEqual(
             workspace["agent"]["service_account_subject"],
             _workspace_service_account_subject(values),
@@ -157,7 +161,26 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
             workspace["agent"]["identity_audience"],
             "mandate-api",
         )
-        self.assertNotIn("previous_release", workspace["agent"])
+        previous_release = projected["previousRelease"]
+        if previous_release is None:
+            self.assertNotIn("previous_release", workspace["agent"])
+        else:
+            self.assertEqual(
+                workspace["agent"]["previous_release"],
+                {
+                    "service_account_subject": _workspace_service_account_subject(
+                        values,
+                        release=previous_release,
+                    ),
+                    "code_digest": previous_release["codeDigest"],
+                    "manifest_digest": previous_release["manifestDigest"],
+                    "image_digest": previous_release["imageDigest"],
+                },
+            )
+            self.assertNotEqual(
+                workspace["agent"]["service_account_subject"],
+                workspace["agent"]["previous_release"]["service_account_subject"],
+            )
 
         self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE", values["env"])
         self.assertNotIn("extraVolumes", values)
