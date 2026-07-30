@@ -1,0 +1,109 @@
+global:
+  environment: production
+  imagePullSecrets:
+    - regcred
+  databaseSecretName: cegarza-blog-secrets
+  appImageTag: v1.0.33
+
+fullnameOverride: cegarza-blog
+
+blog:
+  enabled: true
+  replicas: 1
+  strategy:
+    type: Recreate
+  image:
+    repository: registry.digitalocean.com/sendouq/splattop-blog
+    tag: v1.0.33
+    digest: sha256:5e6a729e28197c75fe7cf7fe1cdf7b57a25ede3e7c468910751133731e88788d
+    pullPolicy: IfNotPresent
+  secretKeys:
+    - DATABASE_URL
+    - DJANGO_SECRET_KEY
+  env:
+    DJANGO_SETTINGS_MODULE: splattopblog.settings
+    DEBUG: "false"
+    ALLOWED_HOSTS: preview.cegarza.com
+    CSRF_TRUSTED_ORIGINS: https://preview.cegarza.com
+    SECURE_HSTS_SECONDS: "31536000"
+    SECURE_HSTS_INCLUDE_SUBDOMAINS: "false"
+    SECURE_HSTS_PRELOAD: "false"
+    SERVE_MEDIA: "true"
+    USE_SPACES: "false"
+    SITE_NAME: Bringing Down The Gauss
+    SITE_DESCRIPTION: Thoughts, stories and ideas.
+    SITE_AUTHOR: Cesar Garza
+    WAGTAILADMIN_BASE_URL: https://preview.cegarza.com/admin/
+    ALLOWED_EMBED_HOSTS: cesaregarza.github.io
+    CSP_ENFORCE: "true"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  persistence:
+    enabled: true
+    existingClaim: ""
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    storageClass: do-block-storage
+    retainOnDelete: true
+  health:
+    enabled: true
+    path: /health/
+    port: 8000
+    hostHeader: preview.cegarza.com
+  migrations:
+    enabled: true
+    hook: pre-install,pre-upgrade
+    backoffLimit: 3
+  databaseTLS:
+    enabled: true
+    secretName: cegarza-blog-secrets
+    secretKey: DB_CA_CERT
+    caMountPath: /etc/database-ca
+    caFileName: ca.crt
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+    external-dns.alpha.kubernetes.io/ttl: "60"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: preview.cegarza.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: 8000
+  tls:
+    enabled: true
+    secretName: cegarza-preview-tls
+    certificate:
+      enabled: true
+      dnsNames:
+        - preview.cegarza.com
+
+networkPolicy:
+  enabled: true
+  ingress:
+    namespace: ingress-nginx
+    podLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/instance: nginx-ingress
+    port: 8000
+  egress:
+    dns:
+      namespace: kube-system
+      podLabels:
+        k8s-app: kube-dns
+    database:
+      host: private-db-postgresql-nyc3-xscraper-do-user-15543770-0.c.db.ondigitalocean.com
+      port: 25060

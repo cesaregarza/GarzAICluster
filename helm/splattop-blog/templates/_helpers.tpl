@@ -66,3 +66,18 @@ Resolve image tag with fallback to global
 {{- define "splattop-blog.imageTag" -}}
 {{- .Values.blog.image.tag | default .Values.global.appImageTag | default "latest" }}
 {{- end }}
+
+{{/*
+Resolve the complete image reference. An immutable digest takes precedence.
+*/}}
+{{- define "splattop-blog.image" -}}
+{{- $repository := required "blog.image.repository is required" .Values.blog.image.repository -}}
+{{- if .Values.blog.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.blog.image.digest) -}}
+{{- fail "blog.image.digest must be a lowercase sha256:<64 hex> digest" -}}
+{{- end -}}
+{{- printf "%s@%s" $repository .Values.blog.image.digest -}}
+{{- else -}}
+{{- printf "%s:%s" $repository (include "splattop-blog.imageTag" .) -}}
+{{- end -}}
+{{- end }}

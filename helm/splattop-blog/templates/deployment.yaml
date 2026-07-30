@@ -13,6 +13,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "splattop-blog.fullname" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
   labels:
     {{- include "splattop-blog.labels" . | nindent 4 }}
     app.kubernetes.io/component: blog
@@ -50,7 +52,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: blog
-          image: "{{ .Values.blog.image.repository }}:{{ include "splattop-blog.imageTag" . }}"
+          image: {{ include "splattop-blog.image" . | quote }}
           imagePullPolicy: {{ .Values.blog.image.pullPolicy }}
           ports:
             - name: http
@@ -109,6 +111,11 @@ spec:
           volumeMounts:
             - name: media
               mountPath: /app/src/media
+            {{- if .Values.blog.databaseTLS.enabled }}
+            - name: database-ca
+              mountPath: {{ .Values.blog.databaseTLS.caMountPath }}
+              readOnly: true
+            {{- end }}
       volumes:
         - name: media
           {{- if and .Values.blog.persistence.enabled .Values.blog.persistence.existingClaim }}
@@ -120,4 +127,12 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if .Values.blog.databaseTLS.enabled }}
+        - name: database-ca
+          secret:
+            secretName: {{ required "blog.databaseTLS.secretName is required when blog.databaseTLS.enabled=true" .Values.blog.databaseTLS.secretName }}
+            items:
+              - key: {{ .Values.blog.databaseTLS.secretKey }}
+                path: {{ .Values.blog.databaseTLS.caFileName }}
+        {{- end }}
 {{- end }}

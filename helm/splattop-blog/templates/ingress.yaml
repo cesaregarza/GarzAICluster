@@ -1,5 +1,5 @@
 {{- if .Values.ingress.enabled }}
-{{- $annotations := default (dict) .Values.ingress.annotations -}}
+{{- $annotations := omit (default (dict) .Values.ingress.annotations) "argocd.argoproj.io/sync-wave" -}}
 {{- if .Values.ingress.tls.certificate.enabled }}
 {{- $annotations = omit $annotations "cert-manager.io/cluster-issuer" "cert-manager.io/issuer" -}}
 {{- end }}
@@ -9,8 +9,9 @@ metadata:
   name: {{ include "splattop-blog.fullname" . }}
   labels:
     {{- include "splattop-blog.labels" . | nindent 4 }}
-  {{- with $annotations }}
   annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  {{- with $annotations }}
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
