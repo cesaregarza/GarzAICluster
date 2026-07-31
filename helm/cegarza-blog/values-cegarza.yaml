@@ -11,7 +11,7 @@ blog:
   enabled: true
   replicas: 1
   selectorName: cegarza-blog
-  replaceOnSync: true
+  replaceOnSync: false
   strategy:
     type: Recreate
   image:
@@ -96,7 +96,6 @@ ingress:
 networkPolicy:
   enabled: true
   selectorNames:
-  - splattop-blog
   - cegarza-blog
   ingress:
     namespace: ingress-nginx
