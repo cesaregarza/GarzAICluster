@@ -3,7 +3,7 @@ global:
   imagePullSecrets:
     - regcred
   databaseSecretName: cegarza-blog-secrets
-  appImageTag: v1.0.34
+  appImageTag: v1.0.36
 
 fullnameOverride: cegarza-blog
 
@@ -14,8 +14,8 @@ blog:
     type: Recreate
   image:
     repository: registry.digitalocean.com/sendouq/splattop-blog
-    tag: v1.0.34
-    digest: sha256:e0848936bb58c8764718c4b64fdc8fb451794a38dff26238eb8b35ea288c6b07
+    tag: v1.0.36
+    digest: sha256:e2da2ee66648b13d39c5e463e502f7b230558a5e8746e831ba91469f45432c51
     pullPolicy: IfNotPresent
   secretKeys:
     - DATABASE_URL
