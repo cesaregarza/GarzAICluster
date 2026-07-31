@@ -1,7 +1,7 @@
 global:
   environment: production
   imagePullSecrets:
-    - regcred
+  - regcred
   databaseSecretName: cegarza-blog-secrets
   appImageTag: v1.0.36
 
@@ -10,20 +10,20 @@ fullnameOverride: cegarza-blog
 blog:
   enabled: true
   replicas: 1
-  selectorName: splattop-blog
-  replaceOnSync: false
+  selectorName: cegarza-blog
+  replaceOnSync: true
   strategy:
     type: Recreate
   image:
-    repository: registry.digitalocean.com/sendouq/splattop-blog
-    tag: v1.0.36
-    digest: sha256:e2da2ee66648b13d39c5e463e502f7b230558a5e8746e831ba91469f45432c51
+    repository: registry.digitalocean.com/sendouq/cegarza-blog
+    tag: v1.0.37
+    digest: sha256:ce9b2863eb08684656e4435a825c6b8d7e659aae6839f37e755e5c2b34cc2724
     pullPolicy: IfNotPresent
   secretKeys:
-    - DATABASE_URL
-    - DJANGO_SECRET_KEY
+  - DATABASE_URL
+  - DJANGO_SECRET_KEY
   env:
-    DJANGO_SETTINGS_MODULE: splattopblog.settings
+    DJANGO_SETTINGS_MODULE: cegarza_site.settings
     DEBUG: "false"
     ALLOWED_HOSTS: dev.cegarza.com
     CSRF_TRUSTED_ORIGINS: https://dev.cegarza.com
@@ -80,24 +80,24 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-body-size: "20m"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
-    - host: dev.cegarza.com
-      paths:
-        - path: /
-          pathType: Prefix
-          servicePort: 8000
+  - host: dev.cegarza.com
+    paths:
+    - path: /
+      pathType: Prefix
+      servicePort: 8000
   tls:
     enabled: true
     secretName: cegarza-dev-tls
     certificate:
       enabled: true
       dnsNames:
-        - dev.cegarza.com
+      - dev.cegarza.com
 
 networkPolicy:
   enabled: true
   selectorNames:
-    - splattop-blog
-    - cegarza-blog
+  - splattop-blog
+  - cegarza-blog
   ingress:
     namespace: ingress-nginx
     podLabels:
