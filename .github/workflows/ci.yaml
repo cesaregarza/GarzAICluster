@@ -187,6 +187,10 @@ jobs:
             path: helm/splattop-blog
             release: splattop-blog
             prod_values: helm/splattop-blog/values-prod.yaml
+          - name: cegarza-blog
+            path: helm/cegarza-blog
+            release: cegarza-blog
+            prod_values: helm/cegarza-blog/values-cegarza.yaml
           - name: garz-observability
             path: helm/garz-observability
             release: garz-observability
@@ -238,24 +242,14 @@ jobs:
           mkdir -p rendered
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" > "rendered/${{ matrix.chart.name }}-default.yaml"
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" -f "${{ matrix.chart.prod_values }}" > "rendered/${{ matrix.chart.name }}-prod.yaml"
-          if [[ "${{ matrix.chart.name }}" == "splattop-blog" ]]; then
-            helm lint helm/splattop-blog \
-              -f helm/splattop-blog/values.yaml \
-              -f helm/splattop-blog/values-cegarza.yaml
-            helm template cegarza-blog helm/splattop-blog \
-              --namespace cegarza-blog \
-              -f helm/splattop-blog/values.yaml \
-              -f helm/splattop-blog/values-cegarza.yaml \
-              > rendered/cegarza-blog-preview.yaml
-          fi
 
-      - name: Verify SplatTop Blog safety semantics
-        if: matrix.chart.name == 'splattop-blog'
+      - name: Verify cegarza.com chart safety semantics
+        if: matrix.chart.name == 'cegarza-blog'
         run: |
           set -euo pipefail
-          chart=helm/splattop-blog
-          default_render=rendered/splattop-blog-default.yaml
-          prod_render=rendered/splattop-blog-prod.yaml
+          chart=helm/cegarza-blog
+          default_render=rendered/cegarza-blog-default.yaml
+          prod_render=rendered/cegarza-blog-prod.yaml
 
           if grep -F '  strategy:' "$default_render" >/dev/null; then
             echo "Ephemeral media must retain the default Deployment strategy" >&2
@@ -337,54 +331,54 @@ jobs:
             exit 1
           fi
 
-          helm template splattop-blog "$chart" \
-            -f helm/splattop-blog/values-prod.yaml \
+          helm template cegarza-blog "$chart" \
+            -f helm/cegarza-blog/values-cegarza.yaml \
             --set ingress.tls.certificate.enabled=false \
             --show-only templates/ingress.yaml \
-            > rendered/splattop-blog-ingress-shim.yaml
+            > rendered/cegarza-blog-ingress-shim.yaml
           grep -F 'cert-manager.io/cluster-issuer: letsencrypt-prod' \
-            rendered/splattop-blog-ingress-shim.yaml >/dev/null
+            rendered/cegarza-blog-ingress-shim.yaml >/dev/null
 
-          helm template splattop-blog "$chart" \
+          helm template cegarza-blog "$chart" \
             --set blog.persistence.enabled=true \
             --set blog.strategy.type=Recreate \
             --set blog.strategy.rollingUpdate.maxSurge=1 \
             --show-only templates/deployment.yaml \
-            > rendered/splattop-blog-explicit-recreate.yaml
+            > rendered/cegarza-blog-explicit-recreate.yaml
           grep -F '    rollingUpdate: null' \
-            rendered/splattop-blog-explicit-recreate.yaml >/dev/null
+            rendered/cegarza-blog-explicit-recreate.yaml >/dev/null
           if grep -F 'maxSurge:' \
-            rendered/splattop-blog-explicit-recreate.yaml >/dev/null; then
+            rendered/cegarza-blog-explicit-recreate.yaml >/dev/null; then
             echo "Recreate must clear rollingUpdate settings" >&2
             exit 1
           fi
 
-          helm template splattop-blog "$chart" \
-            -f helm/splattop-blog/values-prod.yaml \
+          helm template cegarza-blog "$chart" \
+            -f helm/cegarza-blog/values-cegarza.yaml \
             --set blog.persistence.retainOnDelete=false \
             --show-only templates/media-pvc.yaml \
-            > rendered/splattop-blog-prunable-pvc.yaml
+            > rendered/cegarza-blog-prunable-pvc.yaml
           if grep -E 'argocd.argoproj.io/sync-options|helm.sh/resource-policy' \
-            rendered/splattop-blog-prunable-pvc.yaml >/dev/null; then
+            rendered/cegarza-blog-prunable-pvc.yaml >/dev/null; then
             echo "retainOnDelete=false must remove PVC retention annotations" >&2
             exit 1
           fi
 
           digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          helm template splattop-blog "$chart" \
+          helm template cegarza-blog "$chart" \
             --set blog.migrations.enabled=true \
             --set-string blog.image.digest="$digest" \
-            > rendered/splattop-blog-digest.yaml
-          test "$(grep -Fc "registry.digitalocean.com/sendouq/splattop-blog@${digest}" \
-            rendered/splattop-blog-digest.yaml)" -eq 2
+            > rendered/cegarza-blog-digest.yaml
+          test "$(grep -Fc "registry.digitalocean.com/sendouq/cegarza-blog@${digest}" \
+            rendered/cegarza-blog-digest.yaml)" -eq 2
           grep -F -- '- /app/.venv/bin/python' \
-            rendered/splattop-blog-digest.yaml >/dev/null
-          if grep -F -- '- uv' rendered/splattop-blog-digest.yaml >/dev/null; then
+            rendered/cegarza-blog-digest.yaml >/dev/null
+          if grep -F -- '- uv' rendered/cegarza-blog-digest.yaml >/dev/null; then
             echo "The migration Job must not invoke uv or install development dependencies" >&2
             exit 1
           fi
 
-          cegarza_render=rendered/cegarza-blog-preview.yaml
+          cegarza_render="$prod_render"
           cegarza_digest=$(awk '
             /^[[:space:]]*digest:/ {
               value = $2
@@ -392,10 +386,97 @@ jobs:
               print value
               exit
             }
-          ' helm/splattop-blog/values-cegarza.yaml)
+          ' helm/cegarza-blog/values-cegarza.yaml)
+          cegarza_repository=$(sed -n 's/^    repository: //p' \
+            helm/cegarza-blog/values-cegarza.yaml)
+          cegarza_selector=$(sed -n 's/^  selectorName: //p' \
+            helm/cegarza-blog/values-cegarza.yaml)
+          cegarza_replace=$(sed -n 's/^  replaceOnSync: //p' \
+            helm/cegarza-blog/values-cegarza.yaml)
+          cegarza_settings=$(sed -n 's/^    DJANGO_SETTINGS_MODULE: //p' \
+            helm/cegarza-blog/values-cegarza.yaml)
           test -n "$cegarza_digest"
-          test "$(grep -Fc "registry.digitalocean.com/sendouq/splattop-blog@${cegarza_digest}" \
+          test -n "$cegarza_repository"
+          test -n "$cegarza_selector"
+          test -n "$cegarza_replace"
+          test -n "$cegarza_settings"
+
+          old_selector=splattop-blog
+          new_selector=cegarza-blog
+          old_repository=registry.digitalocean.com/sendouq/splattop-blog
+          new_repository=registry.digitalocean.com/sendouq/cegarza-blog
+          old_settings=splattopblog.settings
+          new_settings=cegarza_site.settings
+          case "${cegarza_repository}|${cegarza_settings}|${cegarza_selector}|${cegarza_replace}" in
+            "${old_repository}|${old_settings}|${old_selector}|false")
+              expected_replace_count=0
+              expect_old_network_selector=true
+              ;;
+            "${new_repository}|${new_settings}|${new_selector}|true")
+              expected_replace_count=1
+              expect_old_network_selector=true
+              ;;
+            "${new_repository}|${new_settings}|${new_selector}|false")
+              expected_replace_count=0
+              expect_old_network_selector=false
+              ;;
+            *)
+              echo "cegarza-blog values are not a safe rollout phase" >&2
+              exit 1
+              ;;
+          esac
+
+          test "$(grep -Fc "${cegarza_repository}@${cegarza_digest}" \
             "$cegarza_render")" -eq 2
+          test "$(grep -Fc "app.kubernetes.io/name: ${cegarza_selector}" \
+            "$cegarza_render")" -ge 1
+          actual_replace_count=$(grep -Fc \
+            'argocd.argoproj.io/sync-options: Force=true,Replace=true' \
+            "$cegarza_render" || true)
+          test "$actual_replace_count" -eq "$expected_replace_count"
+
+          helm template cegarza-blog "$chart" \
+            -f helm/cegarza-blog/values-cegarza.yaml \
+            --show-only templates/cilium-network-policy.yaml \
+            > rendered/cegarza-blog-network-policy.yaml
+          cegarza_network_render=rendered/cegarza-blog-network-policy.yaml
+          grep -F -- '- "cegarza-blog"' "$cegarza_network_render" >/dev/null
+          if [[ "$expect_old_network_selector" == true ]]; then
+            grep -F -- '- "splattop-blog"' "$cegarza_network_render" >/dev/null
+          elif grep -F -- '- "splattop-blog"' "$cegarza_network_render" >/dev/null; then
+            echo "Steady state must not retain the old endpoint label" >&2
+            exit 1
+          fi
+
+          helm template cegarza-blog "$chart" \
+            -f helm/cegarza-blog/values-cegarza.yaml \
+            --set blog.selectorName=cegarza-blog \
+            --set blog.replaceOnSync=true \
+            --set-json 'networkPolicy.selectorNames=["splattop-blog","cegarza-blog"]' \
+            > rendered/cegarza-blog-selector-activation.yaml
+          activation_render=rendered/cegarza-blog-selector-activation.yaml
+          test "$(grep -Fc 'argocd.argoproj.io/sync-options: Force=true,Replace=true' \
+            "$activation_render")" -eq 1
+          grep -F 'app.kubernetes.io/name: cegarza-blog' \
+            "$activation_render" >/dev/null
+          grep -F -- '- "splattop-blog"' "$activation_render" >/dev/null
+          grep -F -- '- "cegarza-blog"' "$activation_render" >/dev/null
+
+          helm template cegarza-blog "$chart" \
+            -f helm/cegarza-blog/values-cegarza.yaml \
+            --set blog.selectorName=cegarza-blog \
+            --set blog.replaceOnSync=false \
+            --set-json 'networkPolicy.selectorNames=["cegarza-blog"]' \
+            > rendered/cegarza-blog-selector-cleanup.yaml
+          cleanup_render=rendered/cegarza-blog-selector-cleanup.yaml
+          if grep -F 'Force=true,Replace=true' "$cleanup_render" >/dev/null; then
+            echo "The selector cleanup render must remove the replacement annotation" >&2
+            exit 1
+          fi
+          if grep -F -- '- "splattop-blog"' "$cleanup_render" >/dev/null; then
+            echo "The selector cleanup render must remove the old endpoint label" >&2
+            exit 1
+          fi
           grep -F 'name: cegarza-blog-secrets' "$cegarza_render" >/dev/null
           grep -F 'storageClassName: do-block-storage' "$cegarza_render" >/dev/null
           grep -F 'matchName: "private-db-postgresql-nyc3-xscraper-do-user-15543770-0.c.db.ondigitalocean.com"' \
@@ -407,8 +488,8 @@ jobs:
             expected=$2
             helm template cegarza-blog "$chart" \
               --namespace cegarza-blog \
-              -f helm/splattop-blog/values.yaml \
-              -f helm/splattop-blog/values-cegarza.yaml \
+              -f helm/cegarza-blog/values.yaml \
+              -f helm/cegarza-blog/values-cegarza.yaml \
               --show-only "$template" |
               grep -F "$expected" >/dev/null
           }
@@ -446,24 +527,24 @@ jobs:
           grep -F '"helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded' \
             "$cegarza_render" >/dev/null
           if grep -F 'host: cegarza.com' "$cegarza_render" >/dev/null; then
-            echo "The preview release must not claim the apex hostname" >&2
+            echo "The dev release must not claim the apex hostname" >&2
             exit 1
           fi
 
-      - name: Verify SplatTop Blog unsafe persistence fails closed
-        if: matrix.chart.name == 'splattop-blog'
+      - name: Verify cegarza.com unsafe persistence fails closed
+        if: matrix.chart.name == 'cegarza-blog'
         run: |
           set -euo pipefail
-          chart=helm/splattop-blog
+          chart=helm/cegarza-blog
           expect_failure() {
             expected=$1
             shift
-            if helm template splattop-blog "$chart" "$@" \
-              >/dev/null 2>rendered/splattop-blog-negative.err; then
+            if helm template cegarza-blog "$chart" "$@" \
+              >/dev/null 2>rendered/cegarza-blog-negative.err; then
               echo "Expected Helm render to fail: $expected" >&2
               exit 1
             fi
-            grep -F "$expected" rendered/splattop-blog-negative.err >/dev/null
+            grep -F "$expected" rendered/cegarza-blog-negative.err >/dev/null
           }
           expect_failure \
             "blog.replicas must be 1 when blog.persistence.enabled=true and blog.persistence.accessMode=ReadWriteOnce" \

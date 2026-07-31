@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import unittest
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -10,14 +11,23 @@ from ruamel.yaml import YAML
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 YAML_PARSER = YAML(typ="safe")
-VALUES_PATH = REPO_ROOT / "helm/splattop-blog/values-cegarza.yaml"
+VALUES_PATH = REPO_ROOT / "helm/cegarza-blog/values-cegarza.yaml"
 SECRET_DIRECTORY = REPO_ROOT / "secrets/cegarza-blog"
 EXPECTED_SECRET_FILES = {
     "cegarza-blog-secrets.enc.yaml",
     "cegarza-apex-tls.enc.yaml",
     "regcred.enc.yaml",
 }
-IMAGE_REPOSITORY = "registry.digitalocean.com/sendouq/splattop-blog"
+LEGACY_SELECTOR = "splattop-blog"
+CANONICAL_SELECTOR = "cegarza-blog"
+LEGACY_IMAGE_REPOSITORY = (
+    f"registry.digitalocean.com/sendouq/{LEGACY_SELECTOR}"
+)
+CANONICAL_IMAGE_REPOSITORY = (
+    f"registry.digitalocean.com/sendouq/{CANONICAL_SELECTOR}"
+)
+LEGACY_SETTINGS_MODULE = "splattopblog.settings"
+CANONICAL_SETTINGS_MODULE = "cegarza_site.settings"
 PRIVATE_DATABASE_HOST = (
     "private-db-postgresql-nyc3-xscraper-do-user-15543770-0.c."
     "db.ondigitalocean.com"
@@ -39,13 +49,13 @@ def _render_cegarza() -> list[dict[str, Any]]:
             "helm",
             "template",
             "cegarza-blog",
-            "helm/splattop-blog",
+            "helm/cegarza-blog",
             "--namespace",
             "cegarza-blog",
             "-f",
-            "helm/splattop-blog/values.yaml",
+            "helm/cegarza-blog/values.yaml",
             "-f",
-            "helm/splattop-blog/values-cegarza.yaml",
+            "helm/cegarza-blog/values-cegarza.yaml",
         ],
         check=True,
         cwd=str(REPO_ROOT),
@@ -76,9 +86,80 @@ def _document(
     return matches[0]
 
 
+def _rollout_phase(values: dict[str, Any]) -> str:
+    blog = values["blog"]
+    signature = (
+        blog["image"]["repository"],
+        blog["env"]["DJANGO_SETTINGS_MODULE"],
+        blog["selectorName"],
+        blog["replaceOnSync"],
+        tuple(values["networkPolicy"]["selectorNames"]),
+    )
+    phases = {
+        (
+            LEGACY_IMAGE_REPOSITORY,
+            LEGACY_SETTINGS_MODULE,
+            LEGACY_SELECTOR,
+            False,
+            (LEGACY_SELECTOR, CANONICAL_SELECTOR),
+        ): "substrate",
+        (
+            CANONICAL_IMAGE_REPOSITORY,
+            CANONICAL_SETTINGS_MODULE,
+            CANONICAL_SELECTOR,
+            True,
+            (LEGACY_SELECTOR, CANONICAL_SELECTOR),
+        ): "activation",
+        (
+            CANONICAL_IMAGE_REPOSITORY,
+            CANONICAL_SETTINGS_MODULE,
+            CANONICAL_SELECTOR,
+            False,
+            (CANONICAL_SELECTOR,),
+        ): "steady-state",
+    }
+    try:
+        return phases[signature]
+    except KeyError as exc:
+        raise AssertionError(
+            "cegarza-blog values must be exactly one safe rollout phase; "
+            f"got {signature!r}"
+        ) from exc
+
+
 class CegarzaBlogContractTests(unittest.TestCase):
+    def test_rollout_phase_state_machine_is_explicit(self) -> None:
+        substrate = _load_yaml(VALUES_PATH)
+        self.assertEqual(_rollout_phase(substrate), "substrate")
+
+        activation = deepcopy(substrate)
+        activation["blog"]["image"]["repository"] = CANONICAL_IMAGE_REPOSITORY
+        activation["blog"]["env"]["DJANGO_SETTINGS_MODULE"] = (
+            CANONICAL_SETTINGS_MODULE
+        )
+        activation["blog"]["selectorName"] = CANONICAL_SELECTOR
+        activation["blog"]["replaceOnSync"] = True
+        self.assertEqual(_rollout_phase(activation), "activation")
+
+        steady_state = deepcopy(activation)
+        steady_state["blog"]["replaceOnSync"] = False
+        steady_state["networkPolicy"]["selectorNames"] = [CANONICAL_SELECTOR]
+        self.assertEqual(_rollout_phase(steady_state), "steady-state")
+
+        unordered = deepcopy(steady_state)
+        unordered["networkPolicy"]["selectorNames"] = [
+            LEGACY_SELECTOR,
+            CANONICAL_SELECTOR,
+        ]
+        with self.assertRaisesRegex(AssertionError, "safe rollout phase"):
+            _rollout_phase(unordered)
+
     def test_values_are_dedicated_dev_configuration(self) -> None:
         values = _load_yaml(VALUES_PATH)
+        self.assertIn(
+            _rollout_phase(values),
+            {"substrate", "activation", "steady-state"},
+        )
         self.assertEqual(values["global"]["environment"], "production")
         self.assertEqual(values["global"]["databaseSecretName"], "cegarza-blog-secrets")
         self.assertEqual(values["global"]["imagePullSecrets"], ["regcred"])
@@ -86,12 +167,20 @@ class CegarzaBlogContractTests(unittest.TestCase):
 
         blog = values["blog"]
         image = blog["image"]
-        self.assertEqual(image["repository"], IMAGE_REPOSITORY)
+        self.assertIn(
+            image["repository"],
+            {LEGACY_IMAGE_REPOSITORY, CANONICAL_IMAGE_REPOSITORY},
+        )
         self.assertRegex(image["tag"], r"^v\d+\.\d+\.\d+$")
         self.assertRegex(image["digest"], r"^sha256:[a-f0-9]{64}$")
         self.assertNotEqual(image["digest"], f"sha256:{'0' * 64}")
         self.assertEqual(image["pullPolicy"], "IfNotPresent")
         self.assertEqual(blog["replicas"], 1)
+        self.assertIn(
+            blog["selectorName"],
+            {LEGACY_SELECTOR, CANONICAL_SELECTOR},
+        )
+        self.assertIsInstance(blog["replaceOnSync"], bool)
         self.assertEqual(blog["strategy"], {"type": "Recreate"})
         self.assertEqual(blog["secretKeys"], ["DATABASE_URL", "DJANGO_SECRET_KEY"])
 
@@ -156,6 +245,13 @@ class CegarzaBlogContractTests(unittest.TestCase):
 
         network_policy = values["networkPolicy"]
         self.assertTrue(network_policy["enabled"])
+        self.assertIn(
+            network_policy["selectorNames"],
+            [
+                [LEGACY_SELECTOR, CANONICAL_SELECTOR],
+                [CANONICAL_SELECTOR],
+            ],
+        )
         self.assertEqual(
             network_policy["egress"]["database"],
             {"host": PRIVATE_DATABASE_HOST, "port": 25060},
@@ -181,6 +277,7 @@ class CegarzaBlogContractTests(unittest.TestCase):
             workload["spec"]["source"]["helm"]["valueFiles"],
             ["values.yaml", "values-cegarza.yaml"],
         )
+        self.assertEqual(workload["spec"]["source"]["path"], "helm/cegarza-blog")
         workload_options = workload["spec"]["syncPolicy"]["syncOptions"]
         self.assertIn("CreateNamespace=false", workload_options)
         secret_options = secrets["spec"]["syncPolicy"]["syncOptions"]
@@ -237,7 +334,9 @@ class CegarzaBlogContractTests(unittest.TestCase):
 
     def test_render_is_isolated_and_digest_pinned(self) -> None:
         values = _load_yaml(VALUES_PATH)
-        expected_image = f"{IMAGE_REPOSITORY}@{values['blog']['image']['digest']}"
+        _rollout_phase(values)
+        blog = values["blog"]
+        expected_image = f"{blog['image']['repository']}@{blog['image']['digest']}"
         documents = _render_cegarza()
 
         deployment = _document(documents, kind="Deployment", name="cegarza-blog")
@@ -248,6 +347,17 @@ class CegarzaBlogContractTests(unittest.TestCase):
         self.assertFalse(pod_spec["automountServiceAccountToken"])
         self.assertEqual(pod_spec["imagePullSecrets"], [{"name": "regcred"}])
         self.assertEqual(container["image"], expected_image)
+        self.assertEqual(
+            deployment["spec"]["selector"]["matchLabels"]["app.kubernetes.io/name"],
+            blog["selectorName"],
+        )
+        sync_options = deployment["metadata"]["annotations"].get(
+            "argocd.argoproj.io/sync-options"
+        )
+        if blog["replaceOnSync"]:
+            self.assertEqual(sync_options, "Force=true,Replace=true")
+        else:
+            self.assertIsNone(sync_options)
         self.assertTrue(container["securityContext"]["runAsNonRoot"])
         self.assertEqual(container["securityContext"]["runAsUser"], 1000)
 
@@ -323,6 +433,21 @@ class CegarzaBlogContractTests(unittest.TestCase):
             kind="CiliumNetworkPolicy",
             name="cegarza-blog",
         )
+        self.assertEqual(
+            cilium_policy["spec"]["endpointSelector"],
+            {
+                "matchLabels": {
+                    "app.kubernetes.io/instance": "cegarza-blog",
+                },
+                "matchExpressions": [
+                    {
+                        "key": "app.kubernetes.io/name",
+                        "operator": "In",
+                        "values": values["networkPolicy"]["selectorNames"],
+                    }
+                ],
+            },
+        )
         dns_egress = cilium_policy["spec"]["egress"][0]
         self.assertEqual(
             dns_egress["toEndpoints"],
@@ -341,6 +466,76 @@ class CegarzaBlogContractTests(unittest.TestCase):
         )
         fqdn_rules = cilium_policy["spec"]["egress"][1]["toFQDNs"]
         self.assertEqual(fqdn_rules, [{"matchName": PRIVATE_DATABASE_HOST}])
+
+    def test_selector_activation_replaces_only_the_deployment(self) -> None:
+        if shutil.which("helm") is None:
+            raise unittest.SkipTest("helm is required for chart render tests")
+        result = subprocess.run(
+            [
+                "helm",
+                "template",
+                "cegarza-blog",
+                "helm/cegarza-blog",
+                "--namespace",
+                "cegarza-blog",
+                "-f",
+                "helm/cegarza-blog/values.yaml",
+                "-f",
+                "helm/cegarza-blog/values-cegarza.yaml",
+                "--set",
+                "blog.selectorName=cegarza-blog",
+                "--set",
+                "blog.replaceOnSync=true",
+                "--set-json",
+                'networkPolicy.selectorNames=["splattop-blog","cegarza-blog"]',
+            ],
+            check=True,
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        documents = [
+            document
+            for document in YAML_PARSER.load_all(result.stdout)
+            if isinstance(document, dict) and document
+        ]
+        deployment = _document(
+            documents,
+            kind="Deployment",
+            name="cegarza-blog",
+        )
+        self.assertEqual(
+            deployment["metadata"]["annotations"][
+                "argocd.argoproj.io/sync-options"
+            ],
+            "Force=true,Replace=true",
+        )
+        self.assertEqual(
+            deployment["spec"]["selector"]["matchLabels"]["app.kubernetes.io/name"],
+            "cegarza-blog",
+        )
+
+        for document in documents:
+            if document is deployment:
+                continue
+            self.assertNotEqual(
+                document.get("metadata", {})
+                .get("annotations", {})
+                .get("argocd.argoproj.io/sync-options"),
+                "Force=true,Replace=true",
+            )
+
+        cilium_policy = _document(
+            documents,
+            kind="CiliumNetworkPolicy",
+            name="cegarza-blog",
+        )
+        self.assertEqual(
+            cilium_policy["spec"]["endpointSelector"]["matchExpressions"][0][
+                "values"
+            ],
+            ["splattop-blog", "cegarza-blog"],
+        )
 
     def test_render_orders_policy_migration_and_serving_resources(self) -> None:
         documents = _render_cegarza()

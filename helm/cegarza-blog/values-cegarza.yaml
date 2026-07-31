@@ -10,6 +10,8 @@ fullnameOverride: cegarza-blog
 blog:
   enabled: true
   replicas: 1
+  selectorName: splattop-blog
+  replaceOnSync: false
   strategy:
     type: Recreate
   image:
@@ -93,6 +95,9 @@ ingress:
 
 networkPolicy:
   enabled: true
+  selectorNames:
+    - splattop-blog
+    - cegarza-blog
   ingress:
     namespace: ingress-nginx
     podLabels:

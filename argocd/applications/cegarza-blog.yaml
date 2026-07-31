@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/cesaregarza/GarzAICluster
     targetRevision: main
-    path: helm/splattop-blog
+    path: helm/cegarza-blog
     helm:
       releaseName: cegarza-blog
       valueFiles:

@@ -18,7 +18,8 @@ Use this checklist when adding a new public hostname or rolling out another DNS 
 
 ## App-specific follow-up
 
-- `helm/splattop-blog/values-prod.yaml`: update `blog.health.hostHeader`, `blog.env.ALLOWED_HOSTS`, and `blog.env.CSRF_TRUSTED_ORIGINS` when the new hostname is canonical.
+- `helm/cegarza-blog/values-cegarza.yaml`: update `blog.health.hostHeader`, `blog.env.ALLOWED_HOSTS`, and `blog.env.CSRF_TRUSTED_ORIGINS` when the cegarza.com hostname changes.
+- `helm/splattop-blog/values-prod.yaml`: legacy `blog.splat.top` settings; do not reuse this release for cegarza.com.
 - `helm/splattop/values-prod.yaml`: update `monitoring.grafana.serverDomain` and `monitoring.grafana.serverRootUrl` only if the new Grafana host becomes canonical. If it should just redirect, use vanity hosts.
 - `helm/garz-ai`: serves FastAPI-backed garz.ai pages, including JustFlip/Habit Taper legal pages at `justflip.garz.ai` and `habit-taper.garz.ai`.
 - Citrus (new): DNS is outside Cloudflare for this cluster, so update app ingress and application settings only (do not change `external-dns` filters) and provision the following records manually:
