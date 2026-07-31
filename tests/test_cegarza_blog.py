@@ -129,7 +129,17 @@ def _rollout_phase(values: dict[str, Any]) -> str:
 
 class CegarzaBlogContractTests(unittest.TestCase):
     def test_rollout_phase_state_machine_is_explicit(self) -> None:
-        substrate = _load_yaml(VALUES_PATH)
+        substrate = deepcopy(_load_yaml(VALUES_PATH))
+        substrate["blog"]["image"]["repository"] = LEGACY_IMAGE_REPOSITORY
+        substrate["blog"]["env"]["DJANGO_SETTINGS_MODULE"] = (
+            LEGACY_SETTINGS_MODULE
+        )
+        substrate["blog"]["selectorName"] = LEGACY_SELECTOR
+        substrate["blog"]["replaceOnSync"] = False
+        substrate["networkPolicy"]["selectorNames"] = [
+            LEGACY_SELECTOR,
+            CANONICAL_SELECTOR,
+        ]
         self.assertEqual(_rollout_phase(substrate), "substrate")
 
         activation = deepcopy(substrate)
