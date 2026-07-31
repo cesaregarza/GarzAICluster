@@ -1,0 +1,128 @@
+global:
+  environment: development
+  imagePullSecrets:
+    - regcred
+  databaseSecretName: blog-db-secrets
+  appImageTag: v1.0.1
+
+nameOverride: ""
+fullnameOverride: ""
+
+blog:
+  enabled: true
+  replicas: 1
+
+  # Pod selectors are immutable after Deployment creation. Keep empty for the
+  # canonical chart name; set only during a bounded selector migration.
+  selectorName: ""
+  # Argo CD resource-scoped replacement for one immutable-selector rollout.
+  # Remove immediately after the replacement succeeds.
+  replaceOnSync: false
+
+  # Optional Kubernetes Deployment strategy override. Persistent media defaults
+  # to, and only accepts, Recreate; Recreate also clears any live rollingUpdate
+  # state. With persistence disabled, empty retains Kubernetes' RollingUpdate.
+  strategy: {}
+
+  image:
+    repository: registry.digitalocean.com/sendouq/cegarza-blog
+    tag: v1.0.1
+    # Optional immutable digest. When set, it takes precedence over tag.
+    digest: ""
+    pullPolicy: Always
+
+  service:
+    type: ClusterIP
+    port: 8000
+
+  # Keys to inject from external database secret
+  secretKeys:
+    - DATABASE_URL
+    - DJANGO_SECRET_KEY
+    - SPACES_ACCESS_KEY
+    - SPACES_SECRET_KEY
+    - SPACES_BUCKET_NAME
+
+  # Plain environment variables
+  env:
+    DJANGO_SETTINGS_MODULE: cegarza_site.settings
+    DEBUG: "false"
+    ALLOWED_HOSTS: "localhost,127.0.0.1"
+    CSRF_TRUSTED_ORIGINS: "http://localhost:8000"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  persistence:
+    enabled: false
+    existingClaim: ""
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    storageClass: ""
+    # Protect chart-managed media from Helm uninstall and Argo CD pruning.
+    retainOnDelete: true
+
+  health:
+    enabled: true
+    path: /health/
+    port: 8000
+    hostHeader: ""
+
+  migrations:
+    enabled: false
+    hook: pre-install,pre-upgrade
+    backoffLimit: 3
+
+  # Mount a database CA from the workload Secret when DATABASE_URL uses
+  # sslmode=verify-full and sslrootcert points at caMountPath/caFileName.
+  databaseTLS:
+    enabled: false
+    secretName: ""
+    secretKey: DB_CA_CERT
+    caMountPath: /etc/database-ca
+    caFileName: ca.crt
+
+ingress:
+  enabled: false
+  className: nginx
+  # cert-manager issuer annotations drive ingress-shim only when the explicit
+  # ingress.tls.certificate resource below is disabled.
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts: []
+  tls:
+    enabled: false
+    secretName: blog-tls-secret
+    certificate:
+      enabled: false
+      # Defaults to ingress hostnames when empty.
+      dnsNames: []
+
+# Optional Cilium policy for releases that use only local media plus one
+# managed PostgreSQL endpoint. Enabling this isolates both the web Deployment
+# and migration Job by their shared release label.
+networkPolicy:
+  enabled: false
+  # Endpoint selector names. Keep empty to select only blog.selectorName.
+  # During an immutable selector transition, list both old and new names.
+  selectorNames: []
+  ingress:
+    namespace: ingress-nginx
+    podLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/instance: nginx-ingress
+    port: 8000
+  egress:
+    dns:
+      namespace: kube-system
+      podLabels:
+        k8s-app: kube-dns
+    database:
+      host: ""
+      port: 25060
