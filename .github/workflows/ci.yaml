@@ -526,8 +526,10 @@ jobs:
             "$cegarza_render" >/dev/null
           grep -F '"helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded' \
             "$cegarza_render" >/dev/null
-          if grep -F 'host: cegarza.com' "$cegarza_render" >/dev/null; then
-            echo "The dev release must not claim the apex hostname" >&2
+          # Apex activated: the release now serves cegarza.com. Guard inverted from
+          # the dev-phase block so the apex hostname must be present and intentional.
+          if ! grep -F 'host: cegarza.com' "$cegarza_render" >/dev/null; then
+            echo "Activated release must serve the apex hostname cegarza.com" >&2
             exit 1
           fi
 
