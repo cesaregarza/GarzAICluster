@@ -37,6 +37,7 @@ blog:
     SITE_AUTHOR: Cesar Garza
     WAGTAILADMIN_BASE_URL: https://cegarza.com/admin/
     ALLOWED_EMBED_HOSTS: cesaregarza.github.io
+    SITE_SAMEAS: "https://github.com/cesaregarza,https://linkedin.com/in/cegarza"
     CSP_ENFORCE: "true"
   resources:
     requests:
