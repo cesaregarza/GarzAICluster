@@ -16,8 +16,8 @@ blog:
     type: Recreate
   image:
     repository: registry.digitalocean.com/sendouq/cegarza-blog
-    tag: v1.0.37
-    digest: sha256:ce9b2863eb08684656e4435a825c6b8d7e659aae6839f37e755e5c2b34cc2724
+    tag: v1.0.38
+    digest: sha256:82d7865b251e3461c8e213067f34578ed7aad635a334076147d24cad470ce66d
     pullPolicy: IfNotPresent
   secretKeys:
   - DATABASE_URL
@@ -25,8 +25,8 @@ blog:
   env:
     DJANGO_SETTINGS_MODULE: cegarza_site.settings
     DEBUG: "false"
-    ALLOWED_HOSTS: dev.cegarza.com
-    CSRF_TRUSTED_ORIGINS: https://dev.cegarza.com
+    ALLOWED_HOSTS: cegarza.com,www.cegarza.com,dev.cegarza.com
+    CSRF_TRUSTED_ORIGINS: https://cegarza.com,https://www.cegarza.com,https://dev.cegarza.com
     SECURE_HSTS_SECONDS: "31536000"
     SECURE_HSTS_INCLUDE_SUBDOMAINS: "false"
     SECURE_HSTS_PRELOAD: "false"
@@ -35,7 +35,7 @@ blog:
     SITE_NAME: Bringing Down The Gauss
     SITE_DESCRIPTION: Thoughts, stories and ideas.
     SITE_AUTHOR: Cesar Garza
-    WAGTAILADMIN_BASE_URL: https://dev.cegarza.com/admin/
+    WAGTAILADMIN_BASE_URL: https://cegarza.com/admin/
     ALLOWED_EMBED_HOSTS: cesaregarza.github.io
     CSP_ENFORCE: "true"
   resources:
@@ -72,7 +72,7 @@ ingress:
   enabled: true
   className: nginx
   annotations:
-    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
     external-dns.alpha.kubernetes.io/ttl: "60"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
@@ -80,6 +80,16 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-body-size: "20m"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
+  - host: cegarza.com
+    paths:
+    - path: /
+      pathType: Prefix
+      servicePort: 8000
+  - host: www.cegarza.com
+    paths:
+    - path: /
+      pathType: Prefix
+      servicePort: 8000
   - host: dev.cegarza.com
     paths:
     - path: /
@@ -91,6 +101,8 @@ ingress:
     certificate:
       enabled: true
       dnsNames:
+      - cegarza.com
+      - www.cegarza.com
       - dev.cegarza.com
 
 networkPolicy:
