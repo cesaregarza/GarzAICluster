@@ -164,7 +164,7 @@ class CegarzaBlogContractTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "safe rollout phase"):
             _rollout_phase(unordered)
 
-    def test_values_are_dedicated_dev_configuration(self) -> None:
+    def test_values_are_activated_apex_configuration(self) -> None:
         values = _load_yaml(VALUES_PATH)
         self.assertIn(
             _rollout_phase(values),
@@ -195,14 +195,17 @@ class CegarzaBlogContractTests(unittest.TestCase):
         self.assertEqual(blog["secretKeys"], ["DATABASE_URL", "DJANGO_SECRET_KEY"])
 
         environment = blog["env"]
-        self.assertEqual(environment["ALLOWED_HOSTS"], "dev.cegarza.com")
+        self.assertEqual(
+            environment["ALLOWED_HOSTS"],
+            "cegarza.com,www.cegarza.com,dev.cegarza.com",
+        )
         self.assertEqual(
             environment["CSRF_TRUSTED_ORIGINS"],
-            "https://dev.cegarza.com",
+            "https://cegarza.com,https://www.cegarza.com,https://dev.cegarza.com",
         )
         self.assertEqual(
             environment["WAGTAILADMIN_BASE_URL"],
-            "https://dev.cegarza.com/admin/",
+            "https://cegarza.com/admin/",
         )
         self.assertEqual(environment["SITE_NAME"], "Bringing Down The Gauss")
         self.assertEqual(environment["SITE_DESCRIPTION"], "Thoughts, stories and ideas.")
@@ -212,7 +215,8 @@ class CegarzaBlogContractTests(unittest.TestCase):
         self.assertEqual(environment["CSP_ENFORCE"], "true")
         self.assertEqual(environment["SECURE_HSTS_INCLUDE_SUBDOMAINS"], "false")
         self.assertEqual(environment["SECURE_HSTS_PRELOAD"], "false")
-        self.assertNotIn("cegarza.com", environment["ALLOWED_HOSTS"].split(","))
+        # Apex is activated; the release must intentionally serve cegarza.com.
+        self.assertIn("cegarza.com", environment["ALLOWED_HOSTS"].split(","))
 
         persistence = blog["persistence"]
         self.assertEqual(persistence["accessMode"], "ReadWriteOnce")
@@ -234,12 +238,13 @@ class CegarzaBlogContractTests(unittest.TestCase):
 
         ingress = values["ingress"]
         self.assertEqual(
-            [entry["host"] for entry in ingress["hosts"]], ["dev.cegarza.com"]
+            [entry["host"] for entry in ingress["hosts"]],
+            ["cegarza.com", "www.cegarza.com", "dev.cegarza.com"],
         )
         self.assertEqual(ingress["tls"]["secretName"], "cegarza-dev-tls")
         self.assertEqual(
             ingress["tls"]["certificate"]["dnsNames"],
-            ["dev.cegarza.com"],
+            ["cegarza.com", "www.cegarza.com", "dev.cegarza.com"],
         )
         self.assertNotIn("cert-manager.io/cluster-issuer", ingress["annotations"])
         self.assertEqual(
@@ -250,7 +255,7 @@ class CegarzaBlogContractTests(unittest.TestCase):
             ingress["annotations"][
                 "external-dns.alpha.kubernetes.io/cloudflare-proxied"
             ],
-            "false",
+            "true",
         )
 
         network_policy = values["networkPolicy"]
@@ -424,11 +429,16 @@ class CegarzaBlogContractTests(unittest.TestCase):
         ingress = _document(documents, kind="Ingress", name="cegarza-blog")
         self.assertEqual(
             [rule["host"] for rule in ingress["spec"]["rules"]],
-            ["dev.cegarza.com"],
+            ["cegarza.com", "www.cegarza.com", "dev.cegarza.com"],
         )
         self.assertEqual(
             ingress["spec"]["tls"],
-            [{"hosts": ["dev.cegarza.com"], "secretName": "cegarza-dev-tls"}],
+            [
+                {
+                    "hosts": ["cegarza.com", "www.cegarza.com", "dev.cegarza.com"],
+                    "secretName": "cegarza-dev-tls",
+                }
+            ],
         )
         certificate = _document(
             documents,
@@ -436,7 +446,10 @@ class CegarzaBlogContractTests(unittest.TestCase):
             name="cegarza-blog-cert",
         )
         self.assertEqual(certificate["spec"]["secretName"], "cegarza-dev-tls")
-        self.assertEqual(certificate["spec"]["dnsNames"], ["dev.cegarza.com"])
+        self.assertEqual(
+            certificate["spec"]["dnsNames"],
+            ["cegarza.com", "www.cegarza.com", "dev.cegarza.com"],
+        )
 
         cilium_policy = _document(
             documents,
