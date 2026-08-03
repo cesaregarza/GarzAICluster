@@ -384,6 +384,7 @@ syntheticLiveVerify:
       required_event_types:
         - run.created
         - policy.evaluated
+        - model_call.finished
         - tool.started
         - result.released
       required_skill_ids:

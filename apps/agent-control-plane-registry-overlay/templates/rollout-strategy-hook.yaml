@@ -1,0 +1,179 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: registry-overlay-rollout-strategy-
+  namespace: agent-control-plane
+  labels:
+    app.kubernetes.io/name: agent-control-plane
+    app.kubernetes.io/component: registry-overlay-rollout-strategy
+  annotations:
+    # Harden the singleton Deployment strategies before the existing PostSync
+    # restart hook runs. Keeping this as a separate Sync hook preserves the
+    # CES-108/CES-538 restart implementation and its ordered choreography.
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-control-plane
+        app.kubernetes.io/component: registry-overlay-rollout-strategy
+    spec:
+      serviceAccountName: registry-overlay-restart
+      restartPolicy: Never
+      containers:
+        - name: rollout-strategy
+          image: alpine/k8s:1.33.4@sha256:b0523f0a244ddc4c8e055aa335c040d3d78b3ead5528f4544395f7f9f69c7b68
+          env:
+            - name: HOME
+              value: /tmp
+            - name: KUBERNETES_SERVICE_HOST
+              value: kubernetes.default.svc
+            - name: KUBERNETES_SERVICE_PORT
+              value: "443"
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              namespace="agent-control-plane"
+              api_timeout_seconds="${API_TIMEOUT_SECONDS:-20}"
+              rolling_deployments="agent-control-plane agent-control-plane-callback-adapter agent-control-plane-git-deliverer agent-control-plane-local-worker"
+              gateway_deployment="agent-control-plane-model-gateway"
+              strategy_patch='{"spec":{"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxSurge":0,"maxUnavailable":1}}}}'
+
+              log() {
+                printf '[registry-overlay-rollout-strategy] %s\n' "$*"
+              }
+
+              kubectl_bounded() {
+                deployment="$1"
+                phase="$2"
+                shift 2
+
+                if timeout "${api_timeout_seconds}s" kubectl "$@"; then
+                  return 0
+                else
+                  kubectl_status="$?"
+                fi
+                log "deployment=$deployment phase=$phase result=failed kubectl_exit_code=$kubectl_status" >&2
+                return "$kubectl_status"
+              }
+
+              # Validate the complete singleton/RWO premise before changing
+              # anything. Every Deployment must be fully settled so changing
+              # the strategy cannot release several pre-existing stalled
+              # rollouts at once, ahead of the ordered PostSync choreography.
+              # The hard affinity remains the CES-352 invariant; the gateway
+              # must keep Recreate while it shares the RWO auth PVC.
+              for deployment in $rolling_deployments; do
+                if ! rollout_state="$(
+                  kubectl_bounded "$deployment" inspect \
+                    -n "$namespace" get "deployment/$deployment" \
+                    -o 'jsonpath={.metadata.generation}|{.status.observedGeneration}|{.spec.replicas}|{.status.replicas}|{.status.updatedReplicas}|{.status.readyReplicas}|{.status.availableReplicas}'
+                )"; then
+                  exit 1
+                fi
+                old_ifs="$IFS"
+                IFS='|'
+                set -- $rollout_state
+                IFS="$old_ifs"
+                generation="${1:-}"
+                observed="${2:-}"
+                desired="${3:-}"
+                replicas="${4:-}"
+                updated="${5:-}"
+                ready="${6:-}"
+                available="${7:-}"
+                if [ -z "$generation" ] \
+                  || [ "$generation" != "$observed" ] \
+                  || [ "$desired" != "1" ] \
+                  || [ "$replicas" != "1" ] \
+                  || [ "$updated" != "1" ] \
+                  || [ "$ready" != "1" ] \
+                  || [ "$available" != "1" ]; then
+                  log "deployment=$deployment phase=inspect result=failed reason=deployment-not-settled state=$rollout_state expected=<generation>|<same-generation>|1|1|1|1|1" >&2
+                  exit 1
+                fi
+              done
+
+              if ! gateway_state="$(
+                kubectl_bounded "$gateway_deployment" inspect \
+                  -n "$namespace" get "deployment/$gateway_deployment" \
+                  -o 'jsonpath={.metadata.generation}|{.status.observedGeneration}|{.spec.replicas}|{.status.replicas}|{.status.updatedReplicas}|{.status.readyReplicas}|{.status.availableReplicas}|{.spec.strategy.type}'
+              )"; then
+                exit 1
+              fi
+              old_ifs="$IFS"
+              IFS='|'
+              set -- $gateway_state
+              IFS="$old_ifs"
+              generation="${1:-}"
+              observed="${2:-}"
+              desired="${3:-}"
+              replicas="${4:-}"
+              updated="${5:-}"
+              ready="${6:-}"
+              available="${7:-}"
+              strategy="${8:-}"
+              if [ -z "$generation" ] \
+                || [ "$generation" != "$observed" ] \
+                || [ "$desired" != "1" ] \
+                || [ "$replicas" != "1" ] \
+                || [ "$updated" != "1" ] \
+                || [ "$ready" != "1" ] \
+                || [ "$available" != "1" ] \
+                || [ "$strategy" != "Recreate" ]; then
+                log "deployment=$gateway_deployment phase=inspect result=failed reason=unsafe-rwo-state state=$gateway_state expected=<generation>|<same-generation>|1|1|1|1|1|Recreate" >&2
+                exit 1
+              fi
+
+              # Zero surge makes the bounded singleton outage explicit: the old
+              # pod releases its requested capacity before the replacement is
+              # scheduled. This avoids an unbounded 1/0 rollout deadlock on the
+              # affinity-constrained, request-saturated node.
+              for deployment in $rolling_deployments; do
+                log "deployment=$deployment phase=patch result=started"
+                if ! kubectl_bounded "$deployment" patch \
+                  -n "$namespace" patch "deployment/$deployment" \
+                  --type=merge -p "$strategy_patch"; then
+                  exit 1
+                fi
+                if ! strategy_state="$(
+                  kubectl_bounded "$deployment" verify \
+                    -n "$namespace" get "deployment/$deployment" \
+                    -o 'jsonpath={.spec.strategy.type}|{.spec.strategy.rollingUpdate.maxSurge}|{.spec.strategy.rollingUpdate.maxUnavailable}'
+                )"; then
+                  exit 1
+                fi
+                if [ "$strategy_state" != "RollingUpdate|0|1" ]; then
+                  log "deployment=$deployment phase=verify result=failed state=$strategy_state expected=RollingUpdate|0|1" >&2
+                  exit 1
+                fi
+                log "deployment=$deployment phase=verify result=succeeded strategy=$strategy_state"
+              done
+
+              log "phase=complete result=succeeded rolling_deployments=4 gateway_strategy=Recreate"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

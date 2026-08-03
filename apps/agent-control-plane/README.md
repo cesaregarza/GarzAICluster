@@ -67,6 +67,12 @@ Required before activation:
   Secret. The live DigitalOcean block claim is `ReadWriteOnce`, so the chart
   co-locates the API with the gateway on one node; use ReadWriteMany storage
   before scaling this pair across nodes.
+- The registry-overlay app's rollout-strategy Sync hook owns
+  `maxSurge: 0`/`maxUnavailable: 1` for the API, callback adapter, git
+  deliverer, and local worker. The control-plane Application ignores only those
+  numeric fields so Argo does not replace the hardening with Kubernetes'
+  singleton 1/0 defaults. The gateway remains chart-owned `Recreate`, and the
+  CES-352 required affinity is unchanged.
 - `apps/agent-control-plane-runtime-controls/postgres-sweep-cronjob.yaml` owns
   the production maintenance schedule. It runs `mandate-postgres-sweep` every
   ten minutes with `concurrencyPolicy: Forbid`, a five-minute missed-start
@@ -86,5 +92,7 @@ Required before activation:
   `mandate-live-probe` service principal is policy-granted only for
   `mandate.deploy.smoke` and `agent_workloads.readonly_query`, and the delivery
   target is internal so successful probes do not post to the operator Discord
-  channel. Failed Jobs alert through the production Prometheus/Alertmanager
-  route.
+  channel. The readonly-query journey requires the `model_call.finished` audit
+  event as explicit proof that the external worker completed a Mandate-brokered
+  MODEL round-trip; a green deployment-smoke journey alone is not a deploy
+  gate. Failed Jobs alert through the production Prometheus/Alertmanager route.

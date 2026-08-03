@@ -65,7 +65,20 @@ Goal: rollback ≤ 5 minutes from revert merge to healthy status.
 
 - [ ] Argo shows `Synced` & `Healthy`.
 - [ ] `kubectl get deployment <svc>` shows new digest.
-- [ ] Synthetic checks (smoke tests) pass.
+- [ ] For a Mandate control-plane, registry-overlay, or workload deploy, start
+      a fresh Job from `cronjob/agent-control-plane-synthetic-live-verify`,
+      wait for it to complete, and retain its logs. Completion must include the
+      `readonly-query-skill-digests` journey with required
+      `model_call.finished`, proving a real external worker MODEL-capability
+      round-trip; `mandate.deploy.smoke` alone is insufficient.
+      ```bash
+      verify_job="agent-control-plane-postdeploy-$(date -u +%Y%m%d%H%M%S)"
+      kubectl -n agent-control-plane create job \
+        --from=cronjob/agent-control-plane-synthetic-live-verify "$verify_job"
+      kubectl -n agent-control-plane wait \
+        --for=condition=complete --timeout=8m "job/$verify_job"
+      kubectl -n agent-control-plane logs "job/$verify_job"
+      ```
 - [ ] Update release log (GitHub release notes or `docs/release-log.md` TBD).
 
 If any verification fails, run the rollback steps above and document findings.
