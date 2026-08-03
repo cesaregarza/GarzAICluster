@@ -16,8 +16,8 @@ blog:
     type: Recreate
   image:
     repository: registry.digitalocean.com/sendouq/cegarza-blog
-    tag: v1.0.38
-    digest: sha256:82d7865b251e3461c8e213067f34578ed7aad635a334076147d24cad470ce66d
+    tag: v1.0.40
+    digest: sha256:03fdb644746052b9d4cd122eadf4f63682a7805a47b3a811eee28881f0d2a75b
     pullPolicy: IfNotPresent
   secretKeys:
   - DATABASE_URL
@@ -37,6 +37,7 @@ blog:
     SITE_AUTHOR: Cesar Garza
     WAGTAILADMIN_BASE_URL: https://cegarza.com/admin/
     ALLOWED_EMBED_HOSTS: cesaregarza.github.io
+    SITE_SAMEAS: "https://github.com/cesaregarza,https://linkedin.com/in/cegarza"
     CSP_ENFORCE: "true"
   resources:
     requests:
