@@ -10,6 +10,10 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.worker | quote }}
 spec:
+  {{- with .Values.worker.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   replicas: {{ .Values.worker.replicas }}
   selector:
     matchLabels:
