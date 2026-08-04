@@ -7,12 +7,12 @@ replicaCount: 2
 strategy:
   type: RollingUpdate
   rollingUpdate:
-    maxUnavailable: 0
-    maxSurge: 1
+    maxUnavailable: 1
+    maxSurge: 0
 
 image:
   repository: registry.digitalocean.com/sendouq/citrus
-  tag: 765de6ad5187f6cc0a64becc33b611e7da2ab4b6 # allow-latest
+  tag: 0742d25e73b2c145860c63d89e7546940c678a19 # allow-latest
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -102,6 +102,11 @@ migrations:
 worker:
   enabled: true
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
   command: >-
     exec celery -A Mycore worker --loglevel=INFO --queues=media --concurrency=1
     --prefetch-multiplier=1 --max-tasks-per-child=20 --soft-time-limit=240
