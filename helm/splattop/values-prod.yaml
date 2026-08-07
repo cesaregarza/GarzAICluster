@@ -46,7 +46,7 @@ react:
 
 # Celery worker configuration
   image:
-    tag: v2.0.33
+    tag: v2.0.34
 celeryWorker:
   env:
     COMP_LEADERBOARD_ENABLED: "true"
