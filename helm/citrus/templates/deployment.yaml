@@ -18,6 +18,10 @@ spec:
     metadata:
       labels:
         app: citrus-web
+      {{- if .Values.application.rolloutOnConfigChange }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum | quote }}
+      {{- end }}
     spec:
       {{- include "citrus.imagePullSecrets" . | nindent 6 }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}

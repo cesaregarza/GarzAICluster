@@ -11,6 +11,7 @@ application:
   # Standalone generated-secret file (KSOPS: secrets/citrus-dev/django-app-key.enc.yaml)
   # holding a real DJANGO_SECRET_KEY, encrypted with the public age recipient only.
   generatedSecretName: citrus-dev-app-key
+  rolloutOnConfigChange: true
   configData:
     DJANGO_DEBUG: "False"
     SITE_NAME: "Citrus Grace Dev"
@@ -22,6 +23,9 @@ application:
     HELP_EMAIL: "help@citrus-grace.com"
     ORDERS_EMAIL: "orders@citrus-grace.com"
     BUSINESS_TIME_ZONE: "America/Chicago"
+    # Never deliver mail from dev. Synthetic customers intentionally use
+    # reserved domains and must not generate bounces in real shared inboxes.
+    EMAIL_BACKEND: "django.core.mail.backends.dummy.EmailBackend"
     EMAIL_HOST: "smtp-relay.gmail.com"
     EMAIL_PORT: "587"
     EMAIL_USE_TLS: "True"

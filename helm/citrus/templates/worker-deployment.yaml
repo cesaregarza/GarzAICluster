@@ -23,6 +23,10 @@ spec:
       labels:
         app: citrus-media-worker
         app.kubernetes.io/component: media-worker
+      {{- if .Values.application.rolloutOnConfigChange }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum | quote }}
+      {{- end }}
     spec:
       {{- include "citrus.imagePullSecrets" . | nindent 6 }}
       terminationGracePeriodSeconds: {{ .Values.worker.terminationGracePeriodSeconds }}
