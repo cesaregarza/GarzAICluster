@@ -34,6 +34,7 @@ application:
   # dev overrides this with citrus-dev-app-key in values-dev.yaml.
   generatedSecretName: citrus-app-key
   spacesSecretName: django-spaces-secrets
+  rolloutOnConfigChange: false
   command: >-
     exec gunicorn Mycore.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout
     120 --access-logfile -
