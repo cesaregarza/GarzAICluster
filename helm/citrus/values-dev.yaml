@@ -1,5 +1,5 @@
 image:
-  tag: c37a42eaf1346845ea168dcd198051839fa4901a # allow-latest
+  tag: 183a78d9a7df7b8fb463dbd87e2d9c60e6b9e224 # allow-latest
 
 strategy:
   type: RollingUpdate
