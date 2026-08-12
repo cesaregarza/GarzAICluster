@@ -137,6 +137,27 @@ jobs:
           --agent-platform-repo agent-platform
           --check-image-exists
 
+      - name: Read deployed skills bundle manifest
+        id: skills
+        run: |
+          set -euo pipefail
+          manifest="${RUNNER_TEMP}/agent-control-plane-skills-manifest.json"
+          crane export registry.digitalocean.com/sendouq/agent-workloads-skills:main - |
+            tar -xO skill-bundle/manifest.json > "$manifest"
+          [[ -s "$manifest" ]] || {
+            echo "::error::deployed skill-bundle manifest is empty" >&2
+            exit 1
+          }
+          echo "manifest=${manifest}" >> "$GITHUB_OUTPUT"
+
+      - name: Check config coherence
+        run: >
+          uv run python scripts/check_agent_control_plane_config_coherence.py
+          --agent-platform-repo agent-platform
+          --skills-manifest "${{ steps.skills.outputs.manifest }}"
+          --skills-manifest-source
+          "registry.digitalocean.com/sendouq/agent-workloads-skills:main:/skill-bundle/manifest.json"
+
   agent-control-plane-registry-overlay-render:
     runs-on: ubuntu-latest
     steps:

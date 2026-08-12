@@ -101,6 +101,24 @@ Utilities that were previously bundled with the app repo move here when they are
   uv run python scripts/check_agent_control_plane_registry_overlay_render.py
   ```
 
+- `check_agent_control_plane_config_coherence.py` – validates each configured
+  synthetic live-verify journey against the effective production policy, the
+  pinned `agent-platform` capability/result/event contracts, the deployment
+  registry overlay, and the manifest extracted from the deployed skills bundle.
+  The CI job reuses the provider-pin gate's pinned source checkout and DOCR
+  authentication:
+
+  ```bash
+  crane export \
+    registry.digitalocean.com/sendouq/agent-workloads-skills:main - \
+    | tar -xO skill-bundle/manifest.json > /tmp/skills-manifest.json
+  uv run python scripts/check_agent_control_plane_config_coherence.py \
+    --agent-platform-repo ../agent-platform \
+    --skills-manifest /tmp/skills-manifest.json \
+    --skills-manifest-source \
+    registry.digitalocean.com/sendouq/agent-workloads-skills:main:/skill-bundle/manifest.json
+  ```
+
 - `mandate_apply.py` – plans or writes a local CES-123
   `MandateWorkloadEnablement` document into deployment-owned files only. Dry-run
   is the default; `--write` edits files for a normal PR. It never reads or
