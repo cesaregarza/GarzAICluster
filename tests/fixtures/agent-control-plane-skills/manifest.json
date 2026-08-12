@@ -1,0 +1,11 @@
+{
+  "schema_version": "agent-control-plane-skill-bundle.v1",
+  "skills": [
+    {
+      "id": "xscraper-glossary"
+    },
+    {
+      "id": "xscraper-schema"
+    }
+  ]
+}
