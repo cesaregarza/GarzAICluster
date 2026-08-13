@@ -34,7 +34,7 @@ application:
   # dev overrides this with citrus-dev-app-key in values-dev.yaml.
   generatedSecretName: citrus-app-key
   spacesSecretName: django-spaces-secrets
-  rolloutOnConfigChange: false
+  rolloutOnConfigChange: true
   command: >-
     exec gunicorn Mycore.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout
     120 --access-logfile -
@@ -61,6 +61,12 @@ application:
     MEDIA_COMPRESSION_ENABLED: "True"
     MEDIA_GALLERY_MAX_BATCH: "25"
     RATELIMIT_USE_CACHE: "default"
+    # ingress-nginx reaches Citrus from the DOKS pod network and replaces any
+    # client-supplied X-Forwarded-For value with the source address it observes.
+    # Citrus still walks the chain from right to left and trusts it only when
+    # REMOTE_ADDR belongs to this managed cluster pod CIDR.
+    TRUST_X_FORWARDED_FOR: "True"
+    TRUSTED_PROXY_IPS: "10.244.0.0/16"
     EMAIL_HOST: "smtp-relay.gmail.com"
     EMAIL_PORT: "587"
     EMAIL_USE_TLS: "True"

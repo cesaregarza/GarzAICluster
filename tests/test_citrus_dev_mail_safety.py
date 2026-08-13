@@ -92,15 +92,15 @@ class CitrusDevMailSafetyTests(unittest.TestCase):
             )
             self.assertRegex(checksum, re.compile(r"^[0-9a-f]{64}$"))
 
-    def test_production_pod_templates_are_not_given_dev_rollout_annotations(self) -> None:
+    def test_production_config_changes_roll_web_and_worker_pods(self) -> None:
         deployments = _deployments(self.prod_documents)
         self.assertEqual(len(deployments), 2)
         for deployment in deployments:
-            annotations = (
+            checksum = (
                 deployment["spec"]["template"]["metadata"]
-                .get("annotations", {})
+                ["annotations"]["checksum/config"]
             )
-            self.assertNotIn("checksum/config", annotations)
+            self.assertRegex(checksum, re.compile(r"^[0-9a-f]{64}$"))
 
 
 if __name__ == "__main__":
