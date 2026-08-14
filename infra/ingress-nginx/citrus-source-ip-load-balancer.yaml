@@ -1,0 +1,49 @@
+# CES-748 operator-only blue/green load balancer.
+#
+# This file is deliberately not referenced by Argo CD, Helm, or Kustomize.
+# It creates a second load balancer and leaves the current REGIONAL load
+# balancer and its Service unchanged for immediate rollback.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ingress-nginx-controller-source-ip-cutover
+  namespace: ingress-nginx
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: controller
+      app.kubernetes.io/instance: ingress-nginx
+      app.kubernetes.io/name: ingress-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress-nginx-controller-source-ip
+  namespace: ingress-nginx
+  annotations:
+    service.beta.kubernetes.io/do-loadbalancer-name: citrus-source-ip
+    service.beta.kubernetes.io/do-loadbalancer-type: REGIONAL_NETWORK
+  labels:
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/part-of: ingress-nginx
+spec:
+  externalTrafficPolicy: Local
+  ports:
+    - appProtocol: http
+      name: http
+      port: 80
+      protocol: TCP
+      targetPort: 80
+    - appProtocol: https
+      name: https
+      port: 443
+      protocol: TCP
+      targetPort: 443
+  selector:
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/name: ingress-nginx
+  type: LoadBalancer

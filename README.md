@@ -6,7 +6,7 @@ Kubernetes + Argo CD source of truth for SplatTop. Charts, AppSets, secrets work
 
 ## Quick links
 
-- Bootstrap/runbooks: `docs/bootstrap.md`, `docs/argo-operations.md`, `docs/release-workflow.md`, `docs/cluster-identity.md`, `docs/secrets-strategy.md`, `docs/runbooks/postgres-restore.md`, `docs/runbooks/citrus-spaces-cors.md`, `docs/developer-cheat-sheet.md`
+- Bootstrap/runbooks: `docs/bootstrap.md`, `docs/argo-operations.md`, `docs/release-workflow.md`, `docs/cluster-identity.md`, `docs/secrets-strategy.md`, `docs/runbooks/postgres-restore.md`, `docs/runbooks/citrus-spaces-cors.md`, `infra/ingress-nginx/README.md`, `docs/developer-cheat-sheet.md`
 - KSOPS deep dive and CMP recipe: `docs/ksops-llm-response.md`
 - Argo objects: `argocd/` (AppProjects, Applications, AppSets)
 - Charts/values: `helm/` and `apps/`
@@ -19,6 +19,7 @@ Kubernetes + Argo CD source of truth for SplatTop. Charts, AppSets, secrets work
 - `helm/` – service charts and the umbrella chart; values files cover dev/default/prod overlays.
 - `k8s/` – legacy/standalone manifests (ingress, cert, repo-server patches, secrets templates).
 - `infra/spaces/` – checked-in Spaces bucket configuration payloads that must be applied by operators.
+- `infra/ingress-nginx/` – operator-only Citrus source-IP load-balancer payloads that are not reconciled by Argo CD.
 - `secrets/` – encrypted bot secrets (`secrets/bots/**`) with `kustomization.yaml` + `ksops.yaml` per bot.
 - `docs/` – runbooks and design notes; start with `docs/README.md` for the reading order.
 - `scripts/` – helpers like `scripts/validate_prometheus_config.py` (renders Helm, then promtool).
