@@ -195,6 +195,29 @@ jobs:
       - name: Check complete registry overlay Application render
         run: uv run python scripts/check_agent_control_plane_registry_overlay_render.py
 
+  operator-manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl --fail --location --retry 5 --retry-all-errors --connect-timeout 20 \
+            --output kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          gzip -t kubeconform.tar.gz
+          tar -xzf kubeconform.tar.gz
+          sudo mv kubeconform /usr/local/bin/kubeconform
+          kubeconform -v
+
+      - name: Validate operator-only infrastructure manifests
+        run: >-
+          kubeconform
+          -schema-location default
+          -strict -summary -exit-on-error
+          infra/ingress-nginx/citrus-source-ip-load-balancer.yaml
+
   helm-and-kubeconform:
     runs-on: ubuntu-latest
     strategy:
