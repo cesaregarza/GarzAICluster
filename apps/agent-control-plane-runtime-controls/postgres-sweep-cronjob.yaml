@@ -76,7 +76,7 @@ spec:
                 - name: AGENT_PLATFORM_WORKLOAD_IDENTITY_REQUIRED_SCOPES
                   value: worker_service
                 - name: AGENT_PLATFORM_WORKLOAD_IDENTITY_ALLOWED_SUBJECTS_JSON
-                  value: '{"worker_service":["data.workspace_probe","opencode.apply_executor","opencode.proposer"]}'
+                  value: '{"worker_service":["opencode.apply_executor","opencode.proposer"]}'
               resources:
                 requests:
                   cpu: 25m
