@@ -11,6 +11,7 @@ import unittest
 from contextlib import redirect_stderr
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "argocd_core.py"
@@ -126,7 +127,10 @@ def old_operation() -> object:
 
 class ArgoCoreTests(unittest.TestCase):
     def test_cli_exposes_status_but_not_single_application_sync(self) -> None:
-        parser = ARGO.build_parser()
+        with mock.patch.object(
+            ARGO, "default_argocd_executable", return_value="argocd"
+        ):
+            parser = ARGO.build_parser()
         status = parser.parse_args(["status", "agent-control-plane"])
         self.assertEqual(status.operation, "status")
         with redirect_stderr(io.StringIO()):
