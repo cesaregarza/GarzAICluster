@@ -4,7 +4,9 @@ This change canaries Kubernetes-native workload identity for
 `data.workspace_probe`. It removes the per-release HMAC/SOPS mint from that
 worker's normal re-pin path while preserving the existing HMAC credential,
 ciphertext, metadata, and rollout checksum as an unchanged rollback input.
-OpenCode proposer and apply remain distinct HMAC identities.
+The normal API and postgres-sweep HMAC allowlists no longer accept
+`data.workspace_probe`; a retained `mwit_v1` credential is rollback-only.
+OpenCode proposer and apply remain distinct, accepted HMAC identities.
 
 ## Security boundary
 
@@ -70,12 +72,21 @@ If the Core substrate is unhealthy, revert its values to `hmac`, disable
 `workloadIdentity.kubernetesTokenReview`, and remove the dedicated RBAC in one
 reviewed GitOps change.
 
-If only the worker canary is unhealthy, leave Core in hybrid mode, remove the
-workspace-probe `service_account_subject` registry binding, disable
+Re-enabling workspace-probe HMAC is an explicit reviewed rollback, never a
+normal re-pin side effect. Before activating a worker rollback, that reviewed
+GitOps change must re-add `data.workspace_probe` to
+`AGENT_PLATFORM_WORKLOAD_IDENTITY_ALLOWED_SUBJECTS_JSON` in both
+`apps/agent-control-plane/values.yaml` and
+`apps/agent-control-plane-runtime-controls/postgres-sweep-cronjob.yaml`.
+
+If only the worker canary is unhealthy, leave Core in hybrid mode. In the same
+reviewed rollback, restore the two HMAC allowlists, remove the workspace-probe
+`service_account_subject` registry binding, disable
 `projectedWorkloadIdentity`, and restore the existing read-only Secret volume
 and `MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE`. The retained HMAC ciphertext,
 metadata, checksum, and release tuple must remain unchanged. Never mount static
-and projected credentials into the same worker.
+and projected credentials into the same worker, and never activate the retained
+credential before the reviewed allowlist restoration is effective.
 
 No merge, sync, production cutover, HMAC rotation, legacy-secret deletion, or
 CES-576 runtime-attestation implementation is authorized by this document.

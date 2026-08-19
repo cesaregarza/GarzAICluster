@@ -130,7 +130,7 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
             ],
         )
 
-    def test_workspace_subject_matches_release_and_retains_hmac_rollback(
+    def test_workspace_subject_matches_current_and_previous_release(
         self,
     ) -> None:
         values = _load_yaml(
@@ -162,25 +162,23 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
             "mandate-api",
         )
         previous_release = projected["previousRelease"]
-        if previous_release is None:
-            self.assertNotIn("previous_release", workspace["agent"])
-        else:
-            self.assertEqual(
-                workspace["agent"]["previous_release"],
-                {
-                    "service_account_subject": _workspace_service_account_subject(
-                        values,
-                        release=previous_release,
-                    ),
-                    "code_digest": previous_release["codeDigest"],
-                    "manifest_digest": previous_release["manifestDigest"],
-                    "image_digest": previous_release["imageDigest"],
-                },
-            )
-            self.assertNotEqual(
-                workspace["agent"]["service_account_subject"],
-                workspace["agent"]["previous_release"]["service_account_subject"],
-            )
+        self.assertIsInstance(previous_release, dict)
+        self.assertEqual(
+            workspace["agent"]["previous_release"],
+            {
+                "service_account_subject": _workspace_service_account_subject(
+                    values,
+                    release=previous_release,
+                ),
+                "code_digest": previous_release["codeDigest"],
+                "manifest_digest": previous_release["manifestDigest"],
+                "image_digest": previous_release["imageDigest"],
+            },
+        )
+        self.assertNotEqual(
+            workspace["agent"]["service_account_subject"],
+            workspace["agent"]["previous_release"]["service_account_subject"],
+        )
 
         self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE", values["env"])
         self.assertNotIn("extraVolumes", values)
@@ -196,6 +194,55 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
             self.assertTrue(
                 values[key]["secretEnv"]["MANDATE_WORKLOAD_IDENTITY_TOKEN"]
             )
+
+    def test_workspace_hmac_is_rollback_only_in_every_normal_allowlist(
+        self,
+    ) -> None:
+        control_plane_values = _load_yaml(
+            REPO_ROOT / "apps" / "agent-control-plane" / "values.yaml"
+        )
+        cronjob = _load_yaml(
+            REPO_ROOT
+            / "apps"
+            / "agent-control-plane-runtime-controls"
+            / "postgres-sweep-cronjob.yaml"
+        )
+        cronjob_env = {
+            item["name"]: item["value"]
+            for item in cronjob["spec"]["jobTemplate"]["spec"]["template"][
+                "spec"
+            ]["containers"][0]["env"]
+        }
+        normal_allowlists = (
+            json.loads(
+                control_plane_values["env"][
+                    "AGENT_PLATFORM_WORKLOAD_IDENTITY_ALLOWED_SUBJECTS_JSON"
+                ]
+            ),
+            json.loads(
+                cronjob_env[
+                    "AGENT_PLATFORM_WORKLOAD_IDENTITY_ALLOWED_SUBJECTS_JSON"
+                ]
+            ),
+        )
+        expected_allowlist = {
+            "worker_service": [
+                "opencode.apply_executor",
+                "opencode.proposer",
+            ]
+        }
+        retained_data_mwit_v1_claims = {
+            "sub": "data.workspace_probe",
+            "scp": ["worker_service"],
+        }
+
+        for allowlist in normal_allowlists:
+            self.assertEqual(allowlist, expected_allowlist)
+            for scope in retained_data_mwit_v1_claims["scp"]:
+                self.assertNotIn(
+                    retained_data_mwit_v1_claims["sub"],
+                    allowlist[scope],
+                )
 
     def test_registry_overlay_auto_syncs_before_manual_workload_activation(
         self,
