@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
@@ -123,6 +125,14 @@ def old_operation() -> object:
 
 
 class ArgoCoreTests(unittest.TestCase):
+    def test_cli_exposes_status_but_not_single_application_sync(self) -> None:
+        parser = ARGO.build_parser()
+        status = parser.parse_args(["status", "agent-control-plane"])
+        self.assertEqual(status.operation, "status")
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                parser.parse_args(["sync", "agent-control-plane"])
+
     def test_version_pin_accepts_exact_client_and_rejects_mismatch(self) -> None:
         valid = FakeRunner([completed([], stdout="argocd: v3.2.0+abcdef\n")])
         ARGO.validate_argocd_version("argocd", "3.2.0", runner=valid)

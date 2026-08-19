@@ -683,6 +683,82 @@ class MandateDeployTrainTests(unittest.TestCase):
             )
         self.assertEqual(len(runner.commands), 4)
 
+    def test_reconcile_validates_observed_hard_refresh_before_submit_sync(self) -> None:
+        events: list[str] = []
+        desired = TRAIN.validate_skill_bundle_data(valid_skill_data(), "desired")
+        before = snapshot(resource_version="10", reconciled_at="2026-08-18T12:00:00Z")
+        refreshed = snapshot(
+            resource_version="11", reconciled_at="2026-08-18T12:00:01Z"
+        )
+        contract = TRAIN.ApplicationContract(
+            "agent-control-plane",
+            {"name": "agent-control-plane"},
+            ("a" * 40,),
+            False,
+        )
+        validate_hard_refresh = TRAIN.validate_hard_refresh
+
+        def record_hard_refresh(
+            *args: object, **kwargs: object
+        ) -> tuple[object, object]:
+            events.append("hard-refresh")
+            return {}, refreshed
+
+        def record_validation(*args: object, **kwargs: object) -> None:
+            events.append("validate-hard-refresh")
+            validate_hard_refresh(*args, **kwargs)
+
+        def record_submit(*args: object, **kwargs: object) -> None:
+            events.append("submit-sync")
+
+        with (
+            mock.patch.object(TRAIN.argo, "read_application_payload", return_value={}),
+            mock.patch.object(
+                TRAIN, "validate_live_application", side_effect=[before, refreshed]
+            ),
+            mock.patch.object(
+                TRAIN.argo,
+                "hard_refresh_application",
+                side_effect=record_hard_refresh,
+            ),
+            mock.patch.object(
+                TRAIN, "validate_hard_refresh", side_effect=record_validation
+            ),
+            mock.patch.object(TRAIN, "_adopt_automated_operation", return_value=None),
+            mock.patch.object(
+                TRAIN.argo, "read_application_snapshot", return_value=refreshed
+            ),
+            mock.patch.object(TRAIN.argo, "submit_sync", side_effect=record_submit),
+            mock.patch.object(TRAIN.argo, "poll_operation", return_value=operation()),
+            mock.patch.object(
+                TRAIN.argo, "poll_application_ready", return_value=refreshed
+            ),
+            redirect_stdout(io.StringIO()),
+        ):
+            result = TRAIN.reconcile_application(
+                contract,
+                stage="control-plane",
+                invocation_id="ces395-test",
+                desired_skills=desired,
+                preflight_snapshot=before,
+                preflight_skill_digest=None,
+                force_sync=True,
+                kubeconfig=Path("/tmp/scoped"),
+                argocd="argocd",
+                kubectl="kubectl",
+                namespace="argocd",
+                refresh_timeout=1,
+                operation_timeout=1,
+                adoption_timeout=0,
+                interval=0.01,
+            )
+
+        self.assertEqual(result, "manual")
+        self.assertEqual(
+            events,
+            ["hard-refresh", "validate-hard-refresh", "submit-sync"],
+        )
+
     def test_semantic_skill_drift_forces_sync_even_when_argo_is_synced(self) -> None:
         desired = TRAIN.validate_skill_bundle_data(valid_skill_data(), "desired")
         live_drifted = TRAIN.SkillBundle({}, "sha256:" + "b" * 64, 1, "c" * 40)

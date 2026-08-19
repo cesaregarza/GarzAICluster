@@ -13,7 +13,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -724,17 +723,6 @@ def poll_application_ready(
         sleeper(interval)
 
 
-def validate_sync_confirmation(
-    application: str, apply: bool, confirmation: str | None
-) -> None:
-    if not apply:
-        raise ArgoCoreError("sync requires --apply")
-    if confirmation != application:
-        raise ArgoCoreError(
-            f"sync requires --confirm {application!s} with the exact application name"
-        )
-
-
 def pinned_version() -> str:
     try:
         value = VERSION_FILE.read_text(encoding="utf-8").strip()
@@ -755,7 +743,7 @@ def default_argocd_executable() -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Run bounded Argo CD core-mode status or one exact-revision sync. "
+            "Inspect bounded Argo CD core-mode Application status. "
             "Use mandate_deploy_train.py for the CES-395 production choreography."
         )
     )
@@ -769,23 +757,12 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="operation", required=True)
     status = subparsers.add_parser("status")
     status.add_argument("application")
-    sync = subparsers.add_parser("sync")
-    sync.add_argument("application")
-    sync.add_argument("--revision", action="append", required=True)
-    sync.add_argument("--apply", action="store_true")
-    sync.add_argument("--confirm")
-    sync.add_argument("--timeout", type=float, default=900.0)
-    sync.add_argument("--poll-interval", type=float, default=2.0)
     return parser
 
 
 def main() -> int:
     try:
         args = build_parser().parse_args()
-        if args.operation == "sync":
-            if args.timeout <= 0 or args.poll_interval <= 0:
-                raise ArgoCoreError("sync timeout and poll interval must be positive")
-            validate_sync_confirmation(args.application, args.apply, args.confirm)
         argocd = resolve_executable(args.argocd)
         kubectl = resolve_executable(args.kubectl)
         validate_argocd_version(argocd, pinned_version())
@@ -795,53 +772,17 @@ def main() -> int:
             namespace=args.namespace,
             context=args.context,
         ) as kubeconfig:
-            if args.operation == "status":
-                environment = os.environ.copy()
-                environment["KUBECONFIG"] = str(kubeconfig)
-                result = run_command(
-                    [argocd, "--core", "app", "get", args.application],
-                    environment=environment,
+            environment = os.environ.copy()
+            environment["KUBECONFIG"] = str(kubeconfig)
+            result = run_command(
+                [argocd, "--core", "app", "get", args.application],
+                environment=environment,
+            )
+            if result.returncode != 0:
+                raise command_failure(
+                    f"read Argo status for {args.application}", result
                 )
-                if result.returncode != 0:
-                    raise command_failure(
-                        f"read Argo status for {args.application}", result
-                    )
-                sys.stdout.write(result.stdout)
-                return 0
-            before = read_application_snapshot(
-                args.application,
-                kubeconfig=kubeconfig,
-                kubectl=kubectl,
-                namespace=args.namespace,
-            )
-            if before.operation_present or before.operation.phase in ACTIVE_PHASES:
-                raise ArgoCoreError(
-                    f"{args.application} already has an operation; refusing overlap"
-                )
-            run_id = f"argocd-core-{uuid.uuid4().hex[:16]}"
-            submit_sync(
-                args.application,
-                revisions=args.revision,
-                run_id=run_id,
-                kubeconfig=kubeconfig,
-                argocd=argocd,
-            )
-            completed = poll_operation(
-                args.application,
-                before=before.operation,
-                expected_revisions=args.revision,
-                expected_automated=False,
-                run_id=run_id,
-                kubeconfig=kubeconfig,
-                kubectl=kubectl,
-                namespace=args.namespace,
-                timeout=args.timeout,
-                interval=args.poll_interval,
-            )
-            print(
-                f"Argo sync for {args.application} {completed.phase} "
-                f"at {','.join(completed.revisions)}."
-            )
+            sys.stdout.write(result.stdout)
             return 0
     except ArgoCoreError as error:
         print(f"argocd_core: {error}", file=sys.stderr)

@@ -58,8 +58,9 @@ Utilities that were previously bundled with the app repo move here when they are
 - `argocd_core.py` – pinned Argo CD 3.2.0 core-mode primitives used by the
   deploy train. It keeps the temporary kubeconfig, JSON snapshot parsing,
   exact-revision Hook sync submission, unique operation correlation, and
-  race-safe polling in one reusable owner. Its single-Application sync command
-  is a low-level operator primitive, not the Mandate production choreography.
+  race-safe polling in one reusable owner. Its command-line surface exposes
+  read-only Application status only; mutation is owned by the complete Mandate
+  deploy train.
 
 - `onboard_bot_secret.py` – scaffolds/ encrypts a Discord bot token under `secrets/bots/<bot>/token.enc.yaml`. Example:
 
