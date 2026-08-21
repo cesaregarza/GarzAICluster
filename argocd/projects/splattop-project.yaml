@@ -158,18 +158,6 @@ spec:
         kind: ConfigMap
         name: kube-root-ca.crt
 
-  syncWindows:
-    - kind: allow
-      schedule: '0 15 * * 1-5'
-      duration: 11h
-      manualSync: true
-      applications:
-        - '*'
-      clusters:
-        - '*'
-      namespaces:
-        - '*'
-
   roles:
     - name: admin
       description: Admin access scoped to SplatTop production

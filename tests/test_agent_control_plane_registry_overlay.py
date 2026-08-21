@@ -427,22 +427,10 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             self.agent_workloads_application["spec"]["syncPolicy"],
             "workloads must stay manual until a real overlay-first dependency exists",
         )
-        allow_window = next(
-            window
-            for window in self.splattop_project["spec"]["syncWindows"]
-            if window["kind"] == "allow"
-        )
-        self.assertEqual(
-            allow_window,
-            {
-                "kind": "allow",
-                "schedule": "0 15 * * 1-5",
-                "duration": "11h",
-                "manualSync": True,
-                "applications": ["*"],
-                "clusters": ["*"],
-                "namespaces": ["*"],
-            },
+        self.assertNotIn(
+            "syncWindows",
+            self.splattop_project["spec"],
+            "per-Application sync policy must be the only deployment gate",
         )
 
     def test_complete_application_render_contains_strategy_and_restart_hooks(
