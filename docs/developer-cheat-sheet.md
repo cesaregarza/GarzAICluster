@@ -57,9 +57,13 @@ trufflehog filesystem --no-update --only-verified --fail .
 
 ## Argo Access Controls
 
-- Only the prod AppProject (`argocd/projects/splattop-project.yaml`) is managed here today; it targets the `default` + `monitoring` namespaces.
+- The shared AppProject (`argocd/projects/splattop-project.yaml`) governs
+  production, Citrus dev, and infrastructure namespaces and is applied by an
+  operator after review.
 - `splattop-admins` is the sole write-capable group (role `proj:splattop:admin`). Everyone else falls back to `policy.default: role:readonly`.
-- Prod syncs are manual and constrained to the Mon–Fri 15:00–02:00 UTC window. Outside that window the UI/CLI will reject sync attempts automatically.
+- The AppProject has no time-based sync window. Automated Applications may
+  reconcile continuously; Applications without `syncPolicy.automated` remain
+  manual and require an explicit operator sync.
 - Argo reads this repo via the `argocd-repo-garzaicluster` deploy key secret. Update/rotate it via `kubectl -n argocd create secret generic ... --dry-run=client -o yaml | kubectl apply -f -` and record the change in `docs/argo-operations.md`.
 
 ## Troubleshooting

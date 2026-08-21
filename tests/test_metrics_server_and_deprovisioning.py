@@ -91,15 +91,6 @@ class MetricsServerAndDeprovisioningTests(unittest.TestCase):
         for filename in removed_apps:
             self.assertFalse((REPO_ROOT / "argocd" / "applications" / filename).exists())
 
-        project = _load_yaml(REPO_ROOT / "argocd" / "projects" / "splattop-project.yaml")
-        sync_window_apps = {
-            application
-            for sync_window in project["spec"].get("syncWindows", [])
-            for application in sync_window.get("applications", [])
-        }
-        removed_app_names = {filename.removesuffix(".yaml") for filename in removed_apps}
-        self.assertTrue(removed_app_names.isdisjoint(sync_window_apps))
-
 
 if __name__ == "__main__":
     unittest.main()
