@@ -358,7 +358,7 @@ For production environments, we recommend using ArgoCD for GitOps-based deployme
 - **Declarative GitOps**: Git as the single source of truth
 - **Automated Sync**: Automatic deployment of changes from Git
 - **Self-Healing**: Automatically detects and surfaces drift from desired state
-- **Production Guardrails**: Manual syncs, RBAC, and sync windows for live traffic
+- **Production Guardrails**: Reviewed merges, per-Application manual syncs, and RBAC
 - **Rollback**: Easy rollback to previous versions
 - **RBAC**: Fine-grained access control per environment
 

@@ -4,10 +4,12 @@ This directory contains ArgoCD manifests for deploying SplatTop using GitOps con
 
 ## Overview
 
-SplatTop uses ArgoCD for declarative deployment management. This config repo currently drives the production environment only and provides:
+SplatTop uses ArgoCD for declarative deployment management. This config repo
+drives production, Citrus dev, and shared infrastructure Applications and
+provides:
 
-- **Manual-sync production deployments** by default, with a window-governed
-  automated registry-overlay exception
+- **Per-Application sync policy**: declared automated apps reconcile
+  continuously, while manual production apps retain an operator gate
 - **RBAC** scoped to administrators (`splattop-admins`)
 - **Helm-based** deployment using the charts in `/helm/splattop`
 
@@ -101,8 +103,8 @@ kubectl apply -f argocd/applications/splattop-prod.yaml
   CES-257 performs the explicit state-preservation migration.
 
 #### Agent control-plane registry overlay (`agent-control-plane-registry-overlay.yaml`)
-- **Sync**: Automated with prune and self-heal, still constrained by the
-  production AppProject sync window.
+- **Sync**: Automated with prune and self-heal, with no project-level time
+  restriction.
 - **Ordering**: Wait for this app and its generated hooks to become Synced and
   Healthy before manually syncing `agent-workloads`.
 - **Selective sync**: Disabled intentionally; `ApplyOutOfSyncOnly=true` would
@@ -137,7 +139,7 @@ data:
 # Preview changes
 argocd app diff splattop-prod
 
-# Sync production (manual gate, respect sync window)
+# Sync production when its Application declares a manual gate
 argocd app sync splattop-prod
 ```
 
@@ -238,7 +240,7 @@ argocd app sync splattop-prod --replace
 - Multiple replicas (2x for FastAPI/React)
 - Observability stack managed by the `garz-observability` Argo app
 - Ingress enabled with TLS
-- Manual sync enforced for safety
+- Sync behavior is declared per Application; `splattop-prod` remains manual
 
 ## Continuous Delivery Workflow
 
@@ -246,8 +248,10 @@ argocd app sync splattop-prod --replace
 2. **CI/CD** builds and pushes new container images with tags
 3. **Update** image tags in `values-prod.yaml` or via Helm parameters
 4. **ArgoCD** detects changes in the Git repository
-5. **ArgoCD** reports prod `OutOfSync` and waits for an operator to approve
-6. **Production** sync is triggered manually inside the allowed window
+5. **ArgoCD** continuously reconciles automated Applications and reports manual
+   Applications `OutOfSync`
+6. **Production** sync is triggered manually only where the owning Application
+   declares a manual policy
 7. **ArgoCD** monitors health and performs rollbacks if needed
 
 ## Best Practices
@@ -288,8 +292,10 @@ The repository already contains two GitHub workflows that pair with ArgoCD:
 
 The day-to-day flow is therefore:
 1. Merge to `main` → CI publishes images and validates the chart (no live apply).
-2. ArgoCD notices the Git change, refreshes the prod application, and reports it `OutOfSync`.
-3. An operator reviews the diff, waits for the allowed window if necessary, and runs `argocd app sync splattop-prod`.
+2. ArgoCD notices the Git change and either reconciles an automated Application
+   or reports a manual Application `OutOfSync`.
+3. For manual Applications, an operator reviews the exact diff and runs
+   `argocd app sync splattop-prod`.
 4. Keep an eye on the Argo UI to confirm the sync succeeded; if it fails, address the diff or re-run the sync.
 5. If ArgoCD is unavailable, run the manual workflow to perform a one-off Helm deployment.
 

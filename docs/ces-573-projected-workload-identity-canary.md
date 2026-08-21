@@ -15,8 +15,8 @@ OpenCode proposer and apply remain distinct, accepted HMAC identities.
 - The reviewed registry maps that subject to one immutable
   code/manifest/image release tuple; worker-requested names or digests do not
   authorize a release.
-- The reviewed GitOps merge, automated window-governed registry-overlay sync,
-  and subsequent manual workload sync remain the operator authorization events.
+- The reviewed GitOps merge, automated registry-overlay sync, and subsequent
+  manual workload sync remain the operator authorization events.
 - This phase does not recompute runtime workflow digests or attest
   source-to-image integrity. That remains CES-576.
 
@@ -36,9 +36,8 @@ The immutable inputs for this canary are:
 ## Operator sequence
 
 The original canary used manual sync for every affected app. With CES-668, the
-registry overlay now reconciles automatically inside the existing sync window;
-the control-plane and workload applications remain manual. After review and
-merge:
+registry overlay now reconciles automatically after a reviewed merge; the
+control-plane and workload applications remain manual. After review and merge:
 
 1. Sync `agent-control-plane` first. Confirm the dedicated
    `agent-control-plane-tokenreview` ServiceAccount has only
