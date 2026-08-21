@@ -29,6 +29,80 @@ This guide covers day-to-day management of Argo CD once it tracks the config rep
 Application-specific details are codified under `argocd/applications/`; update
 the owning manifest rather than flipping settings in the UI.
 
+## Mandate Deploy Train
+
+Use `scripts/mandate_deploy_train.py` for an authorized Mandate production
+reconcile. Do not issue separate `argocd app sync` commands for the seven
+Applications in this train: that reintroduces the missed-overlay and
+refresh/sync race classes from CES-382.
+
+The command has four hard boundaries:
+
+1. Before any Argo mutation, it requires a clean checkout whose `HEAD` and
+   canonical `cesaregarza/GarzAICluster` origin `main` equal the full confirmed
+   SHA. It runs the existing
+   release-pin and workload-identity/SOPS digest gates, validates the desired
+   published skill bundle from a registry-digest-pinned image, compares the
+   complete live Application specs (including sync options), and refuses any
+   pending, Running, or Terminating operation. It also proves that no scheduled
+   or on-demand verifier Job is nonterminal and that the CronJob template can
+   produce the exact bounded `mandate verify --format json` Job. The required
+   production kube context is selected and read back exactly.
+2. It treats `splattop-root` as the Application-spec precondition, then
+   serializes secrets → skills → registry overlay → control plane → workers.
+   Each Application completes hard-refresh → observed revision → adoption of an
+   exact automated operation or a correlated exact-revision manual sync →
+   Synced/Healthy settlement before the next Application is refreshed. This is
+   stage-serial because refreshing an automated Application can itself start a
+   sync. If any Application or the semantic skill bundle differs during
+   preflight, every Application receives a correlated full Hook sync in this
+   canonical order, even when an early exact automated operation already
+   settled it. Remote `main` is rechecked at the final mutation boundary and
+   before each Application; the mutable skill tag is rechecked against its
+   originally resolved digest immediately before the skills stage.
+   If a hard refresh exposes drift that cached preflight state hid, the command
+   submits no lone downstream sync: it re-runs the read-only preflight and
+   restarts the entire canonical pass in forced-replay mode.
+3. It compares the complete content-addressed desired skill bundle with the
+   live `mandate-skill-packs` ConfigMap. Argo `Synced` alone is not accepted,
+   because that ConfigMap's data is intentionally ignored by Argo. The
+   registry-overlay receipt separately requires the rollout-strategy Sync hook
+   and ordered restart PostSync hook to have succeeded.
+4. After a changed train, it clones the bounded synthetic-live-verify CronJob
+   template but runs the landed CES-368 command `mandate verify --format json`.
+   It preserves the probe environment, principal, journeys, ServiceAccount,
+   image, resources, security context, and deadlines, then parses exact
+   `deployment-smoke` and `readonly-query-skill-digests` PASS results including
+   `model_call.finished` before emitting final stage-named success. The Job's
+   exact 480-second active deadline is the execution budget; the client allows
+   only a fixed 30-second controller-settlement grace.
+
+The mutation form requires both `--apply` and `--confirm-sha` with the full
+40-character SHA for the checked-out and remote `main`:
+
+```bash
+uv run python scripts/mandate_deploy_train.py \
+  --kubeconfig ~/.kube/config \
+  --context do-nyc3-k8s-nyc3-garz-ai \
+  --apply \
+  --confirm-sha <full-garzaicluster-main-sha>
+```
+
+A fully reconciled rerun still performs the read-only/preflight and hard-refresh
+checks, submits no sync, creates no verification Job, and emits a stage-named
+`no-op` receipt. Low-level status inspection remains read-only:
+
+```bash
+python3 scripts/argocd_core.py \
+  --kubeconfig ~/.kube/config \
+  --context do-nyc3-k8s-nyc3-garz-ai \
+  status agent-control-plane-registry-overlay
+```
+
+This productizes the choreography only. Merging it does not authorize running
+the command, changing a sync window, re-minting workload identity, or bypassing
+the normal production operator gate.
+
 ## Repository & Registry Credentials
 
 1. **Config repo**

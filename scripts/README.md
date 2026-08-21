@@ -4,6 +4,64 @@ Utilities that were previously bundled with the app repo move here when they are
 
 ## Available
 
+- `mandate_deploy_train.py` – the CES-395 interim `mandate up` command for the
+  complete Mandate GitOps train. It uses the bounded `argocd_core.py`
+  primitives through an owner-only temporary kubeconfig, enforces the client
+  version in `argocd-client-version.txt`, and requires the exact current
+  GarzAICluster `main` SHA:
+
+  ```bash
+  uv run python scripts/mandate_deploy_train.py \
+    --kubeconfig ~/.kube/config \
+    --context do-nyc3-k8s-nyc3-garz-ai \
+    --apply \
+    --confirm-sha <full-garzaicluster-main-sha>
+  ```
+
+  Before any refresh, the command requires a clean checkout at that SHA,
+  confirms the canonical GarzAICluster origin `main` has not moved, runs the
+  control-plane release-pin and
+  workload-identity/SOPS digest gates, resolves the published skill image to an
+  immutable registry digest, checks all seven complete live Application specs,
+  rejects operation overlap, reads back the exact production context, and
+  proves the bounded verifier template and Job capacity are available. It then
+  processes `splattop-root` followed by exactly:
+  control-plane/workload secrets → skills → registry overlay → control plane →
+  workers. Every Application performs its own hard-refresh-and-observe before
+  an exact automated operation is adopted or an exact-revision manual sync is
+  submitted; it must settle before the next Application is refreshed. Any
+  preflight Application or semantic-bundle drift forces a correlated full Hook
+  replay across all seven Applications in this order. An early exact automated
+  sync is settled but never allowed to skip its later canonical manual replay.
+  Remote `main` is guarded again before every stage, and the skill tag must
+  still resolve to the preflight digest immediately before the skills stage.
+  Late drift first exposed by a hard refresh cannot trigger a lone downstream
+  sync: the command re-preflights and restarts the complete force-replay pass.
+
+  The skills stage compares the complete content-addressed desired bundle with
+  live `mandate-skill-packs`, so an ignored ConfigMap data difference cannot be
+  mistaken for a no-op. The registry-overlay operation must be a full Hook sync
+  and retain successful receipts for both the rollout-strategy Sync hook and
+  ordered boot-cache restart PostSync hook.
+
+  When a sync occurred, the final stage clones the bounded
+  `cronjob/agent-control-plane-synthetic-live-verify` Job template and changes
+  only the verifier command to landed CES-368 `mandate verify --format json`.
+  It parses exact stage/status/journey evidence and requires
+  `model_call.finished`; raw rendered environment or logs are never printed.
+  The Job keeps the exact 480-second active deadline and the client adds only a
+  fixed 30-second controller-settlement grace. A
+  fully reconciled rerun submits no sync or verification Job and ends with
+  `stage=deploy-train,result=no-op`. The command never re-mints identity, edits
+  a Secret, changes an Argo sync window, or directly restarts a Deployment.
+
+- `argocd_core.py` – pinned Argo CD 3.2.0 core-mode primitives used by the
+  deploy train. It keeps the temporary kubeconfig, JSON snapshot parsing,
+  exact-revision Hook sync submission, unique operation correlation, and
+  race-safe polling in one reusable owner. Its command-line surface exposes
+  read-only Application status only; mutation is owned by the complete Mandate
+  deploy train.
+
 - `onboard_bot_secret.py` – scaffolds/ encrypts a Discord bot token under `secrets/bots/<bot>/token.enc.yaml`. Example:
 
   ```bash
