@@ -141,4 +141,12 @@ data:
             target_label: __address__
             regex: (.+);(\d+)
             replacement: ${1}:${2}
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_namespace
+            target_label: namespace
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_pod_name
+            target_label: pod
 {{- end }}

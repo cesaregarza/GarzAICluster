@@ -1,0 +1,133 @@
+{{- if and .Values.recurringRuntime.enabled (not .Values.billingWorker.enabled) -}}
+{{- fail "recurringRuntime.enabled requires billingWorker.enabled so published work always has a consumer" -}}
+{{- end }}
+{{- if and .Values.recurringRuntime.enabled (not .Values.billingWorker.metrics.enabled) -}}
+{{- fail "recurringRuntime.enabled requires billingWorker.metrics.enabled so runtime health cannot fail open" -}}
+{{- end }}
+{{- if .Values.recurringRuntime.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "citrus.fullname" . }}-recurring-tick
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: recurring-tick
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.recurringRuntime | quote }}
+spec:
+  schedule: {{ .Values.recurringRuntime.schedule | quote }}
+  timeZone: {{ .Values.recurringRuntime.timeZone | quote }}
+  concurrencyPolicy: {{ .Values.recurringRuntime.concurrencyPolicy }}
+  startingDeadlineSeconds: {{ .Values.recurringRuntime.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ .Values.recurringRuntime.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.recurringRuntime.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .Values.recurringRuntime.activeDeadlineSeconds }}
+      backoffLimit: {{ .Values.recurringRuntime.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "citrus.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: recurring-tick
+        spec:
+          {{- include "citrus.imagePullSecrets" . | nindent 10 }}
+          restartPolicy: OnFailure
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: recurring-tick
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                {{- toYaml .Values.recurringRuntime.command | nindent 16 }}
+              securityContext:
+                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+              envFrom:
+                - configMapRef:
+                    name: {{ .Values.application.configMapName }}
+                - secretRef:
+                    name: {{ .Values.application.secretName }}
+                    optional: true
+                {{- if .Values.application.emailSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.emailSecretName }}
+                    optional: true
+                {{- end }}
+                {{- if .Values.application.spacesSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.spacesSecretName }}
+                    optional: true
+                {{- end }}
+                {{- if .Values.application.generatedSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.generatedSecretName }}
+                    optional: true
+                {{- end }}
+              resources:
+                {{- toYaml .Values.recurringRuntime.resources | nindent 16 }}
+{{- if .Values.recurringRuntime.health.enabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "citrus.fullname" . }}-recurring-health
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: recurring-health
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.recurringRuntime | quote }}
+spec:
+  schedule: {{ .Values.recurringRuntime.health.schedule | quote }}
+  timeZone: {{ .Values.recurringRuntime.timeZone | quote }}
+  concurrencyPolicy: {{ .Values.recurringRuntime.concurrencyPolicy }}
+  startingDeadlineSeconds: {{ .Values.recurringRuntime.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ .Values.recurringRuntime.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.recurringRuntime.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .Values.recurringRuntime.activeDeadlineSeconds }}
+      backoffLimit: {{ .Values.recurringRuntime.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "citrus.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: recurring-health
+        spec:
+          {{- include "citrus.imagePullSecrets" . | nindent 10 }}
+          restartPolicy: OnFailure
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: recurring-health
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                {{- toYaml .Values.recurringRuntime.health.command | nindent 16 }}
+              securityContext:
+                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+              envFrom:
+                - configMapRef:
+                    name: {{ .Values.application.configMapName }}
+                - secretRef:
+                    name: {{ .Values.application.secretName }}
+                    optional: true
+                {{- if .Values.application.emailSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.emailSecretName }}
+                    optional: true
+                {{- end }}
+                {{- if .Values.application.spacesSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.spacesSecretName }}
+                    optional: true
+                {{- end }}
+                {{- if .Values.application.generatedSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.generatedSecretName }}
+                    optional: true
+                {{- end }}
+              resources:
+                {{- toYaml .Values.recurringRuntime.resources | nindent 16 }}
+{{- end }}
+{{- end }}

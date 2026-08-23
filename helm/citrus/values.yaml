@@ -24,6 +24,8 @@ syncWaves:
   deployment: "2"
   worker: "2"
   mediaCronJobs: "3"
+  billingWorker: "3"
+  recurringRuntime: "4"
 
 application:
   configMapName: django-config
@@ -59,6 +61,21 @@ application:
     CELERY_BROKER_VISIBILITY_TIMEOUT: "3600"
     CELERY_TASK_SOFT_TIME_LIMIT: "240"
     CELERY_TASK_TIME_LIMIT: "300"
+    RECURRING_BILLING_QUEUE: "billing"
+    RECURRING_ORDER_ENROLLMENT_MODE: "off"
+    RECURRING_ORDER_ENROLLMENT_ALLOWLIST: ""
+    RECURRING_ORDER_COHORT_MODE: "off"
+    RECURRING_ORDER_COHORT_ALLOWLIST: ""
+    RECURRING_REMINDERS_ENABLED: "False"
+    RECURRING_CHARGING_ENABLED: "False"
+    RECURRING_CHARGE_EMERGENCY_STOP: "True"
+    RECURRING_OUTBOX_CLAIM_STALE_SECONDS: "900"
+    RECURRING_RUNTIME_DEFER_SECONDS: "300"
+    RECURRING_PAYMENT_RECONCILE_AFTER_SECONDS: "900"
+    RECURRING_RUNTIME_OUTBOX_AGE_ALERT_SECONDS: "900"
+    RECURRING_RUNTIME_QUEUE_DEPTH_ALERT: "100"
+    RECURRING_RUNTIME_OVERDUE_GRACE_SECONDS: "600"
+    RECURRING_NOTICE_FAILURE_ALERT_WINDOW_SECONDS: "3600"
     MEDIA_UPLOAD_MAX_BYTES: "10485760"
     MEDIA_COMPRESSION_MAX_IMAGE_PIXELS: "50000000"
     MEDIA_COMPRESSION_ENABLED: "True"
@@ -129,6 +146,71 @@ worker:
     limits:
       cpu: 750m
       memory: 1Gi
+
+# Disabled until the CES-712 source image is pinned and the staged cohort is
+# approved. This worker never consumes the media queue.
+billingWorker:
+  enabled: false
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
+  terminationGracePeriodSeconds: 300
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+  metrics:
+    enabled: true
+    port: 9109
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+# The CronJobs read persisted UTC due timestamps. Their schedules are only
+# bounded wake-ups; no Thursday/Friday business policy belongs here.
+recurringRuntime:
+  enabled: false
+  schedule: "*/5 * * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 240
+  activeDeadlineSeconds: 240
+  backoffLimit: 1
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  command:
+    - python
+    - manage.py
+    - tick_recurring_orders
+    - --scan-limit=100
+    - --dispatch-limit=100
+  health:
+    enabled: true
+    schedule: "2-59/5 * * * *"
+    command:
+      - python
+      - manage.py
+      - check_recurring_runtime
+      - --include-broker
+      - --format=json
+      - --fail-on-alert
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
 
 mediaRequeue:
   enabled: true
