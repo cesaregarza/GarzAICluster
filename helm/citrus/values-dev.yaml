@@ -42,6 +42,12 @@ worker:
       maxUnavailable: 1
       maxSurge: 0
 
+billingWorker:
+  enabled: false
+
+recurringRuntime:
+  enabled: false
+
 mediaRequeue:
   enabled: true
 

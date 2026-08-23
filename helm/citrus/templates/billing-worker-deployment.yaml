@@ -1,0 +1,116 @@
+{{- if .Values.billingWorker.enabled }}
+{{- $billingQueue := required "application.configData.RECURRING_BILLING_QUEUE is required when the billing worker is enabled" .Values.application.configData.RECURRING_BILLING_QUEUE -}}
+{{- if not (regexMatch "^[A-Za-z0-9._-]+$" $billingQueue) -}}
+{{- fail "application.configData.RECURRING_BILLING_QUEUE must be a valid Celery queue name" -}}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "citrus.fullname" . }}-billing-worker
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app: citrus-billing-worker
+    app.kubernetes.io/component: billing-worker
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.billingWorker | quote }}
+spec:
+  {{- with .Values.billingWorker.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  replicas: {{ .Values.billingWorker.replicas }}
+  selector:
+    matchLabels:
+      app: citrus-billing-worker
+  template:
+    metadata:
+      labels:
+        app: citrus-billing-worker
+        app.kubernetes.io/component: billing-worker
+      {{- if or .Values.application.rolloutOnConfigChange .Values.billingWorker.metrics.enabled }}
+      annotations:
+        {{- if .Values.application.rolloutOnConfigChange }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum | quote }}
+        {{- end }}
+        {{- if .Values.billingWorker.metrics.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: {{ .Values.billingWorker.metrics.port | quote }}
+        {{- end }}
+      {{- end }}
+    spec:
+      {{- include "citrus.imagePullSecrets" . | nindent 6 }}
+      terminationGracePeriodSeconds: {{ .Values.billingWorker.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: billing-worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - {{ printf "exec celery -A Mycore worker --loglevel=INFO --queues=%s --concurrency=1 --prefetch-multiplier=1 --max-tasks-per-child=100 --soft-time-limit=240 --time-limit=300" $billingQueue | quote }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.application.configMapName }}
+            - secretRef:
+                name: {{ .Values.application.secretName }}
+                optional: true
+            {{- if .Values.application.emailSecretName }}
+            - secretRef:
+                name: {{ .Values.application.emailSecretName }}
+                optional: true
+            {{- end }}
+            {{- if .Values.application.spacesSecretName }}
+            - secretRef:
+                name: {{ .Values.application.spacesSecretName }}
+                optional: true
+            {{- end }}
+            {{- if .Values.application.generatedSecretName }}
+            - secretRef:
+                name: {{ .Values.application.generatedSecretName }}
+                optional: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.billingWorker.resources | nindent 12 }}
+        {{- if .Values.billingWorker.metrics.enabled }}
+        - name: recurring-metrics
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - python
+            - manage.py
+            - serve_recurring_metrics
+            - --port={{ .Values.billingWorker.metrics.port }}
+          ports:
+            - name: recurring-metrics
+              containerPort: {{ .Values.billingWorker.metrics.port }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.application.configMapName }}
+            - secretRef:
+                name: {{ .Values.application.secretName }}
+                optional: true
+            {{- if .Values.application.emailSecretName }}
+            - secretRef:
+                name: {{ .Values.application.emailSecretName }}
+                optional: true
+            {{- end }}
+            {{- if .Values.application.spacesSecretName }}
+            - secretRef:
+                name: {{ .Values.application.spacesSecretName }}
+                optional: true
+            {{- end }}
+            {{- if .Values.application.generatedSecretName }}
+            - secretRef:
+                name: {{ .Values.application.generatedSecretName }}
+                optional: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.billingWorker.metrics.resources | nindent 12 }}
+        {{- end }}
+{{- end }}
