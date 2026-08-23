@@ -24,6 +24,7 @@ syncWaves:
   deployment: "2"
   worker: "2"
   mediaCronJobs: "3"
+  paymentCronJobs: "3"
 
 application:
   configMapName: django-config
@@ -164,6 +165,29 @@ mediaGc:
     - collect_orphan_media
     - --dry-run
     - --limit=100
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+directOrderPaymentSweep:
+  enabled: true
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  backoffLimit: 2
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  command:
+    - python
+    - manage.py
+    - sweep_direct_order_payment_attempts
+    - --stale-minutes
+    - "15"
+    - --limit
+    - "100"
   resources:
     requests:
       cpu: 50m

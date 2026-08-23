@@ -48,6 +48,9 @@ mediaRequeue:
 mediaGc:
   enabled: true
 
+directOrderPaymentSweep:
+  enabled: true
+
 ingress:
   hosts:
     - dev.citrus-grace.com
