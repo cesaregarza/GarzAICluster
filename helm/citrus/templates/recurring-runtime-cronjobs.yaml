@@ -30,6 +30,10 @@ spec:
           labels:
             {{- include "citrus.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: recurring-tick
+          {{- if .Values.paymentCredentials.enabled }}
+          annotations:
+            citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
+          {{- end }}
         spec:
           {{- include "citrus.imagePullSecrets" . | nindent 10 }}
           restartPolicy: OnFailure
@@ -43,6 +47,10 @@ spec:
                 {{- toYaml .Values.recurringRuntime.command | nindent 16 }}
               securityContext:
                 {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+              {{- if .Values.paymentCredentials.enabled }}
+              env:
+                {{- include "citrus.paymentCredentials.apiEnv" . | nindent 16 }}
+              {{- end }}
               envFrom:
                 - configMapRef:
                     name: {{ .Values.application.configMapName }}
@@ -93,6 +101,10 @@ spec:
           labels:
             {{- include "citrus.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: recurring-health
+          {{- if .Values.paymentCredentials.enabled }}
+          annotations:
+            citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
+          {{- end }}
         spec:
           {{- include "citrus.imagePullSecrets" . | nindent 10 }}
           restartPolicy: OnFailure
@@ -106,6 +118,10 @@ spec:
                 {{- toYaml .Values.recurringRuntime.health.command | nindent 16 }}
               securityContext:
                 {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+              {{- if .Values.paymentCredentials.enabled }}
+              env:
+                {{- include "citrus.paymentCredentials.apiEnv" . | nindent 16 }}
+              {{- end }}
               envFrom:
                 - configMapRef:
                     name: {{ .Values.application.configMapName }}

@@ -1,3 +1,4 @@
+{{- include "citrus.paymentCredentials.validate" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,9 +19,14 @@ spec:
     metadata:
       labels:
         app: citrus-web
-      {{- if .Values.application.rolloutOnConfigChange }}
+      {{- if or .Values.application.rolloutOnConfigChange .Values.paymentCredentials.enabled }}
       annotations:
+        {{- if .Values.application.rolloutOnConfigChange }}
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum | quote }}
+        {{- end }}
+        {{- if .Values.paymentCredentials.enabled }}
+        citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
+        {{- end }}
       {{- end }}
     spec:
       {{- include "citrus.imagePullSecrets" . | nindent 6 }}
@@ -38,6 +44,10 @@ spec:
             - {{ .Values.application.command | quote }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- if .Values.paymentCredentials.enabled }}
+          env:
+            {{- include "citrus.paymentCredentials.webEnv" . | nindent 12 }}
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ .Values.application.configMapName }}

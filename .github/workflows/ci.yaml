@@ -235,6 +235,10 @@ jobs:
             path: helm/cegarza-blog
             release: cegarza-blog
             prod_values: helm/cegarza-blog/values-cegarza.yaml
+          - name: citrus
+            path: helm/citrus
+            release: citrus
+            prod_values: helm/citrus/values-payment-prod.yaml
           - name: garz-observability
             path: helm/garz-observability
             release: garz-observability
