@@ -280,16 +280,17 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(message, result.stderr)
 
-    def test_runbook_rejects_shared_repo_server_as_isolation(self) -> None:
+    def test_runbook_accepts_shared_trusted_gitops_control_plane(self) -> None:
         runbook = " ".join(
             RUNBOOK_PATH.read_text(encoding="utf-8").split()
         )
         self.assertIn(
-            "Adding two KSOPS sidecars to that same pod would not satisfy isolation",
+            "A shared Argo CD instance and shared SOPS recipient are acceptable",
             runbook,
         )
         self.assertIn(
-            "Do not add recipients or CMP manifests until that decision is approved",
+            "No separate Argo architecture, CMP sidecar, or encryption "
+            "recipient is required",
             runbook,
         )
 

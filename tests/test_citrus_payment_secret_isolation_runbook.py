@@ -37,9 +37,6 @@ SAFE_ACCESS_FIELDS = {
     "rotation_owner",
     "created_or_rotated_at",
     "supersession_status",
-    "recipient_policy_name",
-    "decrypting_principal",
-    "controller_identity",
     "access_policy_reference",
     "isolation_result",
     "reviewer",
@@ -217,9 +214,8 @@ class CitrusPaymentSecretIsolationRunbookTests(unittest.TestCase):
         required_by_gate = {
             2: (
                 "encrypted-source write",
-                "access-policy mutation",
                 "PR-publication authorization",
-                "None implies another",
+                "Neither implies the other",
             ),
             3: (
                 "provider credential-creation authorization",
@@ -261,31 +257,31 @@ class CitrusPaymentSecretIsolationRunbookTests(unittest.TestCase):
             for phrase in phrases:
                 self.assertIn(phrase, self.normalized_gates[gate])
 
-    def test_runbook_requires_distinct_owners_and_isolation(self) -> None:
+    def test_runbook_requires_owned_workload_and_namespace_isolation(self) -> None:
         normalized_runbook = " ".join(self.runbook.split())
         required_phrases = (
-            "Provider operator",
-            "Secret-management author",
-            "GitOps reviewer/merge operator",
-            "Argo/deployment operator",
-            "Independent production verifier",
-            "Security reviewer",
-            "distinct encryption recipients",
-            "controller/SecretStore identities",
-            "no shared human, automation, Argo repo-server, or CMP principal "
-            "holds both capabilities",
+            "Incident/operator owner",
+            "Independent verifier/reviewer",
+            "shared Argo CD instance and shared SOPS recipient are acceptable",
+            "Secret references are namespace-local",
+            "dev workload identities must have no production Secret-read",
+            "cannot get or list Secrets and cannot create Pods",
             "separate authorization gates",
             "merge as causally sufficient to begin deployment",
         )
         for phrase in required_phrases:
             self.assertIn(phrase, normalized_runbook)
 
-        bilateral_isolation = (
-            "dev decrypting and writing principals cannot decrypt or update the "
-            "production source, production decrypting and writing principals "
-            "cannot decrypt or update the dev source"
+        self.assertIn(
+            "dev workload ServiceAccount cannot read or create paths to "
+            "production Secrets",
+            self.normalized_gates[2],
         )
-        self.assertIn(bilateral_isolation, self.normalized_gates[2])
+        self.assertIn(
+            "dev uses the production-runtime validation path and will not "
+            "start with payment credentials intentionally absent",
+            normalized_runbook,
+        )
 
     def test_gitops_heads_are_content_isolated_and_authorize_every_application(self) -> None:
         required_by_gate = {
@@ -418,9 +414,6 @@ class CitrusPaymentSecretIsolationRunbookTests(unittest.TestCase):
                 "rotation_owner",
                 "created_or_rotated_at",
                 "supersession_status",
-                "recipient_policy_name",
-                "decrypting_principal",
-                "controller_identity",
                 "access_policy_reference",
                 "isolation_result",
                 "reviewer",

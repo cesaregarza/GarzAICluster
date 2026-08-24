@@ -51,10 +51,11 @@ At that revision, the config source has these properties:
   `STRIPE_WEBHOOK_SECRET_PROD`.
 - Payment and database settings share `django-secrets`; the chart imports that
   entire Secret with `envFrom` rather than selecting payment keys explicitly.
-- Dev and production have separate namespaces and Argo Applications, but the
-  Secret object name, repository trust boundary, and SOPS recipient are shared.
-  That is not the distinct name, principal, access-policy, and rotation ownership
-  required by CES-844.
+- Dev and production already have separate namespaces and Argo Applications,
+  but both broad Secret objects are named `django-secrets` and the dev object
+  contains production payment authority. The shared Git repository, Argo CD,
+  and SOPS runtime are trusted control-plane components and are not the
+  isolation boundary for this incident.
 - Secret-only reconciliation does not change the pod-template checksum for the
   long-running Deployments. Rotation therefore requires an explicit restart or
   another reviewed rollout trigger.
@@ -66,29 +67,26 @@ CronJobs. Disabled workloads still count as projection paths because enabling
 them creates a pod with the same Secret import. CI may write image values in this
 repository but does not receive the runtime payment Secret.
 
+A metadata-only live authorization review on 2026-08-23 confirmed the deployed
+dev workloads use `citrus-dev/default`. That ServiceAccount cannot get or list
+Secrets and cannot create Pods in either `citrus-dev` or `default`. The incident
+is therefore caused by production payment material stored in and projected from
+the dev namespace, not by dev workload RBAC reaching across namespaces.
+
 ## Required owners
 
 Record a named person and timestamp for every role before execution. An empty or
 ambiguous owner is a stop condition.
 
-| Role | Sole authority in this runbook |
+| Role | Responsibility in this runbook |
 | --- | --- |
-| Incident/release owner | Owns the stop/go decision and the CES-844 receipt. |
-| Provider operator | Creates replacement provider credentials and later revokes superseded credentials. |
-| Secret-management author | Writes encrypted Secret changes without exposing values. |
-| GitOps reviewer/merge operator | Reviews the exact config diff and controls the merge gate. |
-| Argo/deployment operator | Controls reconciliation, restart, rollback, and readiness evidence. |
-| Independent production verifier | Verifies production uses the replacement before revocation. |
-| Security reviewer | Reviews classifications, access separation, and the final value-free receipt. |
+| Incident/operator owner | Owns the stop/go decision and may perform provider, secret-management, GitOps, Argo, and rollout actions when each action is explicitly authorized. |
+| Independent verifier/reviewer | Reviews the encrypted/config diff and verifies production replacement and dev isolation before revocation. |
 
-One person may hold several operational roles when policy permits; the table
-separates authorities and stop/go decisions, not necessarily people. The
-independent verifier and required reviewers still cannot approve their own
-evidence.
-
-The provider operator and independent verifier must not self-approve their own
-evidence. The GitOps author must not be the only reviewer of encrypted or access
-policy changes.
+CES-844 does not require separate people for provider, secret-management,
+GitOps, or Argo operation. One named incident/operator owner may perform those
+actions. Independence is required only for the final evidence used to authorize
+revocation and close the incident.
 
 ## Target isolation contract
 
@@ -100,16 +98,13 @@ close:
 2. Keep database, application, email, media, registry, and payment credentials
    in separate objects. Do not preserve the current all-or-nothing
    `django-secrets` payment projection.
-3. Give the dev and production payment sources distinct encryption recipients,
-   decrypting principals, controller/SecretStore identities, write policies,
-   reviewers, and rotation ledgers. Different recipient strings do not establish
-   isolation if one shared Argo repo-server, CMP, or other controller holds both
-   private keys. Reusing the current shared SOPS recipient or decrypting runtime
-   does not satisfy this requirement. Prove bilateral denial: no dev decrypting
-   or writing principal can access production, no production decrypting or
-   writing principal can access dev, and no human, automation, or controller
-   principal holds both capabilities. A disclosed break-glass path is a governed
-   exception for security review, not proof of isolation.
+3. Treat the Git repository, Argo CD, KSOPS/SOPS runtime, and cluster
+   administrators as the trusted deployment control plane. A shared Argo CD
+   instance and shared SOPS recipient are acceptable. Isolation is enforced at
+   the workload and namespace boundary: the dev source must produce only the dev
+   payment Secret, Secret references are namespace-local, and dev workload
+   identities must have no production Secret-read or production pod-create
+   authority.
 4. Project only the payment keys each approved workload needs. A web, worker,
    Job, or CronJob with no payment responsibility must not receive the payment
    Secret.
@@ -154,20 +149,24 @@ environment-explicit activation overlays:
 - Every dedicated reference is non-optional. A semantic rollout annotation is
   supplied by values; it must never be derived from credential material.
 
-This preparation creates no Secret, recipient, private key, ciphertext, provider
+This preparation creates no Secret, private key, ciphertext, provider
 credential, live controller, Application reference, sync, or rollout. It also
 does not remove the legacy payment keys from `django-secrets`; that removal must
 be atomic with activation of the dedicated source so nonpayment consumers cannot
 retain the old projection.
 
-The current Argo repo-server mounts one shared decryption key. Adding two KSOPS
-sidecars to that same pod would not satisfy isolation: the repo-server/controller
-trust boundary could still invoke both decryptors. Before encrypted sources are
-prepared, security review must select an architecture with truly disjoint
-runtime principals, such as separately administered Argo instances or dedicated
-namespace-scoped secret controllers, and prove neither principal nor its
-controller can access both keys or destinations. Do not add recipients or CMP
-manifests until that decision is approved.
+At Citrus source `a728346e4364d88b8ec35d9fe10f4fe2e76dc2a9`, dev uses the
+production-runtime validation path and will not start with payment credentials
+intentionally absent. Until CES-845 supplies an approved absence mode, Gate 5
+therefore requires dedicated non-live API and webhook credentials supplied by
+the operator through the approved secret-management path. This repository
+cannot manufacture those credentials.
+
+The existing shared Argo CD and KSOPS/SOPS runtime may reconcile both sources.
+No separate Argo architecture, CMP sidecar, or encryption recipient is required
+for CES-844. A cluster-administrator or Argo-control-plane compromise is outside
+this incident's threat model; a compromised dev workload or namespace identity
+must still be unable to obtain a production payment credential.
 
 ## Ordered execution gates
 
@@ -176,7 +175,7 @@ manifests until that decision is approved.
 1. Freeze payment-related promotion from dev.
 2. Confirm the exact Citrus source SHA, GarzAICluster SHA, container image, Argo
    revisions, namespaces, and current rollout revisions.
-3. Assign every owner above. Record the independent reviewer before any mutation.
+3. Record the incident/operator owner and independent verifier/reviewer.
 4. Record a separately scoped authorization reference for every applicable
    action: provider credential creation; provider-to-secret-manager handoff;
    encrypted-source write; access-policy mutation; production or dev Secret
@@ -226,20 +225,18 @@ manifests until that decision is approved.
 
 ### Gate 2: prepare isolated sources
 
-This gate requires separately scoped encrypted-source write, access-policy
-mutation, and PR-publication authorization. None implies another. It makes no
+This gate requires separately scoped encrypted-source write and PR-publication
+authorization. Neither implies the other. It makes no
 provider, live Secret, GitOps merge, Argo, rollout, or deployment change.
 
-1. After the decryptor architecture is approved, prepare separate dev and
-   production payment Secret manifest definitions and value-free metadata
-   ledgers under their environment-specific ownership boundaries; do not create
-   or update a live Secret in this gate.
-2. Configure distinct encryption recipients, decrypting principals, and
-   controller/SecretStore identities. Prove dev decrypting and writing principals
-   cannot decrypt or update the production source, production decrypting and
-   writing principals cannot decrypt or update the dev source, neither runtime
-   principal is projected across environments, and no shared human, automation,
-   Argo repo-server, or CMP principal holds both capabilities.
+1. Prepare separate dev and production payment Secret manifest definitions and
+   value-free metadata ledgers under environment-explicit paths and object names;
+   do not create or update a live Secret in this gate.
+2. Retain the trusted shared Argo CD and SOPS machinery. Prove that the dev
+   Secret Application renders only the dev payment object into `citrus-dev`, the
+   production Secret Application renders only the production payment object into
+   `default`, and the dev workload ServiceAccount cannot read or create paths to
+   production Secrets.
 3. Review the prepared explicit chart projection, then atomically remove payment
    keys from `django-secrets` when the dedicated payment source is activated.
    Keep nonpayment credentials in their existing objects.
@@ -295,7 +292,7 @@ authorized, a failure freezes the rollout for escalation.
    intermediary is permitted.
 2. Under the encrypted-source authorization, update only the isolated production
    payment Secret source and its value-free ledger. Review object names,
-   recipients, policy names, and key names without decrypting in review output.
+   object names, namespaces, and key names without decrypting in review output.
 3. Confirm the head is production-content-only: its impact matrix may advance
    other Applications to the source revision, but the rendered dev Secret and
    workload content must be identical. Any dev rendered-content change is a stop
@@ -398,12 +395,12 @@ possesses the superseded authority.
    CI, and operator paths.
 2. Confirm all dev classifications are `non-live` or `intentionally-absent` and
    that no production payment principal or webhook Secret is available to dev.
-3. Confirm dev and production names, owners, encryption recipients, access
-   policies, and rotation records are distinct.
+3. Confirm dev and production Secret names, source paths, namespaces, payment
+   principals, classifications, and rotation records are distinct.
 4. Confirm production health on the replacement, old-authority revocation, dev
    `Synced`/`Healthy`, expected ready replicas, and zero financial test objects.
-5. Obtain the security reviewer signature. Only then may CES-844 be considered
-   complete and the dependent release gates be re-run.
+5. Obtain the independent verifier/reviewer signature. Only then may CES-844 be
+   considered complete and the dependent release gates be re-run.
 
 ## Sanitized receipt schema
 
@@ -445,9 +442,6 @@ source_owner
 rotation_owner
 created_or_rotated_at
 supersession_status
-recipient_policy_name
-decrypting_principal
-controller_identity
 access_policy_reference
 isolation_result
 reviewer
@@ -496,9 +490,9 @@ provider network smoke, financial object, or test event was produced.
 ## Stop and rollback rules
 
 - Stop on a moving or unreviewed GitOps head, unexpected Argo revision, missing
-  owner, ambiguous Secret source, shared recipient/principal, incomplete workload
-  inventory, classifier error, unknown classification, unready replica, or any
-  request to expose credential material.
+  owner, ambiguous Secret source, a production principal projected into dev,
+  incomplete workload inventory, classifier error, unknown classification,
+  unready replica, or any request to expose credential material.
 - Before revocation, production may roll back only to the still-valid prior
   production Secret source recorded at Gate 0.
 - After revocation, never restore the revoked authority. Mint a new replacement
