@@ -289,8 +289,7 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
             runbook,
         )
         self.assertIn(
-            "No separate Argo architecture, CMP sidecar, or encryption "
-            "recipient is required",
+            "No production replacement, rotation, or revocation is required",
             runbook,
         )
 

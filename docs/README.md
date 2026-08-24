@@ -16,7 +16,7 @@ Read them in roughly this order when contributing here:
 9. `runbooks/citrus-spaces-cors.md` – DigitalOcean Spaces CORS procedure for
    Citrus Grace browser media uploads.
 10. `runbooks/citrus-payment-secret-isolation.md` – value-free, operator-gated
-    Citrus payment credential isolation and replacement-before-revocation procedure.
+    Citrus dev payment credential deprojection and isolation procedure.
 11. `../infra/ingress-nginx/README.md` – operator-gated CES-748 blue/green
     source-IP load-balancer activation and rollback.
 12. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
