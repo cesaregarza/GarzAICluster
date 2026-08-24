@@ -100,6 +100,15 @@ application:
     AWS_DEFAULT_ACL: "public-read"
     AWS_S3_CACHE_CONTROL: "max-age=86400, public"
 
+# Disabled preparation for CES-844. The environment-specific overlay must be
+# explicitly added to an Argo Application only after its dedicated Secret and
+# decrypting principal have passed the matching operator gates.
+paymentCredentials:
+  enabled: false
+  secretName: ""
+  rolloutRevision: ""
+  webhookEnvironmentVariable: ""
+
 
 service:
   name: citrus-service

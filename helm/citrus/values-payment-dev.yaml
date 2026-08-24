@@ -1,0 +1,8 @@
+# CES-844 activation overlay. This file is intentionally not referenced by the
+# dev Argo Application. It may be activated only with a classified non-live
+# credential source or after intentional absence is supported under CES-845.
+paymentCredentials:
+  enabled: true
+  secretName: citrus-dev-payment-credentials
+  rolloutRevision: ces-844-prepared
+  webhookEnvironmentVariable: STRIPE_WEBHOOK_SECRET_DEV
