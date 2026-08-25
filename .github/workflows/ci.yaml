@@ -238,7 +238,7 @@ jobs:
           - name: citrus
             path: helm/citrus
             release: citrus
-            prod_values: helm/citrus/values-payment-prod.yaml
+            prod_values: helm/citrus/values.yaml
           - name: garz-observability
             path: helm/garz-observability
             release: garz-observability
@@ -286,10 +286,78 @@ jobs:
         run: helm lint "${{ matrix.chart.path }}"
 
       - name: Render manifests (default + prod)
+        if: matrix.chart.name != 'citrus'
         run: |
           mkdir -p rendered
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" > "rendered/${{ matrix.chart.name }}-default.yaml"
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" -f "${{ matrix.chart.prod_values }}" > "rendered/${{ matrix.chart.name }}-prod.yaml"
+
+      - name: Render Citrus production, dev, and optional workloads
+        if: matrix.chart.name == 'citrus'
+        run: |
+          set -euo pipefail
+          mkdir -p rendered
+          chart=helm/citrus
+
+          # Match the two Argo Applications exactly. Production uses only the
+          # chart defaults; dev layers values-dev.yaml and has a distinct release.
+          helm template citrus "$chart" \
+            --namespace default \
+            -f "$chart/values.yaml" \
+            > rendered/citrus-prod.yaml
+          helm template citrus-dev "$chart" \
+            --namespace citrus-dev \
+            -f "$chart/values.yaml" \
+            -f "$chart/values-dev.yaml" \
+            > rendered/citrus-dev.yaml
+
+          # Exercise disabled-by-default consumers without contacting providers
+          # or rendering any Secret object.
+          helm template citrus-ci-workloads "$chart" \
+            --namespace citrus-ci \
+            -f "$chart/values.yaml" \
+            --set billingWorker.enabled=true \
+            --set recurringRuntime.enabled=true \
+            > rendered/citrus-optional-workloads.yaml
+
+          # Preserve the prepared payment-projection render coverage separately
+          # from the actual environment renders. These files contain Secret refs,
+          # never decrypted values or credentials.
+          helm template citrus-ci-payment-prod "$chart" \
+            --namespace default \
+            -f "$chart/values.yaml" \
+            -f "$chart/values-payment-prod.yaml" \
+            > rendered/citrus-payment-prod.yaml
+          helm template citrus-ci-payment-dev "$chart" \
+            --namespace citrus-dev \
+            -f "$chart/values.yaml" \
+            -f "$chart/values-dev.yaml" \
+            -f "$chart/values-payment-dev.yaml" \
+            > rendered/citrus-payment-dev.yaml
+
+      - name: Verify Citrus workload render coverage
+        if: matrix.chart.name == 'citrus'
+        run: |
+          set -euo pipefail
+
+          grep -E '^[[:space:]]+app.kubernetes.io/instance: citrus$' rendered/citrus-prod.yaml >/dev/null
+          grep -E '^[[:space:]]+app.kubernetes.io/instance: citrus-dev$' rendered/citrus-dev.yaml >/dev/null
+          grep -F 'ALLOWED_HOSTS: "citrus-grace.com,www.citrus-grace.com"' rendered/citrus-prod.yaml >/dev/null
+          grep -F 'SITE_NAME: "Citrus Grace Dev"' rendered/citrus-dev.yaml >/dev/null
+          grep -F '    - host: dev.citrus-grace.com' rendered/citrus-dev.yaml >/dev/null
+          grep -F 'app.kubernetes.io/component: migrations' rendered/citrus-prod.yaml >/dev/null
+          grep -F 'app: citrus-web' rendered/citrus-prod.yaml >/dev/null
+          grep -F 'app.kubernetes.io/component: media-worker' rendered/citrus-prod.yaml >/dev/null
+          grep -F 'app.kubernetes.io/component: media-requeue' rendered/citrus-prod.yaml >/dev/null
+          grep -F 'app.kubernetes.io/component: media-gc' rendered/citrus-prod.yaml >/dev/null
+          grep -F 'app.kubernetes.io/component: billing-worker' rendered/citrus-optional-workloads.yaml >/dev/null
+          grep -F 'app.kubernetes.io/component: recurring-tick' rendered/citrus-optional-workloads.yaml >/dev/null
+          grep -F 'app.kubernetes.io/component: recurring-health' rendered/citrus-optional-workloads.yaml >/dev/null
+
+          if grep -E '^kind:[[:space:]]+Secret$' rendered/citrus-*.yaml >/dev/null; then
+            echo "Citrus CI renders must never contain Secret objects" >&2
+            exit 1
+          fi
 
       - name: Verify cegarza.com chart safety semantics
         if: matrix.chart.name == 'cegarza-blog'

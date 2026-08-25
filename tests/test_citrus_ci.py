@@ -1,0 +1,136 @@
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+from typing import Any
+
+from ruamel.yaml import YAML
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yaml"
+YAML_PARSER = YAML(typ="safe")
+
+
+def _workflow() -> dict[str, Any]:
+    loaded = YAML_PARSER.load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise AssertionError(f"YAML mapping expected: {WORKFLOW_PATH}")
+    return loaded
+
+
+class CitrusCiContractTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.job = _workflow()["jobs"]["helm-and-kubeconform"]
+        cls.steps = {
+            step["name"]: step
+            for step in cls.job["steps"]
+            if isinstance(step, dict) and "name" in step
+        }
+
+    def test_citrus_is_a_first_class_helm_matrix_entry(self) -> None:
+        citrus = next(
+            chart
+            for chart in self.job["strategy"]["matrix"]["chart"]
+            if chart["name"] == "citrus"
+        )
+        self.assertEqual(
+            citrus,
+            {
+                "name": "citrus",
+                "path": "helm/citrus",
+                "release": "citrus",
+                "prod_values": "helm/citrus/values.yaml",
+            },
+        )
+        self.assertEqual(
+            self.steps["Helm lint"]["run"],
+            'helm lint "${{ matrix.chart.path }}"',
+        )
+
+    def test_actual_environment_and_optional_renders_are_distinct(self) -> None:
+        step = self.steps[
+            "Render Citrus production, dev, and optional workloads"
+        ]
+        self.assertEqual(step["if"], "matrix.chart.name == 'citrus'")
+        run = " ".join(step["run"].replace("\\\n", " ").split())
+        for expected in (
+            (
+                'helm template citrus "$chart" --namespace default '
+                '-f "$chart/values.yaml" > rendered/citrus-prod.yaml'
+            ),
+            (
+                'helm template citrus-dev "$chart" --namespace citrus-dev '
+                '-f "$chart/values.yaml" -f "$chart/values-dev.yaml" '
+                '> rendered/citrus-dev.yaml'
+            ),
+            (
+                'helm template citrus-ci-workloads "$chart" '
+                '--namespace citrus-ci -f "$chart/values.yaml" '
+                '--set billingWorker.enabled=true '
+                '--set recurringRuntime.enabled=true '
+                '> rendered/citrus-optional-workloads.yaml'
+            ),
+            (
+                'helm template citrus-ci-payment-prod "$chart" '
+                '--namespace default -f "$chart/values.yaml" '
+                '-f "$chart/values-payment-prod.yaml" '
+                '> rendered/citrus-payment-prod.yaml'
+            ),
+            (
+                'helm template citrus-ci-payment-dev "$chart" '
+                '--namespace citrus-dev -f "$chart/values.yaml" '
+                '-f "$chart/values-dev.yaml" '
+                '-f "$chart/values-payment-dev.yaml" '
+                '> rendered/citrus-payment-dev.yaml'
+            ),
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, run)
+
+    def test_workload_coverage_and_secret_exclusion_are_enforced(self) -> None:
+        run = self.steps["Verify Citrus workload render coverage"]["run"]
+        for component in (
+            "migrations",
+            "media-worker",
+            "media-requeue",
+            "media-gc",
+            "billing-worker",
+            "recurring-tick",
+            "recurring-health",
+        ):
+            with self.subTest(component=component):
+                self.assertIn(
+                    f"app.kubernetes.io/component: {component}",
+                    run,
+                )
+        self.assertIn("app: citrus-web", run)
+        self.assertIn(
+            "Citrus CI renders must never contain Secret objects",
+            run,
+        )
+
+    def test_pinned_strict_kubeconform_covers_every_render(self) -> None:
+        helm_setup = self.steps["Set up Helm"]
+        self.assertEqual(helm_setup["with"]["version"], "v3.14.0")
+        self.assertIn(
+            "releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz",
+            self.steps["Install kubeconform"]["run"],
+        )
+
+        run = " ".join(self.steps["Run kubeconform"]["run"].split())
+        self.assertIn("for file in rendered/*.yaml", run)
+        self.assertIn("-skip CiliumNetworkPolicy,Certificate", run)
+        self.assertIn("-strict -summary -exit-on-error", run)
+
+        artifact = self.steps["Upload rendered manifests (for debugging)"]
+        self.assertEqual(
+            artifact["with"]["name"],
+            "rendered-manifests-${{ matrix.chart.name }}",
+        )
+        self.assertEqual(artifact["with"]["path"], "rendered")
+
+
+if __name__ == "__main__":
+    unittest.main()
