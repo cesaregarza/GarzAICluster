@@ -66,9 +66,9 @@ tests:
       - series: 'kube_node_status_allocatable{job="kube-state-metrics",node="node-b",resource="cpu",unit="core"}'
         values: '2x10'
 
-      - series: 'kube_namespace_status_phase{job="kube-state-metrics",namespace="default",phase="Active"}'
+      - series: 'kube_pod_info{job="kube-state-metrics",namespace="default",pod="citrus-web-a",uid="web-a",node="node-a"}'
         values: '1x10'
-      - series: 'kube_namespace_status_phase{job="kube-state-metrics",namespace="citrus-dev",phase="Active"}'
+      - series: 'kube_pod_info{job="kube-state-metrics",namespace="citrus-dev",pod="citrus-dev-web-a",uid="dev-web-a",node="node-b"}'
         values: '1x10'
 
       - series: 'kube_pod_created{job="kube-state-metrics",namespace="default",pod="citrus-web-a",uid="web-a"}'

@@ -70,7 +70,7 @@ Every query must select exactly one row from this table.
 | `namespace_container:citrus_kube_pod_container_resource_requests_memory_bytes:max_over_time5m` | `namespace`, `container` | Highest configured app-container memory request observed in the trailing five minutes. |
 | `namespace:citrus_kube_pod_scheduling_latency_seconds:p95_over_pods5m` | `namespace` | Snapshot p95 across Citrus pods observed during the trailing five minutes. |
 | `namespace:citrus_kube_pod_scheduling_latency_seconds:max_over_pods5m` | `namespace` | Snapshot maximum across Citrus pods observed during the trailing five minutes. |
-| `namespace:citrus_kube_pod_pending_age_seconds:max_over_time5m` | `namespace` | Highest Pending age observed during the trailing five minutes; zero means none was Pending. |
+| `namespace:citrus_kube_pod_pending_age_seconds:max_over_time5m` | `namespace` | Highest Pending age observed during the trailing five minutes; zero means none was Pending while at least one matching Citrus pod was observed. A missing series is not zero. |
 
 The only allowed Citrus namespaces are `default` and `citrus-dev`. CPU and
 memory usage/request records are separate per-pod envelopes. They are useful as

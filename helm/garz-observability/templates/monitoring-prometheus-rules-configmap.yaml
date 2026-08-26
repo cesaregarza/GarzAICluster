@@ -571,11 +571,11 @@ data:
                 or on (namespace)
               (
                 0 * max by (namespace) (
-                  kube_namespace_status_phase{
+                  max_over_time(kube_pod_info{
                     job="kube-state-metrics",
                     namespace=~"default|citrus-dev",
-                    phase="Active"
-                  } == 1
+                    pod=~"citrus(-dev)?-.*"
+                  }[5m])
                 )
               )
             labels:
