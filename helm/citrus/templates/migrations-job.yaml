@@ -17,6 +17,9 @@ spec:
       labels:
         {{- include "citrus.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: migrations
+        {{- if .Values.paymentSafety.enabled }}
+        {{- include "citrus.paymentSafety.podLabel" . | nindent 8 }}
+        {{- end }}
     spec:
       {{- include "citrus.imagePullSecrets" . | nindent 6 }}
       restartPolicy: Never
@@ -28,6 +31,10 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             {{- toYaml .Values.migrations.command | nindent 12 }}
+          {{- if .Values.paymentSafety.enabled }}
+          env:
+            {{- include "citrus.paymentSafety.env" . | nindent 12 }}
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ .Values.application.configMapName }}
