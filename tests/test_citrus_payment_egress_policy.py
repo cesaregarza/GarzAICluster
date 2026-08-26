@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import unittest
@@ -27,6 +28,22 @@ ATTESTATION = {
     "PAYMENT_EGRESS_POLICY_PROVIDER",
     "PAYMENT_EGRESS_POLICY_REVISION",
 }
+HELM_JSON_POINTER = re.compile(
+    r"(?P<quote>['\"])/(?P<path>[A-Za-z0-9_./-]+)(?P=quote)"
+)
+
+
+def _normalize_helm_error(stderr: str) -> str:
+    """Normalize version-dependent quoted JSON Pointer schema paths."""
+
+    return HELM_JSON_POINTER.sub(
+        lambda match: (
+            f"{match.group('quote')}"
+            f"{match.group('path').replace('/', '.')}"
+            f"{match.group('quote')}"
+        ),
+        stderr,
+    )
 
 
 def _helm_command(*, development: bool, enabled: bool) -> list[str]:
@@ -498,7 +515,21 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 result = _run(command)
                 self.assertNotEqual(result.returncode, 0, result.stdout)
-                self.assertIn(expected, result.stderr)
+                self.assertIn(expected, _normalize_helm_error(result.stderr))
+
+    def test_helm_schema_paths_are_normalized_without_changing_messages(
+        self,
+    ) -> None:
+        hosted = (
+            "- at '/paymentSafety/networkPolicy/database/host': "
+            "minLength: got 0, want 1"
+        )
+        local = "paymentSafety.networkPolicy.syncWave must precede config"
+        self.assertIn(
+            "paymentSafety.networkPolicy.database.host",
+            _normalize_helm_error(hosted),
+        )
+        self.assertEqual(_normalize_helm_error(local), local)
 
     def test_schema_and_argo_project_cover_the_namespaced_crd(self) -> None:
         schema = json.loads(
