@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ from ruamel.yaml import YAML
 REPO_ROOT = Path(__file__).resolve().parents[1]
 APPLICATIONS_DIR = REPO_ROOT / "argocd" / "applications"
 PROJECT_PATH = REPO_ROOT / "argocd" / "projects" / "splattop-project.yaml"
+CITRUS_DEV_VALUES_PATH = REPO_ROOT / "helm" / "citrus" / "values-dev.yaml"
 YAML_PARSER = YAML(typ="safe")
 
 EXPECTED_AUTOMATED_APPLICATIONS = {
@@ -64,17 +66,36 @@ class ArgoCdSyncPolicyTests(unittest.TestCase):
         self,
     ) -> None:
         project = _load_yaml(PROJECT_PATH)
+        citrus_dev_values = _load_yaml(CITRUS_DEV_VALUES_PATH)
         orphaned_resources = project["spec"]["orphanedResources"]
+        dev_tls_secret_name = citrus_dev_values["ingress"]["tls"]["secretName"]
+        expected = {
+            "group": "",
+            "kind": "Secret",
+            "name": dev_tls_secret_name,
+        }
 
         self.assertIs(orphaned_resources["warn"], True)
-        ignored_secrets = {
-            resource["name"]
+        ignored_secrets = [
+            resource
             for resource in orphaned_resources["ignore"]
             if resource.get("group") == "" and resource.get("kind") == "Secret"
-        }
-        self.assertIn("citrus-dev-grace-tls", ignored_secrets)
-        self.assertNotIn("citrus-grace-tls", ignored_secrets)
-        self.assertNotIn("*", ignored_secrets)
+        ]
+        self.assertEqual(ignored_secrets.count(expected), 1)
+        self.assertEqual(
+            [
+                resource
+                for resource in ignored_secrets
+                if fnmatchcase(dev_tls_secret_name, resource["name"])
+            ],
+            [expected],
+        )
+        self.assertFalse(
+            any(
+                fnmatchcase("citrus-grace-tls", resource["name"])
+                for resource in ignored_secrets
+            )
+        )
 
     def test_every_application_has_an_explicit_reviewed_sync_boundary(self) -> None:
         applications = {
