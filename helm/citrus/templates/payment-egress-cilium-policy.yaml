@@ -81,6 +81,7 @@ spec:
             "k8s:io.kubernetes.pod.namespace": {{ $.Release.Namespace | quote }}
             "k8s:app.kubernetes.io/name": {{ include "citrus.name" $ | quote }}
             "k8s:app.kubernetes.io/instance": {{ $.Release.Name | quote }}
+            "k8s:app.kubernetes.io/component": redis
       toPorts:
         - ports:
             - port: {{ $.Values.redis.service.port | quote }}

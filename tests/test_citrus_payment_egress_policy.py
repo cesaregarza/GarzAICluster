@@ -449,6 +449,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
         for label in (
             "app.kubernetes.io/name",
             "app.kubernetes.io/instance",
+            "app.kubernetes.io/component",
         ):
             with self.subTest(redis_label=label):
                 self.assertEqual(
