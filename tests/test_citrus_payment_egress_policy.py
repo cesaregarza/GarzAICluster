@@ -1,0 +1,542 @@
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+import unittest
+from pathlib import Path
+from typing import Any
+
+from ruamel.yaml import YAML
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CHART_PATH = REPO_ROOT / "helm" / "citrus"
+DEV_VALUES = CHART_PATH / "values-dev.yaml"
+PROJECT_PATH = REPO_ROOT / "argocd" / "projects" / "splattop-project.yaml"
+RUNBOOK_PATH = (
+    REPO_ROOT / "docs" / "runbooks" / "citrus-payment-egress-safety.md"
+)
+YAML_PARSER = YAML(typ="safe")
+APP_IMAGE = "registry.digitalocean.com/sendouq/citrus:"
+ATTESTATION = {
+    "DJANGO_ENV",
+    "CITRUS_ENVIRONMENT_OWNER",
+    "PAYMENT_NETWORK_MODE",
+    "PAYMENT_EGRESS_POLICY_REQUIRED",
+    "PAYMENT_EGRESS_POLICY_PROVIDER",
+    "PAYMENT_EGRESS_POLICY_REVISION",
+}
+
+
+def _helm_command(*, development: bool, enabled: bool) -> list[str]:
+    command = [
+        "helm",
+        "template",
+        "citrus-dev" if development else "citrus",
+        str(CHART_PATH),
+        "--namespace",
+        "citrus-dev" if development else "default",
+    ]
+    if development:
+        command.extend(["-f", str(DEV_VALUES)])
+    if not enabled:
+        return command
+
+    environment = "development" if development else "production"
+    owner = "citrus-dev" if development else "citrus"
+    mode = "deny" if development else "allow"
+    command.extend(
+        [
+            "--set",
+            "paymentSafety.enabled=true",
+            "--set-string",
+            f"paymentSafety.environment={environment}",
+            "--set-string",
+            f"paymentSafety.owner={owner}",
+            "--set-string",
+            f"paymentSafety.networkMode={mode}",
+            "--set",
+            "paymentSafety.policy.required=true",
+            "--set-string",
+            "paymentSafety.policy.provider=cilium",
+            "--set-string",
+            "paymentSafety.policy.revision=ces-845-test",
+            "--set",
+            "paymentSafety.networkPolicy.enabled=true",
+        ]
+    )
+    if development:
+        command.extend(
+            [
+                "--set-string",
+                "paymentSafety.networkPolicy.database.host=db.dev.example",
+            ]
+        )
+    return command
+
+
+def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
+    if shutil.which("helm") is None:
+        raise unittest.SkipTest("helm is required for chart render tests")
+    return subprocess.run(
+        command,
+        check=False,
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+
+
+def _documents(command: list[str]) -> list[dict[str, Any]]:
+    result = _run(command)
+    if result.returncode != 0:
+        raise AssertionError(result.stderr)
+    return [
+        document
+        for document in YAML_PARSER.load_all(result.stdout)
+        if isinstance(document, dict) and document
+    ]
+
+
+def _named(
+    documents: list[dict[str, Any]], kind: str, name: str
+) -> dict[str, Any]:
+    return next(
+        document
+        for document in documents
+        if document.get("kind") == kind
+        and document.get("metadata", {}).get("name") == name
+    )
+
+
+def _pod_template(document: dict[str, Any]) -> dict[str, Any]:
+    kind = document["kind"]
+    if kind == "Deployment":
+        return document["spec"]["template"]
+    if kind == "Job":
+        return document["spec"]["template"]
+    if kind == "CronJob":
+        return document["spec"]["jobTemplate"]["spec"]["template"]
+    raise AssertionError(f"unsupported workload kind: {kind}")
+
+
+def _app_workloads(
+    documents: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    workloads = []
+    for document in documents:
+        if document.get("kind") not in {"Deployment", "Job", "CronJob"}:
+            continue
+        containers = _pod_template(document)["spec"].get("containers", [])
+        if any(
+            str(container.get("image", "")).startswith(APP_IMAGE)
+            for container in containers
+        ):
+            workloads.append(document)
+    return workloads
+
+
+def _env(container: dict[str, Any]) -> dict[str, str]:
+    return {
+        entry["name"]: str(entry.get("value", ""))
+        for entry in container.get("env", [])
+        if "name" in entry and "value" in entry
+    }
+
+
+class CitrusPaymentEgressPolicyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.default_prod = _documents(
+            _helm_command(development=False, enabled=False)
+        )
+        cls.default_dev = _documents(
+            _helm_command(development=True, enabled=False)
+        )
+
+        dev_command = _helm_command(development=True, enabled=True)
+        dev_command.extend(
+            [
+                "--set",
+                "billingWorker.enabled=true",
+                "--set",
+                "recurringRuntime.enabled=true",
+                "--set-json",
+                (
+                    "paymentSafety.networkPolicy.additionalExternalEgress="
+                    '[{"name":"captcha","host":"captcha.internal.example",'
+                    '"ports":[443]},{"name":"notify",'
+                    '"host":"notify.internal.example","ports":[443,8443]}]'
+                ),
+            ]
+        )
+        cls.enforced_dev = _documents(dev_command)
+
+        prod_command = _helm_command(development=False, enabled=True)
+        prod_command.extend(
+            [
+                "--set",
+                "billingWorker.enabled=true",
+                "--set",
+                "recurringRuntime.enabled=true",
+            ]
+        )
+        cls.explicit_prod = _documents(prod_command)
+
+    def test_current_argo_renders_remain_inert(self) -> None:
+        for documents in (self.default_prod, self.default_dev):
+            self.assertFalse(
+                any(
+                    document.get("kind") == "CiliumNetworkPolicy"
+                    for document in documents
+                )
+            )
+            for workload in _app_workloads(documents):
+                template = _pod_template(workload)
+                self.assertNotIn(
+                    "citrus.grace/payment-egress-boundary",
+                    template.get("metadata", {}).get("labels", {}),
+                )
+                for container in template["spec"]["containers"]:
+                    if not str(container.get("image", "")).startswith(APP_IMAGE):
+                        continue
+                    self.assertTrue(
+                        ATTESTATION.isdisjoint(_env(container)),
+                        f"{workload['metadata']['name']}/{container['name']}",
+                    )
+
+        for application in ("citrus.yaml", "citrus-dev.yaml"):
+            contents = (
+                REPO_ROOT / "argocd" / "applications" / application
+            ).read_text(encoding="utf-8")
+            self.assertNotIn("payment-safety", contents)
+
+    def test_development_attestation_covers_every_citrus_process(self) -> None:
+        expected_workloads = {
+            "citrus-dev",
+            "citrus-dev-media-worker",
+            "citrus-dev-billing-worker",
+            "citrus-dev-migrate-1",
+            "citrus-dev-media-requeue",
+            "citrus-dev-media-gc",
+            "citrus-dev-recurring-tick",
+            "citrus-dev-recurring-health",
+        }
+        workloads = _app_workloads(self.enforced_dev)
+        self.assertEqual(
+            {workload["metadata"]["name"] for workload in workloads},
+            expected_workloads,
+        )
+
+        expected_env = {
+            "DJANGO_ENV": "development",
+            "CITRUS_ENVIRONMENT_OWNER": "citrus-dev",
+            "PAYMENT_NETWORK_MODE": "deny",
+            "PAYMENT_EGRESS_POLICY_REQUIRED": "true",
+            "PAYMENT_EGRESS_POLICY_PROVIDER": "cilium",
+            "PAYMENT_EGRESS_POLICY_REVISION": "ces-845-test",
+        }
+        container_count = 0
+        for workload in workloads:
+            template = _pod_template(workload)
+            self.assertEqual(
+                template["metadata"]["labels"].get(
+                    "citrus.grace/payment-egress-boundary"
+                ),
+                "enabled",
+            )
+            for container in template["spec"]["containers"]:
+                if not str(container.get("image", "")).startswith(APP_IMAGE):
+                    continue
+                container_count += 1
+                actual_env = _env(container)
+                self.assertEqual(
+                    {name: actual_env.get(name) for name in ATTESTATION},
+                    expected_env,
+                    f"{workload['metadata']['name']}/{container['name']}",
+                )
+        self.assertEqual(container_count, 9)
+
+        redis = _named(self.enforced_dev, "Deployment", "citrus-redis")
+        self.assertNotIn(
+            "citrus.grace/payment-egress-boundary",
+            redis["spec"]["template"]["metadata"]["labels"],
+        )
+
+    def test_development_policy_allows_only_declared_non_stripe_dependencies(
+        self,
+    ) -> None:
+        policy = _named(
+            self.enforced_dev,
+            "CiliumNetworkPolicy",
+            "citrus-dev-payment-egress",
+        )
+        self.assertEqual(
+            policy["metadata"]["annotations"][
+                "argocd.argoproj.io/sync-wave"
+            ],
+            "-1",
+        )
+        self.assertEqual(
+            policy["metadata"]["annotations"][
+                "citrus.grace/payment-egress-policy-revision"
+            ],
+            "ces-845-test",
+        )
+        self.assertEqual(
+            policy["spec"]["endpointSelector"]["matchLabels"],
+            {
+                "app.kubernetes.io/instance": "citrus-dev",
+                "citrus.grace/payment-egress-boundary": "enabled",
+            },
+        )
+        self.assertNotIn("ingress", policy["spec"])
+        self.assertNotIn("egressDeny", policy["spec"])
+
+        egress = policy["spec"]["egress"]
+        self.assertFalse(any("toEntities" in rule for rule in egress))
+        fqdn_hosts = {
+            target["matchName"]
+            for rule in egress
+            for target in rule.get("toFQDNs", [])
+        }
+        self.assertEqual(
+            fqdn_hosts,
+            {
+                "db.dev.example",
+                "nyc3.digitaloceanspaces.com",
+                "citrus-media-dev.nyc3.digitaloceanspaces.com",
+                "citrus-media-dev.nyc3.cdn.digitaloceanspaces.com",
+                "captcha.internal.example",
+                "notify.internal.example",
+            },
+        )
+        self.assertFalse(
+            any(
+                host == "stripe.com"
+                or host.endswith(".stripe.com")
+                or host == "stripe.network"
+                or host.endswith(".stripe.network")
+                for host in fqdn_hosts
+            )
+        )
+
+        dns_rule = next(
+            rule
+            for rule in egress
+            if rule.get("toPorts", [{}])[0].get("rules", {}).get("dns")
+        )
+        self.assertEqual(
+            dns_rule["toEndpoints"][0]["matchLabels"],
+            {
+                "k8s:io.kubernetes.pod.namespace": "kube-system",
+                "k8s:k8s-app": "kube-dns",
+            },
+        )
+        self.assertEqual(
+            dns_rule["toPorts"][0]["rules"]["dns"],
+            [{"matchPattern": "*"}],
+        )
+
+        redis_rule = next(
+            rule
+            for rule in egress
+            if rule.get("toEndpoints", [{}])[0]
+            .get("matchLabels", {})
+            .get("k8s:app.kubernetes.io/instance")
+            == "citrus-dev"
+        )
+        redis = _named(self.enforced_dev, "Deployment", "citrus-redis")
+        redis_labels = redis["spec"]["template"]["metadata"]["labels"]
+        redis_destination_labels = redis_rule["toEndpoints"][0]["matchLabels"]
+        self.assertEqual(
+            redis_destination_labels["k8s:io.kubernetes.pod.namespace"],
+            "citrus-dev",
+        )
+        for label in (
+            "app.kubernetes.io/name",
+            "app.kubernetes.io/instance",
+        ):
+            with self.subTest(redis_label=label):
+                self.assertEqual(
+                    redis_destination_labels[f"k8s:{label}"],
+                    redis_labels[label],
+                )
+        self.assertEqual(
+            redis_rule["toPorts"][0]["ports"],
+            [{"port": "6379", "protocol": "TCP"}],
+        )
+
+    def test_production_requires_and_renders_explicit_allow_mode(self) -> None:
+        policy = _named(
+            self.explicit_prod,
+            "CiliumNetworkPolicy",
+            "citrus-payment-egress",
+        )
+        self.assertEqual(
+            policy["spec"]["egress"],
+            [{"toEntities": ["all"]}],
+        )
+        for workload in _app_workloads(self.explicit_prod):
+            for container in _pod_template(workload)["spec"]["containers"]:
+                if not str(container.get("image", "")).startswith(APP_IMAGE):
+                    continue
+                actual_env = _env(container)
+                self.assertEqual(actual_env["DJANGO_ENV"], "production")
+                self.assertEqual(
+                    actual_env["CITRUS_ENVIRONMENT_OWNER"], "citrus"
+                )
+                self.assertEqual(actual_env["PAYMENT_NETWORK_MODE"], "allow")
+
+    def test_enabled_contract_fails_closed_on_unsafe_values(self) -> None:
+        dev = _helm_command(development=True, enabled=True)
+        prod = _helm_command(development=False, enabled=True)
+        cases = (
+            (
+                [*dev, "--set-string", "paymentSafety.owner=citrus"],
+                "paymentSafety.owner",
+            ),
+            (
+                [
+                    *dev,
+                    "--set-string",
+                    "paymentSafety.networkMode=allow",
+                ],
+                "paymentSafety.networkMode",
+            ),
+            (
+                [*prod, "--set-string", "paymentSafety.networkMode=deny"],
+                "paymentSafety.networkMode",
+            ),
+            (
+                [
+                    *dev,
+                    "--set",
+                    "paymentSafety.networkPolicy.enabled=false",
+                ],
+                "paymentSafety.networkPolicy.enabled",
+            ),
+            (
+                [
+                    *dev,
+                    "--set-string",
+                    "paymentSafety.policy.provider=",
+                ],
+                "paymentSafety.policy.provider",
+            ),
+            (
+                [
+                    *dev,
+                    "--set-string",
+                    "paymentSafety.policy.revision=not safe",
+                ],
+                "paymentSafety.policy.revision",
+            ),
+            (
+                [
+                    *dev,
+                    "--set-string",
+                    "paymentSafety.networkPolicy.database.host=",
+                ],
+                "paymentSafety.networkPolicy.database.host",
+            ),
+            (
+                [
+                    *dev,
+                    "--set-string",
+                    "paymentSafety.networkPolicy.database.host=*.example.com",
+                ],
+                "paymentSafety.networkPolicy.database.host",
+            ),
+            (
+                [
+                    *dev,
+                    "--set-json",
+                    (
+                        "paymentSafety.networkPolicy.additionalExternalEgress="
+                        '[{"name":"forbidden","host":"api.stripe.com",'
+                        '"ports":[443]}]'
+                    ),
+                ],
+                "must not authorize a Stripe destination",
+            ),
+            (
+                [*dev, "--set", "redis.enabled=false"],
+                "redis.enabled must be true",
+            ),
+            (
+                [*dev, "--set", "redis.service.port=0"],
+                "redis.service.port",
+            ),
+            (
+                [
+                    *dev,
+                    "--set-string",
+                    "paymentSafety.networkPolicy.syncWave=0",
+                ],
+                "paymentSafety.networkPolicy.syncWave",
+            ),
+            (
+                [
+                    *dev,
+                    "--set-string",
+                    "application.configData.AWS_S3_ENDPOINT_URL=http://storage.example",
+                ],
+                "application.configData.AWS_S3_ENDPOINT_URL",
+            ),
+            (
+                [
+                    *dev,
+                    "--set-string",
+                    "paymentSafety.unexpected=value",
+                ],
+                "unexpected",
+            ),
+        )
+        for command, expected in cases:
+            with self.subTest(expected=expected):
+                result = _run(command)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn(expected, result.stderr)
+
+    def test_schema_and_argo_project_cover_the_namespaced_crd(self) -> None:
+        schema = json.loads(
+            (CHART_PATH / "values.schema.json").read_text(encoding="utf-8")
+        )
+        payment_safety = schema["properties"]["paymentSafety"]
+        self.assertFalse(payment_safety["additionalProperties"])
+        self.assertEqual(
+            payment_safety["properties"]["networkMode"]["enum"],
+            ["", "deny", "allow"],
+        )
+
+        project = YAML_PARSER.load(PROJECT_PATH.read_text(encoding="utf-8"))
+        self.assertIn(
+            {"group": "cilium.io", "kind": "CiliumNetworkPolicy"},
+            project["spec"]["namespaceResourceWhitelist"],
+        )
+        self.assertNotIn(
+            {"group": "cilium.io", "kind": "CiliumNetworkPolicy"},
+            project["spec"]["clusterResourceWhitelist"],
+        )
+
+    def test_runbook_records_activation_and_zero_provider_boundaries(self) -> None:
+        runbook = " ".join(
+            RUNBOOK_PATH.read_text(encoding="utf-8").split()
+        )
+        for required in (
+            "disabled by default",
+            "Never use a Stripe request to validate this policy",
+            "attestation alone does not prove that the live Cilium policy",
+            "cannot read the secret-backed `DB_HOST`",
+            "Do not activate it until an operator supplies the exact database FQDN",
+            "local fake endpoint/FQDN omitted from the allowlist",
+            "Do not remove the Cilium boundary while payment credentials remain available",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, runbook)
+
+
+if __name__ == "__main__":
+    unittest.main()

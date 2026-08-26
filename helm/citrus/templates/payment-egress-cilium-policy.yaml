@@ -1,0 +1,91 @@
+{{- include "citrus.paymentSafety.validate" . }}
+{{- if .Values.paymentSafety.enabled }}
+{{- $networkPolicy := .Values.paymentSafety.networkPolicy -}}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "citrus.fullname" . }}-payment-egress
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: payment-egress-boundary
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ $networkPolicy.syncWave | quote }}
+    citrus.grace/payment-egress-policy-revision: {{ .Values.paymentSafety.policy.revision | quote }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      citrus.grace/payment-egress-boundary: enabled
+  {{- if eq .Values.paymentSafety.networkMode "allow" }}
+  # Production must opt into this explicit allow mode. The policy resource and
+  # runtime attestation still share one revision, but existing connectivity is
+  # not narrowed by this dormant preparation slice.
+  egress:
+    - toEntities:
+        - all
+  {{- else }}
+  # Development enters default-deny egress as soon as this policy selects its
+  # pods. Only chart-owned dependencies and separately reviewed exact FQDNs are
+  # admitted; no Stripe hostname is renderable through this chart.
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            "k8s:io.kubernetes.pod.namespace": {{ $networkPolicy.dns.namespace | quote }}
+            {{- range $key, $value := $networkPolicy.dns.podLabels }}
+            {{ printf "k8s:%s" $key | quote }}: {{ $value | quote }}
+            {{- end }}
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEndpoints:
+        - matchLabels:
+            "k8s:io.kubernetes.pod.namespace": {{ .Release.Namespace | quote }}
+            "k8s:app.kubernetes.io/name": {{ include "citrus.name" . | quote }}
+            "k8s:app.kubernetes.io/instance": {{ .Release.Name | quote }}
+      toPorts:
+        - ports:
+            - port: {{ .Values.redis.service.port | quote }}
+              protocol: TCP
+    - toFQDNs:
+        - matchName: {{ $networkPolicy.database.host | quote }}
+      toPorts:
+        - ports:
+            - port: {{ $networkPolicy.database.port | quote }}
+              protocol: TCP
+    {{- $storageEndpointHost := trimSuffix "/" (trimPrefix "https://" .Values.application.configData.AWS_S3_ENDPOINT_URL) }}
+    {{- $storageBucketHost := printf "%s.%s" .Values.application.configData.AWS_STORAGE_BUCKET_NAME $storageEndpointHost }}
+    - toFQDNs:
+        - matchName: {{ $storageEndpointHost | quote }}
+        - matchName: {{ $storageBucketHost | quote }}
+        - matchName: {{ .Values.application.configData.AWS_S3_CUSTOM_DOMAIN | quote }}
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    {{- $emailBackend := default "django.core.mail.backends.smtp.EmailBackend" .Values.application.configData.EMAIL_BACKEND }}
+    {{- if eq $emailBackend "django.core.mail.backends.smtp.EmailBackend" }}
+    - toFQDNs:
+        - matchName: {{ .Values.application.configData.EMAIL_HOST | quote }}
+      toPorts:
+        - ports:
+            - port: {{ .Values.application.configData.EMAIL_PORT | quote }}
+              protocol: TCP
+    {{- end }}
+    {{- range $destination := $networkPolicy.additionalExternalEgress }}
+    - toFQDNs:
+        - matchName: {{ $destination.host | quote }}
+      toPorts:
+        - ports:
+            {{- range $port := $destination.ports }}
+            - port: {{ $port | quote }}
+              protocol: TCP
+            {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
