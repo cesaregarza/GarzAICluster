@@ -87,6 +87,39 @@ class GarzObservabilityKubeStateMetricsTests(unittest.TestCase):
             rules,
         )
 
+    def test_cpu_headroom_and_citrus_pending_alerts_are_bounded(self) -> None:
+        rendered_rules = _find_doc(
+            self.docs,
+            kind="ConfigMap",
+            name="prometheus-rules",
+            namespace="monitoring",
+        )["data"]["critical-alerts.yaml"]
+        rules_document = YAML_PARSER.load(rendered_rules)
+        alerts = {
+            rule["alert"]: rule
+            for group in rules_document["groups"]
+            for rule in group["rules"]
+            if "alert" in rule
+        }
+
+        headroom = alerts["KubernetesNodeCPURequestHeadroomLow"]
+        headroom_expression = " ".join(headroom["expr"].split())
+        self.assertEqual(headroom["for"], "10m")
+        self.assertEqual(headroom["labels"]["severity"], "warning")
+        self.assertIn("kube_pod_container_resource_requests", headroom_expression)
+        self.assertIn("kube_node_status_allocatable", headroom_expression)
+        self.assertIn('phase="Running"', headroom_expression)
+        self.assertIn("> 0.85", headroom_expression)
+
+        pending = alerts["CitrusPodPending"]
+        pending_expression = " ".join(pending["expr"].split())
+        self.assertEqual(pending["for"], "1m")
+        self.assertEqual(pending["labels"]["service"], "citrus")
+        self.assertIn('namespace=~"default|citrus-dev"', pending_expression)
+        self.assertIn('pod=~"citrus(-dev)?-.*"', pending_expression)
+        self.assertIn('phase="Pending"', pending_expression)
+        self.assertNotIn('namespace=~"citrus(-dev)?"', pending_expression)
+
     def test_kube_state_metrics_renders_cluster_metadata_for_right_sizing(self) -> None:
         deployment = _find_doc(
             self.docs,
