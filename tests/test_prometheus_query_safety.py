@@ -99,6 +99,10 @@ class PrometheusQuerySafetyContractTests(unittest.TestCase):
         )
         self.assertEqual(history.MAX_REVIEWED_PEAK_SAMPLES, 10_000)
         self.assertEqual(
+            history.MAX_RECORDING_SAMPLE_AGE_SECONDS,
+            2 * reproduction.NATIVE_RECORDING_INTERVAL_SECONDS,
+        )
+        self.assertEqual(
             history.MAX_RANGE_SECONDS // history.MIN_STEP_SECONDS + 1,
             4033,
         )
@@ -229,6 +233,7 @@ class PrometheusQuerySafetyContractTests(unittest.TestCase):
         self.assertEqual(parameters["query"], [selector])
         self.assertEqual(parameters["step"], ["300"])
         self.assertEqual(parameters["timeout"], ["30s"])
+        self.assertEqual(parameters["lookback_delta"], ["30s"])
         self.assertEqual(parameters["stats"], ["all"])
         self.assertNotIn("limit", parameters)
         self.assertEqual(captured["timeout"], 35)

@@ -33,7 +33,9 @@ All of these controls apply together:
   maximum range of 14 days. It requests query statistics and rejects anything
   other than exactly one returned series or a reviewed peak above 10,000
   samples. It also requires every expected timestamp; an incomplete warm-up,
-  stale series, or rule-evaluation gap fails closed.
+  stale series, or rule-evaluation gap fails closed. A 30-second query lookback
+  requires a recent recording sample instead of Prometheus's default five-minute
+  stale-value reuse.
 - The helper performs p95, p99, minimum, and maximum calculations offline. It
   never submits a range function, join, subquery, wildcard, or aggregation to
   Prometheus. Each receipt retains at most 4,033 validated points for reviewed
@@ -47,7 +49,8 @@ launched two guarded broad queries concurrently. Both were rejected while the
 2 GiB container with `GOMEMLIMIT=1200MiB` remained Ready, running, not
 OOM-killed, and at zero restarts. The regression test requires the recorded
 peak to remain below 10,000 samples and the raw peak to remain above the
-500,000-sample guard.
+500,000-sample guard. A synthetic 60-second recording gap must also fail the
+30-second lookback/completeness contract instead of reusing a stale value.
 
 ## Supported evidence
 

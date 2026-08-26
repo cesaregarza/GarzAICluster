@@ -19,6 +19,7 @@ from typing import Any
 MAX_RANGE_SECONDS = 14 * 24 * 60 * 60
 MIN_STEP_SECONDS = 5 * 60
 MAX_QUERY_TIMEOUT_SECONDS = 30
+MAX_RECORDING_SAMPLE_AGE_SECONDS = 30
 SERVER_MAX_SAMPLES = 500_000
 MAX_REVIEWED_PEAK_SAMPLES = 10_000
 LABEL_VALUE_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}")
@@ -205,6 +206,7 @@ def request_history(
             "end": end,
             "step": step_seconds,
             "timeout": f"{MAX_QUERY_TIMEOUT_SECONDS}s",
+            "lookback_delta": f"{MAX_RECORDING_SAMPLE_AGE_SECONDS}s",
             "stats": "all",
         }
     ).encode("utf-8")
@@ -343,6 +345,7 @@ def build_receipt(
             "step_seconds": step_seconds,
             "max_range_seconds": MAX_RANGE_SECONDS,
             "max_reviewed_peak_samples": MAX_REVIEWED_PEAK_SAMPLES,
+            "max_recording_sample_age_seconds": MAX_RECORDING_SAMPLE_AGE_SECONDS,
             "server_max_samples": SERVER_MAX_SAMPLES,
             "aggregation": "offline",
         },

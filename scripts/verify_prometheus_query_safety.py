@@ -73,6 +73,7 @@ RECORDED_QUERY = (
     "max_sum_active_bound5m"
 )
 RECORDED_SUBQUERY = f"quantile_over_time(0.95, {RECORDED_QUERY}[14d])"
+GAP_PROBE_QUERY = "ces856_recording_gap_probe"
 
 
 @dataclass(frozen=True)
@@ -151,6 +152,11 @@ def generate_openmetrics(
                 "max_sum_active_bound5m "
                 f"{recorded_value:.9f} {timestamp}\n"
             )
+
+        gap_probe_start = query_start + HISTORY_SECONDS // 2
+        output.write(f"# TYPE {GAP_PROBE_QUERY} gauge\n")
+        output.write(f"{GAP_PROBE_QUERY} 1 {gap_probe_start - 60}\n")
+        output.write(f"{GAP_PROBE_QUERY} 1 {gap_probe_start + STEP_SECONDS}\n")
 
         output.write("# EOF\n")
 
@@ -542,6 +548,22 @@ def run_test(*, pod_count: int) -> None:
             )
             if helper_receipt["summary"]["sample_count"] != 4033:
                 raise AssertionError("safe helper did not return the 14-day 5m envelope")
+            gap_probe_start = window.query_start + HISTORY_SECONDS // 2
+            try:
+                request_history(
+                    base_url=base_url,
+                    selector=GAP_PROBE_QUERY,
+                    start=gap_probe_start,
+                    end=gap_probe_start + STEP_SECONDS,
+                    step_seconds=STEP_SECONDS,
+                )
+            except RuntimeError as exc:
+                if "incomplete" not in str(exc):
+                    raise AssertionError(
+                        f"bounded lookback failed unexpectedly: {exc}"
+                    ) from exc
+            else:
+                raise AssertionError("bounded lookback did not expose a recording gap")
             recorded_subquery_data = require_success(
                 query_instant(base_url, RECORDED_SUBQUERY, window),
                 "guarded recorded 14-day subquery",
