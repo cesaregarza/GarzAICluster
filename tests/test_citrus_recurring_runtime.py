@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import unittest
@@ -12,13 +13,8 @@ from ruamel.yaml import YAML
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHART_PATH = REPO_ROOT / "helm" / "citrus"
 DEV_VALUES = CHART_PATH / "values-dev.yaml"
-RULES_TEMPLATE = (
-    REPO_ROOT
-    / "helm"
-    / "garz-observability"
-    / "templates"
-    / "monitoring-prometheus-rules-configmap.yaml"
-)
+OBSERVABILITY_CHART = REPO_ROOT / "helm" / "garz-observability"
+OBSERVABILITY_VALUES = OBSERVABILITY_CHART / "values-prod.yaml"
 YAML_PARSER = YAML(typ="safe")
 
 
@@ -31,13 +27,14 @@ def _render(
     if shutil.which("helm") is None:
         raise unittest.SkipTest("helm is required for chart render tests")
     release = "citrus-dev" if dev else "citrus"
+    namespace = "citrus-dev" if dev else "default"
     command = [
         "helm",
         "template",
         release,
         str(CHART_PATH),
         "--namespace",
-        release,
+        namespace,
     ]
     if dev:
         command.extend(["-f", str(DEV_VALUES)])
@@ -67,6 +64,42 @@ def _render(
     ]
 
 
+def _render_recurring_alerts() -> dict[str, dict[str, Any]]:
+    if shutil.which("helm") is None:
+        raise unittest.SkipTest("helm is required for chart render tests")
+    result = subprocess.run(
+        [
+            "helm",
+            "template",
+            "garz-observability",
+            str(OBSERVABILITY_CHART),
+            "--namespace",
+            "monitoring",
+            "-f",
+            str(OBSERVABILITY_VALUES),
+            "--show-only",
+            "templates/monitoring-prometheus-rules-configmap.yaml",
+        ],
+        check=True,
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    documents = [
+        document
+        for document in YAML_PARSER.load_all(result.stdout)
+        if isinstance(document, dict) and document
+    ]
+    rules_config = _named(documents, "ConfigMap", "prometheus-rules")
+    rules_document = YAML_PARSER.load(rules_config["data"]["critical-alerts.yaml"])
+    return {
+        rule["alert"]: rule
+        for group in rules_document["groups"]
+        for rule in group["rules"]
+        if str(rule.get("alert", "")).startswith("CitrusRecurring")
+    }
+
+
 def _named(documents, kind, name):
     return next(
         document
@@ -76,12 +109,23 @@ def _named(documents, kind, name):
     )
 
 
+def _metric_selectors(expression: str, metric: str) -> list[str]:
+    return [
+        " ".join(selector.split())
+        for selector in re.findall(
+            rf"{re.escape(metric)}\{{([^}}]+)\}}",
+            expression,
+        )
+    ]
+
+
 class CitrusRecurringRuntimeChartTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.default = _render(dev=False, activate=False)
         cls.dev = _render(dev=True, activate=False)
         cls.activated = _render(dev=True, activate=True)
+        cls.recurring_alerts = _render_recurring_alerts()
 
     def test_runtime_and_billing_worker_are_default_off_everywhere(self) -> None:
         for environment, documents in (("prod", self.default), ("dev", self.dev)):
@@ -236,20 +280,222 @@ class CitrusRecurringRuntimeChartTests(unittest.TestCase):
         )
         self.assertEqual(command[:3], ["python", "manage.py", "tick_recurring_orders"])
 
-    def test_observability_rules_alert_on_tick_and_health_job_failures(self) -> None:
-        rules = RULES_TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn("CitrusRecurringRuntimeHealthFailed", rules)
-        self.assertIn("CitrusRecurringRuntimeTickFailed", rules)
-        self.assertIn('owner_name=~"citrus(-dev)?-recurring-health"', rules)
-        self.assertIn('owner_name=~"citrus(-dev)?-recurring-tick"', rules)
-        self.assertIn("kube_job_status_start_time", rules)
-        self.assertIn("citrus_recurring_overdue_due_work", rules)
-        self.assertIn("citrus_recurring_webhook_lagged_payments", rules)
-        self.assertIn("CitrusRecurringRuntimeMetricsMissing", rules)
-        self.assertIn(
-            "citrus_recurring_confirmation_delivery_review_required",
-            rules,
+    def test_rendered_recurring_alert_contract_is_stable_and_exact(self) -> None:
+        expected_for = {
+            "CitrusRecurringRuntimeHealthFailed": "2m",
+            "CitrusRecurringRuntimeTickFailed": "2m",
+            "CitrusRecurringRuntimeExporterUnhealthy": "2m",
+            "CitrusRecurringRuntimeMetricsMissing": "2m",
+            "CitrusRecurringRuntimeWorkOverdue": "5m",
+            "CitrusRecurringRuntimeOutboxStale": "5m",
+            "CitrusRecurringBillingQueueUnavailable": "5m",
+            "CitrusRecurringNoticeFailures": "2m",
+            "CitrusRecurringConfirmationNeedsReview": "2m",
+            "CitrusRecurringPaymentReconciliationLag": "5m",
+            "CitrusRecurringChargeOrOrderStalled": "5m",
+        }
+        self.assertEqual(set(self.recurring_alerts), set(expected_for))
+        for name, duration in expected_for.items():
+            with self.subTest(alert=name):
+                alert = self.recurring_alerts[name]
+                self.assertEqual(alert["for"], duration)
+                self.assertEqual(alert["labels"]["severity"], "critical")
+                self.assertEqual(alert["labels"]["service"], "citrus")
+                self.assertNotIn(
+                    'namespace=~"citrus(-dev)?"',
+                    alert["expr"],
+                )
+                self.assertNotIn(
+                    'namespace=~"default|citrus-dev"',
+                    alert["expr"],
+                )
+                self.assertNotIn("citrus(-dev)?", alert["expr"])
+
+    def test_rendered_job_and_scrape_alerts_pair_and_reject_swaps(self) -> None:
+        for suffix, alert_name in (
+            ("health", "CitrusRecurringRuntimeHealthFailed"),
+            ("tick", "CitrusRecurringRuntimeTickFailed"),
+        ):
+            with self.subTest(alert=alert_name):
+                expression = self.recurring_alerts[alert_name]["expr"]
+                expected_namespaces = {
+                    'job="kube-state-metrics", namespace="default"',
+                    'job="kube-state-metrics", namespace="citrus-dev"',
+                }
+                self.assertEqual(
+                    set(_metric_selectors(expression, "kube_job_status_failed")),
+                    expected_namespaces,
+                )
+                self.assertEqual(
+                    set(_metric_selectors(expression, "kube_job_status_start_time")),
+                    expected_namespaces,
+                )
+                owner_selectors = set(
+                    _metric_selectors(expression, "kube_job_owner")
+                )
+                self.assertEqual(
+                    owner_selectors,
+                    {
+                        (
+                            'job="kube-state-metrics", namespace="default", '
+                            'owner_kind="CronJob", '
+                            f'owner_name="citrus-recurring-{suffix}"'
+                        ),
+                        (
+                            'job="kube-state-metrics", namespace="citrus-dev", '
+                            'owner_kind="CronJob", '
+                            f'owner_name="citrus-dev-recurring-{suffix}"'
+                        ),
+                    },
+                )
+                self.assertTrue(
+                    owner_selectors.isdisjoint(
+                        {
+                            (
+                                'job="kube-state-metrics", '
+                                'namespace="default", owner_kind="CronJob", '
+                                f'owner_name="citrus-dev-recurring-{suffix}"'
+                            ),
+                            (
+                                'job="kube-state-metrics", '
+                                'namespace="citrus-dev", '
+                                'owner_kind="CronJob", '
+                                f'owner_name="citrus-recurring-{suffix}"'
+                            ),
+                        }
+                    )
+                )
+
+        missing = self.recurring_alerts[
+            "CitrusRecurringRuntimeMetricsMissing"
+        ]["expr"]
+        self.assertEqual(missing.count("unless on (namespace)"), 2)
+        deployment_selectors = set(
+            _metric_selectors(missing, "kube_deployment_spec_replicas")
         )
+        self.assertEqual(
+            deployment_selectors,
+            {
+                (
+                    'job="kube-state-metrics", namespace="default", '
+                    'deployment="citrus-billing-worker"'
+                ),
+                (
+                    'job="kube-state-metrics", namespace="citrus-dev", '
+                    'deployment="citrus-dev-billing-worker"'
+                ),
+            },
+        )
+        self.assertTrue(
+            deployment_selectors.isdisjoint(
+                {
+                    (
+                        'job="kube-state-metrics", namespace="default", '
+                        'deployment="citrus-dev-billing-worker"'
+                    ),
+                    (
+                        'job="kube-state-metrics", namespace="citrus-dev", '
+                        'deployment="citrus-billing-worker"'
+                    ),
+                }
+            )
+        )
+        scrape_selectors = set(_metric_selectors(missing, "up"))
+        self.assertEqual(
+            scrape_selectors,
+            {
+                (
+                    'job="kubernetes-pods", namespace="default", '
+                    'pod=~"citrus-billing-worker-.*"'
+                ),
+                (
+                    'job="kubernetes-pods", namespace="citrus-dev", '
+                    'pod=~"citrus-dev-billing-worker-.*"'
+                ),
+            },
+        )
+        self.assertTrue(
+            scrape_selectors.isdisjoint(
+                {
+                    (
+                        'job="kubernetes-pods", namespace="default", '
+                        'pod=~"citrus-dev-billing-worker-.*"'
+                    ),
+                    (
+                        'job="kubernetes-pods", namespace="citrus-dev", '
+                        'pod=~"citrus-billing-worker-.*"'
+                    ),
+                }
+            )
+        )
+
+    def test_rendered_runtime_metrics_pair_and_reject_swapped_pods(self) -> None:
+        expected_metrics = {
+            "CitrusRecurringRuntimeExporterUnhealthy": (
+                "citrus_recurring_runtime_health",
+            ),
+            "CitrusRecurringRuntimeWorkOverdue": (
+                "citrus_recurring_overdue_due_work",
+            ),
+            "CitrusRecurringRuntimeOutboxStale": (
+                "citrus_recurring_oldest_outbox_age_seconds",
+                "citrus_recurring_stale_claims",
+            ),
+            "CitrusRecurringBillingQueueUnavailable": (
+                "citrus_recurring_billing_queue_unavailable",
+                "citrus_recurring_billing_queue_depth",
+            ),
+            "CitrusRecurringNoticeFailures": (
+                "citrus_recurring_recent_notice_failures",
+            ),
+            "CitrusRecurringConfirmationNeedsReview": (
+                "citrus_recurring_confirmation_delivery_review_required",
+            ),
+            "CitrusRecurringPaymentReconciliationLag": (
+                "citrus_recurring_webhook_lagged_payments",
+            ),
+            "CitrusRecurringChargeOrOrderStalled": (
+                "citrus_recurring_unclaimed_charge_due",
+                "citrus_recurring_stale_paid_cycles_missing_orders",
+            ),
+        }
+        for alert_name, metrics in expected_metrics.items():
+            expression = self.recurring_alerts[alert_name]["expr"]
+            if len(metrics) > 1:
+                self.assertIn("max by (job, namespace, pod)", expression)
+            for metric in metrics:
+                with self.subTest(alert=alert_name, metric=metric):
+                    selectors = set(_metric_selectors(expression, metric))
+                    self.assertEqual(
+                        selectors,
+                        {
+                            (
+                                'job="kubernetes-pods", namespace="default", '
+                                'pod=~"citrus-billing-worker-.*"'
+                            ),
+                            (
+                                'job="kubernetes-pods", '
+                                'namespace="citrus-dev", '
+                                'pod=~"citrus-dev-billing-worker-.*"'
+                            ),
+                        },
+                    )
+                    self.assertTrue(
+                        selectors.isdisjoint(
+                            {
+                                (
+                                    'job="kubernetes-pods", '
+                                    'namespace="default", '
+                                    'pod=~"citrus-dev-billing-worker-.*"'
+                                ),
+                                (
+                                    'job="kubernetes-pods", '
+                                    'namespace="citrus-dev", '
+                                    'pod=~"citrus-billing-worker-.*"'
+                                ),
+                            }
+                        )
+                    )
 
 
 if __name__ == "__main__":
