@@ -251,6 +251,10 @@ jobs:
             path: helm/skyquiet-server
             release: skyquiet-server
             prod_values: helm/skyquiet-server/values.yaml
+          - name: spotify-hot-100
+            path: helm/spotify-hot-100
+            release: spotify-hot-100
+            prod_values: helm/spotify-hot-100/values.yaml
           - name: poetry
             path: helm/poetry
             release: poetry
