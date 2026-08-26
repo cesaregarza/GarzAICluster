@@ -2,6 +2,21 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
+    "syncWaves": {
+      "type": "object",
+      "required": ["migrations", "smsReconciliation"],
+      "properties": {
+        "migrations": {
+          "type": "string",
+          "pattern": "^-?(0|[1-9][0-9]*)$"
+        },
+        "smsReconciliation": {
+          "type": "string",
+          "pattern": "^[0-9]+$",
+          "const": "3"
+        }
+      }
+    },
     "smsReconciliation": {
       "type": "object",
       "additionalProperties": false,
@@ -21,6 +36,7 @@
         "failedJobsHistoryLimit",
         "staleMinutes",
         "limit",
+        "networkPolicy",
         "resources"
       ],
       "properties": {
@@ -28,7 +44,8 @@
           "type": "boolean"
         },
         "suspend": {
-          "type": "boolean"
+          "type": "boolean",
+          "const": true
         },
         "secretName": {
           "type": "string",
@@ -48,11 +65,11 @@
         },
         "schedule": {
           "type": "string",
-          "minLength": 1
+          "const": "*/15 * * * *"
         },
         "timeZone": {
           "type": "string",
-          "minLength": 1
+          "const": "Etc/UTC"
         },
         "concurrencyPolicy": {
           "type": "string",
@@ -60,39 +77,106 @@
         },
         "startingDeadlineSeconds": {
           "type": "integer",
-          "minimum": 1
+          "const": 240
         },
         "activeDeadlineSeconds": {
           "type": "integer",
-          "minimum": 1
+          "const": 240
         },
         "backoffLimit": {
           "type": "integer",
-          "minimum": 0,
-          "maximum": 3
+          "const": 1
         },
         "successfulJobsHistoryLimit": {
           "type": "integer",
-          "minimum": 0
+          "const": 2
         },
         "failedJobsHistoryLimit": {
           "type": "integer",
-          "minimum": 1
+          "const": 3
         },
         "staleMinutes": {
           "type": "integer",
-          "minimum": 5,
-          "maximum": 1440
+          "const": 15
         },
         "limit": {
           "type": "integer",
-          "minimum": 1,
-          "maximum": 100
+          "const": 100
+        },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "provider",
+            "revision",
+            "syncWave",
+            "dns",
+            "database"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "provider": {
+              "type": "string",
+              "enum": ["", "cilium"]
+            },
+            "revision": {
+              "type": "string",
+              "maxLength": 63,
+              "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "syncWave": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "const": "2"
+            },
+            "dns": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["namespace", "podLabels"],
+              "properties": {
+                "namespace": {
+                  "type": "string",
+                  "const": "kube-system"
+                },
+                "podLabels": {
+                  "type": "object",
+                  "const": {"k8s-app": "kube-dns"}
+                }
+              }
+            },
+            "database": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["host", "port"],
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "maxLength": 253,
+                  "pattern": "^$|^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$",
+                  "allOf": [
+                    {"not": {"pattern": "^[0-9]+(?:\\.[0-9]+){3}$"}},
+                    {"not": {"pattern": "(^|\\.)(stripe|twilio|sendgrid|mailgun|paypal|braintree|adyen)(\\.|$)"}}
+                  ]
+                },
+                "port": {
+                  "type": "integer",
+                  "const": 25060
+                }
+              }
+            }
+          }
         },
         "resources": {
           "type": "object",
           "additionalProperties": false,
           "required": ["requests", "limits"],
+          "const": {
+            "requests": {"cpu": "50m", "memory": "128Mi"},
+            "limits": {"cpu": "250m", "memory": "256Mi"}
+          },
           "properties": {
             "requests": {
               "type": "object",
@@ -104,7 +188,380 @@
             }
           }
         }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {"const": true}
+            },
+            "required": ["enabled"]
+          },
+          "then": {
+            "properties": {
+              "suspend": {"const": true},
+              "networkPolicy": {
+                "properties": {
+                  "enabled": {"const": true},
+                  "provider": {"const": "cilium"},
+                  "revision": {"minLength": 1},
+                  "database": {
+                    "properties": {
+                      "host": {"minLength": 3}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "paymentCredentials": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "secretName",
+        "owner",
+        "rolloutRevision",
+        "webhookEnvironmentVariable"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "secretName": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$"
+        },
+        "owner": {
+          "type": "string",
+          "enum": ["", "citrus-dev", "citrus"]
+        },
+        "rolloutRevision": {
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "webhookEnvironmentVariable": {
+          "type": "string",
+          "enum": [
+            "",
+            "STRIPE_WEBHOOK_SECRET_DEV",
+            "STRIPE_WEBHOOK_SECRET_PROD"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {"const": true}
+            }
+          },
+          "then": {
+            "properties": {
+              "secretName": {"minLength": 1},
+              "owner": {"enum": ["citrus-dev", "citrus"]},
+              "rolloutRevision": {"minLength": 1},
+              "webhookEnvironmentVariable": {
+                "enum": [
+                  "STRIPE_WEBHOOK_SECRET_DEV",
+                  "STRIPE_WEBHOOK_SECRET_PROD"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "enabled": {"const": true},
+              "webhookEnvironmentVariable": {
+                "const": "STRIPE_WEBHOOK_SECRET_DEV"
+              }
+            },
+            "required": ["enabled", "webhookEnvironmentVariable"]
+          },
+          "then": {
+            "properties": {
+              "secretName": {"const": "citrus-dev-payment-credentials"},
+              "owner": {"const": "citrus-dev"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "enabled": {"const": true},
+              "webhookEnvironmentVariable": {
+                "const": "STRIPE_WEBHOOK_SECRET_PROD"
+              }
+            },
+            "required": ["enabled", "webhookEnvironmentVariable"]
+          },
+          "then": {
+            "properties": {
+              "secretName": {"const": "citrus-prod-payment-credentials"},
+              "owner": {"const": "citrus"}
+            }
+          }
+        }
+      ]
+    },
+    "paymentSafety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "environment",
+        "owner",
+        "networkMode",
+        "policy",
+        "networkPolicy"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "environment": {
+          "type": "string",
+          "enum": ["", "development", "production"]
+        },
+        "owner": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$"
+        },
+        "networkMode": {
+          "type": "string",
+          "enum": ["", "deny", "allow"]
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["required", "provider", "revision"],
+          "properties": {
+            "required": {
+              "type": "boolean"
+            },
+            "provider": {
+              "type": "string",
+              "enum": ["", "cilium"]
+            },
+            "revision": {
+              "type": "string",
+              "maxLength": 63,
+              "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }
+          }
+        },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "syncWave",
+            "dns",
+            "database",
+            "additionalExternalEgress"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "syncWave": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            },
+            "dns": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["namespace", "podLabels"],
+              "properties": {
+                "namespace": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$"
+                },
+                "podLabels": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "additionalProperties": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            "database": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["host", "port"],
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "pattern": "^$|^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+                },
+                "port": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535
+                }
+              }
+            },
+            "additionalExternalEgress": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "host", "ports"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 63,
+                    "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$"
+                  },
+                  "host": {
+                    "type": "string",
+                    "minLength": 3,
+                    "pattern": "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+                  },
+                  "ports": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 65535
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {"const": true}
+            }
+          },
+          "then": {
+            "properties": {
+              "environment": {
+                "enum": ["development", "production"]
+              },
+              "owner": {
+                "minLength": 1
+              },
+              "networkMode": {
+                "enum": ["deny", "allow"]
+              },
+              "policy": {
+                "properties": {
+                  "required": {"const": true},
+                  "provider": {"const": "cilium"},
+                  "revision": {"minLength": 1}
+                }
+              },
+              "networkPolicy": {
+                "properties": {
+                  "enabled": {"const": true}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "enabled": {"const": true},
+              "environment": {"const": "development"}
+            },
+            "required": ["enabled", "environment"]
+          },
+          "then": {
+            "properties": {
+              "owner": {"const": "citrus-dev"},
+              "networkMode": {"const": "deny"},
+              "networkPolicy": {
+                "properties": {
+                  "database": {
+                    "properties": {
+                      "host": {"minLength": 1}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "enabled": {"const": true},
+              "environment": {"const": "production"}
+            },
+            "required": ["enabled", "environment"]
+          },
+          "then": {
+            "properties": {
+              "owner": {"const": "citrus"},
+              "networkMode": {"const": "allow"}
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "smsReconciliation": {
+            "properties": {
+              "enabled": {"const": true}
+            },
+            "required": ["enabled"]
+          }
+        },
+        "required": ["smsReconciliation"]
+      },
+      "then": {
+        "properties": {
+          "image": {
+            "type": "object",
+            "properties": {
+              "repository": {
+                "const": "registry.digitalocean.com/sendouq/citrus"
+              }
+            },
+            "required": ["repository"]
+          },
+          "migrations": {
+            "type": "object",
+            "properties": {
+              "enabled": {"const": true}
+            },
+            "required": ["enabled"]
+          },
+          "application": {
+            "type": "object",
+            "properties": {
+              "configMapName": {"const": "django-config"}
+            },
+            "required": ["configMapName"]
+          }
+        },
+        "required": ["image", "migrations", "application"]
       }
     }
-  }
+  ]
 }

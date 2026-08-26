@@ -11,18 +11,20 @@ Read them in roughly this order when contributing here:
 6. `secrets-strategy.md` – SOPS + Age plan, rotation, and CI/Dev ergonomics.
 7. `mandate-apply.md` – local declarative enablement planner for Mandate
    workload capability wiring.
-8. `runbooks/postgres-restore.md` – DigitalOcean managed Postgres restore
+8. `runbooks/prometheus-historical-query-safety.md` – bounded multi-day
+   Prometheus evidence and right-sizing query procedure.
+9. `runbooks/postgres-restore.md` – DigitalOcean managed Postgres restore
    procedure for the live Mandate `agent-control-plane` deployment.
-9. `runbooks/citrus-spaces-cors.md` – DigitalOcean Spaces CORS procedure for
+10. `runbooks/citrus-spaces-cors.md` – DigitalOcean Spaces CORS procedure for
    Citrus Grace browser media uploads.
-10. `runbooks/citrus-payment-secret-isolation.md` – value-free, operator-gated
+11. `runbooks/citrus-payment-secret-isolation.md` – value-free, operator-gated
     Citrus dev payment credential deprojection and isolation procedure.
-11. `runbooks/citrus-sms-reconciliation.md` – disabled-by-default Citrus SMS
+12. `runbooks/citrus-sms-reconciliation.md` – disabled-by-default Citrus SMS
     reconciliation scheduler gates, synthetic validation, and rollback.
-12. `../infra/ingress-nginx/README.md` – operator-gated CES-748 blue/green
+13. `../infra/ingress-nginx/README.md` – operator-gated CES-748 blue/green
     source-IP load-balancer activation and rollback.
-13. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
-14. `k8s/secrets.template.yaml` → `k8s/secrets.enc.yaml` – example flow for encrypted secrets.
+14. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
+15. `k8s/secrets.template.yaml` → `k8s/secrets.enc.yaml` – example flow for encrypted secrets.
 
 Supplemental references:
 

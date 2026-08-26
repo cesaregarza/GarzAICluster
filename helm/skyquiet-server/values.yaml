@@ -15,7 +15,7 @@ api:
   replicaCount: 1
   resources:
     requests:
-      cpu: 50m
+      cpu: 30m
       memory: 128Mi
     limits:
       cpu: 500m

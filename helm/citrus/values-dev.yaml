@@ -1,5 +1,5 @@
 image:
-  tag: 0e2258bf95c6170895c26780258eb42d5b5c557c # allow-latest
+  tag: 4353f11595094bc4893b5799233cfd56c52aed89 # allow-latest
 
 strategy:
   type: RollingUpdate
@@ -56,6 +56,12 @@ smsReconciliation:
   secretName: ""
   verifiedImageTag: ""
   commandCompatibleImageTags: []
+  networkPolicy:
+    enabled: false
+    provider: ""
+    revision: ""
+    database:
+      host: ""
 
 mediaRequeue:
   enabled: true

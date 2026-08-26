@@ -29,6 +29,16 @@ class CitrusCiContractTests(unittest.TestCase):
             if isinstance(step, dict) and "name" in step
         }
 
+    def test_python_contract_job_installs_pinned_helm(self) -> None:
+        steps = {
+            step["name"]: step
+            for step in _workflow()["jobs"]["python-contracts"]["steps"]
+            if isinstance(step, dict) and "name" in step
+        }
+        helm = steps["Set up Helm for chart contract tests"]
+        self.assertEqual(helm["uses"], "azure/setup-helm@v4")
+        self.assertEqual(helm["with"]["version"], "v3.14.0")
+
     def test_citrus_is_a_first_class_helm_matrix_entry(self) -> None:
         citrus = next(
             chart
@@ -73,7 +83,7 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-optional-workloads.yaml'
             ),
             (
-                'helm template citrus-ci-sms-prod "$chart" '
+                'helm template citrus "$chart" '
                 '--namespace default -f "$chart/values.yaml" '
                 '--show-only templates/sms-reconciliation-cronjob.yaml '
                 '--set-string '
@@ -86,14 +96,23 @@ class CitrusCiContractTests(unittest.TestCase):
                 "'smsReconciliation.commandCompatibleImageTags[0]="
                 "0e2258bf95c6170895c26780258eb42d5b5c557c' "
                 '--set-string smsReconciliation.secretName='
-                'citrus-ci-sms-reconciliation-runtime '
+                'citrus-sms-reconciliation-runtime '
+                '--set smsReconciliation.networkPolicy.enabled=true '
+                '--set-string '
+                'smsReconciliation.networkPolicy.provider=cilium '
+                '--set-string '
+                'smsReconciliation.networkPolicy.revision=ces-848-ci '
+                '--set-string smsReconciliation.networkPolicy.database.host='
+                'db.sms-reconciliation.example '
                 '> rendered/citrus-sms-reconciliation-prod.yaml'
             ),
             (
-                'helm template citrus-ci-sms-dev "$chart" '
+                'helm template citrus-dev "$chart" '
                 '--namespace citrus-dev -f "$chart/values.yaml" '
                 '-f "$chart/values-dev.yaml" '
                 '--show-only templates/sms-reconciliation-cronjob.yaml '
+                '--set-string '
+                'image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c '
                 '--set smsReconciliation.enabled=true '
                 '--set-string '
                 'smsReconciliation.verifiedImageTag='
@@ -102,13 +121,28 @@ class CitrusCiContractTests(unittest.TestCase):
                 "'smsReconciliation.commandCompatibleImageTags[0]="
                 "0e2258bf95c6170895c26780258eb42d5b5c557c' "
                 '--set-string smsReconciliation.secretName='
-                'citrus-ci-sms-reconciliation-runtime '
+                'citrus-dev-sms-reconciliation-runtime '
+                '--set smsReconciliation.networkPolicy.enabled=true '
+                '--set-string '
+                'smsReconciliation.networkPolicy.provider=cilium '
+                '--set-string '
+                'smsReconciliation.networkPolicy.revision=ces-848-ci '
+                '--set-string smsReconciliation.networkPolicy.database.host='
+                'db.sms-reconciliation.example '
                 '> rendered/citrus-sms-reconciliation-dev.yaml'
             ),
             (
                 'helm template citrus-ci-payment-prod "$chart" '
                 '--namespace default -f "$chart/values.yaml" '
                 '-f "$chart/values-payment-prod.yaml" '
+                '--set paymentSafety.enabled=true '
+                '--set-string paymentSafety.environment=production '
+                '--set-string paymentSafety.owner=citrus '
+                '--set-string paymentSafety.networkMode=allow '
+                '--set paymentSafety.policy.required=true '
+                '--set-string paymentSafety.policy.provider=cilium '
+                '--set-string paymentSafety.policy.revision=ces-845-ci '
+                '--set paymentSafety.networkPolicy.enabled=true '
                 '> rendered/citrus-payment-prod.yaml'
             ),
             (
@@ -116,7 +150,48 @@ class CitrusCiContractTests(unittest.TestCase):
                 '--namespace citrus-dev -f "$chart/values.yaml" '
                 '-f "$chart/values-dev.yaml" '
                 '-f "$chart/values-payment-dev.yaml" '
+                '--set paymentSafety.enabled=true '
+                '--set-string paymentSafety.environment=development '
+                '--set-string paymentSafety.owner=citrus-dev '
+                '--set-string paymentSafety.networkMode=deny '
+                '--set paymentSafety.policy.required=true '
+                '--set-string paymentSafety.policy.provider=cilium '
+                '--set-string paymentSafety.policy.revision=ces-845-ci '
+                '--set paymentSafety.networkPolicy.enabled=true '
+                '--set-string '
+                'paymentSafety.networkPolicy.database.host=db.dev.example '
                 '> rendered/citrus-payment-dev.yaml'
+            ),
+            (
+                'helm template citrus-ci-payment-safety-dev "$chart" '
+                '--namespace citrus-dev -f "$chart/values.yaml" '
+                '-f "$chart/values-dev.yaml" '
+                '--set paymentSafety.enabled=true '
+                '--set-string paymentSafety.environment=development '
+                '--set-string paymentSafety.owner=citrus-dev '
+                '--set-string paymentSafety.networkMode=deny '
+                '--set paymentSafety.policy.required=true '
+                '--set-string paymentSafety.policy.provider=cilium '
+                '--set-string paymentSafety.policy.revision=ces-845-ci '
+                '--set paymentSafety.networkPolicy.enabled=true '
+                '--set-string '
+                'paymentSafety.networkPolicy.database.host=db.dev.example '
+                '--set billingWorker.enabled=true '
+                '--set recurringRuntime.enabled=true '
+                '> rendered/citrus-payment-safety-dev.yaml'
+            ),
+            (
+                'helm template citrus-ci-payment-safety-prod "$chart" '
+                '--namespace default -f "$chart/values.yaml" '
+                '--set paymentSafety.enabled=true '
+                '--set-string paymentSafety.environment=production '
+                '--set-string paymentSafety.owner=citrus '
+                '--set-string paymentSafety.networkMode=allow '
+                '--set paymentSafety.policy.required=true '
+                '--set-string paymentSafety.policy.provider=cilium '
+                '--set-string paymentSafety.policy.revision=ces-845-ci '
+                '--set paymentSafety.networkPolicy.enabled=true '
+                '> rendered/citrus-payment-safety-prod.yaml'
             ),
         ):
             with self.subTest(expected=expected):
@@ -154,6 +229,24 @@ class CitrusCiContractTests(unittest.TestCase):
         self.assertIn("must not import a Secret with envFrom", run)
         self.assertIn("rendered a broad or provider Secret reference", run)
         self.assertIn("exactly six named runtime keys", run)
+        for expected in (
+            "kind: CiliumNetworkPolicy",
+            'argocd.argoproj.io/sync-wave: "2"',
+            "citrus.grace/sms-reconciliation-egress: restricted",
+            "citrus.grace/sms-reconciliation-egress-policy-revision",
+            "DNS-plus-exact-DB only",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, run)
+        for expected in (
+            "Current Citrus Argo renders must keep CES-845 disabled",
+            "citrus-payment-safety-dev.yaml",
+            "citrus-payment-safety-prod.yaml",
+            "PAYMENT_EGRESS_POLICY_REVISION",
+            "Development payment egress render must omit every Stripe destination",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, run)
 
     def test_pinned_strict_kubeconform_covers_every_render(self) -> None:
         helm_setup = self.steps["Set up Helm"]

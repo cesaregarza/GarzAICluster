@@ -1,5 +1,139 @@
 {{- if .Values.smsReconciliation.enabled }}
+{{- $isProductionRelease := and (eq .Release.Name "citrus") (eq .Release.Namespace "default") }}
+{{- $isDevRelease := and (eq .Release.Name "citrus-dev") (eq .Release.Namespace "citrus-dev") }}
+{{- if not (or $isProductionRelease $isDevRelease) }}
+{{- fail "smsReconciliation.enabled requires release/namespace citrus/default or citrus-dev/citrus-dev" }}
+{{- end }}
+{{- if ne (toString .Values.image.repository) "registry.digitalocean.com/sendouq/citrus" }}
+{{- fail "smsReconciliation.enabled requires image.repository registry.digitalocean.com/sendouq/citrus" }}
+{{- end }}
+{{- if not .Values.migrations.enabled }}
+{{- fail "smsReconciliation.enabled requires migrations.enabled=true" }}
+{{- end }}
+{{- if ne (toString .Values.application.configMapName) "django-config" }}
+{{- fail "smsReconciliation.enabled requires application.configMapName django-config" }}
+{{- end }}
+{{- if not .Values.smsReconciliation.suspend }}
+{{- fail "smsReconciliation.enabled requires smsReconciliation.suspend=true; unsuspend requires a separately reviewed chart change" }}
+{{- end }}
+{{- if ne (toString .Values.smsReconciliation.schedule) "*/15 * * * *" }}
+{{- fail "smsReconciliation.schedule must remain exactly */15 * * * *" }}
+{{- end }}
+{{- if ne (toString .Values.smsReconciliation.timeZone) "Etc/UTC" }}
+{{- fail "smsReconciliation.timeZone must remain exactly Etc/UTC" }}
+{{- end }}
+{{- if ne (toString .Values.smsReconciliation.concurrencyPolicy) "Forbid" }}
+{{- fail "smsReconciliation.concurrencyPolicy must remain exactly Forbid" }}
+{{- end }}
+{{- if ne (int .Values.smsReconciliation.startingDeadlineSeconds) 240 }}
+{{- fail "smsReconciliation.startingDeadlineSeconds must remain exactly 240" }}
+{{- end }}
+{{- if ne (int .Values.smsReconciliation.activeDeadlineSeconds) 240 }}
+{{- fail "smsReconciliation.activeDeadlineSeconds must remain exactly 240" }}
+{{- end }}
+{{- if ne (int .Values.smsReconciliation.backoffLimit) 1 }}
+{{- fail "smsReconciliation.backoffLimit must remain exactly 1" }}
+{{- end }}
+{{- if ne (int .Values.smsReconciliation.successfulJobsHistoryLimit) 2 }}
+{{- fail "smsReconciliation.successfulJobsHistoryLimit must remain exactly 2" }}
+{{- end }}
+{{- if ne (int .Values.smsReconciliation.failedJobsHistoryLimit) 3 }}
+{{- fail "smsReconciliation.failedJobsHistoryLimit must remain exactly 3" }}
+{{- end }}
+{{- if ne (int .Values.smsReconciliation.staleMinutes) 15 }}
+{{- fail "smsReconciliation.staleMinutes must remain exactly 15" }}
+{{- end }}
+{{- if ne (int .Values.smsReconciliation.limit) 100 }}
+{{- fail "smsReconciliation.limit must remain exactly 100" }}
+{{- end }}
+{{- $expectedResources := dict "requests" (dict "cpu" "50m" "memory" "128Mi") "limits" (dict "cpu" "250m" "memory" "256Mi") }}
+{{- if not (deepEqual .Values.smsReconciliation.resources $expectedResources) }}
+{{- fail "smsReconciliation.resources must remain requests 50m/128Mi and limits 250m/256Mi" }}
+{{- end }}
+{{- if not (kindIs "string" .Values.syncWaves.smsReconciliation) }}
+{{- fail "syncWaves.smsReconciliation must be an integer string" }}
+{{- end }}
+{{- if not (kindIs "string" .Values.syncWaves.migrations) }}
+{{- fail "syncWaves.migrations must be an integer string when smsReconciliation.enabled=true" }}
+{{- end }}
+{{- $smsSyncWaveValue := .Values.syncWaves.smsReconciliation }}
+{{- $migrationsSyncWaveValue := .Values.syncWaves.migrations }}
+{{- if not (regexMatch "^-?(0|[1-9][0-9]*)$" $smsSyncWaveValue) }}
+{{- fail "syncWaves.smsReconciliation must be an integer string" }}
+{{- end }}
+{{- if not (regexMatch "^-?(0|[1-9][0-9]*)$" $migrationsSyncWaveValue) }}
+{{- fail "syncWaves.migrations must be an integer string when smsReconciliation.enabled=true" }}
+{{- end }}
+{{- $smsSyncWave := int $smsSyncWaveValue }}
+{{- $migrationsSyncWave := int $migrationsSyncWaveValue }}
+{{- if le $smsSyncWave $migrationsSyncWave }}
+{{- fail "syncWaves.smsReconciliation must be strictly after syncWaves.migrations" }}
+{{- end }}
+{{- if ne $smsSyncWaveValue "3" }}
+{{- fail "syncWaves.smsReconciliation must remain exactly 3" }}
+{{- end }}
+{{- $networkPolicy := .Values.smsReconciliation.networkPolicy }}
+{{- if not $networkPolicy.enabled }}
+{{- fail "smsReconciliation.enabled requires smsReconciliation.networkPolicy.enabled=true" }}
+{{- end }}
+{{- if ne (toString $networkPolicy.provider) "cilium" }}
+{{- fail "smsReconciliation.enabled requires smsReconciliation.networkPolicy.provider=cilium" }}
+{{- end }}
+{{- $networkPolicyRevision := required "smsReconciliation.enabled requires smsReconciliation.networkPolicy.revision" $networkPolicy.revision }}
+{{- if not (regexMatch "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$" $networkPolicyRevision) }}
+{{- fail "smsReconciliation.networkPolicy.revision must be a valid immutable receipt" }}
+{{- end }}
+{{- if not (kindIs "string" $networkPolicy.syncWave) }}
+{{- fail "smsReconciliation.networkPolicy.syncWave must be an integer string" }}
+{{- end }}
+{{- $networkPolicySyncWaveValue := $networkPolicy.syncWave }}
+{{- if not (regexMatch "^(0|[1-9][0-9]*)$" $networkPolicySyncWaveValue) }}
+{{- fail "smsReconciliation.networkPolicy.syncWave must be an integer string" }}
+{{- end }}
+{{- if ne $networkPolicySyncWaveValue "2" }}
+{{- fail "smsReconciliation.networkPolicy.syncWave must remain exactly 2" }}
+{{- end }}
+{{- $networkPolicySyncWave := int $networkPolicySyncWaveValue }}
+{{- if or (le $networkPolicySyncWave $migrationsSyncWave) (ge $networkPolicySyncWave $smsSyncWave) }}
+{{- fail "smsReconciliation.networkPolicy.syncWave must be strictly after migrations and before smsReconciliation" }}
+{{- end }}
+{{- if ne (toString $networkPolicy.dns.namespace) "kube-system" }}
+{{- fail "smsReconciliation.networkPolicy.dns.namespace must remain kube-system" }}
+{{- end }}
+{{- if or (ne (len $networkPolicy.dns.podLabels) 1) (ne (toString (index $networkPolicy.dns.podLabels "k8s-app")) "kube-dns") }}
+{{- fail "smsReconciliation.networkPolicy.dns.podLabels must remain exactly k8s-app=kube-dns" }}
+{{- end }}
+{{- range $forbiddenKey := list "additionalExternalEgress" "toEntities" "world" "all" "egress" }}
+{{- if hasKey $networkPolicy $forbiddenKey }}
+{{- fail (printf "smsReconciliation.networkPolicy must not configure %s" $forbiddenKey) }}
+{{- end }}
+{{- end }}
+{{- $databaseHost := required "smsReconciliation.enabled requires an exact smsReconciliation.networkPolicy.database.host" $networkPolicy.database.host }}
+{{- if gt (len $databaseHost) 253 }}
+{{- fail "smsReconciliation.networkPolicy.database.host must not exceed 253 characters" }}
+{{- end }}
+{{- if or (contains "*" $databaseHost) (contains ".." $databaseHost) (not (contains "." $databaseHost)) }}
+{{- fail "smsReconciliation.networkPolicy.database.host must be one exact lower-case DNS FQDN without wildcards" }}
+{{- end }}
+{{- range $databaseLabel := splitList "." $databaseHost }}
+{{- if or (gt (len $databaseLabel) 63) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $databaseLabel)) }}
+{{- fail "smsReconciliation.networkPolicy.database.host must be one exact lower-case DNS FQDN without wildcards" }}
+{{- end }}
+{{- end }}
+{{- if regexMatch "^[0-9.]+$" $databaseHost }}
+{{- fail "smsReconciliation.networkPolicy.database.host must not be an IP address" }}
+{{- end }}
+{{- if regexMatch "(^|[.])(stripe|twilio|sendgrid|mailgun|paypal|braintree|adyen)([.]|$)" $databaseHost }}
+{{- fail "smsReconciliation.networkPolicy.database.host must not name a payment, messaging, or email provider" }}
+{{- end }}
+{{- $databasePort := int $networkPolicy.database.port }}
+{{- if ne $databasePort 25060 }}
+{{- fail "smsReconciliation.networkPolicy.database.port must remain exactly 25060" }}
+{{- end }}
 {{- $imageTag := required "smsReconciliation.enabled requires an immutable image.tag" .Values.image.tag }}
+{{- if not (regexMatch "^[0-9a-f]{40}$" (toString $imageTag)) }}
+{{- fail "smsReconciliation.enabled requires image.tag to be exactly 40 lowercase hexadecimal characters" }}
+{{- end }}
 {{- $verifiedImageTag := required "smsReconciliation.enabled requires smsReconciliation.verifiedImageTag after verifying sweep_manual_order_sms_attempts exists in the image" .Values.smsReconciliation.verifiedImageTag }}
 {{- if ne (toString $verifiedImageTag) (toString $imageTag) }}
 {{- fail (printf "smsReconciliation.verifiedImageTag %q must exactly match image.tag %q" (toString $verifiedImageTag) (toString $imageTag)) }}
@@ -8,6 +142,10 @@
 {{- fail (printf "image.tag %q is not listed in smsReconciliation.commandCompatibleImageTags" (toString $imageTag)) }}
 {{- end }}
 {{- $runtimeSecretName := required "smsReconciliation.enabled requires a dedicated smsReconciliation.secretName" .Values.smsReconciliation.secretName }}
+{{- $expectedRuntimeSecretName := ternary "citrus-dev-sms-reconciliation-runtime" "citrus-sms-reconciliation-runtime" $isDevRelease }}
+{{- if ne $runtimeSecretName $expectedRuntimeSecretName }}
+{{- fail (printf "smsReconciliation.secretName must remain exactly %s for this release" $expectedRuntimeSecretName) }}
+{{- end }}
 {{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $runtimeSecretName) }}
 {{- fail "smsReconciliation.secretName must be a valid Kubernetes Secret name" }}
 {{- end }}
@@ -19,6 +157,44 @@
 {{- fail "smsReconciliation.secretName must identify a dedicated provider-free runtime Secret" }}
 {{- end }}
 {{- $runtimeSecretKeys := list "DJANGO_SECRET_KEY" "DB_NAME" "DB_USER" "DB_PASSWORD" "DB_HOST" "DB_PORT" }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "citrus.fullname" . }}-sms-reconciliation-egress
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sms-reconciliation-egress
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    citrus.grace/sms-reconciliation-egress-policy-revision: {{ $networkPolicyRevision | quote }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      citrus.grace/sms-reconciliation-egress: restricted
+  enableDefaultDeny:
+    egress: true
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            "k8s:io.kubernetes.pod.namespace": "kube-system"
+            "k8s:k8s-app": "kube-dns"
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchName: {{ $databaseHost | quote }}
+    - toFQDNs:
+        - matchName: {{ $databaseHost | quote }}
+      toPorts:
+        - ports:
+            - port: "25060"
+              protocol: TCP
+---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -27,28 +203,29 @@ metadata:
     {{- include "citrus.labels" . | nindent 4 }}
     app.kubernetes.io/component: sms-reconciliation
   annotations:
-    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.smsReconciliation | quote }}
+    argocd.argoproj.io/sync-wave: "3"
 spec:
-  schedule: {{ .Values.smsReconciliation.schedule | quote }}
-  timeZone: {{ .Values.smsReconciliation.timeZone | quote }}
-  suspend: {{ .Values.smsReconciliation.suspend }}
-  concurrencyPolicy: {{ .Values.smsReconciliation.concurrencyPolicy }}
-  startingDeadlineSeconds: {{ .Values.smsReconciliation.startingDeadlineSeconds }}
-  successfulJobsHistoryLimit: {{ .Values.smsReconciliation.successfulJobsHistoryLimit }}
-  failedJobsHistoryLimit: {{ .Values.smsReconciliation.failedJobsHistoryLimit }}
+  schedule: "*/15 * * * *"
+  timeZone: "Etc/UTC"
+  suspend: true
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 240
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
   jobTemplate:
     metadata:
       labels:
         {{- include "citrus.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: sms-reconciliation
     spec:
-      activeDeadlineSeconds: {{ .Values.smsReconciliation.activeDeadlineSeconds }}
-      backoffLimit: {{ .Values.smsReconciliation.backoffLimit }}
+      activeDeadlineSeconds: 240
+      backoffLimit: 1
       template:
         metadata:
           labels:
             {{- include "citrus.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: sms-reconciliation
+            citrus.grace/sms-reconciliation-egress: restricted
         spec:
           automountServiceAccountToken: false
           {{- include "citrus.imagePullSecrets" . | nindent 10 }}
@@ -64,9 +241,9 @@ spec:
                 - manage.py
                 - sweep_manual_order_sms_attempts
                 - --stale-minutes
-                - {{ .Values.smsReconciliation.staleMinutes | quote }}
+                - "15"
                 - --limit
-                - {{ .Values.smsReconciliation.limit | quote }}
+                - "100"
               securityContext:
                 {{- toYaml .Values.containerSecurityContext | nindent 16 }}
               # Explicit env entries override any same-named envFrom values.
@@ -88,5 +265,10 @@ spec:
                 - configMapRef:
                     name: {{ .Values.application.configMapName }}
               resources:
-                {{- toYaml .Values.smsReconciliation.resources | nindent 16 }}
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
 {{- end }}
