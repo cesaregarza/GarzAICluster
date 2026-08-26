@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import unittest
@@ -18,6 +19,22 @@ RUNBOOK_PATH = (
     REPO_ROOT / "docs" / "runbooks" / "citrus-payment-secret-isolation.md"
 )
 YAML_PARSER = YAML(typ="safe")
+HELM_JSON_POINTER = re.compile(
+    r"(?P<quote>['\"])/(?P<path>[A-Za-z0-9_./-]+)(?P=quote)"
+)
+
+
+def _normalize_helm_error(stderr: str) -> str:
+    """Normalize version-dependent quoted JSON Pointer schema paths."""
+
+    return HELM_JSON_POINTER.sub(
+        lambda match: (
+            f"{match.group('quote')}"
+            f"{match.group('path').replace('/', '.')}"
+            f"{match.group('quote')}"
+        ),
+        stderr,
+    )
 
 
 def _render(
@@ -413,7 +430,19 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                     text=True,
                 )
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(message, result.stderr)
+                self.assertIn(message, _normalize_helm_error(result.stderr))
+
+    def test_helm_schema_paths_are_normalized_across_ci_versions(self) -> None:
+        hosted = (
+            "- at '/paymentCredentials/secretName': "
+            "minLength: got 0, want 1"
+        )
+        local = "paymentCredentials.secretName: Must have at least 1 characters"
+        self.assertIn(
+            "paymentCredentials.secretName",
+            _normalize_helm_error(hosted),
+        )
+        self.assertEqual(_normalize_helm_error(local), local)
 
     def test_runbook_accepts_shared_trusted_gitops_control_plane(self) -> None:
         runbook = " ".join(
