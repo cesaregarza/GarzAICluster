@@ -71,9 +71,23 @@ monitoring:
     query:
       # Quote large integers so Helm does not render them in scientific
       # notation, which Prometheus's integer flag parser does not accept.
-      maxSamples: "5000000"
-      maxConcurrency: 5
-      timeout: 60s
+      # The supported 14-day history path returns one bounded recording series
+      # at a time.  Keep two engine slots so alert rules are not starved by one
+      # operator query, while rejecting the broad raw joins that caused the
+      # CES-856 OOM before they can consume the old five-million-sample budget.
+      maxSamples: "500000"
+      maxConcurrency: 2
+      timeout: 30s
+    querySafety:
+      # The group-level cap fails a rule whose output cardinality grows beyond
+      # its reviewed envelope. It does not limit expression inputs; fixed
+      # selectors plus query.maxSamples provide that engine guard. The runbook
+      # further requires exact selectors and one operator query at a time.
+      recordingInterval: 15s
+      maxSeriesPerRule: 20
+      # 75% of the existing 2 GiB container limit.  This leaves 512 MiB for
+      # query, mmap, WAL replay, and compaction pressure before cgroup OOM.
+      memoryPressureThresholdBytes: "1610612736"
     fastapiScrape:
       # The SplatTop application runs in default while this chart is released
       # into monitoring, so discovery must not use .Release.Namespace.
