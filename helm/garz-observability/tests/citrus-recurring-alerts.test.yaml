@@ -1,0 +1,266 @@
+rule_files:
+  - critical-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - name: Citrus recurring alerts cover production and dev only
+    interval: 1m
+    input_series:
+      - series: 'kube_job_status_failed{job="kube-state-metrics",namespace="default",job_name="citrus-recurring-health-28992000"}'
+        values: '1x8'
+      - series: 'kube_job_status_start_time{job="kube-state-metrics",namespace="default",job_name="citrus-recurring-health-28992000"}'
+        values: '0x8'
+      - series: 'kube_job_owner{job="kube-state-metrics",namespace="default",job_name="citrus-recurring-health-28992000",owner_kind="CronJob",owner_name="citrus-recurring-health"}'
+        values: '1x8'
+      - series: 'kube_job_status_failed{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-dev-recurring-health-28992000"}'
+        values: '1x8'
+      - series: 'kube_job_status_start_time{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-dev-recurring-health-28992000"}'
+        values: '0x8'
+      - series: 'kube_job_owner{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-dev-recurring-health-28992000",owner_kind="CronJob",owner_name="citrus-dev-recurring-health"}'
+        values: '1x8'
+      - series: 'kube_job_status_failed{job="kube-state-metrics",namespace="default",job_name="unrelated-health-28992000"}'
+        values: '1x8'
+      - series: 'kube_job_status_start_time{job="kube-state-metrics",namespace="default",job_name="unrelated-health-28992000"}'
+        values: '0x8'
+      - series: 'kube_job_owner{job="kube-state-metrics",namespace="default",job_name="unrelated-health-28992000",owner_kind="CronJob",owner_name="unrelated-health"}'
+        values: '1x8'
+
+      - series: 'kube_job_status_failed{job="kube-state-metrics",namespace="default",job_name="citrus-recurring-tick-28992000"}'
+        values: '1x8'
+      - series: 'kube_job_status_start_time{job="kube-state-metrics",namespace="default",job_name="citrus-recurring-tick-28992000"}'
+        values: '0x8'
+      - series: 'kube_job_owner{job="kube-state-metrics",namespace="default",job_name="citrus-recurring-tick-28992000",owner_kind="CronJob",owner_name="citrus-recurring-tick"}'
+        values: '1x8'
+      - series: 'kube_job_status_failed{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-dev-recurring-tick-28992000"}'
+        values: '1x8'
+      - series: 'kube_job_status_start_time{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-dev-recurring-tick-28992000"}'
+        values: '0x8'
+      - series: 'kube_job_owner{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-dev-recurring-tick-28992000",owner_kind="CronJob",owner_name="citrus-dev-recurring-tick"}'
+        values: '1x8'
+      - series: 'kube_job_status_failed{job="kube-state-metrics",namespace="default",job_name="unrelated-tick-28992000"}'
+        values: '1x8'
+      - series: 'kube_job_status_start_time{job="kube-state-metrics",namespace="default",job_name="unrelated-tick-28992000"}'
+        values: '0x8'
+      - series: 'kube_job_owner{job="kube-state-metrics",namespace="default",job_name="unrelated-tick-28992000",owner_kind="CronJob",owner_name="unrelated-tick"}'
+        values: '1x8'
+
+      - series: 'kube_deployment_spec_replicas{job="kube-state-metrics",namespace="default",deployment="citrus-billing-worker"}'
+        values: '1x8'
+      - series: 'kube_deployment_spec_replicas{job="kube-state-metrics",namespace="citrus-dev",deployment="citrus-dev-billing-worker"}'
+        values: '1x8'
+      - series: 'kube_deployment_spec_replicas{job="kube-state-metrics",namespace="default",deployment="unrelated-billing-worker"}'
+        values: '1x8'
+
+      - series: 'citrus_recurring_runtime_health{job="kubernetes-pods",namespace="default",pod="citrus-billing-worker-7d9f6c8b9d-abcde"}'
+        values: '0x8'
+      - series: 'citrus_recurring_runtime_health{job="kubernetes-pods",namespace="citrus-dev",pod="citrus-dev-billing-worker-7d9f6c8b9d-fghij"}'
+        values: '0x8'
+      - series: 'citrus_recurring_runtime_health{job="kubernetes-pods",namespace="default",pod="unrelated-metrics-7d9f6c8b9d-klmno"}'
+        values: '0x8'
+
+      - series: 'citrus_recurring_overdue_due_work{job="kubernetes-pods",namespace="default",pod="citrus-billing-worker-7d9f6c8b9d-abcde"}'
+        values: '1x8'
+      - series: 'citrus_recurring_overdue_due_work{job="kubernetes-pods",namespace="citrus-dev",pod="citrus-dev-billing-worker-7d9f6c8b9d-fghij"}'
+        values: '1x8'
+      - series: 'citrus_recurring_overdue_due_work{job="kubernetes-pods",namespace="default",pod="unrelated-metrics-7d9f6c8b9d-klmno"}'
+        values: '1x8'
+
+      - series: 'citrus_recurring_oldest_outbox_age_seconds{job="kubernetes-pods",namespace="default",pod="citrus-billing-worker-7d9f6c8b9d-abcde"}'
+        values: '900x8'
+      - series: 'citrus_recurring_oldest_outbox_age_seconds{job="kubernetes-pods",namespace="citrus-dev",pod="citrus-dev-billing-worker-7d9f6c8b9d-fghij"}'
+        values: '900x8'
+      - series: 'citrus_recurring_oldest_outbox_age_seconds{job="kubernetes-pods",namespace="default",pod="unrelated-metrics-7d9f6c8b9d-klmno"}'
+        values: '900x8'
+
+      - series: 'citrus_recurring_billing_queue_unavailable{job="kubernetes-pods",namespace="default",pod="citrus-billing-worker-7d9f6c8b9d-abcde"}'
+        values: '1x8'
+      - series: 'citrus_recurring_billing_queue_unavailable{job="kubernetes-pods",namespace="citrus-dev",pod="citrus-dev-billing-worker-7d9f6c8b9d-fghij"}'
+        values: '1x8'
+      - series: 'citrus_recurring_billing_queue_unavailable{job="kubernetes-pods",namespace="default",pod="unrelated-metrics-7d9f6c8b9d-klmno"}'
+        values: '1x8'
+
+      - series: 'citrus_recurring_recent_notice_failures{job="kubernetes-pods",namespace="default",pod="citrus-billing-worker-7d9f6c8b9d-abcde"}'
+        values: '1x8'
+      - series: 'citrus_recurring_recent_notice_failures{job="kubernetes-pods",namespace="citrus-dev",pod="citrus-dev-billing-worker-7d9f6c8b9d-fghij"}'
+        values: '1x8'
+      - series: 'citrus_recurring_recent_notice_failures{job="kubernetes-pods",namespace="default",pod="unrelated-metrics-7d9f6c8b9d-klmno"}'
+        values: '1x8'
+
+      - series: 'citrus_recurring_confirmation_delivery_review_required{job="kubernetes-pods",namespace="default",pod="citrus-billing-worker-7d9f6c8b9d-abcde"}'
+        values: '1x8'
+      - series: 'citrus_recurring_confirmation_delivery_review_required{job="kubernetes-pods",namespace="citrus-dev",pod="citrus-dev-billing-worker-7d9f6c8b9d-fghij"}'
+        values: '1x8'
+      - series: 'citrus_recurring_confirmation_delivery_review_required{job="kubernetes-pods",namespace="default",pod="unrelated-metrics-7d9f6c8b9d-klmno"}'
+        values: '1x8'
+
+      - series: 'citrus_recurring_webhook_lagged_payments{job="kubernetes-pods",namespace="default",pod="citrus-billing-worker-7d9f6c8b9d-abcde"}'
+        values: '1x8'
+      - series: 'citrus_recurring_webhook_lagged_payments{job="kubernetes-pods",namespace="citrus-dev",pod="citrus-dev-billing-worker-7d9f6c8b9d-fghij"}'
+        values: '1x8'
+      - series: 'citrus_recurring_webhook_lagged_payments{job="kubernetes-pods",namespace="default",pod="unrelated-metrics-7d9f6c8b9d-klmno"}'
+        values: '1x8'
+
+      - series: 'citrus_recurring_unclaimed_charge_due{job="kubernetes-pods",namespace="default",pod="citrus-billing-worker-7d9f6c8b9d-abcde"}'
+        values: '1x8'
+      - series: 'citrus_recurring_unclaimed_charge_due{job="kubernetes-pods",namespace="citrus-dev",pod="citrus-dev-billing-worker-7d9f6c8b9d-fghij"}'
+        values: '1x8'
+      - series: 'citrus_recurring_unclaimed_charge_due{job="kubernetes-pods",namespace="default",pod="unrelated-metrics-7d9f6c8b9d-klmno"}'
+        values: '1x8'
+
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CitrusRecurringRuntimeHealthFailed
+        exp_alerts:
+          - exp_labels:
+              namespace: default
+              owner_name: citrus-recurring-health
+              severity: critical
+              service: citrus
+            exp_annotations: &health_annotations
+              summary: Citrus recurring runtime health failed
+              description: The recurring health check detected overdue work, an unsafe claim, billing queue trouble, payment reconciliation lag, or a paid cycle missing its order.
+          - exp_labels:
+              namespace: citrus-dev
+              owner_name: citrus-dev-recurring-health
+              severity: critical
+              service: citrus
+            exp_annotations: *health_annotations
+
+      - eval_time: 6m
+        alertname: CitrusRecurringRuntimeTickFailed
+        exp_alerts:
+          - exp_labels:
+              namespace: default
+              owner_name: citrus-recurring-tick
+              severity: critical
+              service: citrus
+            exp_annotations: &tick_annotations
+              summary: Citrus recurring runtime tick failed
+              description: The five-minute recurring wake-up could not discover or publish its bounded outbox batch; inspect the exact Job logs before replaying any event.
+          - exp_labels:
+              namespace: citrus-dev
+              owner_name: citrus-dev-recurring-tick
+              severity: critical
+              service: citrus
+            exp_annotations: *tick_annotations
+
+      - eval_time: 6m
+        alertname: CitrusRecurringRuntimeExporterUnhealthy
+        exp_alerts:
+          - exp_labels:
+              job: kubernetes-pods
+              namespace: default
+              pod: citrus-billing-worker-7d9f6c8b9d-abcde
+              severity: critical
+              service: citrus
+            exp_annotations: &exporter_annotations
+              summary: Citrus recurring runtime metrics report unhealthy
+              description: One or more recurring runtime safety thresholds are failing; inspect the dimension-specific citrus_recurring gauges.
+          - exp_labels:
+              job: kubernetes-pods
+              namespace: citrus-dev
+              pod: citrus-dev-billing-worker-7d9f6c8b9d-fghij
+              severity: critical
+              service: citrus
+            exp_annotations: *exporter_annotations
+
+      - eval_time: 6m
+        alertname: CitrusRecurringRuntimeMetricsMissing
+        exp_alerts:
+          - exp_labels:
+              deployment: citrus-billing-worker
+              job: kube-state-metrics
+              namespace: default
+              severity: critical
+              service: citrus
+            exp_annotations: &missing_annotations
+              summary: Citrus recurring runtime metrics are missing
+              description: The billing worker is expected, but Prometheus cannot scrape its recurring metrics sidecar.
+          - exp_labels:
+              deployment: citrus-dev-billing-worker
+              job: kube-state-metrics
+              namespace: citrus-dev
+              severity: critical
+              service: citrus
+            exp_annotations: *missing_annotations
+
+      - eval_time: 6m
+        alertname: CitrusRecurringRuntimeWorkOverdue
+        exp_alerts:
+          - exp_labels: &prod_metric_labels
+              job: kubernetes-pods
+              namespace: default
+              pod: citrus-billing-worker-7d9f6c8b9d-abcde
+              severity: critical
+              service: citrus
+            exp_annotations: &overdue_annotations
+              summary: Citrus recurring work is overdue
+              description: Persisted recurring work remains due beyond the configured scheduler grace window.
+          - exp_labels: &dev_metric_labels
+              job: kubernetes-pods
+              namespace: citrus-dev
+              pod: citrus-dev-billing-worker-7d9f6c8b9d-fghij
+              severity: critical
+              service: citrus
+            exp_annotations: *overdue_annotations
+
+      - eval_time: 6m
+        alertname: CitrusRecurringRuntimeOutboxStale
+        exp_alerts:
+          - exp_labels: *prod_metric_labels
+            exp_annotations: &outbox_annotations
+              summary: Citrus recurring outbox is stale
+              description: The billing outbox contains an old pending event or a stale publication claim.
+          - exp_labels: *dev_metric_labels
+            exp_annotations: *outbox_annotations
+
+      - eval_time: 6m
+        alertname: CitrusRecurringBillingQueueUnavailable
+        exp_alerts:
+          - exp_labels: *prod_metric_labels
+            exp_annotations: &queue_annotations
+              summary: Citrus billing queue is unavailable or backed up
+              description: The dedicated billing queue cannot be read or has exceeded its bounded depth threshold.
+          - exp_labels: *dev_metric_labels
+            exp_annotations: *queue_annotations
+
+      - eval_time: 6m
+        alertname: CitrusRecurringNoticeFailures
+        exp_alerts:
+          - exp_labels: *prod_metric_labels
+            exp_annotations: &notice_annotations
+              summary: Citrus recurring notice delivery needs review
+              description: A notice failed or reached an unknown provider outcome within the configured alert window.
+          - exp_labels: *dev_metric_labels
+            exp_annotations: *notice_annotations
+
+      - eval_time: 6m
+        alertname: CitrusRecurringConfirmationNeedsReview
+        exp_alerts:
+          - exp_labels: *prod_metric_labels
+            exp_annotations: &confirmation_annotations
+              summary: Citrus recurring confirmation needs provider review
+              description: An at-most-once action confirmation failed or has an unknown provider outcome and must never be blindly replayed.
+          - exp_labels: *dev_metric_labels
+            exp_annotations: *confirmation_annotations
+
+      - eval_time: 6m
+        alertname: CitrusRecurringPaymentReconciliationLag
+        exp_alerts:
+          - exp_labels: *prod_metric_labels
+            exp_annotations: &reconciliation_annotations
+              summary: Citrus recurring payment reconciliation is lagging
+              description: A processing or unknown payment has remained unresolved beyond the reconciliation threshold.
+          - exp_labels: *dev_metric_labels
+            exp_annotations: *reconciliation_annotations
+
+      - eval_time: 6m
+        alertname: CitrusRecurringChargeOrOrderStalled
+        exp_alerts:
+          - exp_labels: *prod_metric_labels
+            exp_annotations: &stalled_annotations
+              summary: Citrus recurring charge or order materialization is stalled
+              description: A due charge remains unclaimed or a paid recurring cycle is still missing its generated order beyond the grace window.
+          - exp_labels: *dev_metric_labels
+            exp_annotations: *stalled_annotations

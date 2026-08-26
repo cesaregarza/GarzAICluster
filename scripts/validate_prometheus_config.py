@@ -16,6 +16,7 @@ DEFAULT_CHART_DIR = "helm/garz-observability"
 DEFAULT_RELEASE_NAME = "garz-observability"
 DEFAULT_VALUES_FILE = "helm/garz-observability/values-prod.yaml"
 PROMTOOL_IMAGE = "prom/prometheus:v2.52.0"
+RULE_TEST_PATTERN = "*.test.yaml"
 INDENT = "  "
 
 
@@ -181,6 +182,13 @@ def extract_rule_files(rendered_text: str) -> dict[str, str]:
     return filtered
 
 
+def discover_rule_test_files(chart_dir: str) -> list[Path]:
+    tests_dir = Path(chart_dir) / "tests"
+    if not tests_dir.is_dir():
+        return []
+    return sorted(tests_dir.glob(RULE_TEST_PATTERN))
+
+
 def run_promtool_config(config_text: str) -> None:
     with tempfile.TemporaryDirectory() as tempdir:
         cfg_dir = Path(tempdir)
@@ -229,7 +237,10 @@ def run_promtool_config(config_text: str) -> None:
         )
 
 
-def run_promtool_rules(rule_files: dict[str, str]) -> None:
+def run_promtool_rules(
+    rule_files: dict[str, str],
+    rule_test_files: list[Path],
+) -> None:
     with tempfile.TemporaryDirectory() as tempdir:
         rules_dir = Path(tempdir)
         container_files: list[str] = []
@@ -238,6 +249,17 @@ def run_promtool_rules(rule_files: dict[str, str]) -> None:
             target = rules_dir / safe_name
             target.write_text(contents)
             container_files.append(f"/etc/prometheus/rules/{safe_name}")
+
+        container_test_files: list[str] = []
+        for source in rule_test_files:
+            safe_name = source.name
+            target = rules_dir / safe_name
+            if target.exists():
+                raise SystemExit(
+                    f"Prometheus rule test collides with rendered rule file: {safe_name}"
+                )
+            target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+            container_test_files.append(f"/etc/prometheus/rules/{safe_name}")
 
         subprocess.run(
             [
@@ -257,6 +279,25 @@ def run_promtool_rules(rule_files: dict[str, str]) -> None:
             check=True,
         )
 
+        if container_test_files:
+            subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "-u",
+                    f"{os.getuid()}:{os.getgid()}",
+                    "--entrypoint=promtool",
+                    "-v",
+                    f"{rules_dir}:/etc/prometheus/rules",
+                    PROMTOOL_IMAGE,
+                    "test",
+                    "rules",
+                    *container_test_files,
+                ],
+                check=True,
+            )
+
 
 def main() -> None:
     args = parse_args()
@@ -273,7 +314,8 @@ def main() -> None:
 
     rules_rendered = render_template(args, RULES_TEMPLATE, allow_empty=False)
     rule_files = extract_rule_files(rules_rendered)
-    run_promtool_rules(rule_files)
+    rule_test_files = discover_rule_test_files(args.chart_dir)
+    run_promtool_rules(rule_files, rule_test_files)
 
     print(f"[{args.label}] Prometheus config and rules validated successfully.")
 

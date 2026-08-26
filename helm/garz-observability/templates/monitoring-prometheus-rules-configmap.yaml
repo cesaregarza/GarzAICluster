@@ -159,13 +159,22 @@ data:
             expr: |
               max by (namespace, owner_name) (
                 (
-                  kube_job_status_failed{namespace=~"citrus(-dev)?"}
+                  kube_job_status_failed{
+                    job="kube-state-metrics",
+                    namespace=~"default|citrus-dev"
+                  }
                     and on (namespace, job_name)
-                      (time() - kube_job_status_start_time{namespace=~"citrus(-dev)?"} < 600)
+                      (
+                        time() - kube_job_status_start_time{
+                          job="kube-state-metrics",
+                          namespace=~"default|citrus-dev"
+                        } < 600
+                      )
                 )
                   * on (namespace, job_name) group_left(owner_name)
                     kube_job_owner{
-                      namespace=~"citrus(-dev)?",
+                      job="kube-state-metrics",
+                      namespace=~"default|citrus-dev",
                       owner_kind="CronJob",
                       owner_name=~"citrus(-dev)?-recurring-health"
                     }
@@ -182,13 +191,22 @@ data:
             expr: |
               max by (namespace, owner_name) (
                 (
-                  kube_job_status_failed{namespace=~"citrus(-dev)?"}
+                  kube_job_status_failed{
+                    job="kube-state-metrics",
+                    namespace=~"default|citrus-dev"
+                  }
                     and on (namespace, job_name)
-                      (time() - kube_job_status_start_time{namespace=~"citrus(-dev)?"} < 600)
+                      (
+                        time() - kube_job_status_start_time{
+                          job="kube-state-metrics",
+                          namespace=~"default|citrus-dev"
+                        } < 600
+                      )
                 )
                   * on (namespace, job_name) group_left(owner_name)
                     kube_job_owner{
-                      namespace=~"citrus(-dev)?",
+                      job="kube-state-metrics",
+                      namespace=~"default|citrus-dev",
                       owner_kind="CronJob",
                       owner_name=~"citrus(-dev)?-recurring-tick"
                     }
@@ -202,7 +220,12 @@ data:
               description: The five-minute recurring wake-up could not discover or publish its bounded outbox batch; inspect the exact Job logs before replaying any event.
 
           - alert: CitrusRecurringRuntimeExporterUnhealthy
-            expr: citrus_recurring_runtime_health == 0
+            expr: |
+              citrus_recurring_runtime_health{
+                job="kubernetes-pods",
+                namespace=~"default|citrus-dev",
+                pod=~"citrus(-dev)?-billing-worker-.*"
+              } == 0
             for: 2m
             labels:
               severity: critical
@@ -214,14 +237,15 @@ data:
           - alert: CitrusRecurringRuntimeMetricsMissing
             expr: |
               kube_deployment_spec_replicas{
-                namespace=~"citrus(-dev)?",
+                job="kube-state-metrics",
+                namespace=~"default|citrus-dev",
                 deployment=~"citrus(-dev)?-billing-worker"
               } > 0
                 unless on (namespace)
               max by (namespace) (
                 up{
                   job="kubernetes-pods",
-                  namespace=~"citrus(-dev)?",
+                  namespace=~"default|citrus-dev",
                   pod=~"citrus(-dev)?-billing-worker-.*"
                 } == 1
               )
@@ -234,7 +258,12 @@ data:
               description: The billing worker is expected, but Prometheus cannot scrape its recurring metrics sidecar.
 
           - alert: CitrusRecurringRuntimeWorkOverdue
-            expr: citrus_recurring_overdue_due_work > 0
+            expr: |
+              citrus_recurring_overdue_due_work{
+                job="kubernetes-pods",
+                namespace=~"default|citrus-dev",
+                pod=~"citrus(-dev)?-billing-worker-.*"
+              } > 0
             for: 5m
             labels:
               severity: critical
@@ -244,7 +273,18 @@ data:
               description: Persisted recurring work remains due beyond the configured scheduler grace window.
 
           - alert: CitrusRecurringRuntimeOutboxStale
-            expr: citrus_recurring_oldest_outbox_age_seconds >= 900 or citrus_recurring_stale_claims > 0
+            expr: |
+              citrus_recurring_oldest_outbox_age_seconds{
+                job="kubernetes-pods",
+                namespace=~"default|citrus-dev",
+                pod=~"citrus(-dev)?-billing-worker-.*"
+              } >= 900
+                or
+              citrus_recurring_stale_claims{
+                job="kubernetes-pods",
+                namespace=~"default|citrus-dev",
+                pod=~"citrus(-dev)?-billing-worker-.*"
+              } > 0
             for: 5m
             labels:
               severity: critical
@@ -254,7 +294,18 @@ data:
               description: The billing outbox contains an old pending event or a stale publication claim.
 
           - alert: CitrusRecurringBillingQueueUnavailable
-            expr: citrus_recurring_billing_queue_unavailable > 0 or citrus_recurring_billing_queue_depth >= 100
+            expr: |
+              citrus_recurring_billing_queue_unavailable{
+                job="kubernetes-pods",
+                namespace=~"default|citrus-dev",
+                pod=~"citrus(-dev)?-billing-worker-.*"
+              } > 0
+                or
+              citrus_recurring_billing_queue_depth{
+                job="kubernetes-pods",
+                namespace=~"default|citrus-dev",
+                pod=~"citrus(-dev)?-billing-worker-.*"
+              } >= 100
             for: 5m
             labels:
               severity: critical
@@ -264,7 +315,12 @@ data:
               description: The dedicated billing queue cannot be read or has exceeded its bounded depth threshold.
 
           - alert: CitrusRecurringNoticeFailures
-            expr: citrus_recurring_recent_notice_failures > 0
+            expr: |
+              citrus_recurring_recent_notice_failures{
+                job="kubernetes-pods",
+                namespace=~"default|citrus-dev",
+                pod=~"citrus(-dev)?-billing-worker-.*"
+              } > 0
             for: 2m
             labels:
               severity: critical
@@ -274,7 +330,12 @@ data:
               description: A notice failed or reached an unknown provider outcome within the configured alert window.
 
           - alert: CitrusRecurringConfirmationNeedsReview
-            expr: citrus_recurring_confirmation_delivery_review_required > 0
+            expr: |
+              citrus_recurring_confirmation_delivery_review_required{
+                job="kubernetes-pods",
+                namespace=~"default|citrus-dev",
+                pod=~"citrus(-dev)?-billing-worker-.*"
+              } > 0
             for: 2m
             labels:
               severity: critical
@@ -284,7 +345,12 @@ data:
               description: An at-most-once action confirmation failed or has an unknown provider outcome and must never be blindly replayed.
 
           - alert: CitrusRecurringPaymentReconciliationLag
-            expr: citrus_recurring_webhook_lagged_payments > 0
+            expr: |
+              citrus_recurring_webhook_lagged_payments{
+                job="kubernetes-pods",
+                namespace=~"default|citrus-dev",
+                pod=~"citrus(-dev)?-billing-worker-.*"
+              } > 0
             for: 5m
             labels:
               severity: critical
@@ -294,7 +360,18 @@ data:
               description: A processing or unknown payment has remained unresolved beyond the reconciliation threshold.
 
           - alert: CitrusRecurringChargeOrOrderStalled
-            expr: citrus_recurring_unclaimed_charge_due > 0 or citrus_recurring_stale_paid_cycles_missing_orders > 0
+            expr: |
+              citrus_recurring_unclaimed_charge_due{
+                job="kubernetes-pods",
+                namespace=~"default|citrus-dev",
+                pod=~"citrus(-dev)?-billing-worker-.*"
+              } > 0
+                or
+              citrus_recurring_stale_paid_cycles_missing_orders{
+                job="kubernetes-pods",
+                namespace=~"default|citrus-dev",
+                pod=~"citrus(-dev)?-billing-worker-.*"
+              } > 0
             for: 5m
             labels:
               severity: critical
