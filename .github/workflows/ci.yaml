@@ -320,21 +320,29 @@ jobs:
             --set recurringRuntime.enabled=true \
             > rendered/citrus-optional-workloads.yaml
 
-          # Exercise both environment shapes with the command-compatible dev
-          # image while retaining suspend=true and the template's hard provider
-          # disable. The actual prod/dev renders above remain scheduler-free.
+          # Schema-check the isolated CronJob using an existing command-bearing
+          # image, a synthetic Secret name, and suspend=true. This image is not
+          # pinned in either environment and is not activation-compatible with
+          # the pending least-privilege source/runtime contract.
           helm template citrus-ci-sms-prod "$chart" \
             --namespace default \
             -f "$chart/values.yaml" \
+            --show-only templates/sms-reconciliation-cronjob.yaml \
             --set-string image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c \
             --set smsReconciliation.enabled=true \
             --set-string smsReconciliation.verifiedImageTag=0e2258bf95c6170895c26780258eb42d5b5c557c \
+            --set-string 'smsReconciliation.commandCompatibleImageTags[0]=0e2258bf95c6170895c26780258eb42d5b5c557c' \
+            --set-string smsReconciliation.secretName=citrus-ci-sms-reconciliation-runtime \
             > rendered/citrus-sms-reconciliation-prod.yaml
           helm template citrus-ci-sms-dev "$chart" \
             --namespace citrus-dev \
             -f "$chart/values.yaml" \
             -f "$chart/values-dev.yaml" \
+            --show-only templates/sms-reconciliation-cronjob.yaml \
             --set smsReconciliation.enabled=true \
+            --set-string smsReconciliation.verifiedImageTag=0e2258bf95c6170895c26780258eb42d5b5c557c \
+            --set-string 'smsReconciliation.commandCompatibleImageTags[0]=0e2258bf95c6170895c26780258eb42d5b5c557c' \
+            --set-string smsReconciliation.secretName=citrus-ci-sms-reconciliation-runtime \
             > rendered/citrus-sms-reconciliation-dev.yaml
 
           # Preserve the prepared payment-projection render coverage separately
@@ -376,6 +384,26 @@ jobs:
           grep -F '  suspend: true' rendered/citrus-sms-reconciliation-dev.yaml >/dev/null
           grep -F '    - name: TWILIO_SMS_ENABLED' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
           grep -F '      value: "False"' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F '    - sweep_manual_order_sms_attempts' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F '    - --stale-minutes' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F '    - --limit' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F 'citrus-ci-sms-reconciliation-runtime' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F 'secretKeyRef:' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+
+          for file in rendered/citrus-sms-reconciliation-*.yaml; do
+            if grep -F 'secretRef:' "$file" >/dev/null; then
+              echo "Citrus SMS reconciliation must not import a Secret with envFrom" >&2
+              exit 1
+            fi
+            if grep -E '(django-secrets|django-email-secrets|django-spaces-secrets|citrus-dev-app-key|payment-credentials|STRIPE_|TWILIO_(ACCOUNT|API|AUTH|MESSAGING))' "$file" >/dev/null; then
+              echo "Citrus SMS reconciliation rendered a broad or provider Secret reference" >&2
+              exit 1
+            fi
+            if [[ "$(grep -c 'secretKeyRef:' "$file")" -ne 6 ]]; then
+              echo "Citrus SMS reconciliation must project exactly six named runtime keys" >&2
+              exit 1
+            fi
+          done
 
           if grep -F 'app.kubernetes.io/component: sms-reconciliation' \
             rendered/citrus-prod.yaml rendered/citrus-dev.yaml >/dev/null; then

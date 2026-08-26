@@ -222,15 +222,15 @@ recurringRuntime:
       cpu: 250m
       memory: 256Mi
 
-# Prepared by CES-848. Rendering the CronJob requires an exact image-command
-# receipt, while both real environments remain disabled and suspended pending
-# CES-849 capacity validation plus separate go-live approval.
+# Prepared by CES-848. No compatible least-privilege runtime artifact or Secret
+# exists yet, so both real environments remain disabled, suspended, and empty
+# of activation receipts pending CES-844, CES-845, and CES-849.
 smsReconciliation:
   enabled: false
   suspend: true
+  secretName: ""
   verifiedImageTag: ""
-  commandCompatibleImageTags:
-    - 0e2258bf95c6170895c26780258eb42d5b5c557c
+  commandCompatibleImageTags: []
   schedule: "*/15 * * * *"
   timeZone: Etc/UTC
   concurrencyPolicy: Forbid
@@ -239,14 +239,8 @@ smsReconciliation:
   backoffLimit: 1
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
-  command:
-    - python
-    - manage.py
-    - sweep_manual_order_sms_attempts
-    - --stale-minutes
-    - "15"
-    - --limit
-    - "100"
+  staleMinutes: 15
+  limit: 100
   resources:
     requests:
       cpu: 50m

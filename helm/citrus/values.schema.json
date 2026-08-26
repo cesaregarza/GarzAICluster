@@ -8,6 +8,7 @@
       "required": [
         "enabled",
         "suspend",
+        "secretName",
         "verifiedImageTag",
         "commandCompatibleImageTags",
         "schedule",
@@ -18,7 +19,8 @@
         "backoffLimit",
         "successfulJobsHistoryLimit",
         "failedJobsHistoryLimit",
-        "command",
+        "staleMinutes",
+        "limit",
         "resources"
       ],
       "properties": {
@@ -28,12 +30,16 @@
         "suspend": {
           "type": "boolean"
         },
+        "secretName": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 63
+        },
         "verifiedImageTag": {
           "type": "string"
         },
         "commandCompatibleImageTags": {
           "type": "array",
-          "minItems": 1,
           "uniqueItems": true,
           "items": {
             "type": "string",
@@ -73,12 +79,15 @@
           "type": "integer",
           "minimum": 1
         },
-        "command": {
-          "type": "array",
-          "minItems": 3,
-          "items": {
-            "type": "string"
-          }
+        "staleMinutes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 1440
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
         },
         "resources": {
           "type": "object",

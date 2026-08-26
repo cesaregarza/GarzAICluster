@@ -7,6 +7,18 @@
 {{- if not (has (toString $imageTag) .Values.smsReconciliation.commandCompatibleImageTags) }}
 {{- fail (printf "image.tag %q is not listed in smsReconciliation.commandCompatibleImageTags" (toString $imageTag)) }}
 {{- end }}
+{{- $runtimeSecretName := required "smsReconciliation.enabled requires a dedicated smsReconciliation.secretName" .Values.smsReconciliation.secretName }}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $runtimeSecretName) }}
+{{- fail "smsReconciliation.secretName must be a valid Kubernetes Secret name" }}
+{{- end }}
+{{- $forbiddenSecretNames := compact (list .Values.application.secretName .Values.application.emailSecretName .Values.application.spacesSecretName .Values.application.generatedSecretName .Values.paymentCredentials.secretName) }}
+{{- if has $runtimeSecretName $forbiddenSecretNames }}
+{{- fail "smsReconciliation.secretName must not reuse a broad application, generated-key, or payment Secret" }}
+{{- end }}
+{{- if regexMatch "(stripe|payment|twilio|email|spaces|django-secrets)" (lower $runtimeSecretName) }}
+{{- fail "smsReconciliation.secretName must identify a dedicated provider-free runtime Secret" }}
+{{- end }}
+{{- $runtimeSecretKeys := list "DJANGO_SECRET_KEY" "DB_NAME" "DB_USER" "DB_PASSWORD" "DB_HOST" "DB_PORT" }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -48,7 +60,13 @@ spec:
               image: "{{ .Values.image.repository }}:{{ $imageTag }}"
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               command:
-                {{- toYaml .Values.smsReconciliation.command | nindent 16 }}
+                - python
+                - manage.py
+                - sweep_manual_order_sms_attempts
+                - --stale-minutes
+                - {{ .Values.smsReconciliation.staleMinutes | quote }}
+                - --limit
+                - {{ .Values.smsReconciliation.limit | quote }}
               securityContext:
                 {{- toYaml .Values.containerSecurityContext | nindent 16 }}
               # Explicit env entries override any same-named envFrom values.
@@ -58,27 +76,17 @@ spec:
                   value: "False"
                 - name: TWILIO_SMS_RECIPIENT_ALLOWLIST
                   value: ""
+                {{- range $runtimeSecretKey := $runtimeSecretKeys }}
+                - name: {{ $runtimeSecretKey }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $runtimeSecretName }}
+                      key: {{ $runtimeSecretKey }}
+                      optional: false
+                {{- end }}
               envFrom:
                 - configMapRef:
                     name: {{ .Values.application.configMapName }}
-                - secretRef:
-                    name: {{ .Values.application.secretName }}
-                    optional: true
-                {{- if .Values.application.emailSecretName }}
-                - secretRef:
-                    name: {{ .Values.application.emailSecretName }}
-                    optional: true
-                {{- end }}
-                {{- if .Values.application.spacesSecretName }}
-                - secretRef:
-                    name: {{ .Values.application.spacesSecretName }}
-                    optional: true
-                {{- end }}
-                {{- if .Values.application.generatedSecretName }}
-                - secretRef:
-                    name: {{ .Values.application.generatedSecretName }}
-                    optional: true
-                {{- end }}
               resources:
                 {{- toYaml .Values.smsReconciliation.resources | nindent 16 }}
 {{- end }}

@@ -75,19 +75,34 @@ class CitrusCiContractTests(unittest.TestCase):
             (
                 'helm template citrus-ci-sms-prod "$chart" '
                 '--namespace default -f "$chart/values.yaml" '
+                '--show-only templates/sms-reconciliation-cronjob.yaml '
                 '--set-string '
                 'image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c '
                 '--set smsReconciliation.enabled=true '
                 '--set-string '
                 'smsReconciliation.verifiedImageTag='
                 '0e2258bf95c6170895c26780258eb42d5b5c557c '
+                '--set-string '
+                "'smsReconciliation.commandCompatibleImageTags[0]="
+                "0e2258bf95c6170895c26780258eb42d5b5c557c' "
+                '--set-string smsReconciliation.secretName='
+                'citrus-ci-sms-reconciliation-runtime '
                 '> rendered/citrus-sms-reconciliation-prod.yaml'
             ),
             (
                 'helm template citrus-ci-sms-dev "$chart" '
                 '--namespace citrus-dev -f "$chart/values.yaml" '
                 '-f "$chart/values-dev.yaml" '
+                '--show-only templates/sms-reconciliation-cronjob.yaml '
                 '--set smsReconciliation.enabled=true '
+                '--set-string '
+                'smsReconciliation.verifiedImageTag='
+                '0e2258bf95c6170895c26780258eb42d5b5c557c '
+                '--set-string '
+                "'smsReconciliation.commandCompatibleImageTags[0]="
+                "0e2258bf95c6170895c26780258eb42d5b5c557c' "
+                '--set-string smsReconciliation.secretName='
+                'citrus-ci-sms-reconciliation-runtime '
                 '> rendered/citrus-sms-reconciliation-dev.yaml'
             ),
             (
@@ -135,6 +150,10 @@ class CitrusCiContractTests(unittest.TestCase):
         )
         self.assertIn("suspend: true", run)
         self.assertIn("TWILIO_SMS_ENABLED", run)
+        self.assertIn("sweep_manual_order_sms_attempts", run)
+        self.assertIn("must not import a Secret with envFrom", run)
+        self.assertIn("rendered a broad or provider Secret reference", run)
+        self.assertIn("exactly six named runtime keys", run)
 
     def test_pinned_strict_kubeconform_covers_every_render(self) -> None:
         helm_setup = self.steps["Set up Helm"]

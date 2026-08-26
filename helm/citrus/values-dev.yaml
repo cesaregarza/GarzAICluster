@@ -48,13 +48,14 @@ billingWorker:
 recurringRuntime:
   enabled: false
 
-# The current dev pin descends from Citrus a728346e and contains the sweep
-# command. The scheduler still requires an explicit enable and remains
-# suspended; this receipt exists only to make synthetic render coverage exact.
+# Dev has no approved least-privilege runtime Secret or compatible corrected
+# image. Keep every activation input empty until the prerequisite train lands.
 smsReconciliation:
   enabled: false
   suspend: true
-  verifiedImageTag: 0e2258bf95c6170895c26780258eb42d5b5c557c
+  secretName: ""
+  verifiedImageTag: ""
+  commandCompatibleImageTags: []
 
 mediaRequeue:
   enabled: true
