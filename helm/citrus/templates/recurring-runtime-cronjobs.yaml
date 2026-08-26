@@ -30,6 +30,9 @@ spec:
           labels:
             {{- include "citrus.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: recurring-tick
+            {{- if .Values.paymentSafety.enabled }}
+            {{- include "citrus.paymentSafety.podLabel" . | nindent 12 }}
+            {{- end }}
           {{- if .Values.paymentCredentials.enabled }}
           annotations:
             citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
@@ -47,8 +50,9 @@ spec:
                 {{- toYaml .Values.recurringRuntime.command | nindent 16 }}
               securityContext:
                 {{- toYaml .Values.containerSecurityContext | nindent 16 }}
-              {{- if .Values.paymentCredentials.enabled }}
+              {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
               env:
+                {{- include "citrus.paymentSafety.env" . | nindent 16 }}
                 {{- include "citrus.paymentCredentials.apiEnv" . | nindent 16 }}
               {{- end }}
               envFrom:
@@ -101,6 +105,9 @@ spec:
           labels:
             {{- include "citrus.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: recurring-health
+            {{- if .Values.paymentSafety.enabled }}
+            {{- include "citrus.paymentSafety.podLabel" . | nindent 12 }}
+            {{- end }}
           {{- if .Values.paymentCredentials.enabled }}
           annotations:
             citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
@@ -118,8 +125,9 @@ spec:
                 {{- toYaml .Values.recurringRuntime.health.command | nindent 16 }}
               securityContext:
                 {{- toYaml .Values.containerSecurityContext | nindent 16 }}
-              {{- if .Values.paymentCredentials.enabled }}
+              {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
               env:
+                {{- include "citrus.paymentSafety.env" . | nindent 16 }}
                 {{- include "citrus.paymentCredentials.apiEnv" . | nindent 16 }}
               {{- end }}
               envFrom:

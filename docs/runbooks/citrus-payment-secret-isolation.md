@@ -91,8 +91,9 @@ CES-844 is complete only when all of these are true:
 2. Every payment key is removed from `citrus-dev/django-secrets` so media,
    migrations, metrics, and other nonpayment consumers cannot inherit it.
 3. The dev web workload receives only the required API, publishable, and dev
-   webhook settings. Enabled billing and recurring consumers receive API
-   authority only. No dedicated payment Secret is projected elsewhere.
+   webhook settings plus the value-free owner `citrus-dev`. Enabled billing and
+   recurring consumers receive API authority only. No dedicated payment Secret
+   is projected elsewhere.
 4. Every dev setting is authoritatively classified as `non-live` or
    `intentionally-absent`. Live, restricted-live, mixed, unknown, unclassified,
    shared-production, and production webhook settings are forbidden in dev.
@@ -114,17 +115,23 @@ activation overlays:
 
 - `helm/citrus/values-payment-prod.yaml` names
   `citrus-prod-payment-credentials` for possible future production work. It is
-  not referenced by the production Application and makes no active change.
+  owned by `citrus`, is not referenced by the production Application, and makes
+  no active change.
 - `helm/citrus/values-payment-dev.yaml` names
-  `citrus-dev-payment-credentials` and selects only the dev webhook setting.
+  `citrus-dev-payment-credentials`, is owned by `citrus-dev`, and selects only
+  the dev webhook setting.
+- Neither credential overlay can render alone. Credential projection requires
+  the matching CES-845 payment-safety environment and owner in the same render;
+  the dev pair also requires the reviewed deny-mode dependency allowlist.
 - Neither overlay is referenced by an Argo Application, so current production
   and dev renders remain byte-identical to the baseline.
 - Activation uses explicit, non-optional `secretKeyRef` entries rather than
   importing the dedicated Secret with `envFrom`.
-- Web receives API, publishable, and exactly one environment webhook setting.
-  Billing and recurring consumers receive API authority only. Media,
-  migrations, metrics, Redis, and media CronJobs receive no dedicated payment
-  reference.
+- Web receives API, publishable, exactly one environment webhook setting, and
+  `STRIPE_WEBHOOK_SECRET_OWNER`. The chart binds the dev/prod setting to its
+  exact dedicated Secret name and owner. Billing and recurring consumers
+  receive API authority only. Media, migrations, metrics, Redis, and media
+  CronJobs receive no dedicated payment reference.
 - A semantic rollout revision changes pod templates without deriving anything
   from credential material.
 
@@ -174,8 +181,11 @@ live Secret, merge, Argo, rollout, or deployment mutation.
    add a production webhook key or a generic shared-production setting.
 3. Remove every payment key from the encrypted dev `django-secrets` source.
 4. Add the dedicated encrypted file to the dev KSOPS generator.
-5. Add `values-payment-dev.yaml` to the dev Application only. Do not change the
-   production Application or any production encrypted source.
+5. Add `values-payment-dev.yaml` to the dev Application only together with the
+   matching CES-845 development deny-mode values, exact database FQDN, and
+   complete reviewed non-Stripe dependency allowlist. The exact source image
+   must implement the corresponding fail-closed runtime contract. Do not change
+   the production Application or any production encrypted source.
 6. Render and review object names, namespaces, key names, and workload
    projection paths only. No plaintext or identifying derivative may appear in
    the diff or logs.
