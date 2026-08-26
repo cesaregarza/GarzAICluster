@@ -73,6 +73,24 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-optional-workloads.yaml'
             ),
             (
+                'helm template citrus-ci-sms-prod "$chart" '
+                '--namespace default -f "$chart/values.yaml" '
+                '--set-string '
+                'image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c '
+                '--set smsReconciliation.enabled=true '
+                '--set-string '
+                'smsReconciliation.verifiedImageTag='
+                '0e2258bf95c6170895c26780258eb42d5b5c557c '
+                '> rendered/citrus-sms-reconciliation-prod.yaml'
+            ),
+            (
+                'helm template citrus-ci-sms-dev "$chart" '
+                '--namespace citrus-dev -f "$chart/values.yaml" '
+                '-f "$chart/values-dev.yaml" '
+                '--set smsReconciliation.enabled=true '
+                '> rendered/citrus-sms-reconciliation-dev.yaml'
+            ),
+            (
                 'helm template citrus-ci-payment-prod "$chart" '
                 '--namespace default -f "$chart/values.yaml" '
                 '-f "$chart/values-payment-prod.yaml" '
@@ -99,6 +117,7 @@ class CitrusCiContractTests(unittest.TestCase):
             "billing-worker",
             "recurring-tick",
             "recurring-health",
+            "sms-reconciliation",
         ):
             with self.subTest(component=component):
                 self.assertIn(
@@ -110,6 +129,12 @@ class CitrusCiContractTests(unittest.TestCase):
             "Citrus CI renders must never contain Secret objects",
             run,
         )
+        self.assertIn(
+            "Actual Citrus environment renders must keep SMS reconciliation disabled",
+            run,
+        )
+        self.assertIn("suspend: true", run)
+        self.assertIn("TWILIO_SMS_ENABLED", run)
 
     def test_pinned_strict_kubeconform_covers_every_render(self) -> None:
         helm_setup = self.steps["Set up Helm"]

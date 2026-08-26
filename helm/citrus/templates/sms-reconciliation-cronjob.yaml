@@ -1,0 +1,84 @@
+{{- if .Values.smsReconciliation.enabled }}
+{{- $imageTag := required "smsReconciliation.enabled requires an immutable image.tag" .Values.image.tag }}
+{{- $verifiedImageTag := required "smsReconciliation.enabled requires smsReconciliation.verifiedImageTag after verifying sweep_manual_order_sms_attempts exists in the image" .Values.smsReconciliation.verifiedImageTag }}
+{{- if ne (toString $verifiedImageTag) (toString $imageTag) }}
+{{- fail (printf "smsReconciliation.verifiedImageTag %q must exactly match image.tag %q" (toString $verifiedImageTag) (toString $imageTag)) }}
+{{- end }}
+{{- if not (has (toString $imageTag) .Values.smsReconciliation.commandCompatibleImageTags) }}
+{{- fail (printf "image.tag %q is not listed in smsReconciliation.commandCompatibleImageTags" (toString $imageTag)) }}
+{{- end }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "citrus.fullname" . }}-sms-reconciliation
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sms-reconciliation
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.smsReconciliation | quote }}
+spec:
+  schedule: {{ .Values.smsReconciliation.schedule | quote }}
+  timeZone: {{ .Values.smsReconciliation.timeZone | quote }}
+  suspend: {{ .Values.smsReconciliation.suspend }}
+  concurrencyPolicy: {{ .Values.smsReconciliation.concurrencyPolicy }}
+  startingDeadlineSeconds: {{ .Values.smsReconciliation.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ .Values.smsReconciliation.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.smsReconciliation.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "citrus.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: sms-reconciliation
+    spec:
+      activeDeadlineSeconds: {{ .Values.smsReconciliation.activeDeadlineSeconds }}
+      backoffLimit: {{ .Values.smsReconciliation.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "citrus.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: sms-reconciliation
+        spec:
+          automountServiceAccountToken: false
+          {{- include "citrus.imagePullSecrets" . | nindent 10 }}
+          restartPolicy: Never
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: sms-reconciliation
+              image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                {{- toYaml .Values.smsReconciliation.command | nindent 16 }}
+              securityContext:
+                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+              # Explicit env entries override any same-named envFrom values.
+              # This prepared scheduler cannot contact Twilio or widen sends.
+              env:
+                - name: TWILIO_SMS_ENABLED
+                  value: "False"
+                - name: TWILIO_SMS_RECIPIENT_ALLOWLIST
+                  value: ""
+              envFrom:
+                - configMapRef:
+                    name: {{ .Values.application.configMapName }}
+                - secretRef:
+                    name: {{ .Values.application.secretName }}
+                    optional: true
+                {{- if .Values.application.emailSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.emailSecretName }}
+                    optional: true
+                {{- end }}
+                {{- if .Values.application.spacesSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.spacesSecretName }}
+                    optional: true
+                {{- end }}
+                {{- if .Values.application.generatedSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.generatedSecretName }}
+                    optional: true
+                {{- end }}
+              resources:
+                {{- toYaml .Values.smsReconciliation.resources | nindent 16 }}
+{{- end }}

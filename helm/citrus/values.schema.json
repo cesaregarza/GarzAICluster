@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "smsReconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "suspend",
+        "verifiedImageTag",
+        "commandCompatibleImageTags",
+        "schedule",
+        "timeZone",
+        "concurrencyPolicy",
+        "startingDeadlineSeconds",
+        "activeDeadlineSeconds",
+        "backoffLimit",
+        "successfulJobsHistoryLimit",
+        "failedJobsHistoryLimit",
+        "command",
+        "resources"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "suspend": {
+          "type": "boolean"
+        },
+        "verifiedImageTag": {
+          "type": "string"
+        },
+        "commandCompatibleImageTags": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          }
+        },
+        "schedule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeZone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "enum": ["Forbid"]
+        },
+        "startingDeadlineSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "command": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "string"
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requests", "limits"],
+          "properties": {
+            "requests": {
+              "type": "object",
+              "required": ["cpu", "memory"]
+            },
+            "limits": {
+              "type": "object",
+              "required": ["cpu", "memory"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

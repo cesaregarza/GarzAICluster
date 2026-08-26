@@ -320,6 +320,23 @@ jobs:
             --set recurringRuntime.enabled=true \
             > rendered/citrus-optional-workloads.yaml
 
+          # Exercise both environment shapes with the command-compatible dev
+          # image while retaining suspend=true and the template's hard provider
+          # disable. The actual prod/dev renders above remain scheduler-free.
+          helm template citrus-ci-sms-prod "$chart" \
+            --namespace default \
+            -f "$chart/values.yaml" \
+            --set-string image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c \
+            --set smsReconciliation.enabled=true \
+            --set-string smsReconciliation.verifiedImageTag=0e2258bf95c6170895c26780258eb42d5b5c557c \
+            > rendered/citrus-sms-reconciliation-prod.yaml
+          helm template citrus-ci-sms-dev "$chart" \
+            --namespace citrus-dev \
+            -f "$chart/values.yaml" \
+            -f "$chart/values-dev.yaml" \
+            --set smsReconciliation.enabled=true \
+            > rendered/citrus-sms-reconciliation-dev.yaml
+
           # Preserve the prepared payment-projection render coverage separately
           # from the actual environment renders. These files contain Secret refs,
           # never decrypted values or credentials.
@@ -353,6 +370,18 @@ jobs:
           grep -F 'app.kubernetes.io/component: billing-worker' rendered/citrus-optional-workloads.yaml >/dev/null
           grep -F 'app.kubernetes.io/component: recurring-tick' rendered/citrus-optional-workloads.yaml >/dev/null
           grep -F 'app.kubernetes.io/component: recurring-health' rendered/citrus-optional-workloads.yaml >/dev/null
+          grep -F 'app.kubernetes.io/component: sms-reconciliation' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F 'app.kubernetes.io/component: sms-reconciliation' rendered/citrus-sms-reconciliation-dev.yaml >/dev/null
+          grep -F '  suspend: true' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F '  suspend: true' rendered/citrus-sms-reconciliation-dev.yaml >/dev/null
+          grep -F '    - name: TWILIO_SMS_ENABLED' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F '      value: "False"' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+
+          if grep -F 'app.kubernetes.io/component: sms-reconciliation' \
+            rendered/citrus-prod.yaml rendered/citrus-dev.yaml >/dev/null; then
+            echo "Actual Citrus environment renders must keep SMS reconciliation disabled" >&2
+            exit 1
+          fi
 
           if grep -E '^kind:[[:space:]]+Secret$' rendered/citrus-*.yaml >/dev/null; then
             echo "Citrus CI renders must never contain Secret objects" >&2
