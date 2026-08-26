@@ -11,6 +11,9 @@ not evidence that capacity has been changed or that rollout acceptance passed.
 - GitOps revision: `a7fc0226026e54558d66e7f08d815ac32fbe273d`
 - Dev image: `registry.digitalocean.com/sendouq/citrus:0e2258bf95c6170895c26780258eb42d5b5c557c`
 - Nodes: two `g-2vcpu-8gb` workers, each with 1,900m allocatable CPU
+- DOKS cluster: `k8s-nyc3-garz-ai` (`nyc3`, Kubernetes `1.33.12-do.0`)
+- DOKS node pool: `pool-garz-ai`
+  (`46aea2bb-31cd-4cc2-a044-92cf18470a7f`), count 2
 - Prometheus history: 14 days at five-minute resolution within a 15-day
   retention window
 
@@ -96,10 +99,20 @@ that would recover only about 125m and cannot close the gap. Do not lower
 production requests from this low-traffic sample.
 
 The capacity-first proposal is a third identical node, adding 1,900m
-allocatable CPU without reducing existing reservations. Before preparing or
-applying that change, record the authoritative node-pool/IaC owner, current
-provider price, approved spend, and rollback window. Scale-down is not an
-instant rollback because it can evict workloads.
+allocatable CPU without reducing existing reservations. The authoritative
+DigitalOcean size catalog listed `g-2vcpu-8gb` at USD 63.00/month (USD
+0.09375/hour) on 2026-08-26. Raising the pool from two to three nodes would
+therefore change listed node capacity cost from USD 126 to USD 189/month: an
+incremental USD 63/month or USD 756/year before taxes or credits. It would
+close the 639m shortfall and leave about 1,261m cluster-wide headroom before
+the planned workloads.
+
+No DOKS cluster or node-pool configuration exists in this repository, so the
+live pool is currently provider-API/operator-owned rather than GitOps-managed.
+Before preparing or applying a scale change, approve the incremental spend and
+name the infrastructure-as-code owner and repository/path that will become
+authoritative. Scale-down is not an instant rollback because it can evict
+workloads; it needs an explicit drain and availability window.
 
 ## Alerting slice
 
