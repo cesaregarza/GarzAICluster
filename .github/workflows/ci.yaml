@@ -878,3 +878,7 @@ jobs:
           --namespace monitoring
           --values ${{ matrix.env.values }}
           --label ${{ matrix.env.name }}
+
+      - name: Reproduce the historical-query sample envelope offline
+        timeout-minutes: 8
+        run: python scripts/verify_prometheus_query_safety.py
