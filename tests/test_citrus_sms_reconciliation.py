@@ -20,6 +20,23 @@ TEMPLATE_PATH = CHART_PATH / "templates" / "sms-reconciliation-cronjob.yaml"
 TRUSTED_IMAGE_REPOSITORY = "registry.digitalocean.com/sendouq/citrus"
 PROD_IMAGE_TAG = "3f68967f777b2665fccb4f0ab423f339b8ea1357"
 COMMAND_BEARING_IMAGE_TAG = "0e2258bf95c6170895c26780258eb42d5b5c557c"
+CANONICAL_MIGRATION_COMMAND = ["python", "manage.py", "migrate", "--noinput"]
+SMS_POD_SECURITY_CONTEXT = {
+    "fsGroup": 10001,
+    "fsGroupChangePolicy": "OnRootMismatch",
+    "runAsGroup": 10001,
+    "runAsNonRoot": True,
+    "runAsUser": 10001,
+    "seccompProfile": {"type": "RuntimeDefault"},
+}
+SMS_CONTAINER_SECURITY_CONTEXT = {
+    "allowPrivilegeEscalation": False,
+    "readOnlyRootFilesystem": True,
+    "runAsGroup": 10001,
+    "runAsNonRoot": True,
+    "runAsUser": 10001,
+    "capabilities": {"drop": ["ALL"]},
+}
 RUNTIME_SECRET_NAMES = {
     False: "citrus-sms-reconciliation-runtime",
     True: "citrus-dev-sms-reconciliation-runtime",
@@ -58,6 +75,7 @@ def _helm_command(
     backoff_limit: int | None = None,
     successful_jobs_history_limit: int | None = None,
     failed_jobs_history_limit: int | None = None,
+    config_sync_wave: str | None = None,
     migrations_sync_wave: str | None = None,
     sms_sync_wave: str | None = None,
     network_policy_enabled: bool | None = None,
@@ -69,6 +87,7 @@ def _helm_command(
     stale_minutes: int | None = None,
     limit: int | None = None,
     extra_set: tuple[str, ...] = (),
+    extra_set_json: tuple[str, ...] = (),
     extra_set_string: tuple[str, ...] = (),
 ) -> list[str]:
     release = release_name or ("citrus-dev" if dev else "citrus")
@@ -91,6 +110,7 @@ def _helm_command(
         ("smsReconciliation.schedule", schedule),
         ("smsReconciliation.timeZone", time_zone),
         ("smsReconciliation.concurrencyPolicy", concurrency_policy),
+        ("syncWaves.config", config_sync_wave),
         ("syncWaves.migrations", migrations_sync_wave),
         ("syncWaves.smsReconciliation", sms_sync_wave),
         ("smsReconciliation.networkPolicy.provider", network_policy_provider),
@@ -166,6 +186,8 @@ def _helm_command(
         command.extend(["--set", f"smsReconciliation.limit={limit}"])
     for assignment in extra_set:
         command.extend(["--set", assignment])
+    for assignment in extra_set_json:
+        command.extend(["--set-json", assignment])
     for assignment in extra_set_string:
         command.extend(["--set-string", assignment])
     return command
@@ -231,6 +253,26 @@ def _sms_network_policy(documents: list[dict[str, Any]]) -> dict[str, Any]:
         and document.get("metadata", {}).get("labels", {}).get(
             "app.kubernetes.io/component"
         ) == "sms-reconciliation-egress"
+    )
+
+
+def _migration_job(documents: list[dict[str, Any]]) -> dict[str, Any]:
+    return next(
+        document
+        for document in documents
+        if document.get("kind") == "Job"
+        and document.get("metadata", {}).get("labels", {}).get(
+            "app.kubernetes.io/component"
+        ) == "migrations"
+    )
+
+
+def _application_config_map(documents: list[dict[str, Any]]) -> dict[str, Any]:
+    return next(
+        document
+        for document in documents
+        if document.get("kind") == "ConfigMap"
+        and document.get("metadata", {}).get("name") == "django-config"
     )
 
 
@@ -595,12 +637,76 @@ class CitrusSmsReconciliationChartTests(unittest.TestCase):
     def test_sync_wave_contract_rejects_unsafe_types_and_ordering(self) -> None:
         cases = (
             (
+                {"config_sync_wave": "-1"},
+                "syncWaves.config must remain exactly 0",
+            ),
+            (
+                {"config_sync_wave": "1"},
+                "syncWaves.config must remain exactly 0",
+            ),
+            (
+                {"config_sync_wave": "4"},
+                "syncWaves.config must remain exactly 0",
+            ),
+            (
+                {"config_sync_wave": "00"},
+                "syncWaves.config must be an integer string",
+            ),
+            (
+                {"config_sync_wave": "not-an-integer"},
+                "syncWaves.config must be an integer string",
+            ),
+            (
+                {"extra_set": ("syncWaves.config=0",)},
+                "syncWaves.config must be an integer string",
+            ),
+            (
+                {"extra_set_json": ("syncWaves.config=null",)},
+                "syncWaves.config must be an integer string",
+            ),
+            (
+                {"migrations_sync_wave": "-1"},
+                "syncWaves.migrations must remain exactly 1",
+            ),
+            (
+                {"migrations_sync_wave": "0"},
+                "syncWaves.migrations must remain exactly 1",
+            ),
+            (
+                {"migrations_sync_wave": "2"},
+                "syncWaves.migrations must remain exactly 1",
+            ),
+            (
+                {"migrations_sync_wave": "3"},
+                "syncWaves.migrations must remain exactly 1",
+            ),
+            (
+                {"migrations_sync_wave": "01"},
+                "migrations must be an integer string",
+            ),
+            (
+                {"migrations_sync_wave": "not-an-integer"},
+                "migrations must be an integer string",
+            ),
+            (
+                {"extra_set": ("syncWaves.migrations=1",)},
+                "migrations must be an integer string",
+            ),
+            (
+                {"extra_set_json": ("syncWaves.migrations=null",)},
+                "migrations must be an integer string",
+            ),
+            (
                 {"sms_sync_wave": "0"},
-                "smsReconciliation must be strictly after syncWaves.migrations",
+                "syncWaves.smsReconciliation must remain exactly 3",
             ),
             (
                 {"sms_sync_wave": "1"},
-                "smsReconciliation must be strictly after syncWaves.migrations",
+                "syncWaves.smsReconciliation must remain exactly 3",
+            ),
+            (
+                {"sms_sync_wave": "4"},
+                "syncWaves.smsReconciliation must remain exactly 3",
             ),
             (
                 {"sms_sync_wave": "03"},
@@ -614,18 +720,6 @@ class CitrusSmsReconciliationChartTests(unittest.TestCase):
                 {"extra_set": ("syncWaves.smsReconciliation=3",)},
                 "smsReconciliation must be an integer string",
             ),
-            (
-                {"migrations_sync_wave": "3"},
-                "smsReconciliation must be strictly after syncWaves.migrations",
-            ),
-            (
-                {"migrations_sync_wave": "not-an-integer"},
-                "migrations must be an integer string",
-            ),
-            (
-                {"extra_set": ("syncWaves.migrations=1",)},
-                "migrations must be an integer string",
-            ),
         )
         for overrides, expected in cases:
             with self.subTest(overrides=overrides):
@@ -634,6 +728,63 @@ class CitrusSmsReconciliationChartTests(unittest.TestCase):
                 schema_failed = _run_helm(**kwargs)
                 self.assertNotEqual(schema_failed.returncode, 0)
                 self._assert_template_rejects(expected, **overrides)
+
+    def test_sync_wave_sequence_is_exactly_config_migration_policy_job(self) -> None:
+        for documents in (
+            self.prod_enabled_synthetic,
+            self.dev_enabled_synthetic,
+        ):
+            waves = [
+                _application_config_map(documents)["metadata"]["annotations"]
+                ["argocd.argoproj.io/sync-wave"],
+                _migration_job(documents)["metadata"]["annotations"]
+                ["argocd.argoproj.io/sync-wave"],
+                _sms_network_policy(documents)["metadata"]["annotations"]
+                ["argocd.argoproj.io/sync-wave"],
+                _sms_cronjob(documents)["metadata"]["annotations"]
+                ["argocd.argoproj.io/sync-wave"],
+            ]
+            self.assertEqual(waves, ["0", "1", "2", "3"])
+            self.assertEqual([int(wave) for wave in waves], sorted(map(int, waves)))
+
+    def test_migration_command_contract_rejects_every_bypass(self) -> None:
+        bypasses: tuple[Any, ...] = (
+            ["true", "noop", "noop", "noop"],
+            ["python", "manage.py", "makemigrations", "--noinput"],
+            ["python", "manage.py", "migrate"],
+            ["python", "manage.py", "migrate", "--fake"],
+            ["sh", "-c", "python manage.py migrate --noinput"],
+            ["python", "manage.py", "migrate", "--noinput", "--fake"],
+            "python manage.py migrate --noinput",
+            {"command": CANONICAL_MIGRATION_COMMAND},
+            None,
+        )
+        expected = "requires migrations.command to remain exactly"
+        for validate_schema in (True, False):
+            for migration_command in bypasses:
+                with self.subTest(
+                    validate_schema=validate_schema,
+                    migration_command=migration_command,
+                ):
+                    kwargs = _synthetic_render_kwargs(dev=True)
+                    kwargs["extra_set_json"] = (
+                        "migrations.command=" + json.dumps(migration_command),
+                    )
+                    failed = _run_helm(
+                        validate_schema=validate_schema,
+                        **kwargs,
+                    )
+                    self.assertNotEqual(failed.returncode, 0)
+                    if not validate_schema:
+                        self.assertIn(expected, failed.stderr)
+
+        migration = _migration_job(self.dev_enabled_synthetic)
+        container = migration["spec"]["template"]["spec"]["containers"][0]
+        self.assertEqual(container["command"], CANONICAL_MIGRATION_COMMAND)
+        self.assertEqual(
+            container["image"],
+            TRUSTED_IMAGE_REPOSITORY + ":" + COMMAND_BEARING_IMAGE_TAG,
+        )
 
     def test_network_policy_contract_rejects_every_egress_widening(self) -> None:
         too_long_database_host = ".".join(
@@ -679,7 +830,7 @@ class CitrusSmsReconciliationChartTests(unittest.TestCase):
             ),
             (
                 {"migrations_sync_wave": "2"},
-                "networkPolicy.syncWave must be strictly after migrations",
+                "syncWaves.migrations must remain exactly 1",
             ),
             (
                 {"network_policy_database_host": ""},
@@ -914,19 +1065,19 @@ class CitrusSmsReconciliationChartTests(unittest.TestCase):
             pod = job["template"]["spec"]
             self.assertFalse(pod["automountServiceAccountToken"])
             self.assertEqual(pod["restartPolicy"], "Never")
-            self.assertTrue(pod["securityContext"]["runAsNonRoot"])
+            self.assertEqual(
+                pod["securityContext"],
+                SMS_POD_SECURITY_CONTEXT,
+            )
             container = pod["containers"][0]
             self.assertEqual(
                 container["image"],
                 "registry.digitalocean.com/sendouq/citrus:"
                 + COMMAND_BEARING_IMAGE_TAG,
             )
-            self.assertFalse(
-                container["securityContext"]["allowPrivilegeEscalation"]
-            )
             self.assertEqual(
-                container["securityContext"]["capabilities"]["drop"],
-                ["ALL"],
+                container["securityContext"],
+                SMS_CONTAINER_SECURITY_CONTEXT,
             )
             self.assertEqual(
                 container["resources"],
@@ -935,6 +1086,43 @@ class CitrusSmsReconciliationChartTests(unittest.TestCase):
                     "limits": {"cpu": "250m", "memory": "256Mi"},
                 },
             )
+
+    def test_sms_security_context_is_literal_in_both_schema_modes(self) -> None:
+        malicious_global_context = (
+            "podSecurityContext.fsGroup=0",
+            "podSecurityContext.runAsGroup=0",
+            "podSecurityContext.runAsNonRoot=false",
+            "podSecurityContext.runAsUser=0",
+            "podSecurityContext.seccompProfile.type=Unconfined",
+            "containerSecurityContext.allowPrivilegeEscalation=true",
+            "containerSecurityContext.readOnlyRootFilesystem=false",
+            "containerSecurityContext.runAsGroup=0",
+            "containerSecurityContext.runAsNonRoot=false",
+            "containerSecurityContext.runAsUser=0",
+            "containerSecurityContext.capabilities.drop[0]=NET_ADMIN",
+        )
+        for validate_schema in (True, False):
+            with self.subTest(validate_schema=validate_schema):
+                kwargs = _synthetic_render_kwargs(dev=True)
+                kwargs["extra_set"] = malicious_global_context
+                documents = _render(
+                    validate_schema=validate_schema,
+                    **kwargs,
+                )
+                pod = _sms_cronjob(documents)["spec"]["jobTemplate"]["spec"]
+                pod = pod["template"]["spec"]
+                self.assertEqual(
+                    pod["securityContext"],
+                    SMS_POD_SECURITY_CONTEXT,
+                )
+                self.assertEqual(
+                    pod["containers"][0]["securityContext"],
+                    SMS_CONTAINER_SECURITY_CONTEXT,
+                )
+
+        template = TEMPLATE_PATH.read_text(encoding="utf-8")
+        self.assertNotIn(".Values.podSecurityContext", template)
+        self.assertNotIn(".Values.containerSecurityContext", template)
 
     def test_command_argv_and_numeric_inputs_are_exactly_pinned(self) -> None:
         template = TEMPLATE_PATH.read_text(encoding="utf-8")
@@ -1050,9 +1238,17 @@ class CitrusSmsReconciliationChartTests(unittest.TestCase):
         ):
             with self.subTest(field=field):
                 self.assertEqual(sms["properties"][field]["const"], expected)
+        sync_waves = schema["properties"]["syncWaves"]
         self.assertEqual(
-            schema["properties"]["syncWaves"]["properties"]
-            ["smsReconciliation"],
+            sync_waves["required"],
+            ["config", "migrations", "smsReconciliation"],
+        )
+        self.assertEqual(
+            sync_waves["properties"]["config"],
+            {"type": "string", "pattern": "^-?(0|[1-9][0-9]*)$"},
+        )
+        self.assertEqual(
+            sync_waves["properties"]["smsReconciliation"],
             {"type": "string", "pattern": "^[0-9]+$", "const": "3"},
         )
         network_policy = sms["properties"]["networkPolicy"]
@@ -1090,6 +1286,23 @@ class CitrusSmsReconciliationChartTests(unittest.TestCase):
         ):
             with self.subTest(exact_guard=exact_guard):
                 self.assertIn(exact_guard, serialized_root_guards)
+        enabled_guards = schema["allOf"][0]["then"]["properties"]
+        self.assertEqual(
+            enabled_guards["syncWaves"]["properties"],
+            {
+                "config": {"const": "0"},
+                "migrations": {"const": "1"},
+                "smsReconciliation": {"const": "3"},
+            },
+        )
+        self.assertEqual(
+            enabled_guards["migrations"]["properties"]["command"]["const"],
+            CANONICAL_MIGRATION_COMMAND,
+        )
+        self.assertIn(
+            "command",
+            enabled_guards["migrations"]["required"],
+        )
         self.assertEqual(
             sms["properties"]["commandCompatibleImageTags"]["items"]
             ["pattern"],

@@ -68,12 +68,21 @@ or attempt to restore a free-form `command` fails the render.
 
 The chart also pins `suspend=true`, schedule `*/15 * * * *`, `Etc/UTC`,
 `concurrencyPolicy: Forbid`, both deadlines to 240 seconds, one retry, two
-successful histories, and three failed histories. The migrations, egress-policy,
-and scheduler sync waves are canonical strings `"1"`, `"2"`, and `"3"` in
-strict order. Requests are exactly 50m CPU and 128Mi memory; limits are exactly
-250m CPU and 256Mi memory. A values-only unsuspend, resource increase, faster
-schedule, or wave reorder fails closed; unsuspending requires a separately
-reviewed chart change.
+successful histories, and three failed histories. The ConfigMap, migrations,
+egress-policy, and scheduler sync waves are canonical strings `"0"`, `"1"`,
+`"2"`, and `"3"` in strict order. The migration hook command is also fixed at
+`python manage.py migrate --noinput`; an enabled scheduler cannot render behind
+an arbitrary or successful no-op migration hook. Requests are exactly 50m CPU
+and 128Mi memory; limits are exactly 250m CPU and 256Mi memory. A values-only
+unsuspend, resource increase, faster schedule, wave reorder, or migration-command
+change fails closed; unsuspending requires a separately reviewed chart change.
+
+The SMS pod security context is literal rather than inherited from mutable
+global values: UID, GID, and fsGroup are `10001`, `runAsNonRoot` is true, and
+seccomp is `RuntimeDefault`. The container separately pins the same numeric
+identity, disables privilege escalation, drops every Linux capability, and uses
+a read-only root filesystem. Global security-context overrides therefore cannot
+weaken this prepared workload.
 
 ## Least-privilege Secret contract
 

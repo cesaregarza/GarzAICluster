@@ -4,8 +4,12 @@
   "properties": {
     "syncWaves": {
       "type": "object",
-      "required": ["migrations", "smsReconciliation"],
+      "required": ["config", "migrations", "smsReconciliation"],
       "properties": {
+        "config": {
+          "type": "string",
+          "pattern": "^-?(0|[1-9][0-9]*)$"
+        },
         "migrations": {
           "type": "string",
           "pattern": "^-?(0|[1-9][0-9]*)$"
@@ -536,6 +540,15 @@
       },
       "then": {
         "properties": {
+          "syncWaves": {
+            "type": "object",
+            "properties": {
+              "config": {"const": "0"},
+              "migrations": {"const": "1"},
+              "smsReconciliation": {"const": "3"}
+            },
+            "required": ["config", "migrations", "smsReconciliation"]
+          },
           "image": {
             "type": "object",
             "properties": {
@@ -548,9 +561,12 @@
           "migrations": {
             "type": "object",
             "properties": {
-              "enabled": {"const": true}
+              "enabled": {"const": true},
+              "command": {
+                "const": ["python", "manage.py", "migrate", "--noinput"]
+              }
             },
-            "required": ["enabled"]
+            "required": ["enabled", "command"]
           },
           "application": {
             "type": "object",
@@ -560,7 +576,7 @@
             "required": ["configMapName"]
           }
         },
-        "required": ["image", "migrations", "application"]
+        "required": ["syncWaves", "image", "migrations", "application"]
       }
     }
   ]

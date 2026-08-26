@@ -10,6 +10,10 @@
 {{- if not .Values.migrations.enabled }}
 {{- fail "smsReconciliation.enabled requires migrations.enabled=true" }}
 {{- end }}
+{{- $expectedMigrationCommand := list "python" "manage.py" "migrate" "--noinput" }}
+{{- if not (deepEqual .Values.migrations.command $expectedMigrationCommand) }}
+{{- fail "smsReconciliation.enabled requires migrations.command to remain exactly [python manage.py migrate --noinput]" }}
+{{- end }}
 {{- if ne (toString .Values.application.configMapName) "django-config" }}
 {{- fail "smsReconciliation.enabled requires application.configMapName django-config" }}
 {{- end }}
@@ -50,27 +54,44 @@
 {{- if not (deepEqual .Values.smsReconciliation.resources $expectedResources) }}
 {{- fail "smsReconciliation.resources must remain requests 50m/128Mi and limits 250m/256Mi" }}
 {{- end }}
+{{- if not (kindIs "string" .Values.syncWaves.config) }}
+{{- fail "syncWaves.config must be an integer string when smsReconciliation.enabled=true" }}
+{{- end }}
 {{- if not (kindIs "string" .Values.syncWaves.smsReconciliation) }}
 {{- fail "syncWaves.smsReconciliation must be an integer string" }}
 {{- end }}
 {{- if not (kindIs "string" .Values.syncWaves.migrations) }}
 {{- fail "syncWaves.migrations must be an integer string when smsReconciliation.enabled=true" }}
 {{- end }}
+{{- $configSyncWaveValue := .Values.syncWaves.config }}
 {{- $smsSyncWaveValue := .Values.syncWaves.smsReconciliation }}
 {{- $migrationsSyncWaveValue := .Values.syncWaves.migrations }}
+{{- if not (regexMatch "^-?(0|[1-9][0-9]*)$" $configSyncWaveValue) }}
+{{- fail "syncWaves.config must be an integer string when smsReconciliation.enabled=true" }}
+{{- end }}
 {{- if not (regexMatch "^-?(0|[1-9][0-9]*)$" $smsSyncWaveValue) }}
 {{- fail "syncWaves.smsReconciliation must be an integer string" }}
 {{- end }}
 {{- if not (regexMatch "^-?(0|[1-9][0-9]*)$" $migrationsSyncWaveValue) }}
 {{- fail "syncWaves.migrations must be an integer string when smsReconciliation.enabled=true" }}
 {{- end }}
+{{- $configSyncWave := int $configSyncWaveValue }}
 {{- $smsSyncWave := int $smsSyncWaveValue }}
 {{- $migrationsSyncWave := int $migrationsSyncWaveValue }}
-{{- if le $smsSyncWave $migrationsSyncWave }}
-{{- fail "syncWaves.smsReconciliation must be strictly after syncWaves.migrations" }}
+{{- if ne $configSyncWaveValue "0" }}
+{{- fail "syncWaves.config must remain exactly 0 when smsReconciliation.enabled=true" }}
+{{- end }}
+{{- if ne $migrationsSyncWaveValue "1" }}
+{{- fail "syncWaves.migrations must remain exactly 1 when smsReconciliation.enabled=true" }}
 {{- end }}
 {{- if ne $smsSyncWaveValue "3" }}
 {{- fail "syncWaves.smsReconciliation must remain exactly 3" }}
+{{- end }}
+{{- if ge $configSyncWave $migrationsSyncWave }}
+{{- fail "syncWaves.config must be strictly before syncWaves.migrations" }}
+{{- end }}
+{{- if le $smsSyncWave $migrationsSyncWave }}
+{{- fail "syncWaves.smsReconciliation must be strictly after syncWaves.migrations" }}
 {{- end }}
 {{- $networkPolicy := .Values.smsReconciliation.networkPolicy }}
 {{- if not $networkPolicy.enabled }}
@@ -231,7 +252,13 @@ spec:
           {{- include "citrus.imagePullSecrets" . | nindent 10 }}
           restartPolicy: Never
           securityContext:
-            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+            fsGroup: 10001
+            fsGroupChangePolicy: OnRootMismatch
+            runAsGroup: 10001
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: sms-reconciliation
               image: "{{ .Values.image.repository }}:{{ $imageTag }}"
@@ -245,7 +272,14 @@ spec:
                 - --limit
                 - "100"
               securityContext:
-                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsGroup: 10001
+                runAsNonRoot: true
+                runAsUser: 10001
+                capabilities:
+                  drop:
+                    - ALL
               # Explicit env entries override any same-named envFrom values.
               # This prepared scheduler cannot contact Twilio or widen sends.
               env:
