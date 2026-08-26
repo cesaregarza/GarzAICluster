@@ -33,9 +33,10 @@ All of these controls apply together:
   maximum range of 14 days. It requests query statistics and rejects anything
   other than exactly one returned series or a reviewed peak above 10,000
   samples. It also requires every expected timestamp; an incomplete warm-up,
-  stale series, or rule-evaluation gap fails closed. A 30-second query lookback
-  requires a recent recording sample instead of Prometheus's default five-minute
-  stale-value reuse.
+  stale series, or sustained recording gap whose newest sample is older than
+  30 seconds fails closed instead of using Prometheus's default five-minute
+  stale-value reuse. One missed 15-second evaluation can still reuse a fresh
+  preceding sample; `PrometheusRuleGroupIterationsMissed` detects that case.
 - The helper performs p95, p99, minimum, and maximum calculations offline. It
   never submits a range function, join, subquery, wildcard, or aggregation to
   Prometheus. Each receipt retains at most 4,033 validated points for reviewed
