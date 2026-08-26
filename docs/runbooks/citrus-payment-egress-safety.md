@@ -33,9 +33,28 @@ The chart accepts only these named runtime pairs:
 | `production` | `citrus` | `allow` |
 
 Both require `PAYMENT_EGRESS_POLICY_REQUIRED=true`, provider `cilium`, a safe
-nonempty policy revision, and a same-release `CiliumNetworkPolicy`. The policy
-is applied at sync wave `-1`, before the ConfigMap, migration Job, and serving
-workloads.
+nonempty policy revision, and same-release `CiliumNetworkPolicy` resources. The
+policies are applied at sync wave `-1`, before the ConfigMap, migration Job, and
+serving workloads.
+
+The boundary deliberately uses two selectors over labels that already exist
+before activation. One selects the web, media-worker, and billing-worker
+Deployment Pods by their stable `app` values. The other selects migration,
+media, and recurring batch Pods by release and an explicit component list.
+This closes the activation window before old Pods or old CronJob templates are
+replaced. Render tests require every current and enabled Citrus image workload
+to match at least one selector and require Redis to match neither.
+
+The separately prepared payment credential overlay cannot render by itself:
+credential projection requires the matching payment-safety environment and
+owner in the same Helm render. Safety without credentials remains valid. When
+both are enabled, the web process also receives
+`STRIPE_WEBHOOK_SECRET_OWNER`. The chart binds the dev
+webhook variable to `citrus-dev-payment-credentials` owned by `citrus-dev`, and
+the production variable to `citrus-prod-payment-credentials` owned by `citrus`.
+Generic webhook-secret projection is not an allowed managed-environment
+contract. This is value-free provenance metadata; it does not classify the
+credential contents, so the CES-844 operator classification gate still applies.
 
 Environment-variable attestation alone does not prove that the live Cilium
 policy exists or is enforcing. It proves only the image/chart contract. Live
@@ -92,6 +111,32 @@ an audit name, one exact lowercase hostname, and one or more TCP ports. Do not
 add a broad wildcard, IP range, generic proxy, or Stripe destination to make a
 failing workflow pass.
 
+## Required release order
+
+The current Citrus Argo renders do not set the CES-845 runtime attestation.
+Never deploy a source image that requires this contract before the environment
+has been prepared. Reversing the first two steps would make the new image fail
+during settings import and could stall the rollout.
+
+1. With the old Citrus image still selected, prepare and review the exact dev
+   dependency inventory and enable the development deny-mode attestation and
+   both wave `-1` Cilium policies. Do not project a new payment Secret in this
+   step.
+2. Reconcile that GitOps revision under separate authorization. Prove both
+   policies select the existing Citrus endpoints, exclude Redis, report the
+   reviewed revision, and reject a local fake destination omitted from the
+   allowlist. Do not probe Stripe.
+3. Remove or isolate the unsafe dev credential projection under CES-844 so the
+   next image sees only authoritatively non-live or intentionally absent
+   settings. Preserve the active Cilium boundary throughout the transition.
+4. Only after steps 1-3 have receipts, deploy the exact reviewed CES-845 source
+   image and verify startup checks across web, workers, Jobs, and CronJobs.
+
+Production is a separate train. Its explicit allow-mode attestation and policy
+must reconcile before the CES-845 image is promoted there, and current health
+must be verified at each step. A merge of this disabled chart preparation is
+not an activation receipt for either environment.
+
 ## Prepared render checks
 
 Use synthetic hostnames only during local review. These commands render YAML;
@@ -130,8 +175,8 @@ helm template citrus helm/citrus \
 Before any later activation, render the exact proposed environment values and
 verify all of the following:
 
-- The Cilium policy selects every Citrus Pod template and does not select the
-  Redis Pod.
+- The two Cilium policy selectors cover both pre-activation and proposed Citrus
+  Pod templates and neither selector matches the Redis Pod.
 - The database, storage, email, and optional exact destinations are complete.
 - No rendered `toFQDNs` entry ends in `.stripe.com` or `.stripe.network`.
 - The source image implements the matching runtime guard contract.

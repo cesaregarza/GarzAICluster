@@ -38,6 +38,31 @@ Validate the disabled-by-default CES-844 payment credential projection.
 {{- if not (has $webhookEnvironmentVariable (list "STRIPE_WEBHOOK_SECRET_DEV" "STRIPE_WEBHOOK_SECRET_PROD")) -}}
 {{- fail "paymentCredentials.webhookEnvironmentVariable must select the dev or production environment-specific webhook setting" -}}
 {{- end -}}
+{{- $owner := required "paymentCredentials.owner is required when paymentCredentials.enabled=true" .Values.paymentCredentials.owner -}}
+{{- if not .Values.paymentSafety.enabled -}}
+{{- fail "paymentSafety.enabled must be true when paymentCredentials.enabled=true" -}}
+{{- end -}}
+{{- if eq $webhookEnvironmentVariable "STRIPE_WEBHOOK_SECRET_DEV" -}}
+{{- if ne $owner "citrus-dev" -}}
+{{- fail "paymentCredentials.owner must be citrus-dev for the dev webhook setting" -}}
+{{- end -}}
+{{- if ne $secretName "citrus-dev-payment-credentials" -}}
+{{- fail "the dev webhook setting requires secretName citrus-dev-payment-credentials" -}}
+{{- end -}}
+{{- if or (ne .Values.paymentSafety.environment "development") (ne .Values.paymentSafety.owner "citrus-dev") -}}
+{{- fail "dev payment credentials require paymentSafety.environment=development and paymentSafety.owner=citrus-dev" -}}
+{{- end -}}
+{{- else -}}
+{{- if ne $owner "citrus" -}}
+{{- fail "paymentCredentials.owner must be citrus for the production webhook setting" -}}
+{{- end -}}
+{{- if ne $secretName "citrus-prod-payment-credentials" -}}
+{{- fail "the production webhook setting requires secretName citrus-prod-payment-credentials" -}}
+{{- end -}}
+{{- if or (ne .Values.paymentSafety.environment "production") (ne .Values.paymentSafety.owner "citrus") -}}
+{{- fail "production payment credentials require paymentSafety.environment=production and paymentSafety.owner=citrus" -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- end }}
 
@@ -72,6 +97,8 @@ override legacy envFrom keys during replacement-before-removal staging.
       name: {{ .Values.paymentCredentials.secretName }}
       key: STRIPE_WEBHOOK_SECRET
       optional: false
+- name: STRIPE_WEBHOOK_SECRET_OWNER
+  value: {{ .Values.paymentCredentials.owner | quote }}
 {{- end }}
 {{- end }}
 

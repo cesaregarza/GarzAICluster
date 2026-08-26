@@ -2,6 +2,99 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
+    "paymentCredentials": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "secretName",
+        "owner",
+        "rolloutRevision",
+        "webhookEnvironmentVariable"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "secretName": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$"
+        },
+        "owner": {
+          "type": "string",
+          "enum": ["", "citrus-dev", "citrus"]
+        },
+        "rolloutRevision": {
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "webhookEnvironmentVariable": {
+          "type": "string",
+          "enum": [
+            "",
+            "STRIPE_WEBHOOK_SECRET_DEV",
+            "STRIPE_WEBHOOK_SECRET_PROD"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {"const": true}
+            }
+          },
+          "then": {
+            "properties": {
+              "secretName": {"minLength": 1},
+              "owner": {"enum": ["citrus-dev", "citrus"]},
+              "rolloutRevision": {"minLength": 1},
+              "webhookEnvironmentVariable": {
+                "enum": [
+                  "STRIPE_WEBHOOK_SECRET_DEV",
+                  "STRIPE_WEBHOOK_SECRET_PROD"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "enabled": {"const": true},
+              "webhookEnvironmentVariable": {
+                "const": "STRIPE_WEBHOOK_SECRET_DEV"
+              }
+            },
+            "required": ["enabled", "webhookEnvironmentVariable"]
+          },
+          "then": {
+            "properties": {
+              "secretName": {"const": "citrus-dev-payment-credentials"},
+              "owner": {"const": "citrus-dev"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "enabled": {"const": true},
+              "webhookEnvironmentVariable": {
+                "const": "STRIPE_WEBHOOK_SECRET_PROD"
+              }
+            },
+            "required": ["enabled", "webhookEnvironmentVariable"]
+          },
+          "then": {
+            "properties": {
+              "secretName": {"const": "citrus-prod-payment-credentials"},
+              "owner": {"const": "citrus"}
+            }
+          }
+        }
+      ]
+    },
     "paymentSafety": {
       "type": "object",
       "additionalProperties": false,

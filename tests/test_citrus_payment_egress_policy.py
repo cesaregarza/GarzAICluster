@@ -162,6 +162,22 @@ def _env(container: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _selector_matches(labels: dict[str, str], selector: dict[str, Any]) -> bool:
+    if any(
+        labels.get(key) != value
+        for key, value in selector.get("matchLabels", {}).items()
+    ):
+        return False
+    for expression in selector.get("matchExpressions", []):
+        if expression.get("operator") != "In":
+            raise AssertionError(
+                f"unsupported selector operator: {expression.get('operator')}"
+            )
+        if labels.get(expression["key"]) not in expression.get("values", []):
+            return False
+    return True
+
+
 class CitrusPaymentEgressPolicyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -171,6 +187,17 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
         cls.default_dev = _documents(
             _helm_command(development=True, enabled=False)
         )
+
+        legacy_dev_command = _helm_command(development=True, enabled=False)
+        legacy_dev_command.extend(
+            [
+                "--set",
+                "billingWorker.enabled=true",
+                "--set",
+                "recurringRuntime.enabled=true",
+            ]
+        )
+        cls.legacy_dev = _documents(legacy_dev_command)
 
         dev_command = _helm_command(development=True, enabled=True)
         dev_command.extend(
@@ -281,6 +308,45 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             redis["spec"]["template"]["metadata"]["labels"],
         )
 
+    def test_policy_selectors_cover_pre_activation_and_enabled_pods(self) -> None:
+        policies = [
+            document
+            for document in self.enforced_dev
+            if document.get("kind") == "CiliumNetworkPolicy"
+        ]
+        self.assertEqual(
+            {policy["metadata"]["name"] for policy in policies},
+            {
+                "citrus-dev-payment-egress",
+                "citrus-dev-payment-egress-batch",
+            },
+        )
+        selectors = [policy["spec"]["endpointSelector"] for policy in policies]
+
+        for documents, phase in (
+            (self.legacy_dev, "pre-activation"),
+            (self.enforced_dev, "enabled"),
+        ):
+            for workload in _app_workloads(documents):
+                labels = _pod_template(workload)["metadata"]["labels"]
+                self.assertTrue(
+                    any(
+                        _selector_matches(labels, selector)
+                        for selector in selectors
+                    ),
+                    f"{phase} {workload['metadata']['name']} is unselected",
+                )
+
+            redis = _named(documents, "Deployment", "citrus-redis")
+            redis_labels = redis["spec"]["template"]["metadata"]["labels"]
+            self.assertFalse(
+                any(
+                    _selector_matches(redis_labels, selector)
+                    for selector in selectors
+                ),
+                f"{phase} Redis must remain outside the payment boundary",
+            )
+
     def test_development_policy_allows_only_declared_non_stripe_dependencies(
         self,
     ) -> None:
@@ -302,10 +368,19 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             "ces-845-test",
         )
         self.assertEqual(
-            policy["spec"]["endpointSelector"]["matchLabels"],
+            policy["spec"]["endpointSelector"],
             {
-                "app.kubernetes.io/instance": "citrus-dev",
-                "citrus.grace/payment-egress-boundary": "enabled",
+                "matchExpressions": [
+                    {
+                        "key": "app",
+                        "operator": "In",
+                        "values": [
+                            "citrus-web",
+                            "citrus-media-worker",
+                            "citrus-billing-worker",
+                        ],
+                    }
+                ]
             },
         )
         self.assertNotIn("ingress", policy["spec"])
@@ -386,15 +461,17 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
         )
 
     def test_production_requires_and_renders_explicit_allow_mode(self) -> None:
-        policy = _named(
-            self.explicit_prod,
-            "CiliumNetworkPolicy",
-            "citrus-payment-egress",
-        )
-        self.assertEqual(
-            policy["spec"]["egress"],
-            [{"toEntities": ["all"]}],
-        )
+        policies = [
+            document
+            for document in self.explicit_prod
+            if document.get("kind") == "CiliumNetworkPolicy"
+        ]
+        self.assertEqual(len(policies), 2)
+        for policy in policies:
+            self.assertEqual(
+                policy["spec"]["egress"],
+                [{"toEntities": ["all"]}],
+            )
         for workload in _app_workloads(self.explicit_prod):
             for container in _pod_template(workload)["spec"]["containers"]:
                 if not str(container.get("image", "")).startswith(APP_IMAGE):

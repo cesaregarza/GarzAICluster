@@ -106,6 +106,7 @@ application:
 paymentCredentials:
   enabled: false
   secretName: ""
+  owner: ""
   rolloutRevision: ""
   webhookEnvironmentVariable: ""
 

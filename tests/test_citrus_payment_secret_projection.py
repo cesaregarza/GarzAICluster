@@ -44,7 +44,42 @@ def _render(
         command.extend([
             "-f",
             str(DEV_PAYMENT_VALUES if dev else PROD_PAYMENT_VALUES),
+            "--set",
+            "paymentSafety.enabled=true",
+            "--set-string",
+            (
+                "paymentSafety.environment=development"
+                if dev
+                else "paymentSafety.environment=production"
+            ),
+            "--set-string",
+            (
+                "paymentSafety.owner=citrus-dev"
+                if dev
+                else "paymentSafety.owner=citrus"
+            ),
+            "--set-string",
+            (
+                "paymentSafety.networkMode=deny"
+                if dev
+                else "paymentSafety.networkMode=allow"
+            ),
+            "--set",
+            "paymentSafety.policy.required=true",
+            "--set-string",
+            "paymentSafety.policy.provider=cilium",
+            "--set-string",
+            "paymentSafety.policy.revision=ces-845-test",
+            "--set",
+            "paymentSafety.networkPolicy.enabled=true",
         ])
+        if dev:
+            command.extend(
+                [
+                    "--set-string",
+                    "paymentSafety.networkPolicy.database.host=db.dev.example",
+                ]
+            )
     if activate_background_consumers:
         command.extend([
             "--set",
@@ -123,6 +158,21 @@ def _payment_refs(container: dict[str, Any], secret_name: str) -> dict[str, str]
     return references
 
 
+def _plain_env(container: dict[str, Any], name: str) -> str | None:
+    matches = [
+        item
+        for item in container.get("env", [])
+        if item.get("name") == name
+    ]
+    if len(matches) > 1:
+        raise AssertionError(f"{name} is projected more than once")
+    if not matches:
+        return None
+    if "valueFrom" in matches[0]:
+        raise AssertionError(f"{name} must be a plain ownership attestation")
+    return matches[0].get("value")
+
+
 def _all_payment_refs(
     documents: list[dict[str, Any]],
     secret_name: str,
@@ -168,6 +218,7 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
             self.assertNotIn("payment-rollout-revision", serialized)
             self.assertNotIn("citrus-prod-payment-credentials", serialized)
             self.assertNotIn("citrus-dev-payment-credentials", serialized)
+            self.assertNotIn("STRIPE_WEBHOOK_SECRET_OWNER", serialized)
 
         prod_application = (
             REPO_ROOT / "argocd" / "applications" / "citrus.yaml"
@@ -203,6 +254,13 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
             },
         )
         self.assertEqual(
+            _plain_env(
+                _container(web, "django"),
+                "STRIPE_WEBHOOK_SECRET_OWNER",
+            ),
+            "citrus",
+        )
+        self.assertEqual(
             _pod_annotations(web)["citrus.grace/payment-rollout-revision"],
             "ces-844-prepared",
         )
@@ -233,6 +291,13 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                 "STRIPE_WEBHOOK_SECRET_DEV": "STRIPE_WEBHOOK_SECRET",
             },
         )
+        self.assertEqual(
+            _plain_env(
+                _container(web, "django"),
+                "STRIPE_WEBHOOK_SECRET_OWNER",
+            ),
+            "citrus-dev",
+        )
         self.assertNotIn("STRIPE_WEBHOOK_SECRET_PROD", references)
         self.assertNotIn("STRIPE_WEBHOOK_SECRET", references)
         self.assertTrue(_all_payment_refs(self.prepared_dev, secret_name))
@@ -247,7 +312,7 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
         cases = (
             (
                 ["--set", "paymentCredentials.enabled=true"],
-                "paymentCredentials.secretName is required",
+                "paymentCredentials.secretName",
             ),
             (
                 [
@@ -256,7 +321,7 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                     "--set-string",
                     "paymentCredentials.webhookEnvironmentVariable=STRIPE_WEBHOOK_SECRET",
                 ],
-                "must select the dev or production environment-specific webhook setting",
+                "paymentCredentials.webhookEnvironmentVariable",
             ),
             (
                 [
@@ -265,7 +330,77 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                     "--set-string",
                     "paymentCredentials.rolloutRevision=not safe",
                 ],
-                "must be a semantic revision",
+                "paymentCredentials.rolloutRevision",
+            ),
+            (
+                [
+                    "-f",
+                    str(PROD_PAYMENT_VALUES),
+                    "--set-string",
+                    "paymentCredentials.owner=citrus-dev",
+                ],
+                "paymentCredentials.owner",
+            ),
+            (
+                [
+                    "-f",
+                    str(DEV_PAYMENT_VALUES),
+                    "--set-string",
+                    "paymentCredentials.secretName=citrus-prod-payment-credentials",
+                ],
+                "paymentCredentials.secretName",
+            ),
+            (
+                ["-f", str(PROD_PAYMENT_VALUES)],
+                "paymentSafety.enabled",
+            ),
+            (
+                [
+                    "-f",
+                    str(PROD_PAYMENT_VALUES),
+                    "--set",
+                    "paymentSafety.enabled=true",
+                    "--set-string",
+                    "paymentSafety.environment=development",
+                    "--set-string",
+                    "paymentSafety.owner=citrus-dev",
+                    "--set-string",
+                    "paymentSafety.networkMode=deny",
+                    "--set",
+                    "paymentSafety.policy.required=true",
+                    "--set-string",
+                    "paymentSafety.policy.provider=cilium",
+                    "--set-string",
+                    "paymentSafety.policy.revision=ces-845-test",
+                    "--set",
+                    "paymentSafety.networkPolicy.enabled=true",
+                    "--set-string",
+                    "paymentSafety.networkPolicy.database.host=db.dev.example",
+                ],
+                "production payment credentials require",
+            ),
+            (
+                [
+                    "-f",
+                    str(DEV_PAYMENT_VALUES),
+                    "--set",
+                    "paymentSafety.enabled=true",
+                    "--set-string",
+                    "paymentSafety.environment=production",
+                    "--set-string",
+                    "paymentSafety.owner=citrus",
+                    "--set-string",
+                    "paymentSafety.networkMode=allow",
+                    "--set",
+                    "paymentSafety.policy.required=true",
+                    "--set-string",
+                    "paymentSafety.policy.provider=cilium",
+                    "--set-string",
+                    "paymentSafety.policy.revision=ces-845-test",
+                    "--set",
+                    "paymentSafety.networkPolicy.enabled=true",
+                ],
+                "dev payment credentials require",
             ),
         )
         for arguments, message in cases:
