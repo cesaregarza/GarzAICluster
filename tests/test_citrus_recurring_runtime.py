@@ -109,6 +109,16 @@ def _named(documents, kind, name):
     )
 
 
+def _metric_selectors(expression: str, metric: str) -> list[str]:
+    return [
+        " ".join(selector.split())
+        for selector in re.findall(
+            rf"{re.escape(metric)}\{{([^}}]+)\}}",
+            expression,
+        )
+    ]
+
+
 class CitrusRecurringRuntimeChartTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -295,35 +305,131 @@ class CitrusRecurringRuntimeChartTests(unittest.TestCase):
                     'namespace=~"citrus(-dev)?"',
                     alert["expr"],
                 )
+                self.assertNotIn(
+                    'namespace=~"default|citrus-dev"',
+                    alert["expr"],
+                )
+                self.assertNotIn("citrus(-dev)?", alert["expr"])
 
-    def test_rendered_job_and_scrape_alerts_match_both_real_environments(self) -> None:
+    def test_rendered_job_and_scrape_alerts_pair_and_reject_swaps(self) -> None:
         for suffix, alert_name in (
             ("health", "CitrusRecurringRuntimeHealthFailed"),
             ("tick", "CitrusRecurringRuntimeTickFailed"),
         ):
             with self.subTest(alert=alert_name):
                 expression = self.recurring_alerts[alert_name]["expr"]
+                expected_namespaces = {
+                    'job="kube-state-metrics", namespace="default"',
+                    'job="kube-state-metrics", namespace="citrus-dev"',
+                }
                 self.assertEqual(
-                    expression.count('namespace=~"default|citrus-dev"'),
-                    3,
+                    set(_metric_selectors(expression, "kube_job_status_failed")),
+                    expected_namespaces,
                 )
-                self.assertEqual(expression.count('job="kube-state-metrics"'), 3)
-                self.assertIn('owner_kind="CronJob"', expression)
-                self.assertIn(
-                    f'owner_name=~"citrus(-dev)?-recurring-{suffix}"',
-                    expression,
+                self.assertEqual(
+                    set(_metric_selectors(expression, "kube_job_status_start_time")),
+                    expected_namespaces,
+                )
+                owner_selectors = set(
+                    _metric_selectors(expression, "kube_job_owner")
+                )
+                self.assertEqual(
+                    owner_selectors,
+                    {
+                        (
+                            'job="kube-state-metrics", namespace="default", '
+                            'owner_kind="CronJob", '
+                            f'owner_name="citrus-recurring-{suffix}"'
+                        ),
+                        (
+                            'job="kube-state-metrics", namespace="citrus-dev", '
+                            'owner_kind="CronJob", '
+                            f'owner_name="citrus-dev-recurring-{suffix}"'
+                        ),
+                    },
+                )
+                self.assertTrue(
+                    owner_selectors.isdisjoint(
+                        {
+                            (
+                                'job="kube-state-metrics", '
+                                'namespace="default", owner_kind="CronJob", '
+                                f'owner_name="citrus-dev-recurring-{suffix}"'
+                            ),
+                            (
+                                'job="kube-state-metrics", '
+                                'namespace="citrus-dev", '
+                                'owner_kind="CronJob", '
+                                f'owner_name="citrus-recurring-{suffix}"'
+                            ),
+                        }
+                    )
                 )
 
         missing = self.recurring_alerts[
             "CitrusRecurringRuntimeMetricsMissing"
         ]["expr"]
-        self.assertEqual(missing.count('namespace=~"default|citrus-dev"'), 2)
-        self.assertIn('job="kube-state-metrics"', missing)
-        self.assertIn('deployment=~"citrus(-dev)?-billing-worker"', missing)
-        self.assertIn('job="kubernetes-pods"', missing)
-        self.assertIn('pod=~"citrus(-dev)?-billing-worker-.*"', missing)
+        self.assertEqual(missing.count("unless on (namespace)"), 2)
+        deployment_selectors = set(
+            _metric_selectors(missing, "kube_deployment_spec_replicas")
+        )
+        self.assertEqual(
+            deployment_selectors,
+            {
+                (
+                    'job="kube-state-metrics", namespace="default", '
+                    'deployment="citrus-billing-worker"'
+                ),
+                (
+                    'job="kube-state-metrics", namespace="citrus-dev", '
+                    'deployment="citrus-dev-billing-worker"'
+                ),
+            },
+        )
+        self.assertTrue(
+            deployment_selectors.isdisjoint(
+                {
+                    (
+                        'job="kube-state-metrics", namespace="default", '
+                        'deployment="citrus-dev-billing-worker"'
+                    ),
+                    (
+                        'job="kube-state-metrics", namespace="citrus-dev", '
+                        'deployment="citrus-billing-worker"'
+                    ),
+                }
+            )
+        )
+        scrape_selectors = set(_metric_selectors(missing, "up"))
+        self.assertEqual(
+            scrape_selectors,
+            {
+                (
+                    'job="kubernetes-pods", namespace="default", '
+                    'pod=~"citrus-billing-worker-.*"'
+                ),
+                (
+                    'job="kubernetes-pods", namespace="citrus-dev", '
+                    'pod=~"citrus-dev-billing-worker-.*"'
+                ),
+            },
+        )
+        self.assertTrue(
+            scrape_selectors.isdisjoint(
+                {
+                    (
+                        'job="kubernetes-pods", namespace="default", '
+                        'pod=~"citrus-dev-billing-worker-.*"'
+                    ),
+                    (
+                        'job="kubernetes-pods", namespace="citrus-dev", '
+                        'pod=~"citrus-billing-worker-.*"'
+                    ),
+                }
+            )
+        )
 
-    def test_rendered_runtime_metrics_require_the_citrus_billing_pod(self) -> None:
+    def test_rendered_runtime_metrics_pair_and_reject_swapped_pods(self) -> None:
         expected_metrics = {
             "CitrusRecurringRuntimeExporterUnhealthy": (
                 "citrus_recurring_runtime_health",
@@ -355,22 +461,40 @@ class CitrusRecurringRuntimeChartTests(unittest.TestCase):
         }
         for alert_name, metrics in expected_metrics.items():
             expression = self.recurring_alerts[alert_name]["expr"]
+            if len(metrics) > 1:
+                self.assertIn("max by (job, namespace, pod)", expression)
             for metric in metrics:
                 with self.subTest(alert=alert_name, metric=metric):
-                    selectors = re.findall(
-                        rf"{re.escape(metric)}\{{([^}}]+)\}}",
-                        expression,
+                    selectors = set(_metric_selectors(expression, metric))
+                    self.assertEqual(
+                        selectors,
+                        {
+                            (
+                                'job="kubernetes-pods", namespace="default", '
+                                'pod=~"citrus-billing-worker-.*"'
+                            ),
+                            (
+                                'job="kubernetes-pods", '
+                                'namespace="citrus-dev", '
+                                'pod=~"citrus-dev-billing-worker-.*"'
+                            ),
+                        },
                     )
-                    self.assertEqual(len(selectors), 1)
-                    selector = " ".join(selectors[0].split())
-                    self.assertIn('job="kubernetes-pods"', selector)
-                    self.assertIn(
-                        'namespace=~"default|citrus-dev"',
-                        selector,
-                    )
-                    self.assertIn(
-                        'pod=~"citrus(-dev)?-billing-worker-.*"',
-                        selector,
+                    self.assertTrue(
+                        selectors.isdisjoint(
+                            {
+                                (
+                                    'job="kubernetes-pods", '
+                                    'namespace="default", '
+                                    'pod=~"citrus-dev-billing-worker-.*"'
+                                ),
+                                (
+                                    'job="kubernetes-pods", '
+                                    'namespace="citrus-dev", '
+                                    'pod=~"citrus-billing-worker-.*"'
+                                ),
+                            }
+                        )
                     )
 
 

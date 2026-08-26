@@ -41,23 +41,35 @@ existing names, and their existing pending durations.
 | `CitrusRecurringPaymentReconciliationLag` | Citrus billing-worker metrics pod | 5m |
 | `CitrusRecurringChargeOrOrderStalled` | Citrus billing-worker metrics pod | 5m |
 
-Kube-state-metrics selectors now require `job="kube-state-metrics"`, the exact
-production/dev namespace set `default|citrus-dev`, and the existing exact
-Citrus owner or Deployment naming contract. Application metrics now require
-`job="kubernetes-pods"`, the same namespace set, and the Citrus billing-worker
-pod-name contract. An unrelated pod in `default` cannot satisfy a recurring
-metric alert merely by exposing the same metric name.
+Kube-state-metrics selectors use two complete environment branches: production
+requires `namespace="default"` plus the exact `citrus-*` owner or Deployment,
+while development requires `namespace="citrus-dev"` plus the exact
+`citrus-dev-*` identity. Application metrics pair those same namespaces with
+their respective billing-worker pod prefixes and `job="kubernetes-pods"`.
+The missing-metrics rule keeps each Deployment and scrape-side `unless` in the
+same fixed environment branch, so a cross-named pod cannot suppress the real
+worker's alert. An unrelated or swapped-name pod cannot satisfy any recurring
+alert merely by exposing the same metric name.
 
 ## Test matrix
 
 `helm/garz-observability/tests/citrus-recurring-alerts.test.yaml` is executed by
-the pinned Prometheus 2.52 `promtool test rules` path. One synthetic scenario
-provides every alert with:
+the pinned Prometheus 2.52 `promtool test rules` path. The synthetic scenarios
+provide every alert with:
 
 - a production failure series in `default` that must fire;
 - a development failure series in `citrus-dev` that must fire; and
 - an unrelated `default` workload series with the same signal that must not
-  appear in the expected alerts.
+  appear in the expected alerts;
+- both swapped namespace/name combinations at firing values that must not
+  appear; and
+- correct and swapped scrape-health controls proving only the correctly paired
+  `up == 1` series clears a missing-metrics alert.
+
+Both limbs of each multi-signal alert fire for the correct production and
+development pod in the fixture. The rules aggregate by `job`, `namespace`, and
+`pod` after thresholding so simultaneous signals yield one stable alert label
+set instead of duplicate alerts distinguished only by metric name.
 
 Rendered Python contracts independently inventory all eleven alert names,
 durations, severities, source jobs, namespaces, owners, Deployments, and pod
