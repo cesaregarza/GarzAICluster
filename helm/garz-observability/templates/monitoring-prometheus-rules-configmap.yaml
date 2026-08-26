@@ -1,5 +1,6 @@
 {{- if and .Values.monitoring.prometheus.enabled .Values.monitoring.prometheus.rules.enabled }}
 {{- $fullName := include "garzObservability.fullname" . -}}
+{{- $monitoringNamespace := include "garzObservability.monitoringNamespace" . -}}
 {{- $rulesConfigMapName := default (printf "%s-prometheus-rules" $fullName) .Values.monitoring.prometheus.rules.configMapName -}}
 apiVersion: v1
 kind: ConfigMap
@@ -345,4 +346,337 @@ data:
             annotations:
               summary: Grafana is unreachable
               description: Grafana metrics endpoint has been unreachable for 5 minutes.
+
+  query-safety-recording-rules.yaml: |
+    groups:
+      - name: splattop-query-safety-recording
+        interval: {{ .Values.monitoring.prometheus.querySafety.recordingInterval }}
+        limit: {{ .Values.monitoring.prometheus.querySafety.maxSeriesPerRule }}
+        rules:
+          - record: cluster:container_cpu_usage_seconds_total:sum_rate5m
+            expr: |
+              sum(
+                rate(
+                  container_cpu_usage_seconds_total{
+                    job="kubernetes-cadvisor",
+                    namespace!="",
+                    pod!="",
+                    container!="",
+                    container!="POD"
+                  }[5m]
+                )
+              )
+
+          - record: cluster:kube_pod_container_resource_requests_cpu_cores:max_sum_active_bound5m
+            expr: |
+              max_over_time(
+                (
+                  sum(
+                    kube_pod_container_resource_requests{
+                      job="kube-state-metrics",
+                      node!="",
+                      resource="cpu",
+                      unit="core"
+                    }
+                      * on (namespace, pod, uid) group_left()
+                    max by (namespace, pod, uid) (
+                      kube_pod_status_phase{
+                        job="kube-state-metrics",
+                        phase=~"Pending|Running|Unknown"
+                      } == 1
+                    )
+                  )
+                )[5m:{{ .Values.monitoring.prometheus.querySafety.recordingInterval }}]
+              )
+
+          - record: node:kube_pod_container_resource_requests_cpu_cores:max_sum_active_bound5m
+            expr: |
+              max_over_time(
+                (
+                  sum by (node) (
+                    kube_pod_container_resource_requests{
+                      job="kube-state-metrics",
+                      node!="",
+                      resource="cpu",
+                      unit="core"
+                    }
+                      * on (namespace, pod, uid) group_left()
+                    max by (namespace, pod, uid) (
+                      kube_pod_status_phase{
+                        job="kube-state-metrics",
+                        phase=~"Pending|Running|Unknown"
+                      } == 1
+                    )
+                  )
+                )[5m:{{ .Values.monitoring.prometheus.querySafety.recordingInterval }}]
+              )
+
+          - record: cluster:kube_node_status_allocatable_cpu_cores:sum
+            expr: |
+              sum(
+                max by (node) (
+                  kube_node_status_allocatable{
+                    job="kube-state-metrics",
+                    resource="cpu",
+                    unit="core"
+                  }
+                )
+              )
+
+          - record: node:kube_node_status_allocatable_cpu_cores:max
+            expr: |
+              max by (node) (
+                kube_node_status_allocatable{
+                  job="kube-state-metrics",
+                  resource="cpu",
+                  unit="core"
+                }
+              )
+
+          - record: namespace_container:citrus_container_cpu_usage_seconds_total:max_rate5m
+            expr: |
+              max by (namespace, container) (
+                rate(
+                  container_cpu_usage_seconds_total{
+                    job="kubernetes-cadvisor",
+                    namespace=~"default|citrus-dev",
+                    pod=~"citrus(-dev)?-.*",
+                    container!="",
+                    container!="POD"
+                  }[5m]
+                )
+              )
+            labels:
+              scope: citrus
+
+          - record: namespace_container:citrus_container_memory_working_set_bytes:max_over_time5m
+            expr: |
+              max by (namespace, container) (
+                max_over_time(
+                  container_memory_working_set_bytes{
+                    job="kubernetes-cadvisor",
+                    namespace=~"default|citrus-dev",
+                    pod=~"citrus(-dev)?-.*",
+                    container!="",
+                    container!="POD"
+                  }[5m]
+                )
+              )
+            labels:
+              scope: citrus
+
+          - record: namespace_container:citrus_kube_pod_container_resource_requests_cpu_cores:max_over_time5m
+            expr: |
+              max by (namespace, container) (
+                max_over_time(
+                  kube_pod_container_resource_requests{
+                    job="kube-state-metrics",
+                    namespace=~"default|citrus-dev",
+                    pod=~"citrus(-dev)?-.*",
+                    resource="cpu",
+                    unit="core"
+                  }[5m]
+                )
+              )
+            labels:
+              scope: citrus
+
+          - record: namespace_container:citrus_kube_pod_container_resource_requests_memory_bytes:max_over_time5m
+            expr: |
+              max by (namespace, container) (
+                max_over_time(
+                  kube_pod_container_resource_requests{
+                    job="kube-state-metrics",
+                    namespace=~"default|citrus-dev",
+                    pod=~"citrus(-dev)?-.*",
+                    resource="memory",
+                    unit="byte"
+                  }[5m]
+                )
+              )
+            labels:
+              scope: citrus
+
+          - record: namespace:citrus_kube_pod_scheduling_latency_seconds:p95_over_pods5m
+            expr: |
+              quantile by (namespace) (
+                0.95,
+                max_over_time(
+                  (
+                    clamp_min(
+                      kube_pod_status_scheduled_time{
+                        job="kube-state-metrics",
+                        namespace=~"default|citrus-dev",
+                        pod=~"citrus(-dev)?-.*"
+                      }
+                        - on (namespace, pod, uid)
+                      kube_pod_created{
+                        job="kube-state-metrics",
+                        namespace=~"default|citrus-dev",
+                        pod=~"citrus(-dev)?-.*"
+                      },
+                      0
+                    )
+                  )[5m:{{ .Values.monitoring.prometheus.querySafety.recordingInterval }}]
+                )
+              )
+            labels:
+              scope: citrus
+
+          - record: namespace:citrus_kube_pod_scheduling_latency_seconds:max_over_pods5m
+            expr: |
+              max by (namespace) (
+                max_over_time(
+                  (
+                    clamp_min(
+                      kube_pod_status_scheduled_time{
+                        job="kube-state-metrics",
+                        namespace=~"default|citrus-dev",
+                        pod=~"citrus(-dev)?-.*"
+                      }
+                        - on (namespace, pod, uid)
+                      kube_pod_created{
+                        job="kube-state-metrics",
+                        namespace=~"default|citrus-dev",
+                        pod=~"citrus(-dev)?-.*"
+                      },
+                      0
+                    )
+                  )[5m:{{ .Values.monitoring.prometheus.querySafety.recordingInterval }}]
+                )
+              )
+            labels:
+              scope: citrus
+
+          - record: namespace:citrus_kube_pod_pending_age_seconds:max_over_time5m
+            expr: |
+              max by (namespace) (
+                max_over_time(
+                  (
+                    (time() - kube_pod_created{
+                      job="kube-state-metrics",
+                      namespace=~"default|citrus-dev",
+                      pod=~"citrus(-dev)?-.*"
+                    })
+                      and on (namespace, pod, uid)
+                    (kube_pod_status_phase{
+                      job="kube-state-metrics",
+                      namespace=~"default|citrus-dev",
+                      pod=~"citrus(-dev)?-.*",
+                      phase="Pending"
+                    } == 1)
+                  )[5m:{{ .Values.monitoring.prometheus.querySafety.recordingInterval }}]
+                )
+              )
+                or on (namespace)
+              (
+                0 * max by (namespace) (
+                  kube_namespace_status_phase{
+                    job="kube-state-metrics",
+                    namespace=~"default|citrus-dev",
+                    phase="Active"
+                  } == 1
+                )
+              )
+            labels:
+              scope: citrus
+
+  prometheus-self-alerts.yaml: |
+    groups:
+      - name: splattop-prometheus-self
+        limit: {{ .Values.monitoring.prometheus.querySafety.maxSeriesPerRule }}
+        rules:
+          - alert: PrometheusContainerMemoryPressureHigh
+            expr: |
+              max by (namespace, pod, container) (
+                container_memory_working_set_bytes{
+                  job="kubernetes-cadvisor",
+                  namespace="{{ $monitoringNamespace }}",
+                  pod=~"{{ $fullName }}-prometheus-[0-9]+",
+                  container="prometheus"
+                }
+              ) > {{ .Values.monitoring.prometheus.querySafety.memoryPressureThresholdBytes }}
+            for: 10m
+            labels:
+              severity: warning
+              service: prometheus
+            annotations:
+              summary: Prometheus container memory pressure is high
+              description: Prometheus working-set memory has exceeded 75% of its 2 GiB container limit for 10 minutes; stop interactive history queries and inspect query/rule pressure before cgroup OOM.
+
+          - alert: PrometheusContainerOOMKilled
+            expr: |
+              (
+                kube_pod_container_status_last_terminated_reason{
+                  job="kube-state-metrics",
+                  namespace="{{ $monitoringNamespace }}",
+                  pod=~"{{ $fullName }}-prometheus-[0-9]+",
+                  container="prometheus",
+                  reason="OOMKilled"
+                } == 1
+              )
+                and on (namespace, pod, container, uid)
+              (
+                increase(
+                  kube_pod_container_status_restarts_total{
+                    job="kube-state-metrics",
+                    namespace="{{ $monitoringNamespace }}",
+                    pod=~"{{ $fullName }}-prometheus-[0-9]+",
+                    container="prometheus"
+                  }[15m]
+                ) > 0
+              )
+            labels:
+              severity: critical
+              service: prometheus
+            annotations:
+              summary: Prometheus was OOM-killed
+              description: The Prometheus container restarted within 15 minutes and its last termination reason is OOMKilled; preserve monitoring availability and do not replay broad historical joins.
+
+          - alert: PrometheusContainerRestarted
+            expr: |
+              (
+                increase(
+                  kube_pod_container_status_restarts_total{
+                    job="kube-state-metrics",
+                    namespace="{{ $monitoringNamespace }}",
+                    pod=~"{{ $fullName }}-prometheus-[0-9]+",
+                    container="prometheus"
+                  }[15m]
+                ) > 0
+              )
+                unless on (namespace, pod, container, uid)
+              (
+                kube_pod_container_status_last_terminated_reason{
+                  job="kube-state-metrics",
+                  namespace="{{ $monitoringNamespace }}",
+                  pod=~"{{ $fullName }}-prometheus-[0-9]+",
+                  container="prometheus",
+                  reason="OOMKilled"
+                } == 1
+              )
+            labels:
+              severity: warning
+              service: prometheus
+            annotations:
+              summary: Prometheus container restarted
+              description: The Prometheus container restarted within the last 15 minutes; inspect the termination reason, memory pressure, and active query shape.
+
+          - alert: PrometheusRuleEvaluationFailures
+            expr: increase(prometheus_rule_evaluation_failures_total[10m]) > 0
+            labels:
+              severity: warning
+              service: prometheus
+            annotations:
+              summary: Prometheus rule evaluation failed
+              description: A recording or alerting rule failed during the last 10 minutes; inspect rule limits, query sample rejections, and evaluation duration.
+
+          - alert: PrometheusRuleGroupIterationsMissed
+            expr: increase(prometheus_rule_group_iterations_missed_total[10m]) > 0
+            labels:
+              severity: warning
+              service: prometheus
+            annotations:
+              summary: Prometheus rule group missed an evaluation
+              description: A rule group missed a scheduled evaluation during the last 10 minutes; inspect evaluation duration and query pressure before historical coverage develops gaps.
 {{- end }}

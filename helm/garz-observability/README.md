@@ -23,6 +23,11 @@ container CPU/memory usage series plus Kubernetes request/limit metadata needed
 for reservation right-sizing. Metrics Server remains useful for live
 `kubectl top` and autoscalers, but it is not the historical store.
 
+Multi-day diagnostic and right-sizing queries must follow
+[`prometheus-historical-query-safety.md`](../../docs/runbooks/prometheus-historical-query-safety.md).
+That path uses bounded recording series and offline summaries; raw historical
+joins are not supported.
+
 Required pre-existing secrets:
 
 - `grafana-admin-credentials`
