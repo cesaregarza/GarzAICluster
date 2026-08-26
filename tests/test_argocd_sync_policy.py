@@ -60,6 +60,22 @@ class ArgoCdSyncPolicyTests(unittest.TestCase):
         project = _load_yaml(PROJECT_PATH)
         self.assertNotIn("syncWindows", project["spec"])
 
+    def test_citrus_dev_generated_tls_secret_has_exact_orphan_exception(
+        self,
+    ) -> None:
+        project = _load_yaml(PROJECT_PATH)
+        orphaned_resources = project["spec"]["orphanedResources"]
+
+        self.assertIs(orphaned_resources["warn"], True)
+        ignored_secrets = {
+            resource["name"]
+            for resource in orphaned_resources["ignore"]
+            if resource.get("group") == "" and resource.get("kind") == "Secret"
+        }
+        self.assertIn("citrus-dev-grace-tls", ignored_secrets)
+        self.assertNotIn("citrus-grace-tls", ignored_secrets)
+        self.assertNotIn("*", ignored_secrets)
+
     def test_every_application_has_an_explicit_reviewed_sync_boundary(self) -> None:
         applications = {
             application["metadata"]["name"]: application
