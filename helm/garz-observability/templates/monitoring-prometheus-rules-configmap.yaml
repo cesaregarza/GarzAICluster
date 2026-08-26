@@ -128,6 +128,41 @@ data:
               summary: Prometheus TSDB nearing capacity
               description: PVC usage for Prometheus exceeded 85% for 15 minutes; consider scaling storage or reducing retention.
 
+          - alert: KubernetesNodeCPURequestHeadroomLow
+            expr: |
+              (
+                sum by (node) (
+                  kube_pod_container_resource_requests{
+                    job="kube-state-metrics",
+                    node!="",
+                    resource="cpu",
+                    unit="core"
+                  }
+                    * on (namespace, pod) group_left()
+                  max by (namespace, pod) (
+                    kube_pod_status_phase{
+                      job="kube-state-metrics",
+                      phase="Running"
+                    } == 1
+                  )
+                )
+                  /
+                max by (node) (
+                  kube_node_status_allocatable{
+                    job="kube-state-metrics",
+                    resource="cpu",
+                    unit="core"
+                  }
+                )
+              ) > 0.85
+            for: 10m
+            labels:
+              severity: warning
+              service: kubernetes
+            annotations:
+              summary: Kubernetes node CPU request headroom is low
+              description: Node {{ "{{ $labels.node }}" }} has reserved more than 85% of allocatable CPU for 10 minutes, leaving less than the Citrus rollout and scheduled-job headroom target.
+
           - alert: AlertmanagerDown
             expr: sum(up{job="alertmanager"}) == 0
             for: 5m
@@ -155,6 +190,24 @@ data:
             annotations:
               summary: Mandate synthetic live verify failed
               description: The scheduled Mandate synthetic live verify CronJob has a failed Job; inspect the agent-control-plane synthetic-live-verify logs before the next deploy.
+
+          - alert: CitrusPodPending
+            expr: |
+              max by (namespace, pod) (
+                kube_pod_status_phase{
+                  job="kube-state-metrics",
+                  namespace=~"default|citrus-dev",
+                  pod=~"citrus(-dev)?-.*",
+                  phase="Pending"
+                } == 1
+              ) > 0
+            for: 1m
+            labels:
+              severity: warning
+              service: citrus
+            annotations:
+              summary: Citrus pod is pending
+              description: Pod {{ "{{ $labels.namespace }}" }}/{{ "{{ $labels.pod }}" }} has remained Pending for at least one minute; inspect scheduling events and CPU requests before retrying or rolling out more work.
 
           - alert: CitrusRecurringRuntimeHealthFailed
             expr: |
