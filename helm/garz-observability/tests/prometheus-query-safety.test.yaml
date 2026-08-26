@@ -1,0 +1,258 @@
+rule_files:
+  - query-safety-recording-rules.yaml
+  - prometheus-self-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - name: bounded records preserve right-sizing and scheduling evidence
+    interval: 1m
+    input_series:
+      - series: 'container_cpu_usage_seconds_total{job="kubernetes-cadvisor",namespace="default",pod="citrus-web-a",uid="web-a",container="web"}'
+        values: '0+7.5x10'
+      - series: 'container_cpu_usage_seconds_total{job="kubernetes-cadvisor",namespace="default",pod="citrus-web-b",uid="web-b",container="web"}'
+        values: '0+3x10'
+      - series: 'container_cpu_usage_seconds_total{job="kubernetes-cadvisor",namespace="default",pod="citrus-worker-a",uid="worker-a",container="worker"}'
+        values: '0+15x10'
+      - series: 'container_cpu_usage_seconds_total{job="kubernetes-cadvisor",namespace="citrus-dev",pod="citrus-dev-web-a",uid="dev-web-a",container="web"}'
+        values: '0+3.75x10'
+      - series: 'container_memory_working_set_bytes{job="kubernetes-cadvisor",namespace="default",pod="citrus-web-a",uid="web-a",container="web"}'
+        values: '300000000x10'
+      - series: 'container_memory_working_set_bytes{job="kubernetes-cadvisor",namespace="default",pod="citrus-web-b",uid="web-b",container="web"}'
+        values: '350000000x10'
+      - series: 'container_memory_working_set_bytes{job="kubernetes-cadvisor",namespace="default",pod="citrus-worker-a",uid="worker-a",container="worker"}'
+        values: '200000000x10'
+      - series: 'container_memory_working_set_bytes{job="kubernetes-cadvisor",namespace="citrus-dev",pod="citrus-dev-web-a",uid="dev-web-a",container="web"}'
+        values: '250000000x10'
+
+      - series: 'kube_pod_container_resource_requests{job="kube-state-metrics",namespace="default",pod="citrus-web-a",uid="web-a",container="web",node="node-a",resource="cpu",unit="core"}'
+        values: '0.5x10'
+      - series: 'kube_pod_container_resource_requests{job="kube-state-metrics",namespace="default",pod="citrus-web-b",uid="web-b",container="web",node="node-b",resource="cpu",unit="core"}'
+        values: '0.375x10'
+      - series: 'kube_pod_container_resource_requests{job="kube-state-metrics",namespace="default",pod="citrus-worker-a",uid="worker-a",container="worker",node="node-a",resource="cpu",unit="core"}'
+        values: '0.25x10'
+      - series: 'kube_pod_container_resource_requests{job="kube-state-metrics",namespace="citrus-dev",pod="citrus-dev-web-a",uid="dev-web-a",container="web",node="node-b",resource="cpu",unit="core"}'
+        values: '0.25x10'
+      - series: 'kube_pod_container_resource_requests{job="kube-state-metrics",namespace="default",pod="citrus-web-a",uid="web-a",container="web",node="node-a",resource="memory",unit="byte"}'
+        values: '536870912x10'
+      - series: 'kube_pod_container_resource_requests{job="kube-state-metrics",namespace="default",pod="citrus-web-b",uid="web-b",container="web",node="node-b",resource="memory",unit="byte"}'
+        values: '629145600x10'
+      - series: 'kube_pod_container_resource_requests{job="kube-state-metrics",namespace="default",pod="citrus-worker-a",uid="worker-a",container="worker",node="node-a",resource="memory",unit="byte"}'
+        values: '268435456x10'
+      - series: 'kube_pod_container_resource_requests{job="kube-state-metrics",namespace="citrus-dev",pod="citrus-dev-web-a",uid="dev-web-a",container="web",node="node-b",resource="memory",unit="byte"}'
+        values: '402653184x10'
+      - series: 'kube_pod_container_resource_requests{job="kube-state-metrics",namespace="default",pod="citrus-batch-pending",uid="pending-a",container="batch",node="node-b",resource="cpu",unit="core"}'
+        values: '0.125x10'
+      - series: 'kube_pod_container_resource_requests{job="kube-state-metrics",namespace="default",pod="citrus-batch-pending",uid="pending-a",container="batch",node="node-b",resource="memory",unit="byte"}'
+        values: '134217728x10'
+      - series: 'kube_pod_container_resource_requests{job="kube-state-metrics",namespace="other",pod="other-ghost",uid="request-uid",container="ghost",node="node-a",resource="cpu",unit="core"}'
+        values: '9x10'
+
+      - series: 'kube_pod_status_phase{job="kube-state-metrics",namespace="default",pod="citrus-web-a",uid="web-a",phase="Running"}'
+        values: '1x10'
+      - series: 'kube_pod_status_phase{job="kube-state-metrics",namespace="default",pod="citrus-web-b",uid="web-b",phase="Running"}'
+        values: '1x10'
+      - series: 'kube_pod_status_phase{job="kube-state-metrics",namespace="default",pod="citrus-worker-a",uid="worker-a",phase="Running"}'
+        values: '1x10'
+      - series: 'kube_pod_status_phase{job="kube-state-metrics",namespace="citrus-dev",pod="citrus-dev-web-a",uid="dev-web-a",phase="Running"}'
+        values: '1x10'
+      - series: 'kube_pod_status_phase{job="kube-state-metrics",namespace="default",pod="citrus-batch-pending",uid="pending-a",phase="Pending"}'
+        values: '1x10'
+      - series: 'kube_pod_status_phase{job="kube-state-metrics",namespace="other",pod="other-ghost",uid="phase-uid",phase="Running"}'
+        values: '1x10'
+
+      - series: 'kube_node_status_allocatable{job="kube-state-metrics",node="node-a",resource="cpu",unit="core"}'
+        values: '2x10'
+      - series: 'kube_node_status_allocatable{job="kube-state-metrics",node="node-b",resource="cpu",unit="core"}'
+        values: '2x10'
+
+      - series: 'kube_pod_info{job="kube-state-metrics",namespace="default",pod="citrus-web-a",uid="web-a",node="node-a"}'
+        values: '1x10'
+      - series: 'kube_pod_info{job="kube-state-metrics",namespace="citrus-dev",pod="citrus-dev-web-a",uid="dev-web-a",node="node-b"}'
+        values: '1x10'
+
+      - series: 'kube_pod_created{job="kube-state-metrics",namespace="default",pod="citrus-web-a",uid="web-a"}'
+        values: '100x10'
+      - series: 'kube_pod_status_scheduled_time{job="kube-state-metrics",namespace="default",pod="citrus-web-a",uid="web-a"}'
+        values: '110x10'
+      - series: 'kube_pod_created{job="kube-state-metrics",namespace="default",pod="citrus-worker-a",uid="worker-a"}'
+        values: '100x10'
+      - series: 'kube_pod_status_scheduled_time{job="kube-state-metrics",namespace="default",pod="citrus-worker-a",uid="worker-a"}'
+        values: '130x10'
+      - series: 'kube_pod_created{job="kube-state-metrics",namespace="citrus-dev",pod="citrus-dev-web-a",uid="dev-web-a"}'
+        values: '100x10'
+      - series: 'kube_pod_status_scheduled_time{job="kube-state-metrics",namespace="citrus-dev",pod="citrus-dev-web-a",uid="dev-web-a"}'
+        values: '120x10'
+      - series: 'kube_pod_created{job="kube-state-metrics",namespace="default",pod="citrus-batch-pending",uid="pending-a"}'
+        values: '0x10'
+
+    promql_expr_test:
+      - expr: cluster:container_cpu_usage_seconds_total:sum_rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'cluster:container_cpu_usage_seconds_total:sum_rate5m{}'
+            value: 0.4875
+      - expr: cluster:kube_pod_container_resource_requests_cpu_cores:max_sum_active_bound5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'cluster:kube_pod_container_resource_requests_cpu_cores:max_sum_active_bound5m{}'
+            value: 1.5
+      - expr: node:kube_pod_container_resource_requests_cpu_cores:max_sum_active_bound5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node:kube_pod_container_resource_requests_cpu_cores:max_sum_active_bound5m{node="node-a"}'
+            value: 0.75
+          - labels: 'node:kube_pod_container_resource_requests_cpu_cores:max_sum_active_bound5m{node="node-b"}'
+            value: 0.75
+      - expr: cluster:kube_node_status_allocatable_cpu_cores:sum
+        eval_time: 10m
+        exp_samples:
+          - labels: 'cluster:kube_node_status_allocatable_cpu_cores:sum{}'
+            value: 4
+      - expr: node:kube_node_status_allocatable_cpu_cores:max
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node:kube_node_status_allocatable_cpu_cores:max{node="node-a"}'
+            value: 2
+          - labels: 'node:kube_node_status_allocatable_cpu_cores:max{node="node-b"}'
+            value: 2
+      - expr: namespace_container:citrus_container_cpu_usage_seconds_total:max_rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'namespace_container:citrus_container_cpu_usage_seconds_total:max_rate5m{container="web",namespace="citrus-dev",scope="citrus"}'
+            value: 0.0625
+          - labels: 'namespace_container:citrus_container_cpu_usage_seconds_total:max_rate5m{container="web",namespace="default",scope="citrus"}'
+            value: 0.125
+          - labels: 'namespace_container:citrus_container_cpu_usage_seconds_total:max_rate5m{container="worker",namespace="default",scope="citrus"}'
+            value: 0.25
+      - expr: namespace_container:citrus_container_memory_working_set_bytes:max_over_time5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'namespace_container:citrus_container_memory_working_set_bytes:max_over_time5m{container="web",namespace="citrus-dev",scope="citrus"}'
+            value: 250000000
+          - labels: 'namespace_container:citrus_container_memory_working_set_bytes:max_over_time5m{container="web",namespace="default",scope="citrus"}'
+            value: 350000000
+          - labels: 'namespace_container:citrus_container_memory_working_set_bytes:max_over_time5m{container="worker",namespace="default",scope="citrus"}'
+            value: 200000000
+      - expr: namespace_container:citrus_kube_pod_container_resource_requests_cpu_cores:max_over_time5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'namespace_container:citrus_kube_pod_container_resource_requests_cpu_cores:max_over_time5m{container="batch",namespace="default",scope="citrus"}'
+            value: 0.125
+          - labels: 'namespace_container:citrus_kube_pod_container_resource_requests_cpu_cores:max_over_time5m{container="web",namespace="citrus-dev",scope="citrus"}'
+            value: 0.25
+          - labels: 'namespace_container:citrus_kube_pod_container_resource_requests_cpu_cores:max_over_time5m{container="web",namespace="default",scope="citrus"}'
+            value: 0.5
+          - labels: 'namespace_container:citrus_kube_pod_container_resource_requests_cpu_cores:max_over_time5m{container="worker",namespace="default",scope="citrus"}'
+            value: 0.25
+      - expr: namespace_container:citrus_kube_pod_container_resource_requests_memory_bytes:max_over_time5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'namespace_container:citrus_kube_pod_container_resource_requests_memory_bytes:max_over_time5m{container="batch",namespace="default",scope="citrus"}'
+            value: 134217728
+          - labels: 'namespace_container:citrus_kube_pod_container_resource_requests_memory_bytes:max_over_time5m{container="web",namespace="citrus-dev",scope="citrus"}'
+            value: 402653184
+          - labels: 'namespace_container:citrus_kube_pod_container_resource_requests_memory_bytes:max_over_time5m{container="web",namespace="default",scope="citrus"}'
+            value: 629145600
+          - labels: 'namespace_container:citrus_kube_pod_container_resource_requests_memory_bytes:max_over_time5m{container="worker",namespace="default",scope="citrus"}'
+            value: 268435456
+      - expr: namespace:citrus_kube_pod_scheduling_latency_seconds:p95_over_pods5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'namespace:citrus_kube_pod_scheduling_latency_seconds:p95_over_pods5m{namespace="citrus-dev",scope="citrus"}'
+            value: 20
+          - labels: 'namespace:citrus_kube_pod_scheduling_latency_seconds:p95_over_pods5m{namespace="default",scope="citrus"}'
+            value: 29
+      - expr: namespace:citrus_kube_pod_scheduling_latency_seconds:max_over_pods5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'namespace:citrus_kube_pod_scheduling_latency_seconds:max_over_pods5m{namespace="citrus-dev",scope="citrus"}'
+            value: 20
+          - labels: 'namespace:citrus_kube_pod_scheduling_latency_seconds:max_over_pods5m{namespace="default",scope="citrus"}'
+            value: 30
+      - expr: namespace:citrus_kube_pod_pending_age_seconds:max_over_time5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'namespace:citrus_kube_pod_pending_age_seconds:max_over_time5m{namespace="citrus-dev",scope="citrus"}'
+            value: 0
+          - labels: 'namespace:citrus_kube_pod_pending_age_seconds:max_over_time5m{namespace="default",scope="citrus"}'
+            value: 600
+
+  - name: Prometheus self-alerts fire from synthetic restart and pressure data
+    interval: 1m
+    input_series:
+      - series: 'container_memory_working_set_bytes{job="kubernetes-cadvisor",namespace="monitoring",pod="splattop-prod-prometheus-0",container="prometheus"}'
+        values: '1700000000x20'
+      - series: 'kube_pod_container_status_restarts_total{job="kube-state-metrics",namespace="monitoring",pod="splattop-prod-prometheus-0",container="prometheus",uid="prometheus-0"}'
+        values: '0x4 1x16'
+      - series: 'kube_pod_container_status_restarts_total{job="kube-state-metrics",namespace="monitoring",pod="splattop-prod-prometheus-1",container="prometheus",uid="prometheus-1"}'
+        values: '0x4 1x16'
+      - series: 'kube_pod_container_status_last_terminated_reason{job="kube-state-metrics",namespace="monitoring",pod="splattop-prod-prometheus-0",container="prometheus",uid="prometheus-0",reason="OOMKilled"}'
+        values: '0x4 1x16'
+      - series: 'prometheus_rule_evaluation_failures_total{rule_group="synthetic-broken-group"}'
+        values: '0x4 1x16'
+      - series: 'prometheus_rule_group_iterations_missed_total{rule_group="synthetic-slow-group"}'
+        values: '0x4 1x16'
+
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PrometheusContainerMemoryPressureHigh
+        exp_alerts:
+          - exp_labels:
+              container: prometheus
+              namespace: monitoring
+              pod: splattop-prod-prometheus-0
+              severity: warning
+              service: prometheus
+            exp_annotations:
+              summary: Prometheus container memory pressure is high
+              description: Prometheus working-set memory has exceeded 75% of its 2 GiB container limit for 10 minutes; stop interactive history queries and inspect query/rule pressure before cgroup OOM.
+      - eval_time: 10m
+        alertname: PrometheusContainerOOMKilled
+        exp_alerts:
+          - exp_labels:
+              container: prometheus
+              job: kube-state-metrics
+              namespace: monitoring
+              pod: splattop-prod-prometheus-0
+              reason: OOMKilled
+              severity: critical
+              service: prometheus
+              uid: prometheus-0
+            exp_annotations:
+              summary: Prometheus was OOM-killed
+              description: The Prometheus container restarted within 15 minutes and its last termination reason is OOMKilled; preserve monitoring availability and do not replay broad historical joins.
+      - eval_time: 10m
+        alertname: PrometheusContainerRestarted
+        exp_alerts:
+          - exp_labels:
+              container: prometheus
+              job: kube-state-metrics
+              namespace: monitoring
+              pod: splattop-prod-prometheus-1
+              severity: warning
+              service: prometheus
+              uid: prometheus-1
+            exp_annotations:
+              summary: Prometheus container restarted
+              description: The Prometheus container restarted within the last 15 minutes; inspect the termination reason, memory pressure, and active query shape.
+      - eval_time: 10m
+        alertname: PrometheusRuleEvaluationFailures
+        exp_alerts:
+          - exp_labels:
+              rule_group: synthetic-broken-group
+              severity: warning
+              service: prometheus
+            exp_annotations:
+              summary: Prometheus rule evaluation failed
+              description: A recording or alerting rule failed during the last 10 minutes; inspect rule limits, query sample rejections, and evaluation duration.
+      - eval_time: 10m
+        alertname: PrometheusRuleGroupIterationsMissed
+        exp_alerts:
+          - exp_labels:
+              rule_group: synthetic-slow-group
+              severity: warning
+              service: prometheus
+            exp_annotations:
+              summary: Prometheus rule group missed an evaluation
+              description: A rule group missed a scheduled evaluation during the last 10 minutes; inspect evaluation duration and query pressure before historical coverage develops gaps.

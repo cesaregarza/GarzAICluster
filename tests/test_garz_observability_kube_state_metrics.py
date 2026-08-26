@@ -254,9 +254,9 @@ class GarzObservabilityKubeStateMetricsTests(unittest.TestCase):
         )
         container = stateful_set["spec"]["template"]["spec"]["containers"][0]
 
-        self.assertIn("--query.max-samples=5000000", container["args"])
-        self.assertIn("--query.max-concurrency=5", container["args"])
-        self.assertIn("--query.timeout=60s", container["args"])
+        self.assertIn("--query.max-samples=500000", container["args"])
+        self.assertIn("--query.max-concurrency=2", container["args"])
+        self.assertIn("--query.timeout=30s", container["args"])
         self.assertIn(
             {"name": "GOMEMLIMIT", "value": "1200MiB"},
             container["env"],
