@@ -76,6 +76,14 @@ class CitrusCiContractTests(unittest.TestCase):
                 'helm template citrus-ci-payment-prod "$chart" '
                 '--namespace default -f "$chart/values.yaml" '
                 '-f "$chart/values-payment-prod.yaml" '
+                '--set paymentSafety.enabled=true '
+                '--set-string paymentSafety.environment=production '
+                '--set-string paymentSafety.owner=citrus '
+                '--set-string paymentSafety.networkMode=allow '
+                '--set paymentSafety.policy.required=true '
+                '--set-string paymentSafety.policy.provider=cilium '
+                '--set-string paymentSafety.policy.revision=ces-845-ci '
+                '--set paymentSafety.networkPolicy.enabled=true '
                 '> rendered/citrus-payment-prod.yaml'
             ),
             (
@@ -83,7 +91,48 @@ class CitrusCiContractTests(unittest.TestCase):
                 '--namespace citrus-dev -f "$chart/values.yaml" '
                 '-f "$chart/values-dev.yaml" '
                 '-f "$chart/values-payment-dev.yaml" '
+                '--set paymentSafety.enabled=true '
+                '--set-string paymentSafety.environment=development '
+                '--set-string paymentSafety.owner=citrus-dev '
+                '--set-string paymentSafety.networkMode=deny '
+                '--set paymentSafety.policy.required=true '
+                '--set-string paymentSafety.policy.provider=cilium '
+                '--set-string paymentSafety.policy.revision=ces-845-ci '
+                '--set paymentSafety.networkPolicy.enabled=true '
+                '--set-string '
+                'paymentSafety.networkPolicy.database.host=db.dev.example '
                 '> rendered/citrus-payment-dev.yaml'
+            ),
+            (
+                'helm template citrus-ci-payment-safety-dev "$chart" '
+                '--namespace citrus-dev -f "$chart/values.yaml" '
+                '-f "$chart/values-dev.yaml" '
+                '--set paymentSafety.enabled=true '
+                '--set-string paymentSafety.environment=development '
+                '--set-string paymentSafety.owner=citrus-dev '
+                '--set-string paymentSafety.networkMode=deny '
+                '--set paymentSafety.policy.required=true '
+                '--set-string paymentSafety.policy.provider=cilium '
+                '--set-string paymentSafety.policy.revision=ces-845-ci '
+                '--set paymentSafety.networkPolicy.enabled=true '
+                '--set-string '
+                'paymentSafety.networkPolicy.database.host=db.dev.example '
+                '--set billingWorker.enabled=true '
+                '--set recurringRuntime.enabled=true '
+                '> rendered/citrus-payment-safety-dev.yaml'
+            ),
+            (
+                'helm template citrus-ci-payment-safety-prod "$chart" '
+                '--namespace default -f "$chart/values.yaml" '
+                '--set paymentSafety.enabled=true '
+                '--set-string paymentSafety.environment=production '
+                '--set-string paymentSafety.owner=citrus '
+                '--set-string paymentSafety.networkMode=allow '
+                '--set paymentSafety.policy.required=true '
+                '--set-string paymentSafety.policy.provider=cilium '
+                '--set-string paymentSafety.policy.revision=ces-845-ci '
+                '--set paymentSafety.networkPolicy.enabled=true '
+                '> rendered/citrus-payment-safety-prod.yaml'
             ),
         ):
             with self.subTest(expected=expected):
@@ -110,6 +159,15 @@ class CitrusCiContractTests(unittest.TestCase):
             "Citrus CI renders must never contain Secret objects",
             run,
         )
+        for expected in (
+            "Current Citrus Argo renders must keep CES-845 disabled",
+            "citrus-payment-safety-dev.yaml",
+            "citrus-payment-safety-prod.yaml",
+            "PAYMENT_EGRESS_POLICY_REVISION",
+            "Development payment egress render must omit every Stripe destination",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, run)
 
     def test_pinned_strict_kubeconform_covers_every_render(self) -> None:
         helm_setup = self.steps["Set up Helm"]

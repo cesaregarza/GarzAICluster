@@ -23,6 +23,9 @@ spec:
       labels:
         app: citrus-media-worker
         app.kubernetes.io/component: media-worker
+        {{- if .Values.paymentSafety.enabled }}
+        {{- include "citrus.paymentSafety.podLabel" . | nindent 8 }}
+        {{- end }}
       {{- if .Values.application.rolloutOnConfigChange }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum | quote }}
@@ -41,6 +44,10 @@ spec:
             - {{ .Values.worker.command | quote }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- if .Values.paymentSafety.enabled }}
+          env:
+            {{- include "citrus.paymentSafety.env" . | nindent 12 }}
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ .Values.application.configMapName }}

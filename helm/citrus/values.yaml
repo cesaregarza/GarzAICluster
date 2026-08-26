@@ -106,8 +106,39 @@ application:
 paymentCredentials:
   enabled: false
   secretName: ""
+  owner: ""
   rolloutRevision: ""
   webhookEnvironmentVariable: ""
+
+# Disabled preparation for CES-845. Enabling this contract injects explicit
+# runtime ownership into every Citrus process and renders a same-release Cilium
+# egress policy before migrations or serving workloads. The current Argo
+# Applications leave it disabled, so merging the chart support is inert.
+paymentSafety:
+  enabled: false
+  environment: ""
+  owner: ""
+  networkMode: ""
+  policy:
+    required: false
+    provider: ""
+    revision: ""
+  networkPolicy:
+    enabled: false
+    syncWave: "-1"
+    dns:
+      namespace: kube-system
+      podLabels:
+        k8s-app: kube-dns
+    database:
+      # DB_HOST is secret-backed and cannot safely be inferred by Helm. Supply
+      # its exact hostname only in a separately reviewed activation change.
+      host: ""
+      port: 25060
+    # Exact non-Stripe destinations needed only by enabled features whose
+    # endpoint is not already chart-owned (for example CAPTCHA or internal
+    # notifications). Wildcards and Stripe domains are rejected.
+    additionalExternalEgress: []
 
 
 service:
