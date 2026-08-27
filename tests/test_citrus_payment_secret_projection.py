@@ -328,10 +328,12 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
     def test_enabled_projection_fails_closed_on_invalid_contract(self) -> None:
         cases = (
             (
+                False,
                 ["--set", "paymentCredentials.enabled=true"],
                 "paymentCredentials.secretName",
             ),
             (
+                False,
                 [
                     "-f",
                     str(PROD_PAYMENT_VALUES),
@@ -341,6 +343,7 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                 "paymentCredentials.webhookEnvironmentVariable",
             ),
             (
+                False,
                 [
                     "-f",
                     str(PROD_PAYMENT_VALUES),
@@ -350,6 +353,7 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                 "paymentCredentials.rolloutRevision",
             ),
             (
+                False,
                 [
                     "-f",
                     str(PROD_PAYMENT_VALUES),
@@ -359,6 +363,7 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                 "paymentCredentials.owner",
             ),
             (
+                False,
                 [
                     "-f",
                     str(DEV_PAYMENT_VALUES),
@@ -368,10 +373,12 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                 "paymentCredentials.secretName",
             ),
             (
+                False,
                 ["-f", str(PROD_PAYMENT_VALUES)],
                 "paymentSafety.enabled",
             ),
             (
+                True,
                 [
                     "-f",
                     str(PROD_PAYMENT_VALUES),
@@ -397,6 +404,7 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                 "production payment credentials require",
             ),
             (
+                False,
                 [
                     "-f",
                     str(DEV_PAYMENT_VALUES),
@@ -420,10 +428,20 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                 "dev payment credentials require",
             ),
         )
-        for arguments, message in cases:
+        for development, arguments, message in cases:
             with self.subTest(message=message):
+                release_name = "citrus-dev" if development else "citrus"
+                namespace = "citrus-dev" if development else "default"
                 result = subprocess.run(
-                    ["helm", "template", "citrus", str(CHART_PATH), *arguments],
+                    [
+                        "helm",
+                        "template",
+                        release_name,
+                        str(CHART_PATH),
+                        "--namespace",
+                        namespace,
+                        *arguments,
+                    ],
                     check=False,
                     cwd=str(REPO_ROOT),
                     capture_output=True,

@@ -180,8 +180,14 @@ destinations are never valid members of the nonproduction allowlist.
 {{- define "citrus.paymentSafety.validateHost" -}}
 {{- $field := .field -}}
 {{- $host := required (printf "%s is required" $field) .host -}}
-{{- if or (contains "*" $host) (contains ".." $host) (not (regexMatch "^[a-z0-9][a-z0-9.-]*[a-z0-9]$" $host)) -}}
-{{- fail (printf "%s must be a lowercase exact DNS hostname without wildcards" $field) -}}
+{{- $numericAddress := regexMatch "^(0x[0-9a-f]+|[0-9]+)([.](0x[0-9a-f]+|[0-9]+))*$" $host -}}
+{{- if or (contains "*" $host) (contains ".." $host) $numericAddress (not (regexMatch "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$" $host)) -}}
+{{- fail (printf "%s must be a lowercase exact DNS hostname with valid labels, not an IP address or wildcard" $field) -}}
+{{- end -}}
+{{- range $label := splitList "." $host -}}
+{{- if not (regexMatch "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" $label) -}}
+{{- fail (printf "%s must be a lowercase exact DNS hostname with valid labels, not an IP address or wildcard" $field) -}}
+{{- end -}}
 {{- end -}}
 {{- if or (eq $host "stripe.com") (hasSuffix ".stripe.com" $host) (eq $host "stripe.network") (hasSuffix ".stripe.network" $host) -}}
 {{- fail (printf "%s must not authorize a Stripe destination" $field) -}}
@@ -217,6 +223,9 @@ attestation; an env-only claim is intentionally rejected.
 {{- fail "paymentSafety.networkPolicy.syncWave must precede syncWaves.config" -}}
 {{- end -}}
 {{- if eq $environment "development" -}}
+{{- if or (ne .Release.Name "citrus-dev") (ne .Release.Namespace "citrus-dev") -}}
+{{- fail "development payment safety requires release citrus-dev in namespace citrus-dev" -}}
+{{- end -}}
 {{- if ne $owner "citrus-dev" -}}
 {{- fail "paymentSafety.owner must be citrus-dev when paymentSafety.environment=development" -}}
 {{- end -}}
@@ -266,6 +275,9 @@ attestation; an env-only claim is intentionally rejected.
 {{- end -}}
 {{- end -}}
 {{- else if eq $environment "production" -}}
+{{- if or (ne .Release.Name "citrus") (ne .Release.Namespace "default") -}}
+{{- fail "production payment safety requires release citrus in namespace default" -}}
+{{- end -}}
 {{- if ne $owner "citrus" -}}
 {{- fail "paymentSafety.owner must be citrus when paymentSafety.environment=production" -}}
 {{- end -}}
