@@ -73,7 +73,7 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-optional-workloads.yaml'
             ),
             (
-                'helm template citrus-ci-payment-prod "$chart" '
+                'helm template citrus "$chart" '
                 '--namespace default -f "$chart/values.yaml" '
                 '-f "$chart/values-payment-prod.yaml" '
                 '--set paymentSafety.enabled=true '
@@ -87,7 +87,7 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-payment-prod.yaml'
             ),
             (
-                'helm template citrus-ci-payment-dev "$chart" '
+                'helm template citrus-dev "$chart" '
                 '--namespace citrus-dev -f "$chart/values.yaml" '
                 '-f "$chart/values-dev.yaml" '
                 '-f "$chart/values-payment-dev.yaml" '
@@ -104,7 +104,7 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-payment-dev.yaml'
             ),
             (
-                'helm template citrus-ci-payment-safety-dev "$chart" '
+                'helm template citrus-dev "$chart" '
                 '--namespace citrus-dev -f "$chart/values.yaml" '
                 '-f "$chart/values-dev.yaml" '
                 '--set paymentSafety.enabled=true '
@@ -122,7 +122,7 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-payment-safety-dev.yaml'
             ),
             (
-                'helm template citrus-ci-payment-safety-prod "$chart" '
+                'helm template citrus "$chart" '
                 '--namespace default -f "$chart/values.yaml" '
                 '--set paymentSafety.enabled=true '
                 '--set-string paymentSafety.environment=production '

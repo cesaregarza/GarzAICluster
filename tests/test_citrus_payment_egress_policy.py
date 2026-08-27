@@ -105,6 +105,14 @@ def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _replace_flag_value(
+    command: list[str], flag: str, value: str
+) -> list[str]:
+    replaced = list(command)
+    replaced[replaced.index(flag) + 1] = value
+    return replaced
+
+
 def _documents(command: list[str]) -> list[dict[str, Any]]:
     result = _run(command)
     if result.returncode != 0:
@@ -489,6 +497,22 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
         prod = _helm_command(development=False, enabled=True)
         cases = (
             (
+                [*dev[:2], "citrus", *dev[3:]],
+                "development payment safety requires release citrus-dev",
+            ),
+            (
+                _replace_flag_value(dev, "--namespace", "default"),
+                "development payment safety requires release citrus-dev",
+            ),
+            (
+                [*prod[:2], "citrus-dev", *prod[3:]],
+                "production payment safety requires release citrus",
+            ),
+            (
+                _replace_flag_value(prod, "--namespace", "citrus-dev"),
+                "production payment safety requires release citrus",
+            ),
+            (
                 [*dev, "--set-string", "paymentSafety.owner=citrus"],
                 "paymentSafety.owner",
             ),
@@ -547,6 +571,14 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             (
                 [
                     *dev,
+                    "--set-string",
+                    "paymentSafety.networkPolicy.database.host=203.0.113.10",
+                ],
+                "not an IP address or wildcard",
+            ),
+            (
+                [
+                    *dev,
                     "--set-json",
                     (
                         "paymentSafety.networkPolicy.additionalExternalEgress="
@@ -594,6 +626,33 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
                 result = _run(command)
                 self.assertNotEqual(result.returncode, 0, result.stdout)
                 self.assertIn(expected, _normalize_helm_error(result.stderr))
+
+    def test_development_rejects_ip_literals_and_invalid_dns_labels(
+        self,
+    ) -> None:
+        dev = _helm_command(development=True, enabled=True)
+        for host in (
+            "203.0.113.10",
+            "127.1",
+            "2130706433",
+            "0127.0.0.1",
+            "0x7f000001",
+            "0x7f.0.0.1",
+            "foo.-bar.example",
+            "foo-.bar.example",
+            f"{'a' * 64}.example",
+        ):
+            with self.subTest(host=host):
+                result = _run([
+                    *dev,
+                    "--set-string",
+                    f"paymentSafety.networkPolicy.database.host={host}",
+                ])
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn(
+                    "lowercase exact DNS hostname with valid labels",
+                    _normalize_helm_error(result.stderr),
+                )
 
     def test_helm_schema_paths_are_normalized_without_changing_messages(
         self,
