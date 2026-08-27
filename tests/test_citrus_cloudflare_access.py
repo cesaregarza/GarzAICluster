@@ -34,8 +34,14 @@ def _normalize_helm_error(stderr: str) -> str:
 def _helm(arguments: list[str]) -> subprocess.CompletedProcess[str]:
     if shutil.which("helm") is None:
         raise unittest.SkipTest("helm is required for chart render tests")
+    namespace = (
+        arguments[arguments.index("--namespace") + 1]
+        if "--namespace" in arguments
+        else "default"
+    )
+    release = "citrus-dev" if namespace == "citrus-dev" else "citrus"
     return subprocess.run(
-        ["helm", "template", "citrus", str(CHART_PATH), *arguments],
+        ["helm", "template", release, str(CHART_PATH), *arguments],
         check=False,
         cwd=str(REPO_ROOT),
         capture_output=True,
