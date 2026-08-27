@@ -1,10 +1,10 @@
 # CES-844 activation overlay. This file is intentionally not referenced by the
-# production Argo Application. Adding it to valueFiles is a deployment mutation.
+# production Argo Application. It cannot render alone: activation must also
+# supply the matching CES-845 production allow-mode safety contract. Adding it
+# to valueFiles is a deployment mutation.
 paymentCredentials:
   enabled: true
   secretName: citrus-prod-payment-credentials
   owner: citrus
   rolloutRevision: ces-844-prepared
   webhookEnvironmentVariable: STRIPE_WEBHOOK_SECRET_PROD
-  webhookSecretName: citrus-prod-payment-credentials
-  webhookSecretKey: STRIPE_WEBHOOK_SECRET

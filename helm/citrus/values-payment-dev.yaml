@@ -1,11 +1,11 @@
-# CES-844 dev activation overlay. The dedicated Secret supplies only test-mode
-# API and publishable settings. The exact existing dev webhook key remains in
-# django-secrets and is selected individually; the broad Secret is not imported.
+# CES-844 activation overlay. This file is intentionally not referenced by the
+# dev Argo Application. It cannot render alone: activation must also supply the
+# matching CES-845 development deny-mode safety contract and an exact reviewed
+# non-Stripe dependency allowlist. Credentials may be projected only from a
+# classified non-live source.
 paymentCredentials:
   enabled: true
   secretName: citrus-dev-payment-credentials
   owner: citrus-dev
-  rolloutRevision: ces-844-test-mode-v1
+  rolloutRevision: ces-844-prepared
   webhookEnvironmentVariable: STRIPE_WEBHOOK_SECRET_DEV
-  webhookSecretName: django-secrets
-  webhookSecretKey: STRIPE_WEBHOOK_SECRET_DEV
