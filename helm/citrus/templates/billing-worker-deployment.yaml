@@ -60,14 +60,15 @@ spec:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
           env:
-            {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
             {{- include "citrus.paymentSafety.env" . | nindent 12 }}
             {{- include "citrus.paymentCredentials.apiEnv" . | nindent 12 }}
           {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ .Values.application.configMapName }}
-            {{- include "citrus.applicationRuntimeSecretEnvFrom" . | nindent 12 }}
+            - secretRef:
+                name: {{ .Values.application.secretName }}
+                optional: true
             {{- if .Values.application.emailSecretName }}
             - secretRef:
                 name: {{ .Values.application.emailSecretName }}
@@ -99,15 +100,16 @@ spec:
               containerPort: {{ .Values.billingWorker.metrics.port }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
+          {{- if .Values.paymentSafety.enabled }}
           env:
-            {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
             {{- include "citrus.paymentSafety.env" . | nindent 12 }}
           {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ .Values.application.configMapName }}
-            {{- include "citrus.applicationRuntimeSecretEnvFrom" . | nindent 12 }}
+            - secretRef:
+                name: {{ .Values.application.secretName }}
+                optional: true
             {{- if .Values.application.emailSecretName }}
             - secretRef:
                 name: {{ .Values.application.emailSecretName }}

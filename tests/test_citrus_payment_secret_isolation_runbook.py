@@ -69,7 +69,7 @@ class CitrusPaymentSecretIsolationRunbookTests(unittest.TestCase):
         for phrase in required:
             self.assertIn(phrase, normalized)
 
-    def test_target_removes_broad_dev_secret_projection(self) -> None:
+    def test_target_removes_payment_from_broad_dev_secret(self) -> None:
         target = _section(
             self.runbook,
             "## Target state",
@@ -77,28 +77,27 @@ class CitrusPaymentSecretIsolationRunbookTests(unittest.TestCase):
         )
         normalized = " ".join(target.split())
         required = (
-            "no longer imports it with `envFrom`",
-            "No process receives its payment API or production webhook fields",
+            "Every payment key is removed from `citrus-dev/django-secrets`",
             "No dedicated payment Secret is projected elsewhere",
             "non-live",
-            "environment-explicit dev webhook field",
+            "intentionally-absent",
             "production webhook settings are forbidden in dev",
             "CES-845 remains separate",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
 
-    def test_operator_decision_is_value_free_and_test_mode(self) -> None:
+    def test_current_source_requires_real_dev_decision(self) -> None:
         decision = _section(
             self.runbook,
             "## Remaining dev credential decision",
             "## Ordered execution",
         )
         normalized = " ".join(decision.split())
-        self.assertIn("test-mode API setting", normalized)
-        self.assertIn("semantic mode only", normalized)
-        self.assertIn("existing `STRIPE_WEBHOOK_SECRET_DEV` field", normalized)
-        self.assertIn("No generic or production webhook field is projected", normalized)
+        self.assertIn("will not start with payment API and webhook settings absent", normalized)
+        self.assertIn("dedicated Stripe test-mode", normalized)
+        self.assertIn("CES-845 implements and verifies intentional absence", normalized)
+        self.assertIn("Do not disguise a placeholder or arbitrary sentinel", normalized)
 
     def test_dev_source_gate_is_dev_only_and_value_free(self) -> None:
         gate = _section(
@@ -110,8 +109,7 @@ class CitrusPaymentSecretIsolationRunbookTests(unittest.TestCase):
         required = (
             "explicit encrypted-source write and PR-publication authorization",
             "citrus-dev-payment-credentials",
-            "Leave the encrypted dev `django-secrets` source unchanged",
-            "replace its broad `envFrom` import",
+            "Remove every payment key from the encrypted dev `django-secrets` source",
             "values-payment-dev.yaml",
             "Do not change the production Application",
             "No plaintext or identifying derivative",

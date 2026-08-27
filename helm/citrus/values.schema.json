@@ -318,9 +318,7 @@
         "secretName",
         "owner",
         "rolloutRevision",
-        "webhookEnvironmentVariable",
-        "webhookSecretName",
-        "webhookSecretKey"
+        "webhookEnvironmentVariable"
       ],
       "properties": {
         "enabled": {
@@ -346,19 +344,6 @@
             "STRIPE_WEBHOOK_SECRET_DEV",
             "STRIPE_WEBHOOK_SECRET_PROD"
           ]
-        },
-        "webhookSecretName": {
-          "type": "string",
-          "pattern": "^$|^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$"
-        },
-        "webhookSecretKey": {
-          "type": "string",
-          "enum": [
-            "",
-            "STRIPE_WEBHOOK_SECRET",
-            "STRIPE_WEBHOOK_SECRET_DEV",
-            "STRIPE_WEBHOOK_SECRET_PROD"
-          ]
         }
       },
       "allOf": [
@@ -375,14 +360,6 @@
               "rolloutRevision": {"minLength": 1},
               "webhookEnvironmentVariable": {
                 "enum": [
-                  "STRIPE_WEBHOOK_SECRET_DEV",
-                  "STRIPE_WEBHOOK_SECRET_PROD"
-                ]
-              },
-              "webhookSecretName": {"minLength": 1},
-              "webhookSecretKey": {
-                "enum": [
-                  "STRIPE_WEBHOOK_SECRET",
                   "STRIPE_WEBHOOK_SECRET_DEV",
                   "STRIPE_WEBHOOK_SECRET_PROD"
                 ]
@@ -403,9 +380,7 @@
           "then": {
             "properties": {
               "secretName": {"const": "citrus-dev-payment-credentials"},
-              "owner": {"const": "citrus-dev"},
-              "webhookSecretName": {"const": "django-secrets"},
-              "webhookSecretKey": {"const": "STRIPE_WEBHOOK_SECRET_DEV"}
+              "owner": {"const": "citrus-dev"}
             }
           }
         },
@@ -422,9 +397,7 @@
           "then": {
             "properties": {
               "secretName": {"const": "citrus-prod-payment-credentials"},
-              "owner": {"const": "citrus"},
-              "webhookSecretName": {"const": "citrus-prod-payment-credentials"},
-              "webhookSecretKey": {"const": "STRIPE_WEBHOOK_SECRET"}
+              "owner": {"const": "citrus"}
             }
           }
         }
