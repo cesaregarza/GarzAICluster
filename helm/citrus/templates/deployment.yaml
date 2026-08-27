@@ -1,4 +1,5 @@
 {{- include "citrus.paymentCredentials.validate" . }}
+{{- include "citrus.paymentSafety.validate" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,6 +20,9 @@ spec:
     metadata:
       labels:
         app: citrus-web
+        {{- if .Values.paymentSafety.enabled }}
+        {{- include "citrus.paymentSafety.podLabel" . | nindent 8 }}
+        {{- end }}
       {{- if or .Values.application.rolloutOnConfigChange .Values.paymentCredentials.enabled }}
       annotations:
         {{- if .Values.application.rolloutOnConfigChange }}
@@ -44,8 +48,9 @@ spec:
             - {{ .Values.application.command | quote }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          {{- if .Values.paymentCredentials.enabled }}
+          {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
           env:
+            {{- include "citrus.paymentSafety.env" . | nindent 12 }}
             {{- include "citrus.paymentCredentials.webEnv" . | nindent 12 }}
           {{- end }}
           envFrom:

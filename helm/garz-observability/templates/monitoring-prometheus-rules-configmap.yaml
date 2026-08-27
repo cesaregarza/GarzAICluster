@@ -1,5 +1,6 @@
 {{- if and .Values.monitoring.prometheus.enabled .Values.monitoring.prometheus.rules.enabled }}
 {{- $fullName := include "garzObservability.fullname" . -}}
+{{- $monitoringNamespace := include "garzObservability.monitoringNamespace" . -}}
 {{- $rulesConfigMapName := default (printf "%s-prometheus-rules" $fullName) .Values.monitoring.prometheus.rules.configMapName -}}
 apiVersion: v1
 kind: ConfigMap
@@ -127,6 +128,41 @@ data:
               summary: Prometheus TSDB nearing capacity
               description: PVC usage for Prometheus exceeded 85% for 15 minutes; consider scaling storage or reducing retention.
 
+          - alert: KubernetesNodeCPURequestHeadroomLow
+            expr: |
+              (
+                sum by (node) (
+                  kube_pod_container_resource_requests{
+                    job="kube-state-metrics",
+                    node!="",
+                    resource="cpu",
+                    unit="core"
+                  }
+                    * on (namespace, pod) group_left()
+                  max by (namespace, pod) (
+                    kube_pod_status_phase{
+                      job="kube-state-metrics",
+                      phase="Running"
+                    } == 1
+                  )
+                )
+                  /
+                max by (node) (
+                  kube_node_status_allocatable{
+                    job="kube-state-metrics",
+                    resource="cpu",
+                    unit="core"
+                  }
+                )
+              ) > 0.85
+            for: 10m
+            labels:
+              severity: warning
+              service: kubernetes
+            annotations:
+              summary: Kubernetes node CPU request headroom is low
+              description: Node {{ "{{ $labels.node }}" }} has reserved more than 85% of allocatable CPU for 10 minutes, leaving less than the Citrus rollout and scheduled-job headroom target.
+
           - alert: AlertmanagerDown
             expr: sum(up{job="alertmanager"}) == 0
             for: 5m
@@ -155,20 +191,72 @@ data:
               summary: Mandate synthetic live verify failed
               description: The scheduled Mandate synthetic live verify CronJob has a failed Job; inspect the agent-control-plane synthetic-live-verify logs before the next deploy.
 
+          - alert: CitrusPodPending
+            expr: |
+              max by (namespace, pod) (
+                kube_pod_status_phase{
+                  job="kube-state-metrics",
+                  namespace=~"default|citrus-dev",
+                  pod=~"citrus(-dev)?-.*",
+                  phase="Pending"
+                } == 1
+              ) > 0
+            for: 1m
+            labels:
+              severity: warning
+              service: citrus
+            annotations:
+              summary: Citrus pod is pending
+              description: Pod {{ "{{ $labels.namespace }}" }}/{{ "{{ $labels.pod }}" }} has remained Pending for at least one minute; inspect scheduling events and CPU requests before retrying or rolling out more work.
+
           - alert: CitrusRecurringRuntimeHealthFailed
             expr: |
               max by (namespace, owner_name) (
                 (
-                  kube_job_status_failed{namespace=~"citrus(-dev)?"}
-                    and on (namespace, job_name)
-                      (time() - kube_job_status_start_time{namespace=~"citrus(-dev)?"} < 600)
-                )
-                  * on (namespace, job_name) group_left(owner_name)
-                    kube_job_owner{
-                      namespace=~"citrus(-dev)?",
-                      owner_kind="CronJob",
-                      owner_name=~"citrus(-dev)?-recurring-health"
+                  (
+                    kube_job_status_failed{
+                      job="kube-state-metrics",
+                      namespace="default"
                     }
+                      and on (namespace, job_name)
+                        (
+                          time() - kube_job_status_start_time{
+                            job="kube-state-metrics",
+                            namespace="default"
+                          } < 600
+                        )
+                  )
+                    * on (namespace, job_name) group_left(owner_name)
+                      kube_job_owner{
+                        job="kube-state-metrics",
+                        namespace="default",
+                        owner_kind="CronJob",
+                        owner_name="citrus-recurring-health"
+                      }
+                )
+                  or
+                (
+                  (
+                    kube_job_status_failed{
+                      job="kube-state-metrics",
+                      namespace="citrus-dev"
+                    }
+                      and on (namespace, job_name)
+                        (
+                          time() - kube_job_status_start_time{
+                            job="kube-state-metrics",
+                            namespace="citrus-dev"
+                          } < 600
+                        )
+                  )
+                    * on (namespace, job_name) group_left(owner_name)
+                      kube_job_owner{
+                        job="kube-state-metrics",
+                        namespace="citrus-dev",
+                        owner_kind="CronJob",
+                        owner_name="citrus-dev-recurring-health"
+                      }
+                )
               ) > 0
             for: 2m
             labels:
@@ -182,16 +270,50 @@ data:
             expr: |
               max by (namespace, owner_name) (
                 (
-                  kube_job_status_failed{namespace=~"citrus(-dev)?"}
-                    and on (namespace, job_name)
-                      (time() - kube_job_status_start_time{namespace=~"citrus(-dev)?"} < 600)
-                )
-                  * on (namespace, job_name) group_left(owner_name)
-                    kube_job_owner{
-                      namespace=~"citrus(-dev)?",
-                      owner_kind="CronJob",
-                      owner_name=~"citrus(-dev)?-recurring-tick"
+                  (
+                    kube_job_status_failed{
+                      job="kube-state-metrics",
+                      namespace="default"
                     }
+                      and on (namespace, job_name)
+                        (
+                          time() - kube_job_status_start_time{
+                            job="kube-state-metrics",
+                            namespace="default"
+                          } < 600
+                        )
+                  )
+                    * on (namespace, job_name) group_left(owner_name)
+                      kube_job_owner{
+                        job="kube-state-metrics",
+                        namespace="default",
+                        owner_kind="CronJob",
+                        owner_name="citrus-recurring-tick"
+                      }
+                )
+                  or
+                (
+                  (
+                    kube_job_status_failed{
+                      job="kube-state-metrics",
+                      namespace="citrus-dev"
+                    }
+                      and on (namespace, job_name)
+                        (
+                          time() - kube_job_status_start_time{
+                            job="kube-state-metrics",
+                            namespace="citrus-dev"
+                          } < 600
+                        )
+                  )
+                    * on (namespace, job_name) group_left(owner_name)
+                      kube_job_owner{
+                        job="kube-state-metrics",
+                        namespace="citrus-dev",
+                        owner_kind="CronJob",
+                        owner_name="citrus-dev-recurring-tick"
+                      }
+                )
               ) > 0
             for: 2m
             labels:
@@ -202,7 +324,20 @@ data:
               description: The five-minute recurring wake-up could not discover or publish its bounded outbox batch; inspect the exact Job logs before replaying any event.
 
           - alert: CitrusRecurringRuntimeExporterUnhealthy
-            expr: citrus_recurring_runtime_health == 0
+            expr: |
+              (
+                citrus_recurring_runtime_health{
+                  job="kubernetes-pods",
+                  namespace="default",
+                  pod=~"citrus-billing-worker-.*"
+                }
+                  or
+                citrus_recurring_runtime_health{
+                  job="kubernetes-pods",
+                  namespace="citrus-dev",
+                  pod=~"citrus-dev-billing-worker-.*"
+                }
+              ) == 0
             for: 2m
             labels:
               severity: critical
@@ -213,17 +348,36 @@ data:
 
           - alert: CitrusRecurringRuntimeMetricsMissing
             expr: |
-              kube_deployment_spec_replicas{
-                namespace=~"citrus(-dev)?",
-                deployment=~"citrus(-dev)?-billing-worker"
-              } > 0
-                unless on (namespace)
-              max by (namespace) (
-                up{
-                  job="kubernetes-pods",
-                  namespace=~"citrus(-dev)?",
-                  pod=~"citrus(-dev)?-billing-worker-.*"
-                } == 1
+              (
+                kube_deployment_spec_replicas{
+                  job="kube-state-metrics",
+                  namespace="default",
+                  deployment="citrus-billing-worker"
+                } > 0
+                  unless on (namespace)
+                max by (namespace) (
+                  up{
+                    job="kubernetes-pods",
+                    namespace="default",
+                    pod=~"citrus-billing-worker-.*"
+                  } == 1
+                )
+              )
+                or
+              (
+                kube_deployment_spec_replicas{
+                  job="kube-state-metrics",
+                  namespace="citrus-dev",
+                  deployment="citrus-dev-billing-worker"
+                } > 0
+                  unless on (namespace)
+                max by (namespace) (
+                  up{
+                    job="kubernetes-pods",
+                    namespace="citrus-dev",
+                    pod=~"citrus-dev-billing-worker-.*"
+                  } == 1
+                )
               )
             for: 2m
             labels:
@@ -234,7 +388,20 @@ data:
               description: The billing worker is expected, but Prometheus cannot scrape its recurring metrics sidecar.
 
           - alert: CitrusRecurringRuntimeWorkOverdue
-            expr: citrus_recurring_overdue_due_work > 0
+            expr: |
+              (
+                citrus_recurring_overdue_due_work{
+                  job="kubernetes-pods",
+                  namespace="default",
+                  pod=~"citrus-billing-worker-.*"
+                }
+                  or
+                citrus_recurring_overdue_due_work{
+                  job="kubernetes-pods",
+                  namespace="citrus-dev",
+                  pod=~"citrus-dev-billing-worker-.*"
+                }
+              ) > 0
             for: 5m
             labels:
               severity: critical
@@ -244,7 +411,36 @@ data:
               description: Persisted recurring work remains due beyond the configured scheduler grace window.
 
           - alert: CitrusRecurringRuntimeOutboxStale
-            expr: citrus_recurring_oldest_outbox_age_seconds >= 900 or citrus_recurring_stale_claims > 0
+            expr: |
+              max by (job, namespace, pod) (
+                (
+                  citrus_recurring_oldest_outbox_age_seconds{
+                    job="kubernetes-pods",
+                    namespace="default",
+                    pod=~"citrus-billing-worker-.*"
+                  }
+                    or
+                  citrus_recurring_oldest_outbox_age_seconds{
+                    job="kubernetes-pods",
+                    namespace="citrus-dev",
+                    pod=~"citrus-dev-billing-worker-.*"
+                  }
+                ) >= 900
+                  or
+                (
+                  citrus_recurring_stale_claims{
+                    job="kubernetes-pods",
+                    namespace="default",
+                    pod=~"citrus-billing-worker-.*"
+                  }
+                    or
+                  citrus_recurring_stale_claims{
+                    job="kubernetes-pods",
+                    namespace="citrus-dev",
+                    pod=~"citrus-dev-billing-worker-.*"
+                  }
+                ) > 0
+              )
             for: 5m
             labels:
               severity: critical
@@ -254,7 +450,36 @@ data:
               description: The billing outbox contains an old pending event or a stale publication claim.
 
           - alert: CitrusRecurringBillingQueueUnavailable
-            expr: citrus_recurring_billing_queue_unavailable > 0 or citrus_recurring_billing_queue_depth >= 100
+            expr: |
+              max by (job, namespace, pod) (
+                (
+                  citrus_recurring_billing_queue_unavailable{
+                    job="kubernetes-pods",
+                    namespace="default",
+                    pod=~"citrus-billing-worker-.*"
+                  }
+                    or
+                  citrus_recurring_billing_queue_unavailable{
+                    job="kubernetes-pods",
+                    namespace="citrus-dev",
+                    pod=~"citrus-dev-billing-worker-.*"
+                  }
+                ) > 0
+                  or
+                (
+                  citrus_recurring_billing_queue_depth{
+                    job="kubernetes-pods",
+                    namespace="default",
+                    pod=~"citrus-billing-worker-.*"
+                  }
+                    or
+                  citrus_recurring_billing_queue_depth{
+                    job="kubernetes-pods",
+                    namespace="citrus-dev",
+                    pod=~"citrus-dev-billing-worker-.*"
+                  }
+                ) >= 100
+              )
             for: 5m
             labels:
               severity: critical
@@ -264,7 +489,20 @@ data:
               description: The dedicated billing queue cannot be read or has exceeded its bounded depth threshold.
 
           - alert: CitrusRecurringNoticeFailures
-            expr: citrus_recurring_recent_notice_failures > 0
+            expr: |
+              (
+                citrus_recurring_recent_notice_failures{
+                  job="kubernetes-pods",
+                  namespace="default",
+                  pod=~"citrus-billing-worker-.*"
+                }
+                  or
+                citrus_recurring_recent_notice_failures{
+                  job="kubernetes-pods",
+                  namespace="citrus-dev",
+                  pod=~"citrus-dev-billing-worker-.*"
+                }
+              ) > 0
             for: 2m
             labels:
               severity: critical
@@ -274,7 +512,20 @@ data:
               description: A notice failed or reached an unknown provider outcome within the configured alert window.
 
           - alert: CitrusRecurringConfirmationNeedsReview
-            expr: citrus_recurring_confirmation_delivery_review_required > 0
+            expr: |
+              (
+                citrus_recurring_confirmation_delivery_review_required{
+                  job="kubernetes-pods",
+                  namespace="default",
+                  pod=~"citrus-billing-worker-.*"
+                }
+                  or
+                citrus_recurring_confirmation_delivery_review_required{
+                  job="kubernetes-pods",
+                  namespace="citrus-dev",
+                  pod=~"citrus-dev-billing-worker-.*"
+                }
+              ) > 0
             for: 2m
             labels:
               severity: critical
@@ -284,7 +535,20 @@ data:
               description: An at-most-once action confirmation failed or has an unknown provider outcome and must never be blindly replayed.
 
           - alert: CitrusRecurringPaymentReconciliationLag
-            expr: citrus_recurring_webhook_lagged_payments > 0
+            expr: |
+              (
+                citrus_recurring_webhook_lagged_payments{
+                  job="kubernetes-pods",
+                  namespace="default",
+                  pod=~"citrus-billing-worker-.*"
+                }
+                  or
+                citrus_recurring_webhook_lagged_payments{
+                  job="kubernetes-pods",
+                  namespace="citrus-dev",
+                  pod=~"citrus-dev-billing-worker-.*"
+                }
+              ) > 0
             for: 5m
             labels:
               severity: critical
@@ -294,7 +558,36 @@ data:
               description: A processing or unknown payment has remained unresolved beyond the reconciliation threshold.
 
           - alert: CitrusRecurringChargeOrOrderStalled
-            expr: citrus_recurring_unclaimed_charge_due > 0 or citrus_recurring_stale_paid_cycles_missing_orders > 0
+            expr: |
+              max by (job, namespace, pod) (
+                (
+                  citrus_recurring_unclaimed_charge_due{
+                    job="kubernetes-pods",
+                    namespace="default",
+                    pod=~"citrus-billing-worker-.*"
+                  }
+                    or
+                  citrus_recurring_unclaimed_charge_due{
+                    job="kubernetes-pods",
+                    namespace="citrus-dev",
+                    pod=~"citrus-dev-billing-worker-.*"
+                  }
+                ) > 0
+                  or
+                (
+                  citrus_recurring_stale_paid_cycles_missing_orders{
+                    job="kubernetes-pods",
+                    namespace="default",
+                    pod=~"citrus-billing-worker-.*"
+                  }
+                    or
+                  citrus_recurring_stale_paid_cycles_missing_orders{
+                    job="kubernetes-pods",
+                    namespace="citrus-dev",
+                    pod=~"citrus-dev-billing-worker-.*"
+                  }
+                ) > 0
+              )
             for: 5m
             labels:
               severity: critical
@@ -345,4 +638,337 @@ data:
             annotations:
               summary: Grafana is unreachable
               description: Grafana metrics endpoint has been unreachable for 5 minutes.
+
+  query-safety-recording-rules.yaml: |
+    groups:
+      - name: splattop-query-safety-recording
+        interval: {{ .Values.monitoring.prometheus.querySafety.recordingInterval }}
+        limit: {{ .Values.monitoring.prometheus.querySafety.maxSeriesPerRule }}
+        rules:
+          - record: cluster:container_cpu_usage_seconds_total:sum_rate5m
+            expr: |
+              sum(
+                rate(
+                  container_cpu_usage_seconds_total{
+                    job="kubernetes-cadvisor",
+                    namespace!="",
+                    pod!="",
+                    container!="",
+                    container!="POD"
+                  }[5m]
+                )
+              )
+
+          - record: cluster:kube_pod_container_resource_requests_cpu_cores:max_sum_active_bound5m
+            expr: |
+              max_over_time(
+                (
+                  sum(
+                    kube_pod_container_resource_requests{
+                      job="kube-state-metrics",
+                      node!="",
+                      resource="cpu",
+                      unit="core"
+                    }
+                      * on (namespace, pod, uid) group_left()
+                    max by (namespace, pod, uid) (
+                      kube_pod_status_phase{
+                        job="kube-state-metrics",
+                        phase=~"Pending|Running|Unknown"
+                      } == 1
+                    )
+                  )
+                )[5m:{{ .Values.monitoring.prometheus.querySafety.recordingInterval }}]
+              )
+
+          - record: node:kube_pod_container_resource_requests_cpu_cores:max_sum_active_bound5m
+            expr: |
+              max_over_time(
+                (
+                  sum by (node) (
+                    kube_pod_container_resource_requests{
+                      job="kube-state-metrics",
+                      node!="",
+                      resource="cpu",
+                      unit="core"
+                    }
+                      * on (namespace, pod, uid) group_left()
+                    max by (namespace, pod, uid) (
+                      kube_pod_status_phase{
+                        job="kube-state-metrics",
+                        phase=~"Pending|Running|Unknown"
+                      } == 1
+                    )
+                  )
+                )[5m:{{ .Values.monitoring.prometheus.querySafety.recordingInterval }}]
+              )
+
+          - record: cluster:kube_node_status_allocatable_cpu_cores:sum
+            expr: |
+              sum(
+                max by (node) (
+                  kube_node_status_allocatable{
+                    job="kube-state-metrics",
+                    resource="cpu",
+                    unit="core"
+                  }
+                )
+              )
+
+          - record: node:kube_node_status_allocatable_cpu_cores:max
+            expr: |
+              max by (node) (
+                kube_node_status_allocatable{
+                  job="kube-state-metrics",
+                  resource="cpu",
+                  unit="core"
+                }
+              )
+
+          - record: namespace_container:citrus_container_cpu_usage_seconds_total:max_rate5m
+            expr: |
+              max by (namespace, container) (
+                rate(
+                  container_cpu_usage_seconds_total{
+                    job="kubernetes-cadvisor",
+                    namespace=~"default|citrus-dev",
+                    pod=~"citrus(-dev)?-.*",
+                    container!="",
+                    container!="POD"
+                  }[5m]
+                )
+              )
+            labels:
+              scope: citrus
+
+          - record: namespace_container:citrus_container_memory_working_set_bytes:max_over_time5m
+            expr: |
+              max by (namespace, container) (
+                max_over_time(
+                  container_memory_working_set_bytes{
+                    job="kubernetes-cadvisor",
+                    namespace=~"default|citrus-dev",
+                    pod=~"citrus(-dev)?-.*",
+                    container!="",
+                    container!="POD"
+                  }[5m]
+                )
+              )
+            labels:
+              scope: citrus
+
+          - record: namespace_container:citrus_kube_pod_container_resource_requests_cpu_cores:max_over_time5m
+            expr: |
+              max by (namespace, container) (
+                max_over_time(
+                  kube_pod_container_resource_requests{
+                    job="kube-state-metrics",
+                    namespace=~"default|citrus-dev",
+                    pod=~"citrus(-dev)?-.*",
+                    resource="cpu",
+                    unit="core"
+                  }[5m]
+                )
+              )
+            labels:
+              scope: citrus
+
+          - record: namespace_container:citrus_kube_pod_container_resource_requests_memory_bytes:max_over_time5m
+            expr: |
+              max by (namespace, container) (
+                max_over_time(
+                  kube_pod_container_resource_requests{
+                    job="kube-state-metrics",
+                    namespace=~"default|citrus-dev",
+                    pod=~"citrus(-dev)?-.*",
+                    resource="memory",
+                    unit="byte"
+                  }[5m]
+                )
+              )
+            labels:
+              scope: citrus
+
+          - record: namespace:citrus_kube_pod_scheduling_latency_seconds:p95_over_pods5m
+            expr: |
+              quantile by (namespace) (
+                0.95,
+                max_over_time(
+                  (
+                    clamp_min(
+                      kube_pod_status_scheduled_time{
+                        job="kube-state-metrics",
+                        namespace=~"default|citrus-dev",
+                        pod=~"citrus(-dev)?-.*"
+                      }
+                        - on (namespace, pod, uid)
+                      kube_pod_created{
+                        job="kube-state-metrics",
+                        namespace=~"default|citrus-dev",
+                        pod=~"citrus(-dev)?-.*"
+                      },
+                      0
+                    )
+                  )[5m:{{ .Values.monitoring.prometheus.querySafety.recordingInterval }}]
+                )
+              )
+            labels:
+              scope: citrus
+
+          - record: namespace:citrus_kube_pod_scheduling_latency_seconds:max_over_pods5m
+            expr: |
+              max by (namespace) (
+                max_over_time(
+                  (
+                    clamp_min(
+                      kube_pod_status_scheduled_time{
+                        job="kube-state-metrics",
+                        namespace=~"default|citrus-dev",
+                        pod=~"citrus(-dev)?-.*"
+                      }
+                        - on (namespace, pod, uid)
+                      kube_pod_created{
+                        job="kube-state-metrics",
+                        namespace=~"default|citrus-dev",
+                        pod=~"citrus(-dev)?-.*"
+                      },
+                      0
+                    )
+                  )[5m:{{ .Values.monitoring.prometheus.querySafety.recordingInterval }}]
+                )
+              )
+            labels:
+              scope: citrus
+
+          - record: namespace:citrus_kube_pod_pending_age_seconds:max_over_time5m
+            expr: |
+              max by (namespace) (
+                max_over_time(
+                  (
+                    (time() - kube_pod_created{
+                      job="kube-state-metrics",
+                      namespace=~"default|citrus-dev",
+                      pod=~"citrus(-dev)?-.*"
+                    })
+                      and on (namespace, pod, uid)
+                    (kube_pod_status_phase{
+                      job="kube-state-metrics",
+                      namespace=~"default|citrus-dev",
+                      pod=~"citrus(-dev)?-.*",
+                      phase="Pending"
+                    } == 1)
+                  )[5m:{{ .Values.monitoring.prometheus.querySafety.recordingInterval }}]
+                )
+              )
+                or on (namespace)
+              (
+                0 * max by (namespace) (
+                  max_over_time(kube_pod_info{
+                    job="kube-state-metrics",
+                    namespace=~"default|citrus-dev",
+                    pod=~"citrus(-dev)?-.*"
+                  }[5m])
+                )
+              )
+            labels:
+              scope: citrus
+
+  prometheus-self-alerts.yaml: |
+    groups:
+      - name: splattop-prometheus-self
+        limit: {{ .Values.monitoring.prometheus.querySafety.maxSeriesPerRule }}
+        rules:
+          - alert: PrometheusContainerMemoryPressureHigh
+            expr: |
+              max by (namespace, pod, container) (
+                container_memory_working_set_bytes{
+                  job="kubernetes-cadvisor",
+                  namespace="{{ $monitoringNamespace }}",
+                  pod=~"{{ $fullName }}-prometheus-[0-9]+",
+                  container="prometheus"
+                }
+              ) > {{ .Values.monitoring.prometheus.querySafety.memoryPressureThresholdBytes }}
+            for: 10m
+            labels:
+              severity: warning
+              service: prometheus
+            annotations:
+              summary: Prometheus container memory pressure is high
+              description: Prometheus working-set memory has exceeded 75% of its 2 GiB container limit for 10 minutes; stop interactive history queries and inspect query/rule pressure before cgroup OOM.
+
+          - alert: PrometheusContainerOOMKilled
+            expr: |
+              (
+                kube_pod_container_status_last_terminated_reason{
+                  job="kube-state-metrics",
+                  namespace="{{ $monitoringNamespace }}",
+                  pod=~"{{ $fullName }}-prometheus-[0-9]+",
+                  container="prometheus",
+                  reason="OOMKilled"
+                } == 1
+              )
+                and on (namespace, pod, container, uid)
+              (
+                increase(
+                  kube_pod_container_status_restarts_total{
+                    job="kube-state-metrics",
+                    namespace="{{ $monitoringNamespace }}",
+                    pod=~"{{ $fullName }}-prometheus-[0-9]+",
+                    container="prometheus"
+                  }[15m]
+                ) > 0
+              )
+            labels:
+              severity: critical
+              service: prometheus
+            annotations:
+              summary: Prometheus was OOM-killed
+              description: The Prometheus container restarted within 15 minutes and its last termination reason is OOMKilled; preserve monitoring availability and do not replay broad historical joins.
+
+          - alert: PrometheusContainerRestarted
+            expr: |
+              (
+                increase(
+                  kube_pod_container_status_restarts_total{
+                    job="kube-state-metrics",
+                    namespace="{{ $monitoringNamespace }}",
+                    pod=~"{{ $fullName }}-prometheus-[0-9]+",
+                    container="prometheus"
+                  }[15m]
+                ) > 0
+              )
+                unless on (namespace, pod, container, uid)
+              (
+                kube_pod_container_status_last_terminated_reason{
+                  job="kube-state-metrics",
+                  namespace="{{ $monitoringNamespace }}",
+                  pod=~"{{ $fullName }}-prometheus-[0-9]+",
+                  container="prometheus",
+                  reason="OOMKilled"
+                } == 1
+              )
+            labels:
+              severity: warning
+              service: prometheus
+            annotations:
+              summary: Prometheus container restarted
+              description: The Prometheus container restarted within the last 15 minutes; inspect the termination reason, memory pressure, and active query shape.
+
+          - alert: PrometheusRuleEvaluationFailures
+            expr: increase(prometheus_rule_evaluation_failures_total[10m]) > 0
+            labels:
+              severity: warning
+              service: prometheus
+            annotations:
+              summary: Prometheus rule evaluation failed
+              description: A recording or alerting rule failed during the last 10 minutes; inspect rule limits, query sample rejections, and evaluation duration.
+
+          - alert: PrometheusRuleGroupIterationsMissed
+            expr: increase(prometheus_rule_group_iterations_missed_total[10m]) > 0
+            labels:
+              severity: warning
+              service: prometheus
+            annotations:
+              summary: Prometheus rule group missed an evaluation
+              description: A rule group missed a scheduled evaluation during the last 10 minutes; inspect evaluation duration and query pressure before historical coverage develops gaps.
 {{- end }}

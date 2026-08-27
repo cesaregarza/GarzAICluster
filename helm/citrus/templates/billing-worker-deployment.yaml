@@ -27,6 +27,9 @@ spec:
       labels:
         app: citrus-billing-worker
         app.kubernetes.io/component: billing-worker
+        {{- if .Values.paymentSafety.enabled }}
+        {{- include "citrus.paymentSafety.podLabel" . | nindent 8 }}
+        {{- end }}
       {{- if or .Values.application.rolloutOnConfigChange .Values.billingWorker.metrics.enabled .Values.paymentCredentials.enabled }}
       annotations:
         {{- if .Values.application.rolloutOnConfigChange }}
@@ -55,8 +58,9 @@ spec:
             - {{ printf "exec celery -A Mycore worker --loglevel=INFO --queues=%s --concurrency=1 --prefetch-multiplier=1 --max-tasks-per-child=100 --soft-time-limit=240 --time-limit=300" $billingQueue | quote }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          {{- if .Values.paymentCredentials.enabled }}
+          {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
           env:
+            {{- include "citrus.paymentSafety.env" . | nindent 12 }}
             {{- include "citrus.paymentCredentials.apiEnv" . | nindent 12 }}
           {{- end }}
           envFrom:
@@ -96,6 +100,10 @@ spec:
               containerPort: {{ .Values.billingWorker.metrics.port }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- if .Values.paymentSafety.enabled }}
+          env:
+            {{- include "citrus.paymentSafety.env" . | nindent 12 }}
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ .Values.application.configMapName }}

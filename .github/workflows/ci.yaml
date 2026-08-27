@@ -251,6 +251,10 @@ jobs:
             path: helm/skyquiet-server
             release: skyquiet-server
             prod_values: helm/skyquiet-server/values.yaml
+          - name: spotify-hot-100
+            path: helm/spotify-hot-100
+            release: spotify-hot-100
+            prod_values: helm/spotify-hot-100/values.yaml
           - name: poetry
             path: helm/poetry
             release: poetry
@@ -259,6 +263,10 @@ jobs:
             path: helm/agent-workloads
             release: agent-workloads
             prod_values: apps/agent-workloads/values.yaml
+          - name: agent-8s
+            path: apps/agent-8s
+            release: agent-8s
+            prod_values: apps/agent-8s/values.yaml
           - name: agent-control-plane-registry-overlay
             path: apps/agent-control-plane-registry-overlay
             release: agent-control-plane-registry-overlay
@@ -339,6 +347,7 @@ jobs:
             -f "$chart/values.yaml" \
             -f "$chart/values-dev.yaml" \
             --show-only templates/sms-reconciliation-cronjob.yaml \
+            --set-string image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c \
             --set smsReconciliation.enabled=true \
             --set-string smsReconciliation.verifiedImageTag=0e2258bf95c6170895c26780258eb42d5b5c557c \
             --set-string 'smsReconciliation.commandCompatibleImageTags[0]=0e2258bf95c6170895c26780258eb42d5b5c557c' \
@@ -346,19 +355,68 @@ jobs:
             > rendered/citrus-sms-reconciliation-dev.yaml
 
           # Preserve the prepared payment-projection render coverage separately
-          # from the actual environment renders. These files contain Secret refs,
-          # never decrypted values or credentials.
+          # from the actual environment renders. Credential projection is valid
+          # only when paired with the matching CES-845 safety contract. These
+          # files contain Secret refs, never decrypted values or credentials.
           helm template citrus-ci-payment-prod "$chart" \
             --namespace default \
             -f "$chart/values.yaml" \
             -f "$chart/values-payment-prod.yaml" \
+            --set paymentSafety.enabled=true \
+            --set-string paymentSafety.environment=production \
+            --set-string paymentSafety.owner=citrus \
+            --set-string paymentSafety.networkMode=allow \
+            --set paymentSafety.policy.required=true \
+            --set-string paymentSafety.policy.provider=cilium \
+            --set-string paymentSafety.policy.revision=ces-845-ci \
+            --set paymentSafety.networkPolicy.enabled=true \
             > rendered/citrus-payment-prod.yaml
           helm template citrus-ci-payment-dev "$chart" \
             --namespace citrus-dev \
             -f "$chart/values.yaml" \
             -f "$chart/values-dev.yaml" \
             -f "$chart/values-payment-dev.yaml" \
+            --set paymentSafety.enabled=true \
+            --set-string paymentSafety.environment=development \
+            --set-string paymentSafety.owner=citrus-dev \
+            --set-string paymentSafety.networkMode=deny \
+            --set paymentSafety.policy.required=true \
+            --set-string paymentSafety.policy.provider=cilium \
+            --set-string paymentSafety.policy.revision=ces-845-ci \
+            --set paymentSafety.networkPolicy.enabled=true \
+            --set-string paymentSafety.networkPolicy.database.host=db.dev.example \
             > rendered/citrus-payment-dev.yaml
+
+          # Exercise the disabled CES-845 boundary with synthetic configuration
+          # only. Rendering an FQDN never resolves or contacts it.
+          helm template citrus-ci-payment-safety-dev "$chart" \
+            --namespace citrus-dev \
+            -f "$chart/values.yaml" \
+            -f "$chart/values-dev.yaml" \
+            --set paymentSafety.enabled=true \
+            --set-string paymentSafety.environment=development \
+            --set-string paymentSafety.owner=citrus-dev \
+            --set-string paymentSafety.networkMode=deny \
+            --set paymentSafety.policy.required=true \
+            --set-string paymentSafety.policy.provider=cilium \
+            --set-string paymentSafety.policy.revision=ces-845-ci \
+            --set paymentSafety.networkPolicy.enabled=true \
+            --set-string paymentSafety.networkPolicy.database.host=db.dev.example \
+            --set billingWorker.enabled=true \
+            --set recurringRuntime.enabled=true \
+            > rendered/citrus-payment-safety-dev.yaml
+          helm template citrus-ci-payment-safety-prod "$chart" \
+            --namespace default \
+            -f "$chart/values.yaml" \
+            --set paymentSafety.enabled=true \
+            --set-string paymentSafety.environment=production \
+            --set-string paymentSafety.owner=citrus \
+            --set-string paymentSafety.networkMode=allow \
+            --set paymentSafety.policy.required=true \
+            --set-string paymentSafety.policy.provider=cilium \
+            --set-string paymentSafety.policy.revision=ces-845-ci \
+            --set paymentSafety.networkPolicy.enabled=true \
+            > rendered/citrus-payment-safety-prod.yaml
 
       - name: Verify Citrus workload render coverage
         if: matrix.chart.name == 'citrus'
@@ -410,6 +468,30 @@ jobs:
             echo "Actual Citrus environment renders must keep SMS reconciliation disabled" >&2
             exit 1
           fi
+
+          if grep -E '^kind:[[:space:]]+CiliumNetworkPolicy$|PAYMENT_NETWORK_MODE|payment-egress-boundary' \
+            rendered/citrus-prod.yaml rendered/citrus-dev.yaml >/dev/null; then
+            echo "Current Citrus Argo renders must keep CES-845 disabled" >&2
+            exit 1
+          fi
+
+          safety_dev=rendered/citrus-payment-safety-dev.yaml
+          safety_prod=rendered/citrus-payment-safety-prod.yaml
+          grep -F 'kind: CiliumNetworkPolicy' "$safety_dev" >/dev/null
+          grep -F 'citrus.grace/payment-egress-boundary: enabled' "$safety_dev" >/dev/null
+          grep -F 'matchName: "db.dev.example"' "$safety_dev" >/dev/null
+          grep -F 'matchName: "citrus-media-dev.nyc3.digitaloceanspaces.com"' "$safety_dev" >/dev/null
+          grep -F 'citrus.grace/payment-egress-policy-revision: "ces-845-ci"' "$safety_dev" >/dev/null
+          grep -F 'value: "deny"' "$safety_dev" >/dev/null
+          test "$(grep -Fc 'name: PAYMENT_EGRESS_POLICY_REVISION' "$safety_dev")" -eq 9
+          if grep -Ei 'matchName:.*stripe\.(com|network)' "$safety_dev" >/dev/null; then
+            echo "Development payment egress render must omit every Stripe destination" >&2
+            exit 1
+          fi
+
+          grep -F 'kind: CiliumNetworkPolicy' "$safety_prod" >/dev/null
+          grep -F -- '- all' "$safety_prod" >/dev/null
+          grep -F 'value: "allow"' "$safety_prod" >/dev/null
 
           if grep -E '^kind:[[:space:]]+Secret$' rendered/citrus-*.yaml >/dev/null; then
             echo "Citrus CI renders must never contain Secret objects" >&2
@@ -862,3 +944,7 @@ jobs:
           --namespace monitoring
           --values ${{ matrix.env.values }}
           --label ${{ matrix.env.name }}
+
+      - name: Reproduce the historical-query sample envelope offline
+        timeout-minutes: 8
+        run: python scripts/verify_prometheus_query_safety.py
