@@ -3,6 +3,225 @@
   "type": "object",
   "required": ["directOrderPaymentSweep"],
   "properties": {
+    "syncWaves": {
+      "type": "object",
+      "required": ["config", "migrations", "smsReconciliation"],
+      "properties": {
+        "config": {
+          "type": "string",
+          "pattern": "^-?(0|[1-9][0-9]*)$"
+        },
+        "migrations": {
+          "type": "string",
+          "pattern": "^-?(0|[1-9][0-9]*)$"
+        },
+        "smsReconciliation": {
+          "type": "string",
+          "pattern": "^[0-9]+$",
+          "const": "3"
+        }
+      }
+    },
+    "smsReconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "suspend",
+        "secretName",
+        "verifiedImageTag",
+        "commandCompatibleImageTags",
+        "schedule",
+        "timeZone",
+        "concurrencyPolicy",
+        "startingDeadlineSeconds",
+        "activeDeadlineSeconds",
+        "backoffLimit",
+        "successfulJobsHistoryLimit",
+        "failedJobsHistoryLimit",
+        "staleMinutes",
+        "limit",
+        "networkPolicy",
+        "resources"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "suspend": {
+          "type": "boolean",
+          "const": true
+        },
+        "secretName": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 63
+        },
+        "verifiedImageTag": {
+          "type": "string"
+        },
+        "commandCompatibleImageTags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          }
+        },
+        "schedule": {
+          "type": "string",
+          "const": "*/15 * * * *"
+        },
+        "timeZone": {
+          "type": "string",
+          "const": "Etc/UTC"
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "enum": ["Forbid"]
+        },
+        "startingDeadlineSeconds": {
+          "type": "integer",
+          "const": 240
+        },
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "const": 240
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "const": 1
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "const": 2
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "const": 3
+        },
+        "staleMinutes": {
+          "type": "integer",
+          "const": 15
+        },
+        "limit": {
+          "type": "integer",
+          "const": 100
+        },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "provider",
+            "revision",
+            "syncWave",
+            "dns",
+            "database"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "provider": {
+              "type": "string",
+              "enum": ["", "cilium"]
+            },
+            "revision": {
+              "type": "string",
+              "maxLength": 63,
+              "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "syncWave": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "const": "2"
+            },
+            "dns": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["namespace", "podLabels"],
+              "properties": {
+                "namespace": {
+                  "type": "string",
+                  "const": "kube-system"
+                },
+                "podLabels": {
+                  "type": "object",
+                  "const": {"k8s-app": "kube-dns"}
+                }
+              }
+            },
+            "database": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["host", "port"],
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "maxLength": 253,
+                  "pattern": "^$|^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$",
+                  "allOf": [
+                    {"not": {"pattern": "^[0-9]+(?:\\.[0-9]+){3}$"}},
+                    {"not": {"pattern": "(^|\\.)(stripe|twilio|sendgrid|mailgun|paypal|braintree|adyen)(\\.|$)"}}
+                  ]
+                },
+                "port": {
+                  "type": "integer",
+                  "const": 25060
+                }
+              }
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requests", "limits"],
+          "const": {
+            "requests": {"cpu": "50m", "memory": "128Mi"},
+            "limits": {"cpu": "250m", "memory": "256Mi"}
+          },
+          "properties": {
+            "requests": {
+              "type": "object",
+              "required": ["cpu", "memory"]
+            },
+            "limits": {
+              "type": "object",
+              "required": ["cpu", "memory"]
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {"const": true}
+            },
+            "required": ["enabled"]
+          },
+          "then": {
+            "properties": {
+              "suspend": {"const": true},
+              "networkPolicy": {
+                "properties": {
+                  "enabled": {"const": true},
+                  "provider": {"const": "cilium"},
+                  "revision": {"minLength": 1},
+                  "database": {
+                    "properties": {
+                      "host": {"minLength": 3}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
     "cloudflareAccess": {
       "type": "object",
       "additionalProperties": false,
@@ -522,5 +741,60 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "smsReconciliation": {
+            "properties": {
+              "enabled": {"const": true}
+            },
+            "required": ["enabled"]
+          }
+        },
+        "required": ["smsReconciliation"]
+      },
+      "then": {
+        "properties": {
+          "syncWaves": {
+            "type": "object",
+            "properties": {
+              "config": {"const": "0"},
+              "migrations": {"const": "1"},
+              "smsReconciliation": {"const": "3"}
+            },
+            "required": ["config", "migrations", "smsReconciliation"]
+          },
+          "image": {
+            "type": "object",
+            "properties": {
+              "repository": {
+                "const": "registry.digitalocean.com/sendouq/citrus"
+              }
+            },
+            "required": ["repository"]
+          },
+          "migrations": {
+            "type": "object",
+            "properties": {
+              "enabled": {"const": true},
+              "command": {
+                "const": ["python", "manage.py", "migrate", "--noinput"]
+              }
+            },
+            "required": ["enabled", "command"]
+          },
+          "application": {
+            "type": "object",
+            "properties": {
+              "configMapName": {"const": "django-config"}
+            },
+            "required": ["configMapName"]
+          }
+        },
+        "required": ["syncWaves", "image", "migrations", "application"]
+      }
+    }
+  ]
 }

@@ -29,6 +29,16 @@ class CitrusCiContractTests(unittest.TestCase):
             if isinstance(step, dict) and "name" in step
         }
 
+    def test_python_contract_job_installs_pinned_helm(self) -> None:
+        steps = {
+            step["name"]: step
+            for step in _workflow()["jobs"]["python-contracts"]["steps"]
+            if isinstance(step, dict) and "name" in step
+        }
+        helm = steps["Set up Helm for chart contract tests"]
+        self.assertEqual(helm["uses"], "azure/setup-helm@v4")
+        self.assertEqual(helm["with"]["version"], "v3.14.0")
+
     def test_citrus_is_a_first_class_helm_matrix_entry(self) -> None:
         citrus = next(
             chart
@@ -71,6 +81,55 @@ class CitrusCiContractTests(unittest.TestCase):
                 '--set billingWorker.enabled=true '
                 '--set recurringRuntime.enabled=true '
                 '> rendered/citrus-optional-workloads.yaml'
+            ),
+            (
+                'helm template citrus "$chart" '
+                '--namespace default -f "$chart/values.yaml" '
+                '--show-only templates/sms-reconciliation-cronjob.yaml '
+                '--set-string '
+                'image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c '
+                '--set smsReconciliation.enabled=true '
+                '--set-string '
+                'smsReconciliation.verifiedImageTag='
+                '0e2258bf95c6170895c26780258eb42d5b5c557c '
+                '--set-string '
+                "'smsReconciliation.commandCompatibleImageTags[0]="
+                "0e2258bf95c6170895c26780258eb42d5b5c557c' "
+                '--set-string smsReconciliation.secretName='
+                'citrus-sms-reconciliation-runtime '
+                '--set smsReconciliation.networkPolicy.enabled=true '
+                '--set-string '
+                'smsReconciliation.networkPolicy.provider=cilium '
+                '--set-string '
+                'smsReconciliation.networkPolicy.revision=ces-848-ci '
+                '--set-string smsReconciliation.networkPolicy.database.host='
+                'db.sms-reconciliation.example '
+                '> rendered/citrus-sms-reconciliation-prod.yaml'
+            ),
+            (
+                'helm template citrus-dev "$chart" '
+                '--namespace citrus-dev -f "$chart/values.yaml" '
+                '-f "$chart/values-dev.yaml" '
+                '--show-only templates/sms-reconciliation-cronjob.yaml '
+                '--set-string '
+                'image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c '
+                '--set smsReconciliation.enabled=true '
+                '--set-string '
+                'smsReconciliation.verifiedImageTag='
+                '0e2258bf95c6170895c26780258eb42d5b5c557c '
+                '--set-string '
+                "'smsReconciliation.commandCompatibleImageTags[0]="
+                "0e2258bf95c6170895c26780258eb42d5b5c557c' "
+                '--set-string smsReconciliation.secretName='
+                'citrus-dev-sms-reconciliation-runtime '
+                '--set smsReconciliation.networkPolicy.enabled=true '
+                '--set-string '
+                'smsReconciliation.networkPolicy.provider=cilium '
+                '--set-string '
+                'smsReconciliation.networkPolicy.revision=ces-848-ci '
+                '--set-string smsReconciliation.networkPolicy.database.host='
+                'db.sms-reconciliation.example '
+                '> rendered/citrus-sms-reconciliation-dev.yaml'
             ),
             (
                 'helm template citrus "$chart" '
@@ -184,6 +243,7 @@ class CitrusCiContractTests(unittest.TestCase):
             "billing-worker",
             "recurring-tick",
             "recurring-health",
+            "sms-reconciliation",
             "direct-order-payment-sweep",
         ):
             with self.subTest(component=component):
@@ -199,6 +259,25 @@ class CitrusCiContractTests(unittest.TestCase):
             "Citrus CI renders must never contain Secret objects",
             run,
         )
+        self.assertIn(
+            "Actual Citrus environment renders must keep SMS reconciliation disabled",
+            run,
+        )
+        self.assertIn("suspend: true", run)
+        self.assertIn("TWILIO_SMS_ENABLED", run)
+        self.assertIn("sweep_manual_order_sms_attempts", run)
+        self.assertIn("must not import a Secret with envFrom", run)
+        self.assertIn("rendered a broad or provider Secret reference", run)
+        self.assertIn("exactly six named runtime keys", run)
+        for expected in (
+            "kind: CiliumNetworkPolicy",
+            'argocd.argoproj.io/sync-wave: "2"',
+            "citrus.grace/sms-reconciliation-egress: restricted",
+            "citrus.grace/sms-reconciliation-egress-policy-revision",
+            "DNS-plus-exact-DB only",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, run)
         for expected in (
             "Current Citrus Argo renders must keep CES-845 disabled",
             "citrus-payment-safety-dev.yaml",

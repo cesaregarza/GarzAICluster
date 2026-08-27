@@ -48,6 +48,21 @@ billingWorker:
 recurringRuntime:
   enabled: false
 
+# Dev has no approved least-privilege runtime Secret or compatible corrected
+# image. Keep every activation input empty until the prerequisite train lands.
+smsReconciliation:
+  enabled: false
+  suspend: true
+  secretName: ""
+  verifiedImageTag: ""
+  commandCompatibleImageTags: []
+  networkPolicy:
+    enabled: false
+    provider: ""
+    revision: ""
+    database:
+      host: ""
+
 mediaRequeue:
   enabled: true
 

@@ -24,6 +24,7 @@ syncWaves:
   deployment: "2"
   worker: "2"
   mediaCronJobs: "3"
+  smsReconciliation: "3"
   billingWorker: "3"
   recurringRuntime: "4"
 
@@ -254,6 +255,47 @@ recurringRuntime:
       - --include-broker
       - --format=json
       - --fail-on-alert
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# Prepared by CES-848. No compatible least-privilege runtime artifact or Secret
+# exists yet, so both real environments remain disabled, suspended, and empty
+# of activation receipts pending CES-844, CES-845, and CES-849.
+smsReconciliation:
+  enabled: false
+  suspend: true
+  secretName: ""
+  verifiedImageTag: ""
+  commandCompatibleImageTags: []
+  schedule: "*/15 * * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 240
+  activeDeadlineSeconds: 240
+  backoffLimit: 1
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  staleMinutes: 15
+  limit: 100
+  # Dormant until a separately reviewed activation supplies an exact DB FQDN
+  # and policy receipt. No provider or world egress is configurable here.
+  networkPolicy:
+    enabled: false
+    provider: ""
+    revision: ""
+    syncWave: "2"
+    dns:
+      namespace: kube-system
+      podLabels:
+        k8s-app: kube-dns
+    database:
+      host: ""
+      port: 25060
   resources:
     requests:
       cpu: 50m
