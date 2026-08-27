@@ -31,16 +31,15 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             {{- toYaml .Values.migrations.command | nindent 12 }}
-          {{- if .Values.paymentSafety.enabled }}
+          {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
           env:
+            {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
             {{- include "citrus.paymentSafety.env" . | nindent 12 }}
           {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ .Values.application.configMapName }}
-            - secretRef:
-                name: {{ .Values.application.secretName }}
-                optional: true
+            {{- include "citrus.applicationRuntimeSecretEnvFrom" . | nindent 12 }}
             {{- if .Values.application.emailSecretName }}
             - secretRef:
                 name: {{ .Values.application.emailSecretName }}

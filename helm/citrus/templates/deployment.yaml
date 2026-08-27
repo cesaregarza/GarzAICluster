@@ -54,6 +54,7 @@ spec:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled .Values.cloudflareAccess.enabled }}
           env:
+            {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
             {{- include "citrus.paymentSafety.env" . | nindent 12 }}
             {{- include "citrus.paymentCredentials.webEnv" . | nindent 12 }}
             {{- include "citrus.cloudflareAccess.env" . | nindent 12 }}
@@ -61,9 +62,7 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ .Values.application.configMapName }}
-            - secretRef:
-                name: {{ .Values.application.secretName }}
-                optional: true
+            {{- include "citrus.applicationRuntimeSecretEnvFrom" . | nindent 12 }}
             {{- if .Values.application.emailSecretName }}
             - secretRef:
                 name: {{ .Values.application.emailSecretName }}

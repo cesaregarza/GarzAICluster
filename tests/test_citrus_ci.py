@@ -73,6 +73,7 @@ class CitrusCiContractTests(unittest.TestCase):
             (
                 'helm template citrus-dev "$chart" --namespace citrus-dev '
                 '-f "$chart/values.yaml" -f "$chart/values-dev.yaml" '
+                '-f "$chart/values-payment-dev.yaml" '
                 '> rendered/citrus-dev.yaml'
             ),
             (
@@ -158,14 +159,6 @@ class CitrusCiContractTests(unittest.TestCase):
                 'helm template citrus "$chart" '
                 '--namespace default -f "$chart/values.yaml" '
                 '-f "$chart/values-payment-prod.yaml" '
-                '--set paymentSafety.enabled=true '
-                '--set-string paymentSafety.environment=production '
-                '--set-string paymentSafety.owner=citrus '
-                '--set-string paymentSafety.networkMode=allow '
-                '--set paymentSafety.policy.required=true '
-                '--set-string paymentSafety.policy.provider=cilium '
-                '--set-string paymentSafety.policy.revision=ces-845-ci '
-                '--set paymentSafety.networkPolicy.enabled=true '
                 '> rendered/citrus-payment-prod.yaml'
             ),
             (
@@ -173,16 +166,6 @@ class CitrusCiContractTests(unittest.TestCase):
                 '--namespace citrus-dev -f "$chart/values.yaml" '
                 '-f "$chart/values-dev.yaml" '
                 '-f "$chart/values-payment-dev.yaml" '
-                '--set paymentSafety.enabled=true '
-                '--set-string paymentSafety.environment=development '
-                '--set-string paymentSafety.owner=citrus-dev '
-                '--set-string paymentSafety.networkMode=deny '
-                '--set paymentSafety.policy.required=true '
-                '--set-string paymentSafety.policy.provider=cilium '
-                '--set-string paymentSafety.policy.revision=ces-845-ci '
-                '--set paymentSafety.networkPolicy.enabled=true '
-                '--set-string '
-                'paymentSafety.networkPolicy.database.host=db.dev.example '
                 '> rendered/citrus-payment-dev.yaml'
             ),
             (
@@ -255,6 +238,10 @@ class CitrusCiContractTests(unittest.TestCase):
         self.assertIn("suspend: true", run)
         self.assertIn("citrus.grace/verified-image-tag", run)
         self.assertIn("citrus-ci-direct-order-runtime", run)
+        self.assertIn("ces-844-test-mode-v1", run)
+        self.assertIn("citrus-dev-payment-credentials", run)
+        self.assertIn("STRIPE_WEBHOOK_SECRET_DEV", run)
+        self.assertIn("must never project the production webhook field", run)
         self.assertIn(
             "Citrus CI renders must never contain Secret objects",
             run,
