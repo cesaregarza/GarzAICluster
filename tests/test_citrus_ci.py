@@ -73,6 +73,29 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-optional-workloads.yaml'
             ),
             (
+                'helm template citrus-ci-schedulers "$chart" '
+                '--namespace citrus-ci -f "$chart/values.yaml" '
+                '-f "$chart/values-payment-prod.yaml" '
+                '--set-string '
+                'image.tag=4353f11595094bc4893b5799233cfd56c52aed89 '
+                '--set billingWorker.enabled=true '
+                '--set recurringRuntime.enabled=true '
+                '--set directOrderPaymentSweep.enabled=true '
+                '--set-string directOrderPaymentSweep.runtimeSecretName='
+                'citrus-ci-direct-order-runtime '
+                '--set-string directOrderPaymentSweep.verifiedImageTag='
+                '4353f11595094bc4893b5799233cfd56c52aed89 '
+                '--set paymentSafety.enabled=true '
+                '--set-string paymentSafety.environment=production '
+                '--set-string paymentSafety.owner=citrus '
+                '--set-string paymentSafety.networkMode=allow '
+                '--set paymentSafety.policy.required=true '
+                '--set-string paymentSafety.policy.provider=cilium '
+                '--set-string paymentSafety.policy.revision=ces-807-ci '
+                '--set paymentSafety.networkPolicy.enabled=true '
+                '> rendered/citrus-schedulers.yaml'
+            ),
+            (
                 'helm template citrus-ci-payment-prod "$chart" '
                 '--namespace default -f "$chart/values.yaml" '
                 '-f "$chart/values-payment-prod.yaml" '
@@ -148,6 +171,7 @@ class CitrusCiContractTests(unittest.TestCase):
             "billing-worker",
             "recurring-tick",
             "recurring-health",
+            "direct-order-payment-sweep",
         ):
             with self.subTest(component=component):
                 self.assertIn(
@@ -155,6 +179,9 @@ class CitrusCiContractTests(unittest.TestCase):
                     run,
                 )
         self.assertIn("app: citrus-web", run)
+        self.assertIn("suspend: true", run)
+        self.assertIn("citrus.grace/verified-image-tag", run)
+        self.assertIn("citrus-ci-direct-order-runtime", run)
         self.assertIn(
             "Citrus CI renders must never contain Secret objects",
             run,

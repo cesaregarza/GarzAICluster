@@ -294,6 +294,35 @@ mediaGc:
       cpu: 250m
       memory: 512Mi
 
+directOrderPaymentSweep:
+  # Any enabled render is already safe to unsuspend out of band: it requires a
+  # command-bearing immutable image receipt, isolated payment credentials, the
+  # payment Cilium boundary, and a dedicated DB/app-key runtime Secret.
+  enabled: false
+  suspend: true
+  runtimeSecretName: ""
+  verifiedImageTag: ""
+  offSessionMode: legacy
+  # Stagger from the CES-848 quarter-hour SMS sweep, recurring tick/health,
+  # and media wakeups so prepared jobs do not create synchronized CPU bursts.
+  schedule: "3-59/15 * * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 840
+  activeDeadlineSeconds: 600
+  backoffLimit: 1
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  staleMinutes: 15
+  limit: 100
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
 terminationGracePeriodSeconds: 60
 
 podSecurityContext:
