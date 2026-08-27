@@ -263,6 +263,10 @@ jobs:
             path: helm/agent-workloads
             release: agent-workloads
             prod_values: apps/agent-workloads/values.yaml
+          - name: agent-8s
+            path: apps/agent-8s
+            release: agent-8s
+            prod_values: apps/agent-8s/values.yaml
           - name: agent-control-plane-registry-overlay
             path: apps/agent-control-plane-registry-overlay
             release: agent-control-plane-registry-overlay
