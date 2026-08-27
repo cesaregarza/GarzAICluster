@@ -134,6 +134,19 @@ class CitrusCiContractTests(unittest.TestCase):
                 '--set paymentSafety.networkPolicy.enabled=true '
                 '> rendered/citrus-payment-safety-prod.yaml'
             ),
+            (
+                'helm template citrus-ci-cloudflare-access "$chart" '
+                '--namespace default -f "$chart/values.yaml" '
+                '--set cloudflareAccess.enabled=true '
+                '--set-string cloudflareAccess.owner=citrus '
+                '--set-string '
+                'cloudflareAccess.secretName=citrus-cloudflare-access '
+                '--set-string cloudflareAccess.rolloutRevision=ces-829-ci '
+                '--set-string '
+                'cloudflareAccess.verifiedImageTag="$cloudflare_sha" '
+                '--set-string image.tag="$cloudflare_sha" '
+                '> rendered/citrus-cloudflare-access.yaml'
+            ),
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, run)
@@ -165,6 +178,8 @@ class CitrusCiContractTests(unittest.TestCase):
             "citrus-payment-safety-prod.yaml",
             "PAYMENT_EGRESS_POLICY_REVISION",
             "Development payment egress render must omit every Stripe destination",
+            "citrus-cloudflare-access.yaml",
+            "CLOUDFLARE_ACCESS_REQUIRED",
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, run)

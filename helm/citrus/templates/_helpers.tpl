@@ -22,6 +22,77 @@ Create a default fully qualified app name.
 {{- end }}
 
 {{/*
+Validate and project the disabled-by-default Cloudflare Access origin gate.
+The Secret owns all confidential values; chart values contain only references
+and an immutable source-image receipt.
+*/}}
+{{- define "citrus.cloudflareAccess.validate" -}}
+{{- if not (kindIs "bool" .Values.cloudflareAccess.enabled) -}}
+{{- fail "cloudflareAccess.enabled must be a boolean" -}}
+{{- end -}}
+{{- if .Values.cloudflareAccess.enabled -}}
+{{- $owner := required "cloudflareAccess.owner is required when cloudflareAccess.enabled=true" .Values.cloudflareAccess.owner -}}
+{{- $secretName := required "cloudflareAccess.secretName is required when cloudflareAccess.enabled=true" .Values.cloudflareAccess.secretName -}}
+{{- $rolloutRevision := required "cloudflareAccess.rolloutRevision is required when cloudflareAccess.enabled=true" .Values.cloudflareAccess.rolloutRevision -}}
+{{- $verifiedImageTag := required "cloudflareAccess.verifiedImageTag is required when cloudflareAccess.enabled=true" .Values.cloudflareAccess.verifiedImageTag -}}
+{{- if not (regexMatch "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$" $rolloutRevision) -}}
+{{- fail "cloudflareAccess.rolloutRevision must be a semantic revision of 1-63 safe characters" -}}
+{{- end -}}
+{{- if not (regexMatch "^[0-9a-f]{40}$" $verifiedImageTag) -}}
+{{- fail "cloudflareAccess.verifiedImageTag must be an immutable 40-character lowercase source SHA" -}}
+{{- end -}}
+{{- if ne $verifiedImageTag (toString .Values.image.tag) -}}
+{{- fail "cloudflareAccess.verifiedImageTag must exactly match image.tag" -}}
+{{- end -}}
+{{- if eq $owner "citrus-dev" -}}
+{{- if ne .Release.Namespace "citrus-dev" -}}
+{{- fail "cloudflareAccess.owner=citrus-dev requires the citrus-dev namespace" -}}
+{{- end -}}
+{{- if ne $secretName "citrus-dev-cloudflare-access" -}}
+{{- fail "cloudflareAccess.owner=citrus-dev requires secretName citrus-dev-cloudflare-access" -}}
+{{- end -}}
+{{- else if eq $owner "citrus" -}}
+{{- if ne .Release.Namespace "default" -}}
+{{- fail "cloudflareAccess.owner=citrus requires the default namespace" -}}
+{{- end -}}
+{{- if ne $secretName "citrus-cloudflare-access" -}}
+{{- fail "cloudflareAccess.owner=citrus requires secretName citrus-cloudflare-access" -}}
+{{- end -}}
+{{- else -}}
+{{- fail "cloudflareAccess.owner must be citrus-dev or citrus when enabled" -}}
+{{- end -}}
+{{- if and .Values.paymentSafety.enabled (eq .Values.paymentSafety.networkMode "deny") -}}
+{{- fail "cloudflareAccess cannot be enabled with paymentSafety.networkMode=deny until exact JWK egress is authorized" -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{- define "citrus.cloudflareAccess.env" -}}
+{{- if .Values.cloudflareAccess.enabled }}
+- name: CLOUDFLARE_ACCESS_REQUIRED
+  value: "true"
+- name: CLOUDFLARE_ACCESS_TEAM_DOMAIN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.cloudflareAccess.secretName }}
+      key: CLOUDFLARE_ACCESS_TEAM_DOMAIN
+      optional: false
+- name: CLOUDFLARE_ACCESS_AUD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.cloudflareAccess.secretName }}
+      key: CLOUDFLARE_ACCESS_AUD
+      optional: false
+- name: CLOUDFLARE_ACCESS_ALLOWED_EMAILS
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.cloudflareAccess.secretName }}
+      key: CLOUDFLARE_ACCESS_ALLOWED_EMAILS
+      optional: false
+{{- end }}
+{{- end }}
+
+{{/*
 Validate the disabled-by-default CES-844 payment credential projection.
 */}}
 {{- define "citrus.paymentCredentials.validate" -}}

@@ -1,3 +1,4 @@
+{{- include "citrus.cloudflareAccess.validate" . }}
 {{- include "citrus.paymentCredentials.validate" . }}
 {{- include "citrus.paymentSafety.validate" . }}
 apiVersion: apps/v1
@@ -23,13 +24,16 @@ spec:
         {{- if .Values.paymentSafety.enabled }}
         {{- include "citrus.paymentSafety.podLabel" . | nindent 8 }}
         {{- end }}
-      {{- if or .Values.application.rolloutOnConfigChange .Values.paymentCredentials.enabled }}
+      {{- if or .Values.application.rolloutOnConfigChange .Values.paymentCredentials.enabled .Values.cloudflareAccess.enabled }}
       annotations:
         {{- if .Values.application.rolloutOnConfigChange }}
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum | quote }}
         {{- end }}
         {{- if .Values.paymentCredentials.enabled }}
         citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
+        {{- end }}
+        {{- if .Values.cloudflareAccess.enabled }}
+        citrus.grace/cloudflare-access-rollout-revision: {{ .Values.cloudflareAccess.rolloutRevision | quote }}
         {{- end }}
       {{- end }}
     spec:
@@ -48,10 +52,11 @@ spec:
             - {{ .Values.application.command | quote }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
+          {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled .Values.cloudflareAccess.enabled }}
           env:
             {{- include "citrus.paymentSafety.env" . | nindent 12 }}
             {{- include "citrus.paymentCredentials.webEnv" . | nindent 12 }}
+            {{- include "citrus.cloudflareAccess.env" . | nindent 12 }}
           {{- end }}
           envFrom:
             - configMapRef:
