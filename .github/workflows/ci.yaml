@@ -313,7 +313,7 @@ jobs:
           chart=helm/citrus
 
           # Match the two Argo Applications exactly. Production uses only the
-          # chart defaults; dev layers values-dev.yaml and has a distinct release.
+          # chart defaults; dev activates the isolated test-mode payment source.
           helm template citrus "$chart" \
             --namespace default \
             -f "$chart/values.yaml" \
@@ -322,6 +322,7 @@ jobs:
             --namespace citrus-dev \
             -f "$chart/values.yaml" \
             -f "$chart/values-dev.yaml" \
+            -f "$chart/values-payment-dev.yaml" \
             > rendered/citrus-dev.yaml
 
           # Exercise disabled-by-default consumers without contacting providers
@@ -390,37 +391,18 @@ jobs:
             --set paymentSafety.networkPolicy.enabled=true \
             > rendered/citrus-schedulers.yaml
 
-          # Preserve the prepared payment-projection render coverage separately
-          # from the actual environment renders. Credential projection is valid
-          # only when paired with the matching CES-845 safety contract. These
-          # files contain Secret refs, never decrypted values or credentials.
+          # Preserve independent dev/prod payment-projection render coverage.
+          # These files contain Secret refs, never decrypted values or credentials.
           helm template citrus "$chart" \
             --namespace default \
             -f "$chart/values.yaml" \
             -f "$chart/values-payment-prod.yaml" \
-            --set paymentSafety.enabled=true \
-            --set-string paymentSafety.environment=production \
-            --set-string paymentSafety.owner=citrus \
-            --set-string paymentSafety.networkMode=allow \
-            --set paymentSafety.policy.required=true \
-            --set-string paymentSafety.policy.provider=cilium \
-            --set-string paymentSafety.policy.revision=ces-845-ci \
-            --set paymentSafety.networkPolicy.enabled=true \
             > rendered/citrus-payment-prod.yaml
           helm template citrus-dev "$chart" \
             --namespace citrus-dev \
             -f "$chart/values.yaml" \
             -f "$chart/values-dev.yaml" \
             -f "$chart/values-payment-dev.yaml" \
-            --set paymentSafety.enabled=true \
-            --set-string paymentSafety.environment=development \
-            --set-string paymentSafety.owner=citrus-dev \
-            --set-string paymentSafety.networkMode=deny \
-            --set paymentSafety.policy.required=true \
-            --set-string paymentSafety.policy.provider=cilium \
-            --set-string paymentSafety.policy.revision=ces-845-ci \
-            --set paymentSafety.networkPolicy.enabled=true \
-            --set-string paymentSafety.networkPolicy.database.host=db.dev.example \
             > rendered/citrus-payment-dev.yaml
 
           # Exercise the disabled CES-845 boundary with synthetic configuration
@@ -478,6 +460,16 @@ jobs:
           grep -F 'ALLOWED_HOSTS: "citrus-grace.com,www.citrus-grace.com"' rendered/citrus-prod.yaml >/dev/null
           grep -F 'SITE_NAME: "Citrus Grace Dev"' rendered/citrus-dev.yaml >/dev/null
           grep -F '    - host: dev.citrus-grace.com' rendered/citrus-dev.yaml >/dev/null
+          grep -F 'citrus.grace/payment-rollout-revision: "ces-844-test-mode-v2"' rendered/citrus-dev.yaml >/dev/null
+          # Web, migration, media worker, and both media CronJobs each receive
+          # the same two-key test-mode Secret plus the exact dev webhook field.
+          test "$(grep -Fc 'name: citrus-dev-payment-credentials' rendered/citrus-dev.yaml)" -eq 10
+          test "$(grep -Fc 'key: STRIPE_WEBHOOK_SECRET_DEV' rendered/citrus-dev.yaml)" -eq 5
+          test "$(grep -Fc 'name: STRIPE_WEBHOOK_SECRET_OWNER' rendered/citrus-dev.yaml)" -eq 5
+          if grep -F 'STRIPE_WEBHOOK_SECRET_PROD' rendered/citrus-dev.yaml >/dev/null; then
+            echo "Citrus dev must never project the production webhook field" >&2
+            exit 1
+          fi
           grep -F 'app.kubernetes.io/component: migrations' rendered/citrus-prod.yaml >/dev/null
           grep -F 'app: citrus-web' rendered/citrus-prod.yaml >/dev/null
           grep -F 'app.kubernetes.io/component: media-worker' rendered/citrus-prod.yaml >/dev/null

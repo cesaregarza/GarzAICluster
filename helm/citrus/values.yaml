@@ -111,15 +111,16 @@ cloudflareAccess:
   rolloutRevision: ""
   verifiedImageTag: ""
 
-# Disabled preparation for CES-844. The environment-specific overlay must be
-# explicitly added to an Argo Application only after its dedicated Secret and
-# decrypting principal have passed the matching operator gates.
+# Disabled-by-default CES-844 contract. The dev Application layers its explicit
+# test-mode overlay; production keeps this base disabled.
 paymentCredentials:
   enabled: false
   secretName: ""
   owner: ""
   rolloutRevision: ""
   webhookEnvironmentVariable: ""
+  webhookSecretName: ""
+  webhookSecretKey: ""
 
 # Disabled preparation for CES-845. Enabling this contract injects explicit
 # runtime ownership into every Citrus process and renders a same-release Cilium

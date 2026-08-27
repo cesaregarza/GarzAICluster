@@ -18,6 +18,13 @@ DEV_PAYMENT_VALUES = CHART_PATH / "values-payment-dev.yaml"
 RUNBOOK_PATH = (
     REPO_ROOT / "docs" / "runbooks" / "citrus-payment-secret-isolation.md"
 )
+DEV_PAYMENT_SECRET_PATH = (
+    REPO_ROOT
+    / "secrets"
+    / "citrus-dev"
+    / "citrus-dev-payment-credentials.enc.yaml"
+)
+DEV_KSOPS_PATH = REPO_ROOT / "secrets" / "citrus-dev" / "ksops.yaml"
 YAML_PARSER = YAML(typ="safe")
 HELM_JSON_POINTER = re.compile(
     r"(?P<quote>['\"])/(?P<path>[A-Za-z0-9_./-]+)(?P=quote)"
@@ -61,42 +68,7 @@ def _render(
         command.extend([
             "-f",
             str(DEV_PAYMENT_VALUES if dev else PROD_PAYMENT_VALUES),
-            "--set",
-            "paymentSafety.enabled=true",
-            "--set-string",
-            (
-                "paymentSafety.environment=development"
-                if dev
-                else "paymentSafety.environment=production"
-            ),
-            "--set-string",
-            (
-                "paymentSafety.owner=citrus-dev"
-                if dev
-                else "paymentSafety.owner=citrus"
-            ),
-            "--set-string",
-            (
-                "paymentSafety.networkMode=deny"
-                if dev
-                else "paymentSafety.networkMode=allow"
-            ),
-            "--set",
-            "paymentSafety.policy.required=true",
-            "--set-string",
-            "paymentSafety.policy.provider=cilium",
-            "--set-string",
-            "paymentSafety.policy.revision=ces-845-test",
-            "--set",
-            "paymentSafety.networkPolicy.enabled=true",
         ])
-        if dev:
-            command.extend(
-                [
-                    "--set-string",
-                    "paymentSafety.networkPolicy.database.host=db.dev.example",
-                ]
-            )
     if activate_background_consumers:
         command.extend([
             "--set",
@@ -227,7 +199,7 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
             activate_background_consumers=True,
         )
 
-    def test_current_argo_renders_remain_inert(self) -> None:
+    def test_default_chart_renders_remain_inert(self) -> None:
         for documents in (self.default_prod, self.default_dev):
             serialized = "\n".join(
                 str(document) for document in documents
@@ -244,7 +216,27 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
             REPO_ROOT / "argocd" / "applications" / "citrus-dev.yaml"
         ).read_text(encoding="utf-8")
         self.assertNotIn("values-payment-prod.yaml", prod_application)
-        self.assertNotIn("values-payment-dev.yaml", dev_application)
+        self.assertIn("values-payment-dev.yaml", dev_application)
+
+    def test_dev_encrypted_source_contains_only_test_api_roles(self) -> None:
+        document = YAML_PARSER.load(
+            DEV_PAYMENT_SECRET_PATH.read_text(encoding="utf-8")
+        )
+        self.assertEqual(document["kind"], "Secret")
+        self.assertEqual(
+            document["metadata"]["name"],
+            "citrus-dev-payment-credentials",
+        )
+        self.assertEqual(document["metadata"]["namespace"], "citrus-dev")
+        self.assertEqual(
+            set(document.get("data", {})),
+            {"STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY"},
+        )
+        self.assertIn("sops", document)
+        self.assertIn(
+            "citrus-dev-payment-credentials.enc.yaml",
+            DEV_KSOPS_PATH.read_text(encoding="utf-8"),
+        )
 
     def test_production_projects_exact_keys_only_to_payment_consumers(self) -> None:
         secret_name = "citrus-prod-payment-credentials"
@@ -296,27 +288,65 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
             {},
         )
 
-    def test_dev_uses_a_distinct_source_and_dev_webhook_setting(self) -> None:
+    def test_dev_projects_one_test_set_to_every_django_runtime(self) -> None:
         secret_name = "citrus-dev-payment-credentials"
-        web = _named(self.prepared_dev, "Deployment", "citrus-dev")
-        references = _payment_refs(_container(web, "django"), secret_name)
-        self.assertEqual(
-            references,
-            {
-                "STRIPE_SECRET_KEY": "STRIPE_SECRET_KEY",
-                "STRIPE_PUBLISHABLE_KEY": "STRIPE_PUBLISHABLE_KEY",
-                "STRIPE_WEBHOOK_SECRET_DEV": "STRIPE_WEBHOOK_SECRET",
-            },
-        )
-        self.assertEqual(
-            _plain_env(
-                _container(web, "django"),
-                "STRIPE_WEBHOOK_SECRET_OWNER",
-            ),
-            "citrus-dev",
-        )
-        self.assertNotIn("STRIPE_WEBHOOK_SECRET_PROD", references)
-        self.assertNotIn("STRIPE_WEBHOOK_SECRET", references)
+        expected_runtimes = {
+            ("citrus-dev", "django"),
+            ("citrus-dev-migrate-1", "migrate"),
+            ("citrus-dev-media-worker", "media-worker"),
+            ("citrus-dev-media-requeue", "media-requeue"),
+            ("citrus-dev-media-gc", "media-gc"),
+            ("citrus-dev-billing-worker", "billing-worker"),
+            ("citrus-dev-billing-worker", "recurring-metrics"),
+            ("citrus-dev-recurring-tick", "recurring-tick"),
+            ("citrus-dev-recurring-health", "recurring-health"),
+        }
+        observed_runtimes = set()
+        for document in self.prepared_dev:
+            if document.get("kind") not in {"Deployment", "Job", "CronJob"}:
+                continue
+            for container in _pod_spec(document).get("containers", []):
+                if not any(
+                    source.get("configMapRef", {}).get("name")
+                    == "django-config"
+                    for source in container.get("envFrom", [])
+                ):
+                    continue
+                runtime = (document["metadata"]["name"], container["name"])
+                observed_runtimes.add(runtime)
+                references = _payment_refs(container, secret_name)
+                self.assertEqual(
+                    references,
+                    {
+                        "STRIPE_SECRET_KEY": "STRIPE_SECRET_KEY",
+                        "STRIPE_PUBLISHABLE_KEY": "STRIPE_PUBLISHABLE_KEY",
+                    },
+                    runtime,
+                )
+                webhook_refs = [
+                    item["valueFrom"]["secretKeyRef"]
+                    for item in container["env"]
+                    if item["name"] == "STRIPE_WEBHOOK_SECRET_DEV"
+                ]
+                self.assertEqual(
+                    webhook_refs,
+                    [{
+                        "name": "django-secrets",
+                        "key": "STRIPE_WEBHOOK_SECRET_DEV",
+                        "optional": False,
+                    }],
+                    runtime,
+                )
+                self.assertEqual(
+                    _plain_env(container, "STRIPE_WEBHOOK_SECRET_OWNER"),
+                    "citrus-dev",
+                    runtime,
+                )
+                env_names = {item["name"] for item in container["env"]}
+                self.assertNotIn("STRIPE_WEBHOOK_SECRET_PROD", env_names)
+                self.assertNotIn("STRIPE_WEBHOOK_SECRET", env_names)
+
+        self.assertEqual(observed_runtimes, expected_runtimes)
         self.assertTrue(_all_payment_refs(self.prepared_dev, secret_name))
         self.assertFalse(
             _all_payment_refs(
@@ -324,6 +354,44 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                 "citrus-prod-payment-credentials",
             )
         )
+
+    def test_dev_activation_never_imports_the_legacy_secret_broadly(self) -> None:
+        allowed_legacy_keys = {
+            "DB_HOST",
+            "DB_PORT",
+            "DB_NAME",
+            "DB_USER",
+            "DB_PASSWORD",
+        }
+        for document in self.prepared_dev:
+            if document.get("kind") not in {"Deployment", "Job", "CronJob"}:
+                continue
+            for container in _pod_spec(document).get("containers", []):
+                for source in container.get("envFrom", []):
+                    self.assertNotEqual(
+                        source.get("secretRef", {}).get("name"),
+                        "django-secrets",
+                    )
+                legacy_keys = {
+                    item.get("valueFrom", {})
+                    .get("secretKeyRef", {})
+                    .get("key")
+                    for item in container.get("env", [])
+                    if item.get("valueFrom", {})
+                    .get("secretKeyRef", {})
+                    .get("name") == "django-secrets"
+                }
+                uses_application_config = any(
+                    source.get("configMapRef", {}).get("name")
+                    == "django-config"
+                    for source in container.get("envFrom", [])
+                )
+                if not uses_application_config:
+                    self.assertFalse(legacy_keys)
+                    continue
+                expected = set(allowed_legacy_keys)
+                expected.add("STRIPE_WEBHOOK_SECRET_DEV")
+                self.assertEqual(legacy_keys, expected)
 
     def test_enabled_projection_fails_closed_on_invalid_contract(self) -> None:
         cases = (
@@ -374,58 +442,21 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
             ),
             (
                 False,
-                ["-f", str(PROD_PAYMENT_VALUES)],
-                "paymentSafety.enabled",
-            ),
-            (
-                True,
                 [
-                    "-f",
-                    str(PROD_PAYMENT_VALUES),
-                    "--set",
-                    "paymentSafety.enabled=true",
+                    "-f", str(DEV_PAYMENT_VALUES),
                     "--set-string",
-                    "paymentSafety.environment=development",
-                    "--set-string",
-                    "paymentSafety.owner=citrus-dev",
-                    "--set-string",
-                    "paymentSafety.networkMode=deny",
-                    "--set",
-                    "paymentSafety.policy.required=true",
-                    "--set-string",
-                    "paymentSafety.policy.provider=cilium",
-                    "--set-string",
-                    "paymentSafety.policy.revision=ces-845-test",
-                    "--set",
-                    "paymentSafety.networkPolicy.enabled=true",
-                    "--set-string",
-                    "paymentSafety.networkPolicy.database.host=db.dev.example",
+                    "paymentCredentials.webhookSecretKey=STRIPE_WEBHOOK_SECRET_PROD",
                 ],
-                "production payment credentials require",
+                "paymentCredentials.webhookSecretKey",
             ),
             (
                 False,
                 [
-                    "-f",
-                    str(DEV_PAYMENT_VALUES),
-                    "--set",
-                    "paymentSafety.enabled=true",
+                    "-f", str(PROD_PAYMENT_VALUES),
                     "--set-string",
-                    "paymentSafety.environment=production",
-                    "--set-string",
-                    "paymentSafety.owner=citrus",
-                    "--set-string",
-                    "paymentSafety.networkMode=allow",
-                    "--set",
-                    "paymentSafety.policy.required=true",
-                    "--set-string",
-                    "paymentSafety.policy.provider=cilium",
-                    "--set-string",
-                    "paymentSafety.policy.revision=ces-845-test",
-                    "--set",
-                    "paymentSafety.networkPolicy.enabled=true",
+                    "paymentCredentials.webhookSecretName=django-secrets",
                 ],
-                "dev payment credentials require",
+                "paymentCredentials.webhookSecretName",
             ),
         )
         for development, arguments, message in cases:

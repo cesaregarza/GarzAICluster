@@ -150,7 +150,7 @@ spec:
                       key: {{ $runtimeSecretKey }}
                       optional: false
                 {{- end }}
-                {{- include "citrus.paymentCredentials.apiEnv" . | nindent 16 }}
+                {{- include "citrus.paymentCredentials.consumerEnv" . | nindent 16 }}
               envFrom:
                 - configMapRef:
                     name: {{ .Values.application.configMapName }}

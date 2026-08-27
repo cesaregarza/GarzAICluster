@@ -15,6 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CHART_PATH = REPO_ROOT / "helm" / "citrus"
 VALUES_PATH = CHART_PATH / "values.yaml"
 DEV_VALUES_PATH = CHART_PATH / "values-dev.yaml"
+DEV_PAYMENT_VALUES_PATH = CHART_PATH / "values-payment-dev.yaml"
 SCHEMA_PATH = CHART_PATH / "values.schema.json"
 TEMPLATE_PATH = CHART_PATH / "templates" / "sms-reconciliation-cronjob.yaml"
 TRUSTED_IMAGE_REPOSITORY = "registry.digitalocean.com/sendouq/citrus"
@@ -86,6 +87,7 @@ def _helm_command(
     network_policy_database_port: int | None = None,
     stale_minutes: int | None = None,
     limit: int | None = None,
+    include_payment_credentials: bool = False,
     extra_set: tuple[str, ...] = (),
     extra_set_json: tuple[str, ...] = (),
     extra_set_string: tuple[str, ...] = (),
@@ -104,6 +106,11 @@ def _helm_command(
     ]
     if dev:
         command.extend(["-f", str(chart_path / "values-dev.yaml")])
+        if include_payment_credentials:
+            command.extend([
+                "-f",
+                str(chart_path / DEV_PAYMENT_VALUES_PATH.name),
+            ])
     string_overrides = (
         ("image.repository", image_repository),
         ("application.configMapName", config_map_name),
@@ -1208,6 +1215,47 @@ class CitrusSmsReconciliationChartTests(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, serialized)
+
+    def test_dev_scheduler_receives_the_dedicated_test_payment_set(self) -> None:
+        documents = _render(
+            **_synthetic_render_kwargs(dev=True),
+            include_payment_credentials=True,
+        )
+        container = (
+            _sms_cronjob(documents)["spec"]["jobTemplate"]
+            ["spec"]["template"]["spec"]["containers"][0]
+        )
+        env = {entry["name"]: entry for entry in container["env"]}
+        self.assertEqual(
+            env["STRIPE_SECRET_KEY"]["valueFrom"]["secretKeyRef"],
+            {
+                "name": "citrus-dev-payment-credentials",
+                "key": "STRIPE_SECRET_KEY",
+                "optional": False,
+            },
+        )
+        self.assertEqual(
+            env["STRIPE_PUBLISHABLE_KEY"]["valueFrom"]["secretKeyRef"],
+            {
+                "name": "citrus-dev-payment-credentials",
+                "key": "STRIPE_PUBLISHABLE_KEY",
+                "optional": False,
+            },
+        )
+        self.assertEqual(
+            env["STRIPE_WEBHOOK_SECRET_DEV"]["valueFrom"]["secretKeyRef"],
+            {
+                "name": "django-secrets",
+                "key": "STRIPE_WEBHOOK_SECRET_DEV",
+                "optional": False,
+            },
+        )
+        self.assertEqual(
+            env["STRIPE_WEBHOOK_SECRET_OWNER"]["value"],
+            "citrus-dev",
+        )
+        self.assertNotIn("STRIPE_WEBHOOK_SECRET", env)
+        self.assertNotIn("STRIPE_WEBHOOK_SECRET_PROD", env)
 
     def test_values_schema_requires_the_fail_closed_scheduler_contract(self) -> None:
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))

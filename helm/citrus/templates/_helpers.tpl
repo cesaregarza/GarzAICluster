@@ -109,10 +109,15 @@ Validate the disabled-by-default CES-844 payment credential projection.
 {{- if not (has $webhookEnvironmentVariable (list "STRIPE_WEBHOOK_SECRET_DEV" "STRIPE_WEBHOOK_SECRET_PROD")) -}}
 {{- fail "paymentCredentials.webhookEnvironmentVariable must select the dev or production environment-specific webhook setting" -}}
 {{- end -}}
-{{- $owner := required "paymentCredentials.owner is required when paymentCredentials.enabled=true" .Values.paymentCredentials.owner -}}
-{{- if not .Values.paymentSafety.enabled -}}
-{{- fail "paymentSafety.enabled must be true when paymentCredentials.enabled=true" -}}
+{{- $webhookSecretName := required "paymentCredentials.webhookSecretName is required when paymentCredentials.enabled=true" .Values.paymentCredentials.webhookSecretName -}}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $webhookSecretName) -}}
+{{- fail "paymentCredentials.webhookSecretName must be a valid Kubernetes Secret name" -}}
 {{- end -}}
+{{- $webhookSecretKey := required "paymentCredentials.webhookSecretKey is required when paymentCredentials.enabled=true" .Values.paymentCredentials.webhookSecretKey -}}
+{{- if not (has $webhookSecretKey (list "STRIPE_WEBHOOK_SECRET" "STRIPE_WEBHOOK_SECRET_DEV" "STRIPE_WEBHOOK_SECRET_PROD")) -}}
+{{- fail "paymentCredentials.webhookSecretKey must select an exact webhook key" -}}
+{{- end -}}
+{{- $owner := required "paymentCredentials.owner is required when paymentCredentials.enabled=true" .Values.paymentCredentials.owner -}}
 {{- if eq $webhookEnvironmentVariable "STRIPE_WEBHOOK_SECRET_DEV" -}}
 {{- if ne $owner "citrus-dev" -}}
 {{- fail "paymentCredentials.owner must be citrus-dev for the dev webhook setting" -}}
@@ -120,8 +125,11 @@ Validate the disabled-by-default CES-844 payment credential projection.
 {{- if ne $secretName "citrus-dev-payment-credentials" -}}
 {{- fail "the dev webhook setting requires secretName citrus-dev-payment-credentials" -}}
 {{- end -}}
-{{- if or (ne .Values.paymentSafety.environment "development") (ne .Values.paymentSafety.owner "citrus-dev") -}}
-{{- fail "dev payment credentials require paymentSafety.environment=development and paymentSafety.owner=citrus-dev" -}}
+{{- if ne $webhookSecretName .Values.application.secretName -}}
+{{- fail "the dev webhook setting must use the existing application Secret as webhookSecretName" -}}
+{{- end -}}
+{{- if ne $webhookSecretKey "STRIPE_WEBHOOK_SECRET_DEV" -}}
+{{- fail "the dev webhook setting requires webhookSecretKey STRIPE_WEBHOOK_SECRET_DEV" -}}
 {{- end -}}
 {{- else -}}
 {{- if ne $owner "citrus" -}}
@@ -130,16 +138,43 @@ Validate the disabled-by-default CES-844 payment credential projection.
 {{- if ne $secretName "citrus-prod-payment-credentials" -}}
 {{- fail "the production webhook setting requires secretName citrus-prod-payment-credentials" -}}
 {{- end -}}
-{{- if or (ne .Values.paymentSafety.environment "production") (ne .Values.paymentSafety.owner "citrus") -}}
-{{- fail "production payment credentials require paymentSafety.environment=production and paymentSafety.owner=citrus" -}}
+{{- if or (ne $webhookSecretName $secretName) (ne $webhookSecretKey "STRIPE_WEBHOOK_SECRET") -}}
+{{- fail "the production webhook setting requires the dedicated payment Secret and generic webhook key" -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end }}
 
 {{/*
-Project only API authority into non-web payment consumers. Explicit env entries
-override legacy envFrom keys during replacement-before-removal staging.
+When dedicated payment credentials are enabled, replace the broad application
+Secret import with exact non-payment runtime references. The legacy encrypted
+object stays unchanged, but none of its payment API or production webhook keys
+enter the container environment.
+*/}}
+{{- define "citrus.applicationRuntimeSecretEnv" -}}
+{{- if .Values.paymentCredentials.enabled }}
+{{- range $key := list "DB_HOST" "DB_PORT" "DB_NAME" "DB_USER" "DB_PASSWORD" }}
+- name: {{ $key }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $.Values.application.secretName }}
+      key: {{ $key }}
+      optional: false
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/* Preserve the existing broad import only while isolation is disabled. */}}
+{{- define "citrus.applicationRuntimeSecretEnvFrom" -}}
+{{- if not .Values.paymentCredentials.enabled }}
+- secretRef:
+    name: {{ .Values.application.secretName }}
+    optional: true
+{{- end }}
+{{- end }}
+
+{{/*
+Project only API authority into non-web payment consumers.
 */}}
 {{- define "citrus.paymentCredentials.apiEnv" -}}
 {{- if .Values.paymentCredentials.enabled }}
@@ -165,11 +200,34 @@ override legacy envFrom keys during replacement-before-removal staging.
 - name: {{ .Values.paymentCredentials.webhookEnvironmentVariable }}
   valueFrom:
     secretKeyRef:
-      name: {{ .Values.paymentCredentials.secretName }}
-      key: STRIPE_WEBHOOK_SECRET
+      name: {{ .Values.paymentCredentials.webhookSecretName }}
+      key: {{ .Values.paymentCredentials.webhookSecretKey }}
       optional: false
 - name: STRIPE_WEBHOOK_SECRET_OWNER
   value: {{ .Values.paymentCredentials.owner | quote }}
+{{- end }}
+{{- end }}
+
+{{/*
+The dev threat model isolates dev from production, not one trusted dev process
+from another. Every dev Django runtime therefore receives the same dedicated
+test-mode API/publishable pair and exact dev webhook projection. Production
+keeps the narrower prepared projection from PR #576.
+*/}}
+{{- define "citrus.paymentCredentials.devRuntimeEnv" -}}
+{{- if and .Values.paymentCredentials.enabled (eq .Values.paymentCredentials.owner "citrus-dev") }}
+{{ include "citrus.paymentCredentials.webEnv" . }}
+{{- end }}
+{{- end }}
+
+{{/* Payment consumers stay API-only in production and use the full dev set. */}}
+{{- define "citrus.paymentCredentials.consumerEnv" -}}
+{{- if .Values.paymentCredentials.enabled }}
+{{- if eq .Values.paymentCredentials.owner "citrus-dev" }}
+{{ include "citrus.paymentCredentials.webEnv" . }}
+{{- else }}
+{{ include "citrus.paymentCredentials.apiEnv" . }}
+{{- end }}
 {{- end }}
 {{- end }}
 

@@ -88,15 +88,19 @@ CES-844 is complete only when all of these are true:
 1. Dev uses an environment-explicit payment Secret name such as
    `citrus-dev-payment-credentials`; production keeps its existing configuration
    until an independently authorized production change is requested.
-2. Every payment key is removed from `citrus-dev/django-secrets` so media,
-   migrations, metrics, and other nonpayment consumers cannot inherit it.
-3. The dev web workload receives only the required API, publishable, and dev
-   webhook settings plus the value-free owner `citrus-dev`. Enabled billing and
-   recurring consumers receive API authority only. No dedicated payment Secret
-   is projected elsewhere.
-4. Every dev setting is authoritatively classified as `non-live` or
-   `intentionally-absent`. Live, restricted-live, mixed, unknown, unclassified,
-   shared-production, and production webhook settings are forbidden in dev.
+2. `citrus-dev/django-secrets` remains encrypted and unchanged, but an activated
+   dev render no longer imports it with `envFrom`. Workloads reference only its
+   five database fields and the exact dev webhook field. No process receives its
+   legacy payment API, generic webhook, or production webhook fields.
+3. Every dev Django process receives the same dedicated test-mode API and
+   publishable settings, exact dev webhook setting, and value-free owner
+   `citrus-dev`. This intentionally includes web, migrations, workers, Jobs, and
+   CronJobs: the trusted dev threat model separates dev from production, not one
+   dev process from another.
+4. The API and publishable settings are authoritatively classified as test-mode
+   `non-live`. The signing setting is selected only from the environment-explicit
+   dev webhook field and has no API or financial-object authority. Live API and
+   production webhook settings are forbidden in dev.
 5. The dev workload identity remains unable to read production Secrets or create
    production Pods. Cluster administrators and Argo remain trusted.
 6. `citrus-dev` is `Synced` and `Healthy`, expected replicas are ready, and a
@@ -120,42 +124,39 @@ activation overlays:
 - `helm/citrus/values-payment-dev.yaml` names
   `citrus-dev-payment-credentials`, is owned by `citrus-dev`, and selects only
   the dev webhook setting.
-- Neither credential overlay can render alone. Credential projection requires
-  the matching CES-845 payment-safety environment and owner in the same render;
-  the dev pair also requires the reviewed deny-mode dependency allowlist.
-- Neither overlay is referenced by an Argo Application, so current production
-  and dev renders remain byte-identical to the baseline.
+- PR #576 initially coupled credential projection to the CES-845 payment-safety
+  contract. The dev activation PR removes that coupling because test-mode
+  credential isolation is independently complete; CES-845 remains responsible
+  for startup classification and zero-egress behavior.
+- The production overlay remains unreferenced. The dev overlay is referenced
+  only by the separately reviewed activation PR.
 - Activation uses explicit, non-optional `secretKeyRef` entries rather than
   importing the dedicated Secret with `envFrom`.
-- Web receives API, publishable, exactly one environment webhook setting, and
-  `STRIPE_WEBHOOK_SECRET_OWNER`. The chart binds the dev/prod setting to its
-  exact dedicated Secret name and owner. Billing and recurring consumers
-  receive API authority only. Media, migrations, metrics, Redis, and media
-  CronJobs receive no dedicated payment reference.
+- Every dev Django runtime receives test API and publishable settings from the
+  dedicated Secret, exactly one existing dev webhook field, and
+  `STRIPE_WEBHOOK_SECRET_OWNER`. Redis remains provider-free. No runtime imports
+  the broad application Secret.
 - A semantic rollout revision changes pod templates without deriving anything
   from credential material.
 
-This preparation creates no Secret, credential, ciphertext, Application
-reference, live mutation, sync, or rollout.
+PR #606 initially projected the full set to web only. Its migration hook then
+failed the current all-process production configuration check before any new
+generation became ready. PR #607 restored the previous render. The corrected
+activation projects the same test-mode set to every trusted dev Django process,
+which satisfies both the current check and CES-845 without weakening the
+dev/production boundary.
+
+PR #576's inert preparation created no Secret, credential, ciphertext,
+Application reference, live mutation, sync, or rollout.
 
 ## Remaining dev credential decision
 
-At Citrus source `a728346e4364d88b8ec35d9fe10f4fe2e76dc2a9`, dev follows the
-production-runtime validation path and will not start with payment API and
-webhook settings absent.
-
-Choose exactly one path:
-
-1. The operator supplies dedicated Stripe test-mode API, publishable, and dev
-   webhook credentials directly through the approved secret-management path.
-   Record only the semantic `non-live` classification and custody reference.
-   Do not send values or identifiers through chat, Linear, GitHub, logs, or a
-   plaintext repository file.
-2. CES-845 implements and verifies intentional absence before this ticket's dev
-   Secret change is activated.
-
-Do not disguise a placeholder or arbitrary sentinel as a credential to bypass
-startup validation.
+The operator supplied one test-mode API setting and its matching publishable
+setting through the owner-only ignored handoff. The handoff was validated by
+key role and semantic mode only. The existing `STRIPE_WEBHOOK_SECRET_DEV` field
+is retained by exact `secretKeyRef`; its value is never read or copied. No
+generic or production webhook field is projected. No placeholder, provider
+request, or production replacement is involved.
 
 ## Ordered execution
 
@@ -177,15 +178,15 @@ live Secret, merge, Argo, rollout, or deployment mutation.
 
 1. Create an encrypted dev-only Secret source named
    `citrus-dev-payment-credentials` under `secrets/citrus-dev/`.
-2. Include only the canonical API, publishable, and dev webhook key roles. Do not
-   add a production webhook key or a generic shared-production setting.
-3. Remove every payment key from the encrypted dev `django-secrets` source.
+2. Include only the canonical API and publishable key roles, both classified
+   test-mode `non-live`. Do not add any webhook or production setting.
+3. Leave the encrypted dev `django-secrets` source unchanged. When the dedicated
+   projection is enabled, replace its broad `envFrom` import with exact database
+   references and one exact dev webhook reference for every dev Django runtime.
 4. Add the dedicated encrypted file to the dev KSOPS generator.
-5. Add `values-payment-dev.yaml` to the dev Application only together with the
-   matching CES-845 development deny-mode values, exact database FQDN, and
-   complete reviewed non-Stripe dependency allowlist. The exact source image
-   must implement the corresponding fail-closed runtime contract. Do not change
-   the production Application or any production encrypted source.
+5. Add `values-payment-dev.yaml` to the dev Application without enabling or
+   modifying the CES-845 contract. Do not change the production Application or
+   any production encrypted source.
 6. Render and review object names, namespaces, key names, and workload
    projection paths only. No plaintext or identifying derivative may appear in
    the diff or logs.
@@ -200,14 +201,14 @@ Argo reconciliation, rollout/restart, deployment, verification, and rollback.
 1. Merge only the exact reviewed dev-only head.
 2. Reconcile only the selected merge revision. Stop if another revision is
    selected or any production render changes.
-3. Roll the dev web and media Deployments so the broad Secret removal takes
-   effect. Future Jobs and CronJobs must render without payment settings unless
-   they are explicit approved consumers.
+3. Roll the dev workloads so the broad Secret projection is removed from every
+   new pod. Future dev Jobs and CronJobs must render the same dedicated
+   test-mode settings and exact dev webhook field, never legacy or production
+   payment fields.
 4. Confirm `citrus-dev` and `citrus-dev-secrets` are `Synced` and `Healthy`, all
    expected replicas are ready, and workload revisions match the receipt.
-5. Run only the approved value-free, zero-network classifier supplied by CES-845
-   or an independently reviewed operator classifier. Any non-`non-live` or
-   non-`intentionally-absent` result is a stop condition.
+5. Run only an approved value-free, zero-network classifier. A live API
+   classification or any projected production webhook field is a stop condition.
 6. Obtain the independent verifier/reviewer approval and close CES-844. Leave
    production unchanged.
 
@@ -238,7 +239,8 @@ verification_result
 reviewer
 ```
 
-Allowed final dev classifications are `non-live` and `intentionally-absent`.
+Allowed final API/publishable classifications are `non-live`; the selected
+webhook classification is `dev-endpoint-only`.
 The receipt must state that no credential value, fragment, hash, fingerprint,
 provider identifier, provider network smoke, financial object, or test event was
 produced.
