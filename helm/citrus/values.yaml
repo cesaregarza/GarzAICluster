@@ -101,6 +101,16 @@ application:
     AWS_DEFAULT_ACL: "public-read"
     AWS_S3_CACHE_CONTROL: "max-age=86400, public"
 
+# Disabled preparation for CES-829. Confidential issuer, audience, and identity
+# values must live in the dedicated Secret and are projected only into the web
+# container after an exact source-image receipt is supplied.
+cloudflareAccess:
+  enabled: false
+  owner: ""
+  secretName: ""
+  rolloutRevision: ""
+  verifiedImageTag: ""
+
 # Disabled preparation for CES-844. The environment-specific overlay must be
 # explicitly added to an Argo Application only after its dedicated Secret and
 # decrypting principal have passed the matching operator gates.
@@ -328,6 +338,35 @@ mediaGc:
     - collect_orphan_media
     - --dry-run
     - --limit=100
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+directOrderPaymentSweep:
+  # Any enabled render is already safe to unsuspend out of band: it requires a
+  # command-bearing immutable image receipt, isolated payment credentials, the
+  # payment Cilium boundary, and a dedicated DB/app-key runtime Secret.
+  enabled: false
+  suspend: true
+  runtimeSecretName: ""
+  verifiedImageTag: ""
+  offSessionMode: legacy
+  # Stagger from the CES-848 quarter-hour SMS sweep, recurring tick/health,
+  # and media wakeups so prepared jobs do not create synchronized CPU bursts.
+  schedule: "3-59/15 * * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 840
+  activeDeadlineSeconds: 600
+  backoffLimit: 1
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  staleMinutes: 15
+  limit: 100
   resources:
     requests:
       cpu: 50m

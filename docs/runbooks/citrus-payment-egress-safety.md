@@ -25,12 +25,12 @@ CronJobs:
 - `PAYMENT_EGRESS_POLICY_PROVIDER`
 - `PAYMENT_EGRESS_POLICY_REVISION`
 
-The chart accepts only these named runtime pairs:
+The chart accepts only these named runtime tuples:
 
-| Environment | Owner | Network mode |
-| --- | --- | --- |
-| `development` | `citrus-dev` | `deny` |
-| `production` | `citrus` | `allow` |
+| Environment | Release | Namespace | Owner | Network mode |
+| --- | --- | --- | --- | --- |
+| `development` | `citrus-dev` | `citrus-dev` | `citrus-dev` | `deny` |
+| `production` | `citrus` | `default` | `citrus` | `allow` |
 
 Both require `PAYMENT_EGRESS_POLICY_REQUIRED=true`, provider `cilium`, a safe
 nonempty policy revision, and same-release `CiliumNetworkPolicy` resources. The
@@ -79,10 +79,10 @@ only these allow rules:
 5. SMTP only when the configured Django backend is SMTP.
 6. Separately reviewed exact FQDN/port entries for enabled optional features.
 
-Wildcards, malformed names, and every exact or subdomain destination under
-`stripe.com` or `stripe.network` fail Helm rendering. The policy has no ingress
-section, so synthetic inbound webhook requests remain possible through the
-existing ingress path.
+Wildcards, raw IP addresses, malformed names, and every exact or subdomain
+destination under `stripe.com` or `stripe.network` fail Helm rendering. The
+policy has no ingress section, so synthetic inbound webhook requests remain
+possible through the existing ingress path.
 
 ### Production allow mode
 

@@ -367,12 +367,34 @@ jobs:
             --set-string smsReconciliation.networkPolicy.revision=ces-848-ci \
             --set-string smsReconciliation.networkPolicy.database.host=db.sms-reconciliation.example \
             > rendered/citrus-sms-reconciliation-dev.yaml
+          # Materialize the CES-807 scheduler only with a command-bearing image
+          # receipt, the isolated payment projection, and the Cilium boundary.
+          # Keep it suspended while also exercising the CES-850 workloads.
+          helm template citrus "$chart" \
+            --namespace default \
+            -f "$chart/values.yaml" \
+            -f "$chart/values-payment-prod.yaml" \
+            --set-string image.tag=4353f11595094bc4893b5799233cfd56c52aed89 \
+            --set billingWorker.enabled=true \
+            --set recurringRuntime.enabled=true \
+            --set directOrderPaymentSweep.enabled=true \
+            --set-string directOrderPaymentSweep.runtimeSecretName=citrus-ci-direct-order-runtime \
+            --set-string directOrderPaymentSweep.verifiedImageTag=4353f11595094bc4893b5799233cfd56c52aed89 \
+            --set paymentSafety.enabled=true \
+            --set-string paymentSafety.environment=production \
+            --set-string paymentSafety.owner=citrus \
+            --set-string paymentSafety.networkMode=allow \
+            --set paymentSafety.policy.required=true \
+            --set-string paymentSafety.policy.provider=cilium \
+            --set-string paymentSafety.policy.revision=ces-807-ci \
+            --set paymentSafety.networkPolicy.enabled=true \
+            > rendered/citrus-schedulers.yaml
 
           # Preserve the prepared payment-projection render coverage separately
           # from the actual environment renders. Credential projection is valid
           # only when paired with the matching CES-845 safety contract. These
           # files contain Secret refs, never decrypted values or credentials.
-          helm template citrus-ci-payment-prod "$chart" \
+          helm template citrus "$chart" \
             --namespace default \
             -f "$chart/values.yaml" \
             -f "$chart/values-payment-prod.yaml" \
@@ -385,7 +407,7 @@ jobs:
             --set-string paymentSafety.policy.revision=ces-845-ci \
             --set paymentSafety.networkPolicy.enabled=true \
             > rendered/citrus-payment-prod.yaml
-          helm template citrus-ci-payment-dev "$chart" \
+          helm template citrus-dev "$chart" \
             --namespace citrus-dev \
             -f "$chart/values.yaml" \
             -f "$chart/values-dev.yaml" \
@@ -403,7 +425,7 @@ jobs:
 
           # Exercise the disabled CES-845 boundary with synthetic configuration
           # only. Rendering an FQDN never resolves or contacts it.
-          helm template citrus-ci-payment-safety-dev "$chart" \
+          helm template citrus-dev "$chart" \
             --namespace citrus-dev \
             -f "$chart/values.yaml" \
             -f "$chart/values-dev.yaml" \
@@ -419,7 +441,7 @@ jobs:
             --set billingWorker.enabled=true \
             --set recurringRuntime.enabled=true \
             > rendered/citrus-payment-safety-dev.yaml
-          helm template citrus-ci-payment-safety-prod "$chart" \
+          helm template citrus "$chart" \
             --namespace default \
             -f "$chart/values.yaml" \
             --set paymentSafety.enabled=true \
@@ -431,6 +453,20 @@ jobs:
             --set-string paymentSafety.policy.revision=ces-845-ci \
             --set paymentSafety.networkPolicy.enabled=true \
             > rendered/citrus-payment-safety-prod.yaml
+
+          # Exercise CES-829 with synthetic references only. No Secret values,
+          # DNS lookup, Cloudflare request, or live activation occurs here.
+          cloudflare_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          helm template citrus-ci-cloudflare-access "$chart" \
+            --namespace default \
+            -f "$chart/values.yaml" \
+            --set cloudflareAccess.enabled=true \
+            --set-string cloudflareAccess.owner=citrus \
+            --set-string cloudflareAccess.secretName=citrus-cloudflare-access \
+            --set-string cloudflareAccess.rolloutRevision=ces-829-ci \
+            --set-string cloudflareAccess.verifiedImageTag="$cloudflare_sha" \
+            --set-string image.tag="$cloudflare_sha" \
+            > rendered/citrus-cloudflare-access.yaml
 
       - name: Verify Citrus workload render coverage
         if: matrix.chart.name == 'citrus'
@@ -494,6 +530,14 @@ jobs:
             echo "Actual Citrus environment renders must keep SMS reconciliation disabled" >&2
             exit 1
           fi
+          schedulers=rendered/citrus-schedulers.yaml
+          grep -F 'app.kubernetes.io/component: billing-worker' "$schedulers" >/dev/null
+          grep -F 'app.kubernetes.io/component: recurring-tick' "$schedulers" >/dev/null
+          grep -F 'app.kubernetes.io/component: recurring-health' "$schedulers" >/dev/null
+          grep -F 'app.kubernetes.io/component: direct-order-payment-sweep' "$schedulers" >/dev/null
+          grep -F '  suspend: true' "$schedulers" >/dev/null
+          grep -F 'citrus.grace/verified-image-tag: "4353f11595094bc4893b5799233cfd56c52aed89"' "$schedulers" >/dev/null
+          grep -F 'name: citrus-ci-direct-order-runtime' "$schedulers" >/dev/null
 
           if grep -E '^kind:[[:space:]]+CiliumNetworkPolicy$|PAYMENT_NETWORK_MODE|payment-egress-boundary' \
             rendered/citrus-prod.yaml rendered/citrus-dev.yaml >/dev/null; then
@@ -518,6 +562,12 @@ jobs:
           grep -F 'kind: CiliumNetworkPolicy' "$safety_prod" >/dev/null
           grep -F -- '- all' "$safety_prod" >/dev/null
           grep -F 'value: "allow"' "$safety_prod" >/dev/null
+
+          cloudflare=rendered/citrus-cloudflare-access.yaml
+          grep -F 'citrus.grace/cloudflare-access-rollout-revision: "ces-829-ci"' "$cloudflare" >/dev/null
+          test "$(grep -Fc 'name: CLOUDFLARE_ACCESS_REQUIRED' "$cloudflare")" -eq 1
+          test "$(grep -Fc 'name: citrus-cloudflare-access' "$cloudflare")" -eq 3
+          test "$(grep -Fc 'optional: false' "$cloudflare")" -ge 3
 
           if grep -E '^kind:[[:space:]]+Secret$' rendered/citrus-*.yaml >/dev/null; then
             echo "Citrus CI renders must never contain Secret objects" >&2
