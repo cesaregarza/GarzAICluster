@@ -332,7 +332,7 @@ jobs:
           # from the actual environment renders. Credential projection is valid
           # only when paired with the matching CES-845 safety contract. These
           # files contain Secret refs, never decrypted values or credentials.
-          helm template citrus-ci-payment-prod "$chart" \
+          helm template citrus "$chart" \
             --namespace default \
             -f "$chart/values.yaml" \
             -f "$chart/values-payment-prod.yaml" \
@@ -345,7 +345,7 @@ jobs:
             --set-string paymentSafety.policy.revision=ces-845-ci \
             --set paymentSafety.networkPolicy.enabled=true \
             > rendered/citrus-payment-prod.yaml
-          helm template citrus-ci-payment-dev "$chart" \
+          helm template citrus-dev "$chart" \
             --namespace citrus-dev \
             -f "$chart/values.yaml" \
             -f "$chart/values-dev.yaml" \
@@ -363,7 +363,7 @@ jobs:
 
           # Exercise the disabled CES-845 boundary with synthetic configuration
           # only. Rendering an FQDN never resolves or contacts it.
-          helm template citrus-ci-payment-safety-dev "$chart" \
+          helm template citrus-dev "$chart" \
             --namespace citrus-dev \
             -f "$chart/values.yaml" \
             -f "$chart/values-dev.yaml" \
@@ -379,7 +379,7 @@ jobs:
             --set billingWorker.enabled=true \
             --set recurringRuntime.enabled=true \
             > rendered/citrus-payment-safety-dev.yaml
-          helm template citrus-ci-payment-safety-prod "$chart" \
+          helm template citrus "$chart" \
             --namespace default \
             -f "$chart/values.yaml" \
             --set paymentSafety.enabled=true \
