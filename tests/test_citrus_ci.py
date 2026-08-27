@@ -73,8 +73,8 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-optional-workloads.yaml'
             ),
             (
-                'helm template citrus-ci-schedulers "$chart" '
-                '--namespace citrus-ci -f "$chart/values.yaml" '
+                'helm template citrus "$chart" '
+                '--namespace default -f "$chart/values.yaml" '
                 '-f "$chart/values-payment-prod.yaml" '
                 '--set-string '
                 'image.tag=4353f11595094bc4893b5799233cfd56c52aed89 '
@@ -96,7 +96,7 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-schedulers.yaml'
             ),
             (
-                'helm template citrus-ci-payment-prod "$chart" '
+                'helm template citrus "$chart" '
                 '--namespace default -f "$chart/values.yaml" '
                 '-f "$chart/values-payment-prod.yaml" '
                 '--set paymentSafety.enabled=true '
@@ -110,7 +110,7 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-payment-prod.yaml'
             ),
             (
-                'helm template citrus-ci-payment-dev "$chart" '
+                'helm template citrus-dev "$chart" '
                 '--namespace citrus-dev -f "$chart/values.yaml" '
                 '-f "$chart/values-dev.yaml" '
                 '-f "$chart/values-payment-dev.yaml" '
@@ -127,7 +127,7 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-payment-dev.yaml'
             ),
             (
-                'helm template citrus-ci-payment-safety-dev "$chart" '
+                'helm template citrus-dev "$chart" '
                 '--namespace citrus-dev -f "$chart/values.yaml" '
                 '-f "$chart/values-dev.yaml" '
                 '--set paymentSafety.enabled=true '
@@ -145,7 +145,7 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-payment-safety-dev.yaml'
             ),
             (
-                'helm template citrus-ci-payment-safety-prod "$chart" '
+                'helm template citrus "$chart" '
                 '--namespace default -f "$chart/values.yaml" '
                 '--set paymentSafety.enabled=true '
                 '--set-string paymentSafety.environment=production '
@@ -156,6 +156,19 @@ class CitrusCiContractTests(unittest.TestCase):
                 '--set-string paymentSafety.policy.revision=ces-845-ci '
                 '--set paymentSafety.networkPolicy.enabled=true '
                 '> rendered/citrus-payment-safety-prod.yaml'
+            ),
+            (
+                'helm template citrus-ci-cloudflare-access "$chart" '
+                '--namespace default -f "$chart/values.yaml" '
+                '--set cloudflareAccess.enabled=true '
+                '--set-string cloudflareAccess.owner=citrus '
+                '--set-string '
+                'cloudflareAccess.secretName=citrus-cloudflare-access '
+                '--set-string cloudflareAccess.rolloutRevision=ces-829-ci '
+                '--set-string '
+                'cloudflareAccess.verifiedImageTag="$cloudflare_sha" '
+                '--set-string image.tag="$cloudflare_sha" '
+                '> rendered/citrus-cloudflare-access.yaml'
             ),
         ):
             with self.subTest(expected=expected):
@@ -192,6 +205,8 @@ class CitrusCiContractTests(unittest.TestCase):
             "citrus-payment-safety-prod.yaml",
             "PAYMENT_EGRESS_POLICY_REVISION",
             "Development payment egress render must omit every Stripe destination",
+            "citrus-cloudflare-access.yaml",
+            "CLOUDFLARE_ACCESS_REQUIRED",
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, run)
