@@ -24,6 +24,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up Helm for chart contract tests
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
       - name: Install dependencies
         run: uv sync
 
@@ -328,6 +333,40 @@ jobs:
             --set recurringRuntime.enabled=true \
             > rendered/citrus-optional-workloads.yaml
 
+          # Schema-check the isolated suspended CronJob and its dedicated egress
+          # policy using an existing command-bearing image, release-bound
+          # synthetic Secret name, and reserved database FQDN. This image is not
+          # pinned in either environment and is not activation-compatible with
+          # the pending least-privilege source/runtime contract.
+          helm template citrus "$chart" \
+            --namespace default \
+            -f "$chart/values.yaml" \
+            --show-only templates/sms-reconciliation-cronjob.yaml \
+            --set-string image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c \
+            --set smsReconciliation.enabled=true \
+            --set-string smsReconciliation.verifiedImageTag=0e2258bf95c6170895c26780258eb42d5b5c557c \
+            --set-string 'smsReconciliation.commandCompatibleImageTags[0]=0e2258bf95c6170895c26780258eb42d5b5c557c' \
+            --set-string smsReconciliation.secretName=citrus-sms-reconciliation-runtime \
+            --set smsReconciliation.networkPolicy.enabled=true \
+            --set-string smsReconciliation.networkPolicy.provider=cilium \
+            --set-string smsReconciliation.networkPolicy.revision=ces-848-ci \
+            --set-string smsReconciliation.networkPolicy.database.host=db.sms-reconciliation.example \
+            > rendered/citrus-sms-reconciliation-prod.yaml
+          helm template citrus-dev "$chart" \
+            --namespace citrus-dev \
+            -f "$chart/values.yaml" \
+            -f "$chart/values-dev.yaml" \
+            --show-only templates/sms-reconciliation-cronjob.yaml \
+            --set-string image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c \
+            --set smsReconciliation.enabled=true \
+            --set-string smsReconciliation.verifiedImageTag=0e2258bf95c6170895c26780258eb42d5b5c557c \
+            --set-string 'smsReconciliation.commandCompatibleImageTags[0]=0e2258bf95c6170895c26780258eb42d5b5c557c' \
+            --set-string smsReconciliation.secretName=citrus-dev-sms-reconciliation-runtime \
+            --set smsReconciliation.networkPolicy.enabled=true \
+            --set-string smsReconciliation.networkPolicy.provider=cilium \
+            --set-string smsReconciliation.networkPolicy.revision=ces-848-ci \
+            --set-string smsReconciliation.networkPolicy.database.host=db.sms-reconciliation.example \
+            > rendered/citrus-sms-reconciliation-dev.yaml
           # Materialize the CES-807 scheduler only with a command-bearing image
           # receipt, the isolated payment projection, and the Cilium boundary.
           # Keep it suspended while also exercising the CES-850 workloads.
@@ -447,6 +486,50 @@ jobs:
           grep -F 'app.kubernetes.io/component: billing-worker' rendered/citrus-optional-workloads.yaml >/dev/null
           grep -F 'app.kubernetes.io/component: recurring-tick' rendered/citrus-optional-workloads.yaml >/dev/null
           grep -F 'app.kubernetes.io/component: recurring-health' rendered/citrus-optional-workloads.yaml >/dev/null
+          grep -F 'app.kubernetes.io/component: sms-reconciliation' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F 'app.kubernetes.io/component: sms-reconciliation' rendered/citrus-sms-reconciliation-dev.yaml >/dev/null
+          grep -F '  suspend: true' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F '  suspend: true' rendered/citrus-sms-reconciliation-dev.yaml >/dev/null
+          grep -F '    - name: TWILIO_SMS_ENABLED' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F '      value: "False"' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F '    - sweep_manual_order_sms_attempts' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F '    - --stale-minutes' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F '    - --limit' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F 'citrus-sms-reconciliation-runtime' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          grep -F 'citrus-dev-sms-reconciliation-runtime' rendered/citrus-sms-reconciliation-dev.yaml >/dev/null
+          grep -F 'secretKeyRef:' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
+          for file in rendered/citrus-sms-reconciliation-*.yaml; do
+            grep -F 'kind: CiliumNetworkPolicy' "$file" >/dev/null
+            grep -F 'argocd.argoproj.io/sync-wave: "2"' "$file" >/dev/null
+            grep -F 'citrus.grace/sms-reconciliation-egress: restricted' "$file" >/dev/null
+            grep -F 'citrus.grace/sms-reconciliation-egress-policy-revision: "ces-848-ci"' "$file" >/dev/null
+            test "$(grep -Fc 'matchName: "db.sms-reconciliation.example"' "$file")" -eq 2
+            if grep -Ei 'matchPattern:|toEntities:|matchName:.*(stripe|twilio)' "$file" >/dev/null; then
+              echo "Citrus SMS reconciliation egress must remain DNS-plus-exact-DB only" >&2
+              exit 1
+            fi
+          done
+
+          for file in rendered/citrus-sms-reconciliation-*.yaml; do
+            if grep -F 'secretRef:' "$file" >/dev/null; then
+              echo "Citrus SMS reconciliation must not import a Secret with envFrom" >&2
+              exit 1
+            fi
+            if grep -E '(django-secrets|django-email-secrets|django-spaces-secrets|citrus-dev-app-key|payment-credentials|STRIPE_|TWILIO_(ACCOUNT|API|AUTH|MESSAGING))' "$file" >/dev/null; then
+              echo "Citrus SMS reconciliation rendered a broad or provider Secret reference" >&2
+              exit 1
+            fi
+            if [[ "$(grep -c 'secretKeyRef:' "$file")" -ne 6 ]]; then
+              echo "Citrus SMS reconciliation must project exactly six named runtime keys" >&2
+              exit 1
+            fi
+          done
+
+          if grep -F 'app.kubernetes.io/component: sms-reconciliation' \
+            rendered/citrus-prod.yaml rendered/citrus-dev.yaml >/dev/null; then
+            echo "Actual Citrus environment renders must keep SMS reconciliation disabled" >&2
+            exit 1
+          fi
           schedulers=rendered/citrus-schedulers.yaml
           grep -F 'app.kubernetes.io/component: billing-worker' "$schedulers" >/dev/null
           grep -F 'app.kubernetes.io/component: recurring-tick' "$schedulers" >/dev/null
