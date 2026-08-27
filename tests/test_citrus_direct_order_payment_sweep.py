@@ -487,11 +487,19 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
             with self.subTest(environment=environment):
                 container = _container(_sweeps(documents)[0])
                 env = {entry["name"]: entry for entry in container["env"]}
+                expected_payment_keys = {"STRIPE_SECRET_KEY"}
+                if environment == "dev":
+                    expected_payment_keys.update({
+                        "STRIPE_PUBLISHABLE_KEY",
+                        "STRIPE_WEBHOOK_SECRET_DEV",
+                        "STRIPE_WEBHOOK_SECRET_OWNER",
+                    })
                 self.assertEqual(
                     set(env),
                     PAYMENT_ATTESTATION
                     | RUNTIME_SECRET_KEYS
-                    | {"DIRECT_ORDER_OFF_SESSION_MODE", "STRIPE_SECRET_KEY"},
+                    | {"DIRECT_ORDER_OFF_SESSION_MODE"}
+                    | expected_payment_keys,
                 )
                 for key in RUNTIME_SECRET_KEYS:
                     reference = env[key]["valueFrom"]["secretKeyRef"]
@@ -512,20 +520,53 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
                 )
                 self.assertEqual(payment_reference["key"], "STRIPE_SECRET_KEY")
                 self.assertFalse(payment_reference["optional"])
+                if environment == "dev":
+                    publishable_reference = env[
+                        "STRIPE_PUBLISHABLE_KEY"
+                    ]["valueFrom"]["secretKeyRef"]
+                    self.assertEqual(
+                        publishable_reference,
+                        {
+                            "name": "citrus-dev-payment-credentials",
+                            "key": "STRIPE_PUBLISHABLE_KEY",
+                            "optional": False,
+                        },
+                    )
+                    webhook_reference = env[
+                        "STRIPE_WEBHOOK_SECRET_DEV"
+                    ]["valueFrom"]["secretKeyRef"]
+                    self.assertEqual(
+                        webhook_reference,
+                        {
+                            "name": "django-secrets",
+                            "key": "STRIPE_WEBHOOK_SECRET_DEV",
+                            "optional": False,
+                        },
+                    )
+                    self.assertEqual(
+                        env["STRIPE_WEBHOOK_SECRET_OWNER"]["value"],
+                        "citrus-dev",
+                    )
                 self.assertEqual(
                     container["envFrom"],
                     [{"configMapRef": {"name": "django-config"}}],
                 )
+                self.assertNotIn("STRIPE_WEBHOOK_SECRET", env)
+                self.assertNotIn("STRIPE_WEBHOOK_SECRET_PROD", env)
                 serialized = str(container)
-                for forbidden in (
-                    "django-secrets",
+                forbidden = [
                     "django-email-secrets",
                     "django-spaces-secrets",
                     "citrus-dev-app-key",
                     "citrus-app-key",
-                    "STRIPE_PUBLISHABLE_KEY",
-                ):
-                    self.assertNotIn(forbidden, serialized)
+                ]
+                if environment != "dev":
+                    forbidden.extend([
+                        "django-secrets",
+                        "STRIPE_PUBLISHABLE_KEY",
+                    ])
+                for forbidden_setting in forbidden:
+                    self.assertNotIn(forbidden_setting, serialized)
 
     def test_explicit_mode_and_payment_key_override_configmap_values(self) -> None:
         command = _materialized_command(dev=True)
