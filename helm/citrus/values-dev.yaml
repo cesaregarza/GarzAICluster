@@ -56,6 +56,12 @@ smsReconciliation:
   secretName: ""
   verifiedImageTag: ""
   commandCompatibleImageTags: []
+  networkPolicy:
+    enabled: false
+    provider: ""
+    revision: ""
+    database:
+      host: ""
 
 mediaRequeue:
   enabled: true

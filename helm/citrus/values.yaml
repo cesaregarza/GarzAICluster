@@ -272,6 +272,20 @@ smsReconciliation:
   failedJobsHistoryLimit: 3
   staleMinutes: 15
   limit: 100
+  # Dormant until a separately reviewed activation supplies an exact DB FQDN
+  # and policy receipt. No provider or world egress is configurable here.
+  networkPolicy:
+    enabled: false
+    provider: ""
+    revision: ""
+    syncWave: "2"
+    dns:
+      namespace: kube-system
+      podLabels:
+        k8s-app: kube-dns
+    database:
+      host: ""
+      port: 25060
   resources:
     requests:
       cpu: 50m
