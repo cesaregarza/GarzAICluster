@@ -392,6 +392,20 @@ jobs:
             --set paymentSafety.networkPolicy.enabled=true \
             > rendered/citrus-payment-safety-prod.yaml
 
+          # Exercise CES-829 with synthetic references only. No Secret values,
+          # DNS lookup, Cloudflare request, or live activation occurs here.
+          cloudflare_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          helm template citrus-ci-cloudflare-access "$chart" \
+            --namespace default \
+            -f "$chart/values.yaml" \
+            --set cloudflareAccess.enabled=true \
+            --set-string cloudflareAccess.owner=citrus \
+            --set-string cloudflareAccess.secretName=citrus-cloudflare-access \
+            --set-string cloudflareAccess.rolloutRevision=ces-829-ci \
+            --set-string cloudflareAccess.verifiedImageTag="$cloudflare_sha" \
+            --set-string image.tag="$cloudflare_sha" \
+            > rendered/citrus-cloudflare-access.yaml
+
       - name: Verify Citrus workload render coverage
         if: matrix.chart.name == 'citrus'
         run: |
@@ -434,6 +448,12 @@ jobs:
           grep -F 'kind: CiliumNetworkPolicy' "$safety_prod" >/dev/null
           grep -F -- '- all' "$safety_prod" >/dev/null
           grep -F 'value: "allow"' "$safety_prod" >/dev/null
+
+          cloudflare=rendered/citrus-cloudflare-access.yaml
+          grep -F 'citrus.grace/cloudflare-access-rollout-revision: "ces-829-ci"' "$cloudflare" >/dev/null
+          test "$(grep -Fc 'name: CLOUDFLARE_ACCESS_REQUIRED' "$cloudflare")" -eq 1
+          test "$(grep -Fc 'name: citrus-cloudflare-access' "$cloudflare")" -eq 3
+          test "$(grep -Fc 'optional: false' "$cloudflare")" -ge 3
 
           if grep -E '^kind:[[:space:]]+Secret$' rendered/citrus-*.yaml >/dev/null; then
             echo "Citrus CI renders must never contain Secret objects" >&2
