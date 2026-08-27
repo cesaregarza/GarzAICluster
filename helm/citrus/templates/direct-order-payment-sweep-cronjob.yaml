@@ -1,0 +1,159 @@
+{{- $sweep := .Values.directOrderPaymentSweep -}}
+{{- if not (kindIs "bool" $sweep.enabled) -}}
+{{- fail "directOrderPaymentSweep.enabled must be a boolean" -}}
+{{- end -}}
+{{- if not (kindIs "bool" $sweep.suspend) -}}
+{{- fail "directOrderPaymentSweep.suspend must be a boolean" -}}
+{{- end -}}
+{{- if $sweep.enabled -}}
+{{- if not (hasKey $sweep "offSessionMode") -}}
+{{- fail "directOrderPaymentSweep.offSessionMode is required when enabled" -}}
+{{- end -}}
+{{- $offSessionMode := get $sweep "offSessionMode" -}}
+{{- if or (not (kindIs "string" $offSessionMode)) (ne $offSessionMode "legacy") -}}
+{{- fail "directOrderPaymentSweep.offSessionMode must be the exact string legacy" -}}
+{{- end -}}
+
+{{- if not (kindIs "string" .Values.image.tag) -}}
+{{- fail "directOrderPaymentSweep.enabled requires image.tag to be a lowercase 40-hex string" -}}
+{{- end -}}
+{{- $imageTag := .Values.image.tag -}}
+{{- if not (regexMatch "^[0-9a-f]{40}$" $imageTag) -}}
+{{- fail "directOrderPaymentSweep.enabled requires image.tag to be a lowercase 40-hex immutable source tag" -}}
+{{- end -}}
+{{- if eq $imageTag "3f68967f777b2665fccb4f0ab423f339b8ea1357" -}}
+{{- fail "production image 3f68967f777b2665fccb4f0ab423f339b8ea1357 predates sweep_direct_order_payment_attempts" -}}
+{{- end -}}
+{{- if not (hasKey $sweep "verifiedImageTag") -}}
+{{- fail "directOrderPaymentSweep.verifiedImageTag is required when enabled" -}}
+{{- end -}}
+{{- $verifiedImageTag := get $sweep "verifiedImageTag" -}}
+{{- if not (kindIs "string" $verifiedImageTag) -}}
+{{- fail "directOrderPaymentSweep.verifiedImageTag must be a lowercase 40-hex string" -}}
+{{- end -}}
+{{- if not (regexMatch "^[0-9a-f]{40}$" $verifiedImageTag) -}}
+{{- fail "directOrderPaymentSweep.verifiedImageTag must attest a lowercase 40-hex command-bearing image" -}}
+{{- end -}}
+{{- if ne $verifiedImageTag $imageTag -}}
+{{- fail (printf "directOrderPaymentSweep.verifiedImageTag %q must exactly match image.tag %q" $verifiedImageTag $imageTag) -}}
+{{- end -}}
+
+{{- if not (hasKey $sweep "runtimeSecretName") -}}
+{{- fail "directOrderPaymentSweep.runtimeSecretName is required when enabled" -}}
+{{- end -}}
+{{- $runtimeSecretName := get $sweep "runtimeSecretName" -}}
+{{- if not (kindIs "string" $runtimeSecretName) -}}
+{{- fail "directOrderPaymentSweep.runtimeSecretName must be a Kubernetes Secret name" -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $runtimeSecretName) -}}
+{{- fail "directOrderPaymentSweep.runtimeSecretName must name a dedicated DB/app-key Secret" -}}
+{{- end -}}
+{{- $forbiddenSecretNames := compact (list .Values.application.secretName .Values.application.emailSecretName .Values.application.spacesSecretName .Values.application.generatedSecretName .Values.paymentCredentials.secretName) -}}
+{{- if has $runtimeSecretName $forbiddenSecretNames -}}
+{{- fail "directOrderPaymentSweep.runtimeSecretName must not reuse an application, provider, generated-key, or payment Secret" -}}
+{{- end -}}
+{{- if regexMatch "(stripe|payment|twilio|email|spaces|django-secrets)" (lower $runtimeSecretName) -}}
+{{- fail "directOrderPaymentSweep.runtimeSecretName must identify a dedicated provider-free DB/app-key Secret" -}}
+{{- end -}}
+
+{{- if not (kindIs "bool" .Values.paymentCredentials.enabled) -}}
+{{- fail "directOrderPaymentSweep.enabled requires paymentCredentials.enabled to be a boolean" -}}
+{{- end -}}
+{{- if not .Values.paymentCredentials.enabled -}}
+{{- fail "directOrderPaymentSweep.enabled requires paymentCredentials.enabled=true" -}}
+{{- end -}}
+{{- if not (kindIs "bool" .Values.paymentSafety.enabled) -}}
+{{- fail "directOrderPaymentSweep.enabled requires paymentSafety.enabled to be a boolean" -}}
+{{- end -}}
+{{- if not .Values.paymentSafety.enabled -}}
+{{- fail "directOrderPaymentSweep.enabled requires paymentSafety.enabled=true" -}}
+{{- end -}}
+{{- if not (kindIs "bool" .Values.paymentSafety.networkPolicy.enabled) -}}
+{{- fail "directOrderPaymentSweep.enabled requires paymentSafety.networkPolicy.enabled to be a boolean" -}}
+{{- end -}}
+{{- if not .Values.paymentSafety.networkPolicy.enabled -}}
+{{- fail "directOrderPaymentSweep.enabled requires paymentSafety.networkPolicy.enabled=true" -}}
+{{- end -}}
+{{- if ne .Values.paymentSafety.policy.provider "cilium" -}}
+{{- fail "directOrderPaymentSweep.enabled requires paymentSafety.policy.provider=cilium" -}}
+{{- end -}}
+{{- $runtimeSecretKeys := list "DJANGO_SECRET_KEY" "DB_NAME" "DB_USER" "DB_PASSWORD" "DB_HOST" "DB_PORT" -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "citrus.fullname" . }}-direct-order-payment-sweep
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: direct-order-payment-sweep
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    citrus.grace/payment-egress-policy-revision: {{ .Values.paymentSafety.policy.revision | quote }}
+    citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
+    citrus.grace/verified-image-tag: {{ $verifiedImageTag | quote }}
+spec:
+  schedule: {{ $sweep.schedule | quote }}
+  timeZone: {{ $sweep.timeZone | quote }}
+  suspend: {{ $sweep.suspend }}
+  concurrencyPolicy: {{ $sweep.concurrencyPolicy }}
+  startingDeadlineSeconds: {{ $sweep.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ $sweep.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $sweep.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "citrus.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: direct-order-payment-sweep
+    spec:
+      activeDeadlineSeconds: {{ $sweep.activeDeadlineSeconds }}
+      backoffLimit: {{ $sweep.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "citrus.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: direct-order-payment-sweep
+            {{- include "citrus.paymentSafety.podLabel" . | nindent 12 }}
+          annotations:
+            citrus.grace/payment-egress-policy-revision: {{ .Values.paymentSafety.policy.revision | quote }}
+            citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
+            citrus.grace/verified-image-tag: {{ $verifiedImageTag | quote }}
+        spec:
+          {{- include "citrus.imagePullSecrets" . | nindent 10 }}
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: direct-order-payment-sweep
+              image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - python
+                - manage.py
+                - sweep_direct_order_payment_attempts
+                - --stale-minutes
+                - {{ $sweep.staleMinutes | quote }}
+                - --limit
+                - {{ $sweep.limit | quote }}
+              securityContext:
+                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+              # Explicit entries override any same-named ConfigMap values.
+              # The job can never inherit a non-legacy off-session mode.
+              env:
+                {{- include "citrus.paymentSafety.env" . | nindent 16 }}
+                - name: DIRECT_ORDER_OFF_SESSION_MODE
+                  value: {{ $offSessionMode | quote }}
+                {{- range $runtimeSecretKey := $runtimeSecretKeys }}
+                - name: {{ $runtimeSecretKey }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $runtimeSecretName }}
+                      key: {{ $runtimeSecretKey }}
+                      optional: false
+                {{- end }}
+                {{- include "citrus.paymentCredentials.apiEnv" . | nindent 16 }}
+              envFrom:
+                - configMapRef:
+                    name: {{ .Values.application.configMapName }}
+              resources:
+                {{- toYaml $sweep.resources | nindent 16 }}
+{{- end }}

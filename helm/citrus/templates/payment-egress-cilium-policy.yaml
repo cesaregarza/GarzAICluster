@@ -46,8 +46,10 @@ spec:
           - migrations
           - media-requeue
           - media-gc
+          - recurring-preflight
           - recurring-tick
           - recurring-health
+          - direct-order-payment-sweep
     {{- end }}
   {{- if eq $.Values.paymentSafety.networkMode "allow" }}
   # Production must opt into this explicit allow mode. The policy resource and
