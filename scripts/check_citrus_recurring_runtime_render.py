@@ -212,6 +212,15 @@ def _verify_renders(rendered: dict[str, str]) -> None:
         raise ContractError(
             "citrus-dev must attest exactly 6 active Citrus containers"
         )
+    if (
+        dev.count(
+            'citrus.grace/payment-egress-policy-revision: "ces-845-dev-v1"'
+        )
+        != 4
+    ):
+        raise ContractError(
+            "citrus-dev must retain exactly 4 active payment policy receipts"
+        )
 
     for marker in (
         "kind: CiliumNetworkPolicy",
