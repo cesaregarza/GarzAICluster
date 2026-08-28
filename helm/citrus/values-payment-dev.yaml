@@ -9,3 +9,13 @@ paymentCredentials:
   webhookEnvironmentVariable: STRIPE_WEBHOOK_SECRET_DEV
   webhookSecretName: django-secrets
   webhookSecretKey: STRIPE_WEBHOOK_SECRET_DEV
+
+# CES-807 phase 1: materialize the provider-isolated sweep only in a suspended
+# state. Keep this receipt equal to values-dev.yaml image.tag until the separate
+# reviewed unsuspend gate has completed.
+directOrderPaymentSweep:
+  enabled: true
+  suspend: true
+  runtimeSecretName: citrus-dev-sweep-runtime
+  verifiedImageTag: 2d186db052c50c763d0b9f58c89be99047ca77f2
+  offSessionMode: legacy
