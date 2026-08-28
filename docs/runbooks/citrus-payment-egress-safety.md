@@ -2,14 +2,17 @@
 
 ## Current status
 
-The CES-845 Helm contract is disabled by default. Neither
-`argocd/applications/citrus.yaml` nor `argocd/applications/citrus-dev.yaml`
-enables it. Merging the reusable chart slice therefore renders no
-`CiliumNetworkPolicy`, adds no runtime environment variables or Pod labels, and
-does not change either live environment.
+The chart defaults and production Application remain disabled. The development
+overlay now activates CES-845 deny mode for the exact `citrus-dev` release and
+namespace at policy revision `ces-845-dev-v1`. Its checked-in Argo render keeps
+the healthy rollback image pinned while adding the runtime attestation and two
+same-release `CiliumNetworkPolicy` resources at sync wave `-1`.
 
-Activation, Argo synchronization, credential changes, and provider testing are
-separate operator actions. Never use a Stripe request to validate this policy.
+The `citrus-dev` Application tracks `main` with automated prune and self-heal.
+Merging this activation therefore authorizes and can immediately trigger Argo
+reconciliation; review and merge are the deployment gate. A later source-image
+pin remains a separate change. Never use a Stripe request to validate this
+policy.
 
 ## Boundary
 
@@ -45,16 +48,15 @@ This closes the activation window before old Pods or old CronJob templates are
 replaced. Render tests require every current and enabled Citrus image workload
 to match at least one selector and require Redis to match neither.
 
-The separately prepared payment credential overlay cannot render by itself:
-credential projection requires the matching payment-safety environment and
-owner in the same Helm render. Safety without credentials remains valid. When
-both are enabled, the web process also receives
-`STRIPE_WEBHOOK_SECRET_OWNER`. The chart binds the dev
-webhook variable to `citrus-dev-payment-credentials` owned by `citrus-dev`, and
-the production variable to `citrus-prod-payment-credentials` owned by `citrus`.
-Generic webhook-secret projection is not an allowed managed-environment
-contract. This is value-free provenance metadata; it does not classify the
-credential contents, so the CES-844 operator classification gate still applies.
+The dedicated CES-844 development credential overlay is already active and
+renders independently of this policy. Activating payment safety does not change
+its Secret names, key references, rollout revision, or credential contents.
+The web process receives `STRIPE_WEBHOOK_SECRET_OWNER`, and the chart binds the
+dev webhook variable to `citrus-dev-payment-credentials` owned by `citrus-dev`.
+The separately prepared production overlay remains disabled. Generic webhook
+projection is not an allowed managed-environment contract. This is value-free
+provenance metadata; it does not classify credential contents, so the CES-844
+operator classification receipt remains a separate gate.
 
 Environment-variable attestation alone does not prove that the live Cilium
 policy exists or is enforcing. It proves only the image/chart contract. Live
@@ -91,20 +93,24 @@ same-release Cilium policy renders `toEntities: [all]`, preserving existing
 production connectivity while making the production exception visible and
 revision-bound. This preparation does not activate that mode.
 
-## Why development activation is still blocked
+## Development activation inventory
 
 Cilium FQDN rules are allow rules. Cilium deny rules cannot selectively deny
 `toFQDNs`, so it is not possible to add a narrow `stripe.com` deny while safely
 leaving every other dynamic destination open. The independent boundary must be
 an allowlist that deliberately omits Stripe.
 
-The chart can derive Redis, object storage, and configured SMTP destinations,
-but it cannot read the secret-backed `DB_HOST`, and it cannot infer whether
-secret-backed or feature-gated CAPTCHA, Twilio, ntfy, or receipt-source URL
-integrations are enabled. Enabling the policy without that inventory could
-break database access, account registration, notifications, media processing,
-or scheduled work. Do not activate it until an operator supplies the exact
-database FQDN and accounts for every enabled non-Stripe dependency.
+The chart cannot read the secret-backed `DB_HOST`, so this activation records
+the exact database FQDN from operator-authorized environment evidence in the
+reviewed development values. The remaining allowlist is derived from checked-in
+configuration: same-release Redis and the three exact Spaces hostnames. Dev uses
+the dummy email backend, while SMS, recurring runtime, Cloudflare Access, and
+other optional provider integrations remain disabled. Accordingly,
+`additionalExternalEgress` is empty.
+
+Any later feature that needs another destination must add one exact reviewed
+FQDN and port before it is enabled. A failing optional workflow is not
+permission to weaken the deny boundary.
 
 The `additionalExternalEgress` list is intentionally explicit. Each item needs
 an audit name, one exact lowercase hostname, and one or more TCP ports. Do not
@@ -113,34 +119,36 @@ failing workflow pass.
 
 ## Required release order
 
-The current Citrus Argo renders do not set the CES-845 runtime attestation.
 Never deploy a source image that requires this contract before the environment
-has been prepared. Reversing the first two steps would make the new image fail
-during settings import and could stall the rollout.
+has been prepared. PR #609 demonstrated that reversing the order makes the new
+image fail during settings import; PR #610 restored the healthy rollback image.
 
-1. With the old Citrus image still selected, prepare and review the exact dev
-   dependency inventory and enable the development deny-mode attestation and
-   both wave `-1` Cilium policies. Do not project a new payment Secret in this
-   step.
-2. Reconcile that GitOps revision under separate authorization. Prove both
-   policies select the existing Citrus endpoints, exclude Redis, report the
-   reviewed revision, and reject a local fake destination omitted from the
-   allowlist. Do not probe Stripe.
-3. Remove or isolate the unsafe dev credential projection under CES-844 so the
-   next image sees only authoritatively non-live or intentionally absent
-   settings. Preserve the active Cilium boundary throughout the transition.
-4. Only after steps 1-3 have receipts, deploy the exact reviewed CES-845 source
-   image and verify startup checks across web, workers, Jobs, and CronJobs.
+1. With the rollback image still selected, review and merge the development
+   deny-mode attestation and both wave `-1` Cilium policies. Because Argo is
+   automated, that merge is the deployment authorization and can reconcile
+   immediately. This step changes neither the image nor the CES-844 credential
+   projection.
+2. Wait for Argo to report the exact merged GitOps revision as Synced and
+   Healthy. Prove both policies select the existing Citrus endpoints, exclude
+   Redis, report the reviewed policy revision, and reject a local fake
+   destination omitted from the allowlist. Stop on any mismatch. Do not
+   manually sync or probe Stripe.
+3. Only after the activation receipt, pin the exact reviewed CES-845 source
+   image in a separate GitOps change and verify startup checks across web,
+   workers, Jobs, and CronJobs.
+4. Rerun the CES-846 zero-network acceptance campaign on the final source and
+   GitOps pair before continuing the release train.
 
 Production is a separate train. Its explicit allow-mode attestation and policy
 must reconcile before the CES-845 image is promoted there, and current health
-must be verified at each step. A merge of this disabled chart preparation is
-not an activation receipt for either environment.
+must be verified at each step. Development activation is not a production
+activation receipt.
 
 ## Prepared render checks
 
-Use synthetic hostnames only during local review. These commands render YAML;
-they do not contact any named destination:
+These commands render the exact development activation and the synthetic
+production contract. Helm rendering does not resolve or contact any named
+destination:
 
 ```bash
 helm lint helm/citrus
@@ -149,15 +157,7 @@ helm template citrus-dev helm/citrus \
   --namespace citrus-dev \
   -f helm/citrus/values.yaml \
   -f helm/citrus/values-dev.yaml \
-  --set paymentSafety.enabled=true \
-  --set-string paymentSafety.environment=development \
-  --set-string paymentSafety.owner=citrus-dev \
-  --set-string paymentSafety.networkMode=deny \
-  --set paymentSafety.policy.required=true \
-  --set-string paymentSafety.policy.provider=cilium \
-  --set-string paymentSafety.policy.revision=ces-845-review \
-  --set paymentSafety.networkPolicy.enabled=true \
-  --set-string paymentSafety.networkPolicy.database.host=db.dev.example
+  -f helm/citrus/values-payment-dev.yaml
 
 helm template citrus helm/citrus \
   --namespace default \
@@ -172,7 +172,7 @@ helm template citrus helm/citrus \
   --set paymentSafety.networkPolicy.enabled=true
 ```
 
-Before any later activation, render the exact proposed environment values and
+Before merging the activation, render the exact proposed environment values and
 verify all of the following:
 
 - The two Cilium policy selectors cover both pre-activation and proposed Citrus
@@ -180,7 +180,8 @@ verify all of the following:
 - The database, storage, email, and optional exact destinations are complete.
 - No rendered `toFQDNs` entry ends in `.stripe.com` or `.stripe.network`.
 - The source image implements the matching runtime guard contract.
-- The source image and policy revision are immutable and reviewed together.
+- The rollback image remains frozen for activation; the guarded source image is
+  pinned only after the live policy receipt.
 
 After separately authorized activation, prove enforcement without contacting
 Stripe: inspect Cilium policy status and use a local fake endpoint/FQDN omitted
