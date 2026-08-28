@@ -197,13 +197,20 @@ def _verify_renders(rendered: dict[str, str]) -> None:
         "kind: CiliumNetworkPolicy",
         "citrus.grace/payment-egress-boundary: enabled",
         'citrus.grace/payment-egress-policy-revision: "ces-845-dev-v1"',
+        "app.kubernetes.io/component: direct-order-payment-sweep",
+        "  suspend: true",
+        (
+            'citrus.grace/verified-image-tag: '
+            '"2d186db052c50c763d0b9f58c89be99047ca77f2"'
+        ),
+        "name: citrus-dev-sweep-runtime",
         'value: "development"',
         'value: "deny"',
     ):
         _require(dev, marker, render="citrus-dev")
-    if dev.count("name: PAYMENT_EGRESS_POLICY_REVISION") != 5:
+    if dev.count("name: PAYMENT_EGRESS_POLICY_REVISION") != 6:
         raise ContractError(
-            "citrus-dev must attest exactly 5 active Citrus containers"
+            "citrus-dev must attest exactly 6 active Citrus containers"
         )
 
     for marker in (

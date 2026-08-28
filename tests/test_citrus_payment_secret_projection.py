@@ -355,6 +355,10 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
             ("citrus-dev-recurring-preflight", "recurring-preflight"),
             ("citrus-dev-recurring-tick", "recurring-tick"),
             ("citrus-dev-recurring-health", "recurring-health"),
+            (
+                "citrus-dev-direct-order-payment-sweep",
+                "direct-order-payment-sweep",
+            ),
         }
         observed_runtimes = set()
         for document in self.prepared_dev:
@@ -444,8 +448,12 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
                 if not uses_application_config:
                     self.assertFalse(legacy_keys)
                     continue
-                expected = set(allowed_legacy_keys)
-                expected.add("STRIPE_WEBHOOK_SECRET_DEV")
+                expected = {"STRIPE_WEBHOOK_SECRET_DEV"}
+                if (
+                    document["metadata"]["name"]
+                    != "citrus-dev-direct-order-payment-sweep"
+                ):
+                    expected.update(allowed_legacy_keys)
                 self.assertEqual(legacy_keys, expected)
 
     def test_enabled_projection_fails_closed_on_invalid_contract(self) -> None:
