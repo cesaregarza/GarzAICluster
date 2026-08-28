@@ -49,13 +49,20 @@ def _helm(arguments: list[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _render(*, dev: bool = False, enabled: bool = False) -> list[dict[str, Any]]:
+def _render(
+    *,
+    dev: bool = False,
+    enabled: bool = False,
+    disable_payment_safety: bool = False,
+) -> list[dict[str, Any]]:
     arguments = [
         "--namespace",
         "citrus-dev" if dev else "default",
     ]
     if dev:
         arguments.extend(["-f", str(DEV_VALUES)])
+        if disable_payment_safety:
+            arguments.extend(["--set", "paymentSafety.enabled=false"])
     if enabled:
         owner = "citrus-dev" if dev else "citrus"
         secret_name = (
@@ -131,7 +138,11 @@ class CitrusCloudflareAccessTests(unittest.TestCase):
 
     def test_enabled_gate_projects_exact_non_optional_keys_to_web_only(self) -> None:
         for dev in (False, True):
-            documents = _render(dev=dev, enabled=True)
+            documents = _render(
+                dev=dev,
+                enabled=True,
+                disable_payment_safety=dev,
+            )
             web = _web(documents)
             container = _web_container(documents)
             owner = "citrus-dev" if dev else "citrus"
@@ -189,7 +200,14 @@ class CitrusCloudflareAccessTests(unittest.TestCase):
             self.assertEqual(owner, "citrus-dev" if dev else "citrus")
 
     def test_enabled_gate_never_places_confidential_values_in_configmap(self) -> None:
-        for documents in (_render(enabled=True), _render(dev=True, enabled=True)):
+        for documents in (
+            _render(enabled=True),
+            _render(
+                dev=True,
+                enabled=True,
+                disable_payment_safety=True,
+            ),
+        ):
             config_map = next(
                 document
                 for document in documents
