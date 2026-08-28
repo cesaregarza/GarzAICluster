@@ -13,6 +13,7 @@ metadata:
     app.kubernetes.io/component: billing-worker
   annotations:
     argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.billingWorker | quote }}
+    citrus.grace/recurring-topology-revision: {{ .Values.billingWorker.topologyRevision | quote }}
 spec:
   {{- with .Values.billingWorker.strategy }}
   strategy:
@@ -32,6 +33,7 @@ spec:
         {{- end }}
       {{- if or .Values.application.rolloutOnConfigChange .Values.billingWorker.metrics.enabled .Values.paymentCredentials.enabled }}
       annotations:
+        citrus.grace/recurring-topology-revision: {{ .Values.billingWorker.topologyRevision | quote }}
         {{- if .Values.application.rolloutOnConfigChange }}
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum | quote }}
         {{- end }}
@@ -46,6 +48,7 @@ spec:
       {{- end }}
     spec:
       {{- include "citrus.imagePullSecrets" . | nindent 6 }}
+      automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ .Values.billingWorker.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -62,6 +65,7 @@ spec:
           env:
             {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
             {{- include "citrus.paymentSafety.env" . | nindent 12 }}
+            {{- include "citrus.recurringRuntime.env" (dict "revision" .Values.billingWorker.topologyRevision "expectedSourceRevision" .Values.recurringRuntime.expectedSourceRevision) | nindent 12 }}
             {{- include "citrus.paymentCredentials.consumerEnv" . | nindent 12 }}
           {{- end }}
           envFrom:
@@ -103,6 +107,7 @@ spec:
           env:
             {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
             {{- include "citrus.paymentSafety.env" . | nindent 12 }}
+            {{- include "citrus.recurringRuntime.env" (dict "revision" .Values.billingWorker.topologyRevision "expectedSourceRevision" .Values.recurringRuntime.expectedSourceRevision) | nindent 12 }}
             {{- include "citrus.paymentCredentials.devRuntimeEnv" . | nindent 12 }}
           {{- end }}
           envFrom:

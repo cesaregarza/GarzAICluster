@@ -66,6 +66,7 @@ billingWorker:
 
 recurringRuntime:
   enabled: false
+  expectedSourceRevision: 2d186db052c50c763d0b9f58c89be99047ca77f2
 
 # Dev has no approved least-privilege runtime Secret or compatible corrected
 # image. Keep every activation input empty until the prerequisite train lands.

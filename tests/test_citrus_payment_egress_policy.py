@@ -126,6 +126,27 @@ def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _enable_recurring_runtime(command: list[str]) -> None:
+    command.extend(
+        [
+            "--set",
+            "billingWorker.enabled=true",
+            "--set-string",
+            "billingWorker.topologyRevision=ces-850-test",
+            "--set",
+            "recurringRuntime.enabled=true",
+            "--set-string",
+            "recurringRuntime.topologyRevision=ces-850-test",
+            "--set",
+            "recurringRuntime.preflight.enabled=true",
+            "--set-string",
+            "recurringRuntime.preflight.topologyRevision=ces-850-test",
+            "--set-string",
+            "recurringRuntime.health.topologyRevision=ces-850-test",
+        ]
+    )
+
+
 def _replace_flag_value(
     command: list[str], flag: str, value: str
 ) -> list[str]:
@@ -215,24 +236,12 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
         )
         cls.actual_dev = _documents(_actual_dev_command())
 
-        legacy_dev_command = _helm_command(development=True, enabled=False)
-        legacy_dev_command.extend(
-            [
-                "--set",
-                "billingWorker.enabled=true",
-                "--set",
-                "recurringRuntime.enabled=true",
-            ]
-        )
-        cls.legacy_dev = _documents(legacy_dev_command)
+        cls.legacy_dev = cls.actual_dev
 
         dev_command = _helm_command(development=True, enabled=True)
+        _enable_recurring_runtime(dev_command)
         dev_command.extend(
             [
-                "--set",
-                "billingWorker.enabled=true",
-                "--set",
-                "recurringRuntime.enabled=true",
                 "--set-json",
                 (
                     "paymentSafety.networkPolicy.additionalExternalEgress="
@@ -245,14 +254,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
         cls.enforced_dev = _documents(dev_command)
 
         prod_command = _helm_command(development=False, enabled=True)
-        prod_command.extend(
-            [
-                "--set",
-                "billingWorker.enabled=true",
-                "--set",
-                "recurringRuntime.enabled=true",
-            ]
-        )
+        _enable_recurring_runtime(prod_command)
         cls.explicit_prod = _documents(prod_command)
 
     def test_current_argo_activates_only_development_deny_mode(self) -> None:
@@ -379,6 +381,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             "citrus-dev-migrate-1",
             "citrus-dev-media-requeue",
             "citrus-dev-media-gc",
+            "citrus-dev-recurring-preflight",
             "citrus-dev-recurring-tick",
             "citrus-dev-recurring-health",
         }
@@ -415,7 +418,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
                     expected_env,
                     f"{workload['metadata']['name']}/{container['name']}",
                 )
-        self.assertEqual(container_count, 9)
+        self.assertEqual(container_count, 10)
 
         redis = _named(self.enforced_dev, "Deployment", "citrus-redis")
         self.assertNotIn(

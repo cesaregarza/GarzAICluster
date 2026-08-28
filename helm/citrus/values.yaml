@@ -21,6 +21,7 @@ fullnameOverride: ""
 syncWaves:
   config: "0"
   migrations: "1"
+  recurringPreflight: "2"
   deployment: "2"
   worker: "2"
   mediaCronJobs: "3"
@@ -203,6 +204,9 @@ worker:
 # approved. This worker never consumes the media queue.
 billingWorker:
   enabled: false
+  # Must match the preflight, tick, and health revision when the recurring
+  # runtime is enabled. It is intentionally empty in every deployed overlay.
+  topologyRevision: ""
   replicas: 1
   strategy:
     type: RollingUpdate
@@ -232,6 +236,15 @@ billingWorker:
 # bounded wake-ups; no Thursday/Friday business policy belongs here.
 recurringRuntime:
   enabled: false
+  # Must equal image.tag before any recurring component can render. The source
+  # preflight compares this expected revision with the revision baked into the
+  # image by the trusted Citrus build workflow.
+  expectedSourceRevision: 3f68967f777b2665fccb4f0ab423f339b8ea1357
+  # The scheduler and per-workload revisions are an explicit, nonsecret
+  # topology attestation. All four revisions must match before Helm will render
+  # any recurring controller.
+  scheduler: kubernetes-cronjob
+  topologyRevision: ""
   schedule: "*/5 * * * *"
   timeZone: Etc/UTC
   concurrencyPolicy: Forbid
@@ -246,8 +259,20 @@ recurringRuntime:
     - tick_recurring_orders
     - --scan-limit=100
     - --dispatch-limit=100
+  preflight:
+    enabled: false
+    topologyRevision: ""
+    activeDeadlineSeconds: 240
+    backoffLimit: 0
+    command:
+      - python
+      - manage.py
+      - preflight_recurring_runtime
+      - --include-broker
+      - --format=json
   health:
     enabled: true
+    topologyRevision: ""
     schedule: "2-59/5 * * * *"
     command:
       - python

@@ -65,17 +65,66 @@ def _render(
     if dev:
         command.extend(["-f", str(DEV_VALUES)])
     if payment:
-        command.extend([
-            "-f",
-            str(DEV_PAYMENT_VALUES if dev else PROD_PAYMENT_VALUES),
-        ])
+        command.extend(
+            [
+                "-f",
+                str(DEV_PAYMENT_VALUES if dev else PROD_PAYMENT_VALUES),
+                "--set",
+                "paymentSafety.enabled=true",
+                "--set-string",
+                (
+                    "paymentSafety.environment=development"
+                    if dev
+                    else "paymentSafety.environment=production"
+                ),
+                "--set-string",
+                (
+                    "paymentSafety.owner=citrus-dev"
+                    if dev
+                    else "paymentSafety.owner=citrus"
+                ),
+                "--set-string",
+                (
+                    "paymentSafety.networkMode=deny"
+                    if dev
+                    else "paymentSafety.networkMode=allow"
+                ),
+                "--set",
+                "paymentSafety.policy.required=true",
+                "--set-string",
+                "paymentSafety.policy.provider=cilium",
+                "--set-string",
+                "paymentSafety.policy.revision=ces-845-test",
+                "--set",
+                "paymentSafety.networkPolicy.enabled=true",
+            ]
+        )
+        if dev:
+            command.extend(
+                [
+                    "--set-string",
+                    "paymentSafety.networkPolicy.database.host=db.dev.example",
+                ]
+            )
     if activate_background_consumers:
-        command.extend([
-            "--set",
-            "billingWorker.enabled=true",
-            "--set",
-            "recurringRuntime.enabled=true",
-        ])
+        command.extend(
+            [
+                "--set",
+                "billingWorker.enabled=true",
+                "--set-string",
+                "billingWorker.topologyRevision=ces-850-test",
+                "--set",
+                "recurringRuntime.enabled=true",
+                "--set-string",
+                "recurringRuntime.topologyRevision=ces-850-test",
+                "--set",
+                "recurringRuntime.preflight.enabled=true",
+                "--set-string",
+                "recurringRuntime.preflight.topologyRevision=ces-850-test",
+                "--set-string",
+                "recurringRuntime.health.topologyRevision=ces-850-test",
+            ]
+        )
 
     result = subprocess.run(
         command,
@@ -245,6 +294,11 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
             ("citrus", "django", "STRIPE_PUBLISHABLE_KEY"),
             ("citrus", "django", "STRIPE_WEBHOOK_SECRET_PROD"),
             ("citrus-billing-worker", "billing-worker", "STRIPE_SECRET_KEY"),
+            (
+                "citrus-recurring-preflight",
+                "recurring-preflight",
+                "STRIPE_SECRET_KEY",
+            ),
             ("citrus-recurring-tick", "recurring-tick", "STRIPE_SECRET_KEY"),
             ("citrus-recurring-health", "recurring-health", "STRIPE_SECRET_KEY"),
         }
@@ -298,6 +352,7 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
             ("citrus-dev-media-gc", "media-gc"),
             ("citrus-dev-billing-worker", "billing-worker"),
             ("citrus-dev-billing-worker", "recurring-metrics"),
+            ("citrus-dev-recurring-preflight", "recurring-preflight"),
             ("citrus-dev-recurring-tick", "recurring-tick"),
             ("citrus-dev-recurring-health", "recurring-health"),
         }

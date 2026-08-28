@@ -14,6 +14,7 @@ metadata:
     app.kubernetes.io/component: recurring-tick
   annotations:
     argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.recurringRuntime | quote }}
+    citrus.grace/recurring-topology-revision: {{ .Values.recurringRuntime.topologyRevision | quote }}
 spec:
   schedule: {{ .Values.recurringRuntime.schedule | quote }}
   timeZone: {{ .Values.recurringRuntime.timeZone | quote }}
@@ -33,12 +34,14 @@ spec:
             {{- if .Values.paymentSafety.enabled }}
             {{- include "citrus.paymentSafety.podLabel" . | nindent 12 }}
             {{- end }}
-          {{- if .Values.paymentCredentials.enabled }}
           annotations:
+            citrus.grace/recurring-topology-revision: {{ .Values.recurringRuntime.topologyRevision | quote }}
+            {{- if .Values.paymentCredentials.enabled }}
             citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
-          {{- end }}
+            {{- end }}
         spec:
           {{- include "citrus.imagePullSecrets" . | nindent 10 }}
+          automountServiceAccountToken: false
           restartPolicy: OnFailure
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
@@ -54,6 +57,7 @@ spec:
               env:
                 {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 16 }}
                 {{- include "citrus.paymentSafety.env" . | nindent 16 }}
+                {{- include "citrus.recurringRuntime.env" (dict "revision" .Values.recurringRuntime.topologyRevision "expectedSourceRevision" .Values.recurringRuntime.expectedSourceRevision) | nindent 16 }}
                 {{- include "citrus.paymentCredentials.consumerEnv" . | nindent 16 }}
               {{- end }}
               envFrom:
@@ -88,6 +92,7 @@ metadata:
     app.kubernetes.io/component: recurring-health
   annotations:
     argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.recurringRuntime | quote }}
+    citrus.grace/recurring-topology-revision: {{ .Values.recurringRuntime.health.topologyRevision | quote }}
 spec:
   schedule: {{ .Values.recurringRuntime.health.schedule | quote }}
   timeZone: {{ .Values.recurringRuntime.timeZone | quote }}
@@ -107,12 +112,14 @@ spec:
             {{- if .Values.paymentSafety.enabled }}
             {{- include "citrus.paymentSafety.podLabel" . | nindent 12 }}
             {{- end }}
-          {{- if .Values.paymentCredentials.enabled }}
           annotations:
+            citrus.grace/recurring-topology-revision: {{ .Values.recurringRuntime.health.topologyRevision | quote }}
+            {{- if .Values.paymentCredentials.enabled }}
             citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
-          {{- end }}
+            {{- end }}
         spec:
           {{- include "citrus.imagePullSecrets" . | nindent 10 }}
+          automountServiceAccountToken: false
           restartPolicy: OnFailure
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
@@ -128,6 +135,7 @@ spec:
               env:
                 {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 16 }}
                 {{- include "citrus.paymentSafety.env" . | nindent 16 }}
+                {{- include "citrus.recurringRuntime.env" (dict "revision" .Values.recurringRuntime.health.topologyRevision "expectedSourceRevision" .Values.recurringRuntime.expectedSourceRevision) | nindent 16 }}
                 {{- include "citrus.paymentCredentials.consumerEnv" . | nindent 16 }}
               {{- end }}
               envFrom:

@@ -34,7 +34,7 @@ The historical dev image
 activation artifact. Its disabled-mode behavior can consume stale scheduled
 attempts, and its production startup validation requires Stripe, email, cache,
 Celery, media, and AWS settings that this DB-only Job must not receive. Current
-GitOps main pins dev to `4353f11595094bc4893b5799233cfd56c52aed89`, which still
+GitOps main pins dev to `2d186db052c50c763d0b9f58c89be99047ca77f2`, which still
 has that startup contract.
 
 The source-state correction merged as

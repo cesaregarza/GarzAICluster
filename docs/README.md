@@ -19,12 +19,14 @@ Read them in roughly this order when contributing here:
    Citrus Grace browser media uploads.
 11. `runbooks/citrus-payment-secret-isolation.md` – value-free, operator-gated
     Citrus dev payment credential deprojection and isolation procedure.
-12. `runbooks/citrus-sms-reconciliation.md` – disabled-by-default Citrus SMS
+12. `runbooks/citrus-recurring-runtime-preflight.md` – disabled-by-default
+    recurring controller preflight, topology binding, and rollback render.
+13. `runbooks/citrus-sms-reconciliation.md` – disabled-by-default Citrus SMS
     reconciliation scheduler gates, synthetic validation, and rollback.
-13. `../infra/ingress-nginx/README.md` – operator-gated CES-748 blue/green
+14. `../infra/ingress-nginx/README.md` – operator-gated CES-748 blue/green
     source-IP load-balancer activation and rollback.
-14. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
-15. `k8s/secrets.template.yaml` → `k8s/secrets.enc.yaml` – example flow for encrypted secrets.
+15. `developer-cheat-sheet.md` – quick reference for common commands/tasks after the split.
+16. `k8s/secrets.template.yaml` → `k8s/secrets.enc.yaml` – example flow for encrypted secrets.
 
 Supplemental references:
 
