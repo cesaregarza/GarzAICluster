@@ -1,5 +1,5 @@
 image:
-  tag: 390106dd9d42653c314316a12da34ad2b1b85440 # allow-latest
+  tag: 2d186db052c50c763d0b9f58c89be99047ca77f2 # allow-latest
 
 # Activate the CES-845 development deny boundary before retrying the guarded
 # source image. The current rollback image remains pinned for this first phase.
