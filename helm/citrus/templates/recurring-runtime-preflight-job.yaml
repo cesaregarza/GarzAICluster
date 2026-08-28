@@ -1,0 +1,68 @@
+{{- if .Values.recurringRuntime.preflight.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "citrus.fullname" . }}-recurring-preflight
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: recurring-preflight
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.recurringPreflight | quote }}
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    citrus.grace/recurring-topology-revision: {{ .Values.recurringRuntime.preflight.topologyRevision | quote }}
+spec:
+  activeDeadlineSeconds: {{ .Values.recurringRuntime.preflight.activeDeadlineSeconds }}
+  backoffLimit: {{ .Values.recurringRuntime.preflight.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "citrus.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: recurring-preflight
+        {{- include "citrus.paymentSafety.podLabel" . | nindent 8 }}
+      annotations:
+        citrus.grace/recurring-topology-revision: {{ .Values.recurringRuntime.preflight.topologyRevision | quote }}
+        {{- if .Values.paymentCredentials.enabled }}
+        citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
+        {{- end }}
+    spec:
+      {{- include "citrus.imagePullSecrets" . | nindent 6 }}
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: recurring-preflight
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.recurringRuntime.preflight.command | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
+            {{- include "citrus.paymentSafety.env" . | nindent 12 }}
+            {{- include "citrus.recurringRuntime.env" (dict "revision" .Values.recurringRuntime.preflight.topologyRevision "expectedSourceRevision" .Values.recurringRuntime.expectedSourceRevision) | nindent 12 }}
+            {{- include "citrus.paymentCredentials.consumerEnv" . | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.application.configMapName }}
+            {{- include "citrus.applicationRuntimeSecretEnvFrom" . | nindent 12 }}
+            {{- if .Values.application.emailSecretName }}
+            - secretRef:
+                name: {{ .Values.application.emailSecretName }}
+                optional: true
+            {{- end }}
+            {{- if .Values.application.spacesSecretName }}
+            - secretRef:
+                name: {{ .Values.application.spacesSecretName }}
+                optional: true
+            {{- end }}
+            {{- if .Values.application.generatedSecretName }}
+            - secretRef:
+                name: {{ .Values.application.generatedSecretName }}
+                optional: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.recurringRuntime.resources | nindent 12 }}
+{{- end }}

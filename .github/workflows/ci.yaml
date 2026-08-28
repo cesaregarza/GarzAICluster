@@ -309,6 +309,15 @@ jobs:
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" > "rendered/${{ matrix.chart.name }}-default.yaml"
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" -f "${{ matrix.chart.prod_values }}" > "rendered/${{ matrix.chart.name }}-prod.yaml"
 
+      - name: Render Citrus production, dev, payment, and safe runtime
+        if: matrix.chart.name == 'citrus'
+        run: >-
+          python3 scripts/check_citrus_recurring_runtime_render.py
+          --chart helm/citrus
+          --output-dir rendered
+          --helm helm
+          --skip-lint
+
       - name: Render Citrus production, dev, and optional workloads
         if: matrix.chart.name == 'citrus'
         run: |
@@ -332,11 +341,24 @@ jobs:
 
           # Exercise disabled-by-default consumers without contacting providers
           # or rendering any Secret object.
-          helm template citrus-ci-workloads "$chart" \
-            --namespace citrus-ci \
+          helm template citrus "$chart" \
+            --namespace default \
             -f "$chart/values.yaml" \
+            --set paymentSafety.enabled=true \
+            --set-string paymentSafety.environment=production \
+            --set-string paymentSafety.owner=citrus \
+            --set-string paymentSafety.networkMode=allow \
+            --set paymentSafety.policy.required=true \
+            --set-string paymentSafety.policy.provider=cilium \
+            --set-string paymentSafety.policy.revision=ces-850-ci \
+            --set paymentSafety.networkPolicy.enabled=true \
             --set billingWorker.enabled=true \
+            --set-string billingWorker.topologyRevision=ces-850-ci \
             --set recurringRuntime.enabled=true \
+            --set-string recurringRuntime.topologyRevision=ces-850-ci \
+            --set recurringRuntime.preflight.enabled=true \
+            --set-string recurringRuntime.preflight.topologyRevision=ces-850-ci \
+            --set-string recurringRuntime.health.topologyRevision=ces-850-ci \
             > rendered/citrus-optional-workloads.yaml
 
           # Schema-check the isolated suspended CronJob and its dedicated egress
@@ -382,7 +404,13 @@ jobs:
             -f "$chart/values-payment-prod.yaml" \
             --set-string image.tag=4353f11595094bc4893b5799233cfd56c52aed89 \
             --set billingWorker.enabled=true \
+            --set-string billingWorker.topologyRevision=ces-850-ci \
             --set recurringRuntime.enabled=true \
+            --set-string recurringRuntime.expectedSourceRevision=4353f11595094bc4893b5799233cfd56c52aed89 \
+            --set-string recurringRuntime.topologyRevision=ces-850-ci \
+            --set recurringRuntime.preflight.enabled=true \
+            --set-string recurringRuntime.preflight.topologyRevision=ces-850-ci \
+            --set-string recurringRuntime.health.topologyRevision=ces-850-ci \
             --set directOrderPaymentSweep.enabled=true \
             --set-string directOrderPaymentSweep.runtimeSecretName=citrus-ci-direct-order-runtime \
             --set-string directOrderPaymentSweep.verifiedImageTag=4353f11595094bc4893b5799233cfd56c52aed89 \
@@ -426,7 +454,12 @@ jobs:
             --set paymentSafety.networkPolicy.enabled=true \
             --set-string paymentSafety.networkPolicy.database.host=db.dev.example \
             --set billingWorker.enabled=true \
+            --set-string billingWorker.topologyRevision=ces-850-ci \
             --set recurringRuntime.enabled=true \
+            --set-string recurringRuntime.topologyRevision=ces-850-ci \
+            --set recurringRuntime.preflight.enabled=true \
+            --set-string recurringRuntime.preflight.topologyRevision=ces-850-ci \
+            --set-string recurringRuntime.health.topologyRevision=ces-850-ci \
             > rendered/citrus-payment-safety-dev.yaml
           helm template citrus "$chart" \
             --namespace default \
@@ -439,6 +472,13 @@ jobs:
             --set-string paymentSafety.policy.provider=cilium \
             --set-string paymentSafety.policy.revision=ces-845-ci \
             --set paymentSafety.networkPolicy.enabled=true \
+            --set billingWorker.enabled=true \
+            --set-string billingWorker.topologyRevision=ces-850-ci \
+            --set recurringRuntime.enabled=true \
+            --set-string recurringRuntime.topologyRevision=ces-850-ci \
+            --set recurringRuntime.preflight.enabled=true \
+            --set-string recurringRuntime.preflight.topologyRevision=ces-850-ci \
+            --set-string recurringRuntime.health.topologyRevision=ces-850-ci \
             > rendered/citrus-payment-safety-prod.yaml
 
           # Exercise CES-829 with synthetic references only. No Secret values,
@@ -481,6 +521,7 @@ jobs:
           grep -F 'app.kubernetes.io/component: media-requeue' rendered/citrus-prod.yaml >/dev/null
           grep -F 'app.kubernetes.io/component: media-gc' rendered/citrus-prod.yaml >/dev/null
           grep -F 'app.kubernetes.io/component: billing-worker' rendered/citrus-optional-workloads.yaml >/dev/null
+          grep -F 'app.kubernetes.io/component: recurring-preflight' rendered/citrus-optional-workloads.yaml >/dev/null
           grep -F 'app.kubernetes.io/component: recurring-tick' rendered/citrus-optional-workloads.yaml >/dev/null
           grep -F 'app.kubernetes.io/component: recurring-health' rendered/citrus-optional-workloads.yaml >/dev/null
           grep -F 'app.kubernetes.io/component: sms-reconciliation' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
@@ -529,6 +570,7 @@ jobs:
           fi
           schedulers=rendered/citrus-schedulers.yaml
           grep -F 'app.kubernetes.io/component: billing-worker' "$schedulers" >/dev/null
+          grep -F 'app.kubernetes.io/component: recurring-preflight' "$schedulers" >/dev/null
           grep -F 'app.kubernetes.io/component: recurring-tick' "$schedulers" >/dev/null
           grep -F 'app.kubernetes.io/component: recurring-health' "$schedulers" >/dev/null
           grep -F 'app.kubernetes.io/component: direct-order-payment-sweep' "$schedulers" >/dev/null
@@ -566,7 +608,7 @@ jobs:
           grep -F 'matchName: "citrus-media-dev.nyc3.digitaloceanspaces.com"' "$safety_dev" >/dev/null
           grep -F 'citrus.grace/payment-egress-policy-revision: "ces-845-ci"' "$safety_dev" >/dev/null
           grep -F 'value: "deny"' "$safety_dev" >/dev/null
-          test "$(grep -Fc 'name: PAYMENT_EGRESS_POLICY_REVISION' "$safety_dev")" -eq 9
+          test "$(grep -Fc 'name: PAYMENT_EGRESS_POLICY_REVISION' "$safety_dev")" -eq 10
           if grep -Ei 'matchName:.*stripe\.(com|network)' "$safety_dev" >/dev/null; then
             echo "Development payment egress render must omit every Stripe destination" >&2
             exit 1

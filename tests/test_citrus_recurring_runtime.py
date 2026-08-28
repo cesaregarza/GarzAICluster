@@ -39,12 +39,50 @@ def _render(
     if dev:
         command.extend(["-f", str(DEV_VALUES)])
     if activate:
-        command.extend([
-            "--set",
-            "billingWorker.enabled=true",
-            "--set",
-            "recurringRuntime.enabled=true",
-        ])
+        environment = "development" if dev else "production"
+        owner = "citrus-dev" if dev else "citrus"
+        mode = "deny" if dev else "allow"
+        command.extend(
+            [
+                "--set",
+                "paymentSafety.enabled=true",
+                "--set-string",
+                f"paymentSafety.environment={environment}",
+                "--set-string",
+                f"paymentSafety.owner={owner}",
+                "--set-string",
+                f"paymentSafety.networkMode={mode}",
+                "--set",
+                "paymentSafety.policy.required=true",
+                "--set-string",
+                "paymentSafety.policy.provider=cilium",
+                "--set-string",
+                "paymentSafety.policy.revision=ces-845-test",
+                "--set",
+                "paymentSafety.networkPolicy.enabled=true",
+                "--set",
+                "billingWorker.enabled=true",
+                "--set-string",
+                "billingWorker.topologyRevision=ces-850-test",
+                "--set",
+                "recurringRuntime.enabled=true",
+                "--set-string",
+                "recurringRuntime.topologyRevision=ces-850-test",
+                "--set",
+                "recurringRuntime.preflight.enabled=true",
+                "--set-string",
+                "recurringRuntime.preflight.topologyRevision=ces-850-test",
+                "--set-string",
+                "recurringRuntime.health.topologyRevision=ces-850-test",
+            ]
+        )
+        if dev:
+            command.extend(
+                [
+                    "--set-string",
+                    "paymentSafety.networkPolicy.database.host=db.dev.example",
+                ]
+            )
     if queue is not None:
         command.extend([
             "--set-string",
@@ -137,9 +175,11 @@ class CitrusRecurringRuntimeChartTests(unittest.TestCase):
                 self.assertNotIn("citrus-billing-worker", names)
                 self.assertNotIn("citrus-recurring-tick", names)
                 self.assertNotIn("citrus-recurring-health", names)
+                self.assertNotIn("citrus-recurring-preflight", names)
                 self.assertNotIn("citrus-dev-billing-worker", names)
                 self.assertNotIn("citrus-dev-recurring-tick", names)
                 self.assertNotIn("citrus-dev-recurring-health", names)
+                self.assertNotIn("citrus-dev-recurring-preflight", names)
 
     def test_config_map_keeps_every_activation_gate_fail_closed(self) -> None:
         config = _named(self.dev, "ConfigMap", "django-config")["data"]
@@ -229,23 +269,74 @@ class CitrusRecurringRuntimeChartTests(unittest.TestCase):
             metrics_disabled.stderr,
         )
 
-        documents = _render(
-            dev=True,
-            activate=True,
-            queue="billing-priority",
+        wrong_queue = subprocess.run(
+            [
+                "helm",
+                "template",
+                "citrus-dev",
+                str(CHART_PATH),
+                "--namespace",
+                "citrus-dev",
+                "-f",
+                str(DEV_VALUES),
+                "--set",
+                "paymentSafety.enabled=true",
+                "--set-string",
+                "paymentSafety.environment=development",
+                "--set-string",
+                "paymentSafety.owner=citrus-dev",
+                "--set-string",
+                "paymentSafety.networkMode=deny",
+                "--set",
+                "paymentSafety.policy.required=true",
+                "--set-string",
+                "paymentSafety.policy.provider=cilium",
+                "--set-string",
+                "paymentSafety.policy.revision=ces-845-test",
+                "--set",
+                "paymentSafety.networkPolicy.enabled=true",
+                "--set-string",
+                "paymentSafety.networkPolicy.database.host=db.dev.example",
+                "--set",
+                "billingWorker.enabled=true",
+                "--set-string",
+                "billingWorker.topologyRevision=ces-850-test",
+                "--set",
+                "recurringRuntime.enabled=true",
+                "--set-string",
+                "recurringRuntime.topologyRevision=ces-850-test",
+                "--set",
+                "recurringRuntime.preflight.enabled=true",
+                "--set-string",
+                "recurringRuntime.preflight.topologyRevision=ces-850-test",
+                "--set-string",
+                "recurringRuntime.health.topologyRevision=ces-850-test",
+                "--set-string",
+                "application.configData.RECURRING_BILLING_QUEUE=billing-priority",
+            ],
+            check=False,
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
         )
-        config = _named(documents, "ConfigMap", "django-config")["data"]
+        self.assertNotEqual(wrong_queue.returncode, 0)
+        self.assertIn(
+            "RECURRING_BILLING_QUEUE must be billing",
+            wrong_queue.stderr,
+        )
+
+        config = _named(self.activated, "ConfigMap", "django-config")["data"]
         deployment = _named(
-            documents,
+            self.activated,
             "Deployment",
             "citrus-dev-billing-worker",
         )
         worker = deployment["spec"]["template"]["spec"]["containers"][0]
         self.assertEqual(
             config["RECURRING_BILLING_QUEUE"],
-            "billing-priority",
+            "billing",
         )
-        self.assertIn("--queues=billing-priority", worker["args"][0])
+        self.assertIn("--queues=billing", worker["args"][0])
 
     def test_activated_cronjobs_are_utc_bounded_and_non_root(self) -> None:
         for suffix in ("tick", "health"):

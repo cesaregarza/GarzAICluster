@@ -1,6 +1,7 @@
 {{- include "citrus.cloudflareAccess.validate" . }}
 {{- include "citrus.paymentCredentials.validate" . }}
 {{- include "citrus.paymentSafety.validate" . }}
+{{- include "citrus.recurringRuntime.validate" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

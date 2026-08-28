@@ -19,7 +19,7 @@ policy.
 When `paymentSafety.enabled=true`, the chart injects the same attestation into
 every Citrus image container in the web Deployment, media worker, billing
 worker and metrics sidecar, migration Job, and all media and recurring
-CronJobs:
+CronJobs, plus the recurring runtime preflight Job:
 
 - `DJANGO_ENV`
 - `CITRUS_ENVIRONMENT_OWNER`
@@ -43,7 +43,8 @@ serving workloads.
 The boundary deliberately uses two selectors over labels that already exist
 before activation. One selects the web, media-worker, and billing-worker
 Deployment Pods by their stable `app` values. The other selects migration,
-media, and recurring batch Pods by release and an explicit component list.
+media, recurring preflight, and recurring CronJob Pods by release and an
+explicit component list.
 This closes the activation window before old Pods or old CronJob templates are
 replaced. Render tests require every current and enabled Citrus image workload
 to match at least one selector and require Redis to match neither.

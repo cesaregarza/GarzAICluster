@@ -348,6 +348,180 @@ attestation; an env-only claim is intentionally rejected.
 {{- end -}}
 {{- end }}
 
+{{/*
+Validate the disabled-by-default CES-850 recurring runtime topology. Any one
+runtime component being requested makes the complete topology mandatory; a
+partial render must never create a controller that bypasses the preflight.
+*/}}
+{{- define "citrus.recurringRuntime.validate" -}}
+{{- $runtimeRequested := or .Values.billingWorker.enabled .Values.recurringRuntime.enabled .Values.recurringRuntime.preflight.enabled -}}
+{{- if .Values.recurringRuntime.enabled -}}
+{{- if not .Values.billingWorker.enabled -}}
+{{- fail "recurringRuntime.enabled requires billingWorker.enabled so published work always has a consumer" -}}
+{{- end -}}
+{{- if not .Values.billingWorker.metrics.enabled -}}
+{{- fail "recurringRuntime.enabled requires billingWorker.metrics.enabled so runtime health cannot fail open" -}}
+{{- end -}}
+{{- end -}}
+{{- if $runtimeRequested -}}
+{{- if not .Values.billingWorker.enabled -}}
+{{- fail "the recurring runtime topology requires billingWorker.enabled=true" -}}
+{{- end -}}
+{{- if ne (int .Values.billingWorker.replicas) 1 -}}
+{{- fail "billingWorker.replicas must be exactly 1 for the first recurring runtime activation" -}}
+{{- end -}}
+{{- if not .Values.recurringRuntime.enabled -}}
+{{- fail "the recurring runtime topology requires recurringRuntime.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.recurringRuntime.preflight.enabled -}}
+{{- fail "the recurring runtime topology requires recurringRuntime.preflight.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.recurringRuntime.health.enabled -}}
+{{- fail "the recurring runtime topology requires recurringRuntime.health.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.billingWorker.metrics.enabled -}}
+{{- fail "the recurring runtime topology requires billingWorker.metrics.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.paymentSafety.enabled -}}
+{{- fail "the recurring runtime topology requires paymentSafety.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.migrations.enabled -}}
+{{- fail "the recurring runtime topology requires migrations.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.redis.enabled -}}
+{{- fail "the recurring runtime topology requires redis.enabled=true" -}}
+{{- end -}}
+{{- $imageTag := required "image.tag is required when the recurring runtime topology is enabled" .Values.image.tag -}}
+{{- if not (regexMatch "^[0-9a-f]{40}$" (toString $imageTag)) -}}
+{{- fail "image.tag must be an exact 40-character lowercase source revision when the recurring runtime topology is enabled" -}}
+{{- end -}}
+{{- $expectedSourceRevision := required "recurringRuntime.expectedSourceRevision is required when the recurring runtime topology is enabled" .Values.recurringRuntime.expectedSourceRevision -}}
+{{- if not (regexMatch "^[0-9a-f]{40}$" (toString $expectedSourceRevision)) -}}
+{{- fail "recurringRuntime.expectedSourceRevision must be an exact 40-character lowercase source revision when the recurring runtime topology is enabled" -}}
+{{- end -}}
+{{- if ne (toString $expectedSourceRevision) (toString $imageTag) -}}
+{{- fail "recurringRuntime.expectedSourceRevision must match image.tag exactly when the recurring runtime topology is enabled" -}}
+{{- end -}}
+
+{{- $environment := .Values.paymentSafety.environment -}}
+{{- if eq $environment "development" -}}
+{{- if or (ne .Release.Name "citrus-dev") (ne .Release.Namespace "citrus-dev") (ne .Values.paymentSafety.owner "citrus-dev") -}}
+{{- fail "development recurring runtime requires release citrus-dev in namespace citrus-dev owned by citrus-dev" -}}
+{{- end -}}
+{{- else if eq $environment "production" -}}
+{{- if or (ne .Release.Name "citrus") (ne .Release.Namespace "default") (ne .Values.paymentSafety.owner "citrus") -}}
+{{- fail "production recurring runtime requires release citrus in namespace default owned by citrus" -}}
+{{- end -}}
+{{- else -}}
+{{- fail "the recurring runtime topology requires a named development or production paymentSafety.environment" -}}
+{{- end -}}
+
+{{- if ne .Values.recurringRuntime.scheduler "kubernetes-cronjob" -}}
+{{- fail "recurringRuntime.scheduler must be kubernetes-cronjob" -}}
+{{- end -}}
+{{- $topologyRevision := required "recurringRuntime.topologyRevision is required when the recurring runtime topology is enabled" .Values.recurringRuntime.topologyRevision -}}
+{{- if not (regexMatch "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$" $topologyRevision) -}}
+{{- fail "recurringRuntime.topologyRevision must be a semantic revision of 1-63 safe characters" -}}
+{{- end -}}
+{{- $workerRevision := required "billingWorker.topologyRevision is required when the recurring runtime topology is enabled" .Values.billingWorker.topologyRevision -}}
+{{- $preflightRevision := required "recurringRuntime.preflight.topologyRevision is required when the recurring runtime topology is enabled" .Values.recurringRuntime.preflight.topologyRevision -}}
+{{- $healthRevision := required "recurringRuntime.health.topologyRevision is required when the recurring runtime topology is enabled" .Values.recurringRuntime.health.topologyRevision -}}
+{{- if or (ne $workerRevision $topologyRevision) (ne $preflightRevision $topologyRevision) (ne $healthRevision $topologyRevision) -}}
+{{- fail "billing worker, preflight, tick, and health topology revisions must match exactly" -}}
+{{- end -}}
+
+{{- if ne (toString .Values.application.configData.RECURRING_BILLING_QUEUE) "billing" -}}
+{{- fail "application.configData.RECURRING_BILLING_QUEUE must be billing for the recurring runtime topology" -}}
+{{- end -}}
+{{- if ne (lower (toString .Values.application.configData.RECURRING_ORDER_ENROLLMENT_MODE)) "off" -}}
+{{- fail "RECURRING_ORDER_ENROLLMENT_MODE must remain off during runtime preflight" -}}
+{{- end -}}
+{{- if ne (toString .Values.application.configData.RECURRING_ORDER_ENROLLMENT_ALLOWLIST) "" -}}
+{{- fail "RECURRING_ORDER_ENROLLMENT_ALLOWLIST must remain empty during runtime preflight" -}}
+{{- end -}}
+{{- if ne (lower (toString .Values.application.configData.RECURRING_ORDER_COHORT_MODE)) "off" -}}
+{{- fail "RECURRING_ORDER_COHORT_MODE must remain off during runtime preflight" -}}
+{{- end -}}
+{{- if ne (toString .Values.application.configData.RECURRING_ORDER_COHORT_ALLOWLIST) "" -}}
+{{- fail "RECURRING_ORDER_COHORT_ALLOWLIST must remain empty during runtime preflight" -}}
+{{- end -}}
+{{- if ne (lower (toString .Values.application.configData.RECURRING_REMINDERS_ENABLED)) "false" -}}
+{{- fail "RECURRING_REMINDERS_ENABLED must remain false during runtime preflight" -}}
+{{- end -}}
+{{- if ne (lower (toString .Values.application.configData.RECURRING_CHARGING_ENABLED)) "false" -}}
+{{- fail "RECURRING_CHARGING_ENABLED must remain false during runtime preflight" -}}
+{{- end -}}
+{{- if ne (lower (toString .Values.application.configData.RECURRING_CHARGE_EMERGENCY_STOP)) "true" -}}
+{{- fail "RECURRING_CHARGE_EMERGENCY_STOP must remain true during runtime preflight" -}}
+{{- end -}}
+{{- if ne (lower (toString .Values.application.configData.CELERY_TASK_ALWAYS_EAGER)) "false" -}}
+{{- fail "CELERY_TASK_ALWAYS_EAGER must remain false for the recurring runtime scheduler" -}}
+{{- end -}}
+{{- $brokerURL := printf "redis://%s:%d/1" .Values.redis.name (int .Values.redis.service.port) -}}
+{{- if ne (toString .Values.application.configData.CELERY_BROKER_URL) $brokerURL -}}
+{{- fail "CELERY_BROKER_URL must select the same-release Redis billing broker" -}}
+{{- end -}}
+
+{{- $preflightCommand := list "python" "manage.py" "preflight_recurring_runtime" "--include-broker" "--format=json" -}}
+{{- if not (deepEqual .Values.recurringRuntime.preflight.command $preflightCommand) -}}
+{{- fail "recurringRuntime.preflight.command must use the provider-free recurring runtime preflight" -}}
+{{- end -}}
+{{- if ne (int .Values.recurringRuntime.preflight.backoffLimit) 0 -}}
+{{- fail "recurringRuntime.preflight.backoffLimit must be 0" -}}
+{{- end -}}
+{{- $healthCommand := list "python" "manage.py" "check_recurring_runtime" "--include-broker" "--format=json" "--fail-on-alert" -}}
+{{- if not (deepEqual .Values.recurringRuntime.health.command $healthCommand) -}}
+{{- fail "recurringRuntime.health.command must use the fail-closed recurring runtime health check" -}}
+{{- end -}}
+{{- $tickCommand := list "python" "manage.py" "tick_recurring_orders" "--scan-limit=100" "--dispatch-limit=100" -}}
+{{- if not (deepEqual .Values.recurringRuntime.command $tickCommand) -}}
+{{- fail "recurringRuntime.command must use the bounded recurring runtime tick" -}}
+{{- end -}}
+{{- if ne .Values.recurringRuntime.schedule "*/5 * * * *" -}}
+{{- fail "recurringRuntime.schedule must be exactly */5 * * * *" -}}
+{{- end -}}
+{{- if ne .Values.recurringRuntime.health.schedule "2-59/5 * * * *" -}}
+{{- fail "recurringRuntime.health.schedule must be exactly 2-59/5 * * * *" -}}
+{{- end -}}
+{{- if ne .Values.recurringRuntime.timeZone "Etc/UTC" -}}
+{{- fail "recurringRuntime.timeZone must be Etc/UTC" -}}
+{{- end -}}
+{{- if ne .Values.recurringRuntime.concurrencyPolicy "Forbid" -}}
+{{- fail "recurringRuntime.concurrencyPolicy must be Forbid" -}}
+{{- end -}}
+
+{{- if not (regexMatch "^-?[0-9]+$" (toString .Values.syncWaves.migrations)) -}}
+{{- fail "syncWaves.migrations must be an integer string" -}}
+{{- end -}}
+{{- if not (regexMatch "^-?[0-9]+$" (toString .Values.syncWaves.recurringPreflight)) -}}
+{{- fail "syncWaves.recurringPreflight must be an integer string" -}}
+{{- end -}}
+{{- if not (regexMatch "^-?[0-9]+$" (toString .Values.syncWaves.billingWorker)) -}}
+{{- fail "syncWaves.billingWorker must be an integer string" -}}
+{{- end -}}
+{{- if not (regexMatch "^-?[0-9]+$" (toString .Values.syncWaves.recurringRuntime)) -}}
+{{- fail "syncWaves.recurringRuntime must be an integer string" -}}
+{{- end -}}
+{{- $migrationWave := int .Values.syncWaves.migrations -}}
+{{- $preflightWave := int .Values.syncWaves.recurringPreflight -}}
+{{- $workerWave := int .Values.syncWaves.billingWorker -}}
+{{- $runtimeWave := int .Values.syncWaves.recurringRuntime -}}
+{{- if or (le $preflightWave $migrationWave) (ge $preflightWave $workerWave) (ge $preflightWave $runtimeWave) -}}
+{{- fail "syncWaves.recurringPreflight must be after migrations and before billingWorker and recurringRuntime" -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/* Same nonsecret topology attestation for each recurring runtime process. */}}
+{{- define "citrus.recurringRuntime.env" -}}
+- name: RECURRING_RUNTIME_TOPOLOGY_REVISION
+  value: {{ .revision | quote }}
+- name: RECURRING_RUNTIME_SCHEDULER
+  value: "kubernetes-cronjob"
+- name: CITRUS_EXPECTED_SOURCE_REVISION
+  value: {{ .expectedSourceRevision | quote }}
+{{- end }}
+
 {{/* Runtime ownership and policy attestation for every Citrus process. */}}
 {{- define "citrus.paymentSafety.env" -}}
 {{- if .Values.paymentSafety.enabled }}

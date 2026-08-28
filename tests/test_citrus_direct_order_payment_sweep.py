@@ -623,8 +623,20 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
             [
                 "--set",
                 "billingWorker.enabled=true",
+                "--set-string",
+                "billingWorker.topologyRevision=ces-850-test",
                 "--set",
                 "recurringRuntime.enabled=true",
+                "--set-string",
+                f"recurringRuntime.expectedSourceRevision={COMMAND_IMAGE_TAG}",
+                "--set-string",
+                "recurringRuntime.topologyRevision=ces-850-test",
+                "--set",
+                "recurringRuntime.preflight.enabled=true",
+                "--set-string",
+                "recurringRuntime.preflight.topologyRevision=ces-850-test",
+                "--set-string",
+                "recurringRuntime.health.topologyRevision=ces-850-test",
             ]
         )
         documents = _documents(command)
@@ -637,6 +649,7 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
         self.assertTrue(
             {
                 "billing-worker",
+                "recurring-preflight",
                 "recurring-tick",
                 "recurring-health",
                 "direct-order-payment-sweep",

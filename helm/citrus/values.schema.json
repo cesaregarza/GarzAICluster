@@ -19,6 +19,10 @@
           "type": "string",
           "pattern": "^[0-9]+$",
           "const": "3"
+        },
+        "recurringPreflight": {
+          "type": "string",
+          "pattern": "^-?[0-9]+$"
         }
       }
     },
@@ -640,6 +644,105 @@
         }
       ]
     },
+    "billingWorker": {
+      "type": "object",
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "const": 1
+        },
+        "topologyRevision": {
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        }
+      }
+    },
+    "recurringRuntime": {
+      "type": "object",
+      "properties": {
+        "expectedSourceRevision": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-f]{40}$"
+        },
+        "command": {
+          "type": "array",
+          "const": [
+            "python",
+            "manage.py",
+            "tick_recurring_orders",
+            "--scan-limit=100",
+            "--dispatch-limit=100"
+          ]
+        },
+        "scheduler": {
+          "type": "string",
+          "enum": ["kubernetes-cronjob"]
+        },
+        "schedule": {
+          "type": "string",
+          "const": "*/5 * * * *"
+        },
+        "topologyRevision": {
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "preflight": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "topologyRevision",
+            "activeDeadlineSeconds",
+            "backoffLimit",
+            "command"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "topologyRevision": {
+              "type": "string",
+              "maxLength": 63,
+              "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "activeDeadlineSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 900
+            },
+            "backoffLimit": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "command": {
+              "type": "array",
+              "minItems": 5,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "health": {
+          "type": "object",
+          "properties": {
+            "schedule": {
+              "type": "string",
+              "const": "2-59/5 * * * *"
+            },
+            "topologyRevision": {
+              "type": "string",
+              "maxLength": 63,
+              "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }
+          }
+        }
+      }
+    },
     "directOrderPaymentSweep": {
       "type": "object",
       "additionalProperties": false,
@@ -762,7 +865,7 @@
                   "type": "string",
                   "const": "512Mi"
                 }
-              }
+                }
             }
           }
         }

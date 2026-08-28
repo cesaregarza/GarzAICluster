@@ -9,6 +9,9 @@ from ruamel.yaml import YAML
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yaml"
+RENDER_CHECK_PATH = (
+    REPO_ROOT / "scripts" / "check_citrus_recurring_runtime_render.py"
+)
 YAML_PARSER = YAML(typ="safe")
 
 
@@ -59,7 +62,47 @@ class CitrusCiContractTests(unittest.TestCase):
             'helm lint "${{ matrix.chart.path }}"',
         )
 
-    def test_actual_environment_and_optional_renders_are_distinct(self) -> None:
+    def test_python_contracts_pin_the_helm_negative_test_version(self) -> None:
+        steps = _workflow()["jobs"]["python-contracts"]["steps"]
+        named_steps = {
+            step["name"]: step
+            for step in steps
+            if isinstance(step, dict) and "name" in step
+        }
+        self.assertEqual(
+            named_steps["Set up Helm for chart contract tests"],
+            {
+                "name": "Set up Helm for chart contract tests",
+                "uses": "azure/setup-helm@v4",
+                "with": {"version": "v3.14.0"},
+            },
+        )
+        names = [
+            step.get("name")
+            for step in steps
+            if isinstance(step, dict)
+        ]
+        self.assertLess(
+            names.index("Set up Helm for chart contract tests"),
+            names.index("Run Python contract tests"),
+        )
+
+    def test_actual_environment_and_safe_runtime_renders_are_distinct(self) -> None:
+        step = self.steps[
+            "Render Citrus production, dev, payment, and safe runtime"
+        ]
+        self.assertEqual(step["if"], "matrix.chart.name == 'citrus'")
+        run = " ".join(step["run"].split())
+        self.assertEqual(
+            run,
+            (
+                "python3 scripts/check_citrus_recurring_runtime_render.py "
+                "--chart helm/citrus --output-dir rendered --helm helm "
+                "--skip-lint"
+            ),
+        )
+
+    def test_current_safeguard_render_matrix_is_preserved(self) -> None:
         step = self.steps[
             "Render Citrus production, dev, and optional workloads"
         ]
@@ -77,10 +120,25 @@ class CitrusCiContractTests(unittest.TestCase):
                 '> rendered/citrus-dev.yaml'
             ),
             (
-                'helm template citrus-ci-workloads "$chart" '
-                '--namespace citrus-ci -f "$chart/values.yaml" '
+                'helm template citrus "$chart" '
+                '--namespace default -f "$chart/values.yaml" '
+                '--set paymentSafety.enabled=true '
+                '--set-string paymentSafety.environment=production '
+                '--set-string paymentSafety.owner=citrus '
+                '--set-string paymentSafety.networkMode=allow '
+                '--set paymentSafety.policy.required=true '
+                '--set-string paymentSafety.policy.provider=cilium '
+                '--set-string paymentSafety.policy.revision=ces-850-ci '
+                '--set paymentSafety.networkPolicy.enabled=true '
                 '--set billingWorker.enabled=true '
+                '--set-string billingWorker.topologyRevision=ces-850-ci '
                 '--set recurringRuntime.enabled=true '
+                '--set-string recurringRuntime.topologyRevision=ces-850-ci '
+                '--set recurringRuntime.preflight.enabled=true '
+                '--set-string '
+                'recurringRuntime.preflight.topologyRevision=ces-850-ci '
+                '--set-string '
+                'recurringRuntime.health.topologyRevision=ces-850-ci '
                 '> rendered/citrus-optional-workloads.yaml'
             ),
             (
@@ -139,7 +197,16 @@ class CitrusCiContractTests(unittest.TestCase):
                 '--set-string '
                 'image.tag=4353f11595094bc4893b5799233cfd56c52aed89 '
                 '--set billingWorker.enabled=true '
+                '--set-string billingWorker.topologyRevision=ces-850-ci '
                 '--set recurringRuntime.enabled=true '
+                '--set-string recurringRuntime.expectedSourceRevision='
+                '4353f11595094bc4893b5799233cfd56c52aed89 '
+                '--set-string recurringRuntime.topologyRevision=ces-850-ci '
+                '--set recurringRuntime.preflight.enabled=true '
+                '--set-string '
+                'recurringRuntime.preflight.topologyRevision=ces-850-ci '
+                '--set-string '
+                'recurringRuntime.health.topologyRevision=ces-850-ci '
                 '--set directOrderPaymentSweep.enabled=true '
                 '--set-string directOrderPaymentSweep.runtimeSecretName='
                 'citrus-ci-direct-order-runtime '
@@ -183,7 +250,14 @@ class CitrusCiContractTests(unittest.TestCase):
                 '--set-string '
                 'paymentSafety.networkPolicy.database.host=db.dev.example '
                 '--set billingWorker.enabled=true '
+                '--set-string billingWorker.topologyRevision=ces-850-ci '
                 '--set recurringRuntime.enabled=true '
+                '--set-string recurringRuntime.topologyRevision=ces-850-ci '
+                '--set recurringRuntime.preflight.enabled=true '
+                '--set-string '
+                'recurringRuntime.preflight.topologyRevision=ces-850-ci '
+                '--set-string '
+                'recurringRuntime.health.topologyRevision=ces-850-ci '
                 '> rendered/citrus-payment-safety-dev.yaml'
             ),
             (
@@ -197,6 +271,15 @@ class CitrusCiContractTests(unittest.TestCase):
                 '--set-string paymentSafety.policy.provider=cilium '
                 '--set-string paymentSafety.policy.revision=ces-845-ci '
                 '--set paymentSafety.networkPolicy.enabled=true '
+                '--set billingWorker.enabled=true '
+                '--set-string billingWorker.topologyRevision=ces-850-ci '
+                '--set recurringRuntime.enabled=true '
+                '--set-string recurringRuntime.topologyRevision=ces-850-ci '
+                '--set recurringRuntime.preflight.enabled=true '
+                '--set-string '
+                'recurringRuntime.preflight.topologyRevision=ces-850-ci '
+                '--set-string '
+                'recurringRuntime.health.topologyRevision=ces-850-ci '
                 '> rendered/citrus-payment-safety-prod.yaml'
             ),
             (
@@ -217,15 +300,37 @@ class CitrusCiContractTests(unittest.TestCase):
                 self.assertIn(expected, run)
 
     def test_workload_coverage_and_secret_exclusion_are_enforced(self) -> None:
-        run = self.steps["Verify Citrus workload render coverage"]["run"]
+        checker = RENDER_CHECK_PATH.read_text(encoding="utf-8")
         for component in (
             "migrations",
             "media-worker",
             "media-requeue",
             "media-gc",
             "billing-worker",
+            "recurring-preflight",
             "recurring-tick",
             "recurring-health",
+        ):
+            with self.subTest(component=component):
+                self.assertIn(
+                    f"app.kubernetes.io/component: {component}",
+                    checker,
+                )
+        for marker in (
+            "app: citrus-web",
+            "app.kubernetes.io/instance: citrus\\n",
+            "app.kubernetes.io/instance: citrus-dev\\n",
+            'ALLOWED_HOSTS: "citrus-grace.com,www.citrus-grace.com"',
+            'SITE_NAME: "Citrus Grace Dev"',
+            "    - host: dev.citrus-grace.com",
+            'matchName: "citrus-media-dev.nyc3.digitaloceanspaces.com"',
+            'citrus.grace/payment-egress-policy-revision: "ces-845-ci"',
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, checker)
+
+        run = self.steps["Verify Citrus workload render coverage"]["run"]
+        for component in (
             "sms-reconciliation",
             "direct-order-payment-sweep",
         ):
@@ -245,6 +350,10 @@ class CitrusCiContractTests(unittest.TestCase):
         self.assertIn(
             "Citrus CI renders must never contain Secret objects",
             run,
+        )
+        self.assertIn(
+            "must never render a Secret object",
+            checker,
         )
         self.assertIn(
             "Actual Citrus environment renders must keep SMS reconciliation disabled",
@@ -278,6 +387,14 @@ class CitrusCiContractTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, run)
+        for expected in (
+            "citrus-payment-safety-dev",
+            "citrus-payment-safety-prod",
+            "RECURRING_RUNTIME_TOPOLOGY_REVISION",
+            "must omit every Stripe destination",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, checker)
         for expected in (
             "active_dev=rendered/citrus-dev.yaml",
             "grep -Ec '^kind:[[:space:]]+CiliumNetworkPolicy$'",
