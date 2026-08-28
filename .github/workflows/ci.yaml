@@ -5,6 +5,10 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+  # Run on merge-queue batches so the required check reports on merge_group
+  # events — required for GitHub merge queue (replaces the strict
+  # "up to date before merging" rebase requirement).
+  merge_group:
 
 permissions:
   contents: read
