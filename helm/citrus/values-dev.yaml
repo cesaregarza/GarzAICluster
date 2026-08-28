@@ -1,6 +1,25 @@
 image:
   tag: 2d186db052c50c763d0b9f58c89be99047ca77f2 # allow-latest
 
+# Activate the CES-845 development deny boundary before retrying the guarded
+# source image. The current rollback image remains pinned for this first phase.
+paymentSafety:
+  enabled: true
+  environment: development
+  owner: citrus-dev
+  networkMode: deny
+  policy:
+    required: true
+    provider: cilium
+    revision: ces-845-dev-v1
+  networkPolicy:
+    enabled: true
+    syncWave: "-1"
+    database:
+      host: "private-db-postgresql-nyc3-xscraper-do-user-15543770-0.c.db.ondigitalocean.com"
+      port: 25060
+    additionalExternalEgress: []
+
 strategy:
   type: RollingUpdate
   rollingUpdate:

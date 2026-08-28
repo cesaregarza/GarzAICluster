@@ -122,10 +122,10 @@ paymentCredentials:
   webhookSecretName: ""
   webhookSecretKey: ""
 
-# Disabled preparation for CES-845. Enabling this contract injects explicit
-# runtime ownership into every Citrus process and renders a same-release Cilium
-# egress policy before migrations or serving workloads. The current Argo
-# Applications leave it disabled, so merging the chart support is inert.
+# Disabled-by-default CES-845 contract. Enabling it injects explicit runtime
+# ownership into every Citrus process and renders same-release Cilium egress
+# policies before migrations or serving workloads. Base and production values
+# remain disabled; an environment overlay may activate the contract explicitly.
 paymentSafety:
   enabled: false
   environment: ""

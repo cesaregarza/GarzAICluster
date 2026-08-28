@@ -14,12 +14,14 @@ from ruamel.yaml import YAML
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHART_PATH = REPO_ROOT / "helm" / "citrus"
 DEV_VALUES = CHART_PATH / "values-dev.yaml"
+DEV_PAYMENT_VALUES = CHART_PATH / "values-payment-dev.yaml"
 PROJECT_PATH = REPO_ROOT / "argocd" / "projects" / "splattop-project.yaml"
 RUNBOOK_PATH = (
     REPO_ROOT / "docs" / "runbooks" / "citrus-payment-egress-safety.md"
 )
 YAML_PARSER = YAML(typ="safe")
 APP_IMAGE = "registry.digitalocean.com/sendouq/citrus:"
+ACTIVE_DEV_REVISION = "ces-845-dev-v1"
 ATTESTATION = {
     "DJANGO_ENV",
     "CITRUS_ENVIRONMENT_OWNER",
@@ -58,6 +60,8 @@ def _helm_command(*, development: bool, enabled: bool) -> list[str]:
     if development:
         command.extend(["-f", str(DEV_VALUES)])
     if not enabled:
+        if development:
+            command.extend(["--set", "paymentSafety.enabled=false"])
         return command
 
     environment = "development" if development else "production"
@@ -91,6 +95,23 @@ def _helm_command(*, development: bool, enabled: bool) -> list[str]:
             ]
         )
     return command
+
+
+def _actual_dev_command() -> list[str]:
+    return [
+        "helm",
+        "template",
+        "citrus-dev",
+        str(CHART_PATH),
+        "--namespace",
+        "citrus-dev",
+        "-f",
+        str(CHART_PATH / "values.yaml"),
+        "-f",
+        str(DEV_VALUES),
+        "-f",
+        str(DEV_PAYMENT_VALUES),
+    ]
 
 
 def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -192,9 +213,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
         cls.default_prod = _documents(
             _helm_command(development=False, enabled=False)
         )
-        cls.default_dev = _documents(
-            _helm_command(development=True, enabled=False)
-        )
+        cls.actual_dev = _documents(_actual_dev_command())
 
         legacy_dev_command = _helm_command(development=True, enabled=False)
         legacy_dev_command.extend(
@@ -236,33 +255,121 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
         )
         cls.explicit_prod = _documents(prod_command)
 
-    def test_current_argo_renders_remain_inert(self) -> None:
-        for documents in (self.default_prod, self.default_dev):
-            self.assertFalse(
-                any(
-                    document.get("kind") == "CiliumNetworkPolicy"
-                    for document in documents
-                )
+    def test_current_argo_activates_only_development_deny_mode(self) -> None:
+        self.assertFalse(
+            any(
+                document.get("kind") == "CiliumNetworkPolicy"
+                for document in self.default_prod
             )
-            for workload in _app_workloads(documents):
-                template = _pod_template(workload)
-                self.assertNotIn(
-                    "citrus.grace/payment-egress-boundary",
-                    template.get("metadata", {}).get("labels", {}),
-                )
-                for container in template["spec"]["containers"]:
-                    if not str(container.get("image", "")).startswith(APP_IMAGE):
-                        continue
-                    self.assertTrue(
-                        ATTESTATION.isdisjoint(_env(container)),
-                        f"{workload['metadata']['name']}/{container['name']}",
-                    )
+        )
+        for workload in _app_workloads(self.default_prod):
+            template = _pod_template(workload)
+            self.assertNotIn(
+                "citrus.grace/payment-egress-boundary",
+                template.get("metadata", {}).get("labels", {}),
+            )
+            for container in template["spec"]["containers"]:
+                if str(container.get("image", "")).startswith(APP_IMAGE):
+                    self.assertTrue(ATTESTATION.isdisjoint(_env(container)))
 
-        for application in ("citrus.yaml", "citrus-dev.yaml"):
-            contents = (
-                REPO_ROOT / "argocd" / "applications" / application
-            ).read_text(encoding="utf-8")
-            self.assertNotIn("payment-safety", contents)
+        policies = [
+            document
+            for document in self.actual_dev
+            if document.get("kind") == "CiliumNetworkPolicy"
+        ]
+        self.assertEqual(
+            {policy["metadata"]["name"] for policy in policies},
+            {
+                "citrus-dev-payment-egress",
+                "citrus-dev-payment-egress-batch",
+            },
+        )
+        for policy in policies:
+            self.assertEqual(
+                policy["metadata"]["annotations"][
+                    "argocd.argoproj.io/sync-wave"
+                ],
+                "-1",
+            )
+            self.assertEqual(
+                policy["metadata"]["annotations"][
+                    "citrus.grace/payment-egress-policy-revision"
+                ],
+                ACTIVE_DEV_REVISION,
+            )
+            self.assertFalse(
+                any("toEntities" in rule for rule in policy["spec"]["egress"])
+            )
+
+        values = YAML_PARSER.load(DEV_VALUES.read_text(encoding="utf-8"))
+        configured_image = f"{APP_IMAGE}{values['image']['tag']}"
+        database_host = values["paymentSafety"]["networkPolicy"]["database"][
+            "host"
+        ]
+        fqdn_hosts = {
+            target["matchName"]
+            for policy in policies
+            for rule in policy["spec"]["egress"]
+            for target in rule.get("toFQDNs", [])
+        }
+        self.assertEqual(
+            fqdn_hosts,
+            {
+                database_host,
+                "nyc3.digitaloceanspaces.com",
+                "citrus-media-dev.nyc3.digitaloceanspaces.com",
+                "citrus-media-dev.nyc3.cdn.digitaloceanspaces.com",
+            },
+        )
+        self.assertFalse(
+            any(
+                host == "stripe.com"
+                or host.endswith(".stripe.com")
+                or host == "stripe.network"
+                or host.endswith(".stripe.network")
+                for host in fqdn_hosts
+            )
+        )
+
+        expected_env = {
+            "DJANGO_ENV": "development",
+            "CITRUS_ENVIRONMENT_OWNER": "citrus-dev",
+            "PAYMENT_NETWORK_MODE": "deny",
+            "PAYMENT_EGRESS_POLICY_REQUIRED": "true",
+            "PAYMENT_EGRESS_POLICY_PROVIDER": "cilium",
+            "PAYMENT_EGRESS_POLICY_REVISION": ACTIVE_DEV_REVISION,
+        }
+        workloads = _app_workloads(self.actual_dev)
+        self.assertEqual(
+            {workload["metadata"]["name"] for workload in workloads},
+            {
+                "citrus-dev",
+                "citrus-dev-migrate-1",
+                "citrus-dev-media-worker",
+                "citrus-dev-media-requeue",
+                "citrus-dev-media-gc",
+            },
+        )
+        container_count = 0
+        for workload in workloads:
+            template = _pod_template(workload)
+            self.assertEqual(
+                template["metadata"]["labels"].get(
+                    "citrus.grace/payment-egress-boundary"
+                ),
+                "enabled",
+            )
+            for container in template["spec"]["containers"]:
+                if not str(container.get("image", "")).startswith(APP_IMAGE):
+                    continue
+                container_count += 1
+                self.assertEqual(container["image"], configured_image)
+                actual_env = _env(container)
+                self.assertEqual(
+                    {name: actual_env.get(name) for name in ATTESTATION},
+                    expected_env,
+                )
+        self.assertEqual(container_count, 5)
 
     def test_development_attestation_covers_every_citrus_process(self) -> None:
         expected_workloads = {
@@ -694,12 +801,16 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             RUNBOOK_PATH.read_text(encoding="utf-8").split()
         )
         for required in (
-            "disabled by default",
+            "chart defaults and production Application remain disabled",
+            "development overlay now activates CES-845 deny mode",
+            "tracks `main` with automated prune and self-heal",
+            "review and merge are the deployment gate",
             "Never use a Stripe request to validate this policy",
             "attestation alone does not prove that the live Cilium policy",
             "cannot read the secret-backed `DB_HOST`",
-            "Do not activate it until an operator supplies the exact database FQDN",
+            "exact database FQDN from operator-authorized environment evidence",
             "local fake endpoint/FQDN omitted from the allowlist",
+            "Do not manually sync or probe Stripe",
             "Do not remove the Cilium boundary while payment credentials remain available",
         ):
             with self.subTest(required=required):

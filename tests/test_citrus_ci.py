@@ -266,7 +266,9 @@ class CitrusCiContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, run)
         for expected in (
-            "Current Citrus Argo renders must keep CES-845 disabled",
+            "Citrus production Argo render must keep CES-845 disabled",
+            "Citrus dev Argo render must activate CES-845 deny mode",
+            "ces-845-dev-v1",
             "citrus-payment-safety-dev.yaml",
             "citrus-payment-safety-prod.yaml",
             "PAYMENT_EGRESS_POLICY_REVISION",
@@ -275,6 +277,17 @@ class CitrusCiContractTests(unittest.TestCase):
             "CLOUDFLARE_ACCESS_REQUIRED",
         ):
             with self.subTest(expected=expected):
+                self.assertIn(expected, run)
+        for expected in (
+            "active_dev=rendered/citrus-dev.yaml",
+            "grep -Ec '^kind:[[:space:]]+CiliumNetworkPolicy$'",
+            "grep -Fc 'citrus.grace/payment-egress-boundary: enabled'",
+            "grep -Fc 'name: PAYMENT_EGRESS_POLICY_REVISION'",
+            "grep -Fc 'matchName:'",
+            "grep -Fc 'port: \"25060\"'",
+            "matchName:.*stripe\\.(com|network)|toEntities:",
+        ):
+            with self.subTest(actual_dev_assertion=expected):
                 self.assertIn(expected, run)
 
     def test_pinned_strict_kubeconform_covers_every_render(self) -> None:
