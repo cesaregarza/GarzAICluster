@@ -126,7 +126,7 @@ def _materialized_command(
     runtime_secret_name: str | None = RUNTIME_SECRET_NAME,
     include_payment_credentials: bool = True,
     include_payment_safety: bool = True,
-    suspend: bool | None = None,
+    suspend: bool | None = True,
 ) -> list[str]:
     command = _base_command(dev=dev)
     if include_payment_credentials:
@@ -271,7 +271,7 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
                     config["data"],
                 )
 
-    def test_dev_activation_overlay_materializes_only_a_suspended_sweep(self) -> None:
+    def test_dev_activation_overlay_materializes_the_reviewed_sweep(self) -> None:
         command = _base_command(dev=True)
         command.extend(["-f", str(DEV_PAYMENT_VALUES)])
         documents = _documents(command)
@@ -287,7 +287,7 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
             payment_values["directOrderPaymentSweep"],
             {
                 "enabled": True,
-                "suspend": True,
+                "suspend": False,
                 "runtimeSecretName": DEV_RUNTIME_SECRET_NAME,
                 "verifiedImageTag": DEV_ACTIVATION_IMAGE_TAG,
                 "offSessionMode": "legacy",
@@ -295,7 +295,7 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
         )
 
         cronjob = sweeps[0]
-        self.assertTrue(cronjob["spec"]["suspend"])
+        self.assertFalse(cronjob["spec"]["suspend"])
         self.assertEqual(
             cronjob["metadata"]["annotations"][
                 "citrus.grace/verified-image-tag"
