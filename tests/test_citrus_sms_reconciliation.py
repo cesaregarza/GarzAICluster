@@ -1220,6 +1220,7 @@ class CitrusSmsReconciliationChartTests(unittest.TestCase):
         documents = _render(
             **_synthetic_render_kwargs(dev=True),
             include_payment_credentials=True,
+            extra_set=("directOrderPaymentSweep.enabled=false",),
         )
         container = (
             _sms_cronjob(documents)["spec"]["jobTemplate"]

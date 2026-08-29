@@ -350,6 +350,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
                 "citrus-dev-media-worker",
                 "citrus-dev-media-requeue",
                 "citrus-dev-media-gc",
+                "citrus-dev-direct-order-payment-sweep",
             },
         )
         container_count = 0
@@ -371,7 +372,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
                     {name: actual_env.get(name) for name in ATTESTATION},
                     expected_env,
                 )
-        self.assertEqual(container_count, 5)
+        self.assertEqual(container_count, 6)
 
     def test_development_attestation_covers_every_citrus_process(self) -> None:
         expected_workloads = {

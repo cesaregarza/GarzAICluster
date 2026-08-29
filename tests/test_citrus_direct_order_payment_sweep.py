@@ -18,6 +18,14 @@ VALUES_PATH = CHART_PATH / "values.yaml"
 DEV_VALUES_PATH = CHART_PATH / "values-dev.yaml"
 PROD_PAYMENT_VALUES = CHART_PATH / "values-payment-prod.yaml"
 DEV_PAYMENT_VALUES = CHART_PATH / "values-payment-dev.yaml"
+DEV_SWEEP_SECRET_PATH = (
+    REPO_ROOT
+    / "secrets"
+    / "citrus-dev"
+    / "citrus-dev-sweep-runtime.enc.yaml"
+)
+DEV_KSOPS_PATH = REPO_ROOT / "secrets" / "citrus-dev" / "ksops.yaml"
+DEV_SECRETS_README_PATH = REPO_ROOT / "secrets" / "citrus-dev" / "README.md"
 SCHEMA_PATH = CHART_PATH / "values.schema.json"
 TEMPLATE_PATH = (
     CHART_PATH / "templates" / "direct-order-payment-sweep-cronjob.yaml"
@@ -27,8 +35,13 @@ YAML_PARSER = YAML(typ="safe")
 
 PROD_IMAGE_TAG = "3f68967f777b2665fccb4f0ab423f339b8ea1357"
 COMMAND_IMAGE_TAG = "4353f11595094bc4893b5799233cfd56c52aed89"
+DEV_ACTIVATION_IMAGE_TAG = "84d0d85b7c9d877cebf465fa4eb338816254525e"
 MISMATCH_IMAGE_TAG = "f" * 40
 RUNTIME_SECRET_NAME = "citrus-ci-direct-order-runtime"
+DEV_RUNTIME_SECRET_NAME = "citrus-dev-sweep-runtime"
+SOPS_AGE_RECIPIENT = (
+    "age16yxsawhpecdrhas2q3z246q3tjq8889m552lqhjcgf8jnt7naszqqgz8vt"
+)
 RUNTIME_SECRET_KEYS = {
     "DJANGO_SECRET_KEY",
     "DB_NAME",
@@ -258,6 +271,87 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
                     config["data"],
                 )
 
+    def test_dev_activation_overlay_materializes_only_a_suspended_sweep(self) -> None:
+        command = _base_command(dev=True)
+        command.extend(["-f", str(DEV_PAYMENT_VALUES)])
+        documents = _documents(command)
+        sweeps = _sweeps(documents)
+        self.assertEqual(len(sweeps), 1)
+
+        values = YAML_PARSER.load(DEV_VALUES_PATH.read_text(encoding="utf-8"))
+        payment_values = YAML_PARSER.load(
+            DEV_PAYMENT_VALUES.read_text(encoding="utf-8")
+        )
+        self.assertEqual(values["image"]["tag"], DEV_ACTIVATION_IMAGE_TAG)
+        self.assertEqual(
+            payment_values["directOrderPaymentSweep"],
+            {
+                "enabled": True,
+                "suspend": False,
+                "runtimeSecretName": DEV_RUNTIME_SECRET_NAME,
+                "verifiedImageTag": DEV_ACTIVATION_IMAGE_TAG,
+                "offSessionMode": "legacy",
+            },
+        )
+
+        cronjob = sweeps[0]
+        self.assertFalse(cronjob["spec"]["suspend"])
+        self.assertEqual(
+            cronjob["metadata"]["annotations"][
+                "citrus.grace/verified-image-tag"
+            ],
+            DEV_ACTIVATION_IMAGE_TAG,
+        )
+        container = _container(cronjob)
+        self.assertEqual(
+            container["image"],
+            "registry.digitalocean.com/sendouq/citrus:"
+            + DEV_ACTIVATION_IMAGE_TAG,
+        )
+        env = {entry["name"]: entry for entry in container["env"]}
+        self.assertEqual(env["DIRECT_ORDER_OFF_SESSION_MODE"]["value"], "legacy")
+        for key in RUNTIME_SECRET_KEYS:
+            self.assertEqual(
+                env[key]["valueFrom"]["secretKeyRef"],
+                {
+                    "name": DEV_RUNTIME_SECRET_NAME,
+                    "key": key,
+                    "optional": False,
+                },
+            )
+        self.assertIn(
+            "direct-order-payment-sweep",
+            _batch_policy_components(documents, "citrus-dev"),
+        )
+
+    def test_dev_runtime_secret_is_encrypted_provider_free_and_wired(self) -> None:
+        document = YAML_PARSER.load(
+            DEV_SWEEP_SECRET_PATH.read_text(encoding="utf-8")
+        )
+        self.assertEqual(document["kind"], "Secret")
+        self.assertEqual(document["metadata"]["name"], DEV_RUNTIME_SECRET_NAME)
+        self.assertEqual(document["metadata"]["namespace"], "citrus-dev")
+        self.assertEqual(set(document.get("data", {})), RUNTIME_SECRET_KEYS)
+        for value in document["data"].values():
+            self.assertIsInstance(value, str)
+            self.assertTrue(value.startswith("ENC[AES256_GCM,"))
+        self.assertEqual(
+            document["sops"]["encrypted_regex"],
+            "^(data|stringData)$",
+        )
+        self.assertEqual(
+            {entry["recipient"] for entry in document["sops"]["age"]},
+            {SOPS_AGE_RECIPIENT},
+        )
+        self.assertIn(
+            DEV_SWEEP_SECRET_PATH.name,
+            DEV_KSOPS_PATH.read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            DEV_SWEEP_SECRET_PATH.name,
+            DEV_SECRETS_README_PATH.read_text(encoding="utf-8"),
+        )
+
     def test_disabled_prod_and_dev_renders_are_byte_identical_without_slice(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ces807-baseline-") as temp_dir:
             baseline = Path(temp_dir) / "citrus"
@@ -368,8 +462,8 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
         self.assertNotEqual(failed.returncode, 0)
         self.assertIn("requires paymentSafety.enabled=true", failed.stderr)
 
-        for documents in self.materialized.values():
-            self.assertTrue(_sweeps(documents)[0]["spec"]["suspend"])
+        self.assertTrue(_sweeps(self.materialized["prod"])[0]["spec"]["suspend"])
+        self.assertFalse(_sweeps(self.materialized["dev"])[0]["spec"]["suspend"])
 
     def test_image_receipt_rejects_empty_mismatch_and_current_production(self) -> None:
         empty = _run(
@@ -416,7 +510,7 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
             with self.subTest(environment=environment):
                 release = "citrus-dev" if environment == "dev" else "citrus"
                 cronjob = _sweeps(documents)[0]
-                self.assertTrue(cronjob["spec"]["suspend"])
+                self.assertEqual(cronjob["spec"]["suspend"], environment != "dev")
                 self.assertEqual(
                     cronjob["metadata"]["annotations"][
                         "citrus.grace/verified-image-tag"
@@ -547,16 +641,10 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
                         env["STRIPE_WEBHOOK_SECRET_OWNER"]["value"],
                         "citrus-dev",
                     )
-                self.assertEqual(
-                    container["envFrom"],
-                    [{"configMapRef": {"name": "django-config"}}],
-                )
                 self.assertNotIn("STRIPE_WEBHOOK_SECRET", env)
                 self.assertNotIn("STRIPE_WEBHOOK_SECRET_PROD", env)
                 serialized = str(container)
                 forbidden = [
-                    "django-email-secrets",
-                    "django-spaces-secrets",
                     "citrus-dev-app-key",
                     "citrus-app-key",
                 ]
@@ -567,6 +655,28 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
                     ])
                 for forbidden_setting in forbidden:
                     self.assertNotIn(forbidden_setting, serialized)
+
+    def test_job_imports_email_and_spaces_settings_secrets(self) -> None:
+        expected_env_from = [
+            {"configMapRef": {"name": "django-config"}},
+            {
+                "secretRef": {
+                    "name": "django-email-secrets",
+                    "optional": True,
+                }
+            },
+            {
+                "secretRef": {
+                    "name": "django-spaces-secrets",
+                    "optional": True,
+                }
+            },
+        ]
+
+        for environment, documents in self.materialized.items():
+            with self.subTest(environment=environment):
+                container = _container(_sweeps(documents)[0])
+                self.assertEqual(container["envFrom"], expected_env_from)
 
     def test_explicit_mode_and_payment_key_override_configmap_values(self) -> None:
         command = _materialized_command(dev=True)
@@ -593,7 +703,7 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
 
     def test_runtime_secret_rejects_missing_broad_and_provider_names(self) -> None:
         missing = _run(
-            _materialized_command(dev=True, runtime_secret_name=None)
+            _materialized_command(dev=True, runtime_secret_name="")
         )
         self.assertNotEqual(missing.returncode, 0)
         self.assertIn("runtimeSecretName", missing.stderr)
