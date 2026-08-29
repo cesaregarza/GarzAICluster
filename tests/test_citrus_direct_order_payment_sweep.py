@@ -33,9 +33,14 @@ TEMPLATE_PATH = (
 POLICY_PATH = CHART_PATH / "templates" / "payment-egress-cilium-policy.yaml"
 YAML_PARSER = YAML(typ="safe")
 
-PROD_IMAGE_TAG = "3f68967f777b2665fccb4f0ab423f339b8ea1357"
+# Historical fixture retained because the chart explicitly rejects the last
+# production image that predates the sweep management command. It is not the
+# mutable current-production assertion.
+HISTORICAL_PRE_SWEEP_IMAGE_TAG = "3f68967f777b2665fccb4f0ab423f339b8ea1357"
 COMMAND_IMAGE_TAG = "4353f11595094bc4893b5799233cfd56c52aed89"
-DEV_ACTIVATION_IMAGE_TAG = "2d186db052c50c763d0b9f58c89be99047ca77f2"
+DEV_ACTIVATION_IMAGE_TAG = YAML_PARSER.load(
+    DEV_VALUES_PATH.read_text(encoding="utf-8")
+)["image"]["tag"]
 MISMATCH_IMAGE_TAG = "f" * 40
 RUNTIME_SECRET_NAME = "citrus-ci-direct-order-runtime"
 DEV_RUNTIME_SECRET_NAME = "citrus-dev-sweep-runtime"
@@ -465,7 +470,7 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
         self.assertTrue(_sweeps(self.materialized["prod"])[0]["spec"]["suspend"])
         self.assertFalse(_sweeps(self.materialized["dev"])[0]["spec"]["suspend"])
 
-    def test_image_receipt_rejects_empty_mismatch_and_current_production(self) -> None:
+    def test_image_receipt_rejects_empty_mismatch_and_historical_pre_sweep(self) -> None:
         empty = _run(
             _materialized_command(dev=False, verified_image_tag=None)
         )
@@ -481,15 +486,18 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
         self.assertNotEqual(mismatch.returncode, 0)
         self.assertIn("must exactly match image.tag", mismatch.stderr)
 
-        current_prod = _run(
+        historical_pre_sweep = _run(
             _materialized_command(
                 dev=False,
-                image_tag=PROD_IMAGE_TAG,
-                verified_image_tag=PROD_IMAGE_TAG,
+                image_tag=HISTORICAL_PRE_SWEEP_IMAGE_TAG,
+                verified_image_tag=HISTORICAL_PRE_SWEEP_IMAGE_TAG,
             )
         )
-        self.assertNotEqual(current_prod.returncode, 0)
-        self.assertIn("predates sweep_direct_order_payment_attempts", current_prod.stderr)
+        self.assertNotEqual(historical_pre_sweep.returncode, 0)
+        self.assertIn(
+            "predates sweep_direct_order_payment_attempts",
+            historical_pre_sweep.stderr,
+        )
 
     def test_off_session_mode_rejects_empty_false_and_zero(self) -> None:
         for value in ("", "false", "0"):

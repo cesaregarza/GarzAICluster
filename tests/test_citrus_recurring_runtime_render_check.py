@@ -7,15 +7,45 @@ from pathlib import Path
 
 from scripts.check_citrus_recurring_runtime_render import (
     ContractError,
+    _active_dev_revision,
     run_contract,
 )
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHART_PATH = REPO_ROOT / "helm" / "citrus"
 
 
 class CitrusRecurringRuntimeRenderCheckTests(unittest.TestCase):
+    def test_active_revision_comes_from_the_effective_render(self) -> None:
+        revision = "a" * 40
+        rendered = "\n".join(
+            (
+                f'image: "registry.digitalocean.com/sendouq/citrus:{revision}"',
+                f'image: "registry.digitalocean.com/sendouq/citrus:{revision}"',
+                'image: "redis:7.2.4-alpine"',
+            )
+        )
+        self.assertEqual(_active_dev_revision(rendered), revision)
+
+    def test_active_revision_rejects_missing_malformed_or_mixed_images(self) -> None:
+        cases = {
+            "missing": 'image: "redis:7.2.4-alpine"',
+            "malformed": ('image: "registry.digitalocean.com/sendouq/citrus:latest"'),
+            "mixed": "\n".join(
+                (
+                    'image: "registry.digitalocean.com/sendouq/citrus:'
+                    + "a" * 40
+                    + '"',
+                    'image: "registry.digitalocean.com/sendouq/citrus:'
+                    + "b" * 40
+                    + '"',
+                )
+            ),
+        }
+        for name, rendered in cases.items():
+            with self.subTest(name=name), self.assertRaises(ContractError):
+                _active_dev_revision(rendered)
+
     def test_checker_renders_the_complete_synthetic_matrix(self) -> None:
         helm = shutil.which("helm")
         if helm is None:

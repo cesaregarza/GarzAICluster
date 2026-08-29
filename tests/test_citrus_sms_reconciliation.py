@@ -19,7 +19,9 @@ DEV_PAYMENT_VALUES_PATH = CHART_PATH / "values-payment-dev.yaml"
 SCHEMA_PATH = CHART_PATH / "values.schema.json"
 TEMPLATE_PATH = CHART_PATH / "templates" / "sms-reconciliation-cronjob.yaml"
 TRUSTED_IMAGE_REPOSITORY = "registry.digitalocean.com/sendouq/citrus"
-PROD_IMAGE_TAG = "3f68967f777b2665fccb4f0ab423f339b8ea1357"
+CURRENT_PROD_IMAGE_TAG = YAML(typ="safe").load(
+    VALUES_PATH.read_text(encoding="utf-8")
+)["image"]["tag"]
 COMMAND_BEARING_IMAGE_TAG = "0e2258bf95c6170895c26780258eb42d5b5c557c"
 CANONICAL_MIGRATION_COMMAND = ["python", "manage.py", "migrate", "--noinput"]
 SMS_POD_SECURITY_CONTEXT = {
@@ -370,12 +372,12 @@ class CitrusSmsReconciliationChartTests(unittest.TestCase):
             "requires smsReconciliation.verifiedImageTag",
             failed.stderr,
         )
-        self.assertIn(PROD_IMAGE_TAG, VALUES_PATH.read_text(encoding="utf-8"))
+        self.assertRegex(CURRENT_PROD_IMAGE_TAG, r"^[0-9a-f]{40}$")
 
         forged_receipt = _run_helm(
             dev=False,
             enabled=True,
-            verified_image_tag=PROD_IMAGE_TAG,
+            verified_image_tag=CURRENT_PROD_IMAGE_TAG,
             secret_name=RUNTIME_SECRET_NAMES[False],
             **network_contract,
         )

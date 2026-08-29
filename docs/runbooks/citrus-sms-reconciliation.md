@@ -33,9 +33,10 @@ The historical dev image
 `0e2258bf95c6170895c26780258eb42d5b5c557c` contains the command but is not an
 activation artifact. Its disabled-mode behavior can consume stale scheduled
 attempts, and its production startup validation requires Stripe, email, cache,
-Celery, media, and AWS settings that this DB-only Job must not receive. Current
-GitOps main pins dev to `2d186db052c50c763d0b9f58c89be99047ca77f2`, which still
-has that startup contract.
+Celery, media, and AWS settings that this DB-only Job must not receive. The
+current development release pin is authoritative only in
+`helm/citrus/values-dev.yaml`. It is not an SMS activation artifact while the
+applied `smsReconciliation.commandCompatibleImageTags` list remains empty.
 
 The source-state correction merged as
 `2528782045766c13d751f212a4caf36734d08583`. Workflow run `32932217731`

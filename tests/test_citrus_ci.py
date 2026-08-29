@@ -6,7 +6,6 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yaml"
 RENDER_CHECK_PATH = (
@@ -330,6 +329,13 @@ class CitrusCiContractTests(unittest.TestCase):
                 self.assertIn(marker, checker)
 
         run = self.steps["Verify Citrus workload render coverage"]["run"]
+        self.assertNotIn("uv run", run)
+        self.assertIn("mapfile -t active_dev_images", run)
+        self.assertIn(
+            "active_dev_sha=${active_dev_images[0]##*:}",
+            run,
+        )
+        self.assertNotIn("ruamel", checker)
         for component in (
             "sms-reconciliation",
             "direct-order-payment-sweep",

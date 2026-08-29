@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "environments": {
+    "dev": {
+      "appliedValues": [
+        "helm/citrus/values.yaml",
+        "helm/citrus/values-dev.yaml",
+        "helm/citrus/values-payment-dev.yaml"
+      ],
+      "operationalValues": [
+        "helm/citrus/values-dev.yaml",
+        "helm/citrus/values-payment-dev.yaml"
+      ]
+    },
+    "prod": {
+      "appliedValues": [
+        "helm/citrus/values.yaml"
+      ],
+      "operationalValues": [
+        "helm/citrus/values.yaml"
+      ]
+    }
+  },
+  "bindings": [
+    {
+      "name": "application-image",
+      "valuePath": "image.tag",
+      "policy": "auto-roll"
+    },
+    {
+      "name": "recurring-runtime-source",
+      "valuePath": "recurringRuntime.expectedSourceRevision",
+      "policy": "auto-roll"
+    },
+    {
+      "name": "cloudflare-access-image",
+      "enabledPath": "cloudflareAccess.enabled",
+      "valuePath": "cloudflareAccess.verifiedImageTag",
+      "policy": "manual-attestation"
+    },
+    {
+      "name": "sms-reconciliation-image",
+      "enabledPath": "smsReconciliation.enabled",
+      "valuePath": "smsReconciliation.verifiedImageTag",
+      "policy": "manual-attestation"
+    },
+    {
+      "name": "direct-order-payment-sweep-image",
+      "enabledPath": "directOrderPaymentSweep.enabled",
+      "valuePath": "directOrderPaymentSweep.verifiedImageTag",
+      "policy": "auto-roll",
+      "requiresCapability": "direct-order-payment-sweep"
+    }
+  ]
+}

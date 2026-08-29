@@ -4,6 +4,29 @@ Utilities that were previously bundled with the app repo move here when they are
 
 ## Available
 
+- `update_citrus_release.py` – applies one exact lowercase 40-hex Citrus source
+  revision to every active image binding owned by the selected environment. The
+  binding registry at `helm/citrus/release-bindings.json` mirrors the Argo value
+  file order, separates applied files from writable operational files, and
+  gives each optional receipt an `auto-roll` or `manual-attestation` policy.
+  The command validates the complete plan before an all-or-none write and emits
+  only changed operational paths for exact Git staging:
+
+  ```bash
+  uv run python scripts/update_citrus_release.py \
+    --environment dev \
+    --source-revision <full-citrus-source-sha> \
+    --capabilities-file /tmp/citrus-release-capabilities.json \
+    --output-path-list /tmp/garzaicluster-values-files
+  ```
+
+  The Citrus source workflow creates a revision-bound capability receipt with
+  a static, zero-network command check. The updater requires that receipt to
+  name the exact release SHA. An enabled manual-attestation binding, an unknown
+  optional image receipt, a missing required capability, or a partial write
+  fails without advancing the release tuple. Production does not apply or
+  modify `values-payment-prod.yaml`.
+
 - `mandate_deploy_train.py` – the CES-395 interim `mandate up` command for the
   complete Mandate GitOps train. It uses the bounded `argocd_core.py`
   primitives through an owner-only temporary kubeconfig, enforces the client
