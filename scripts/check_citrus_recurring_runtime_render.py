@@ -198,7 +198,7 @@ def _verify_renders(rendered: dict[str, str]) -> None:
         "citrus.grace/payment-egress-boundary: enabled",
         'citrus.grace/payment-egress-policy-revision: "ces-845-dev-v1"',
         "app.kubernetes.io/component: direct-order-payment-sweep",
-        "  suspend: true",
+        "  suspend: false",
         (
             'citrus.grace/verified-image-tag: '
             '"2d186db052c50c763d0b9f58c89be99047ca77f2"'
