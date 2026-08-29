@@ -641,16 +641,10 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
                         env["STRIPE_WEBHOOK_SECRET_OWNER"]["value"],
                         "citrus-dev",
                     )
-                self.assertEqual(
-                    container["envFrom"],
-                    [{"configMapRef": {"name": "django-config"}}],
-                )
                 self.assertNotIn("STRIPE_WEBHOOK_SECRET", env)
                 self.assertNotIn("STRIPE_WEBHOOK_SECRET_PROD", env)
                 serialized = str(container)
                 forbidden = [
-                    "django-email-secrets",
-                    "django-spaces-secrets",
                     "citrus-dev-app-key",
                     "citrus-app-key",
                 ]
@@ -661,6 +655,28 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
                     ])
                 for forbidden_setting in forbidden:
                     self.assertNotIn(forbidden_setting, serialized)
+
+    def test_job_imports_email_and_spaces_settings_secrets(self) -> None:
+        expected_env_from = [
+            {"configMapRef": {"name": "django-config"}},
+            {
+                "secretRef": {
+                    "name": "django-email-secrets",
+                    "optional": True,
+                }
+            },
+            {
+                "secretRef": {
+                    "name": "django-spaces-secrets",
+                    "optional": True,
+                }
+            },
+        ]
+
+        for environment, documents in self.materialized.items():
+            with self.subTest(environment=environment):
+                container = _container(_sweeps(documents)[0])
+                self.assertEqual(container["envFrom"], expected_env_from)
 
     def test_explicit_mode_and_payment_key_override_configmap_values(self) -> None:
         command = _materialized_command(dev=True)
