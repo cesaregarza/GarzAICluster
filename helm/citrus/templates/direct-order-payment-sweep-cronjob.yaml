@@ -154,6 +154,16 @@ spec:
               envFrom:
                 - configMapRef:
                     name: {{ .Values.application.configMapName }}
+                {{- if .Values.application.emailSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.emailSecretName }}
+                    optional: true
+                {{- end }}
+                {{- if .Values.application.spacesSecretName }}
+                - secretRef:
+                    name: {{ .Values.application.spacesSecretName }}
+                    optional: true
+                {{- end }}
               resources:
                 {{- toYaml $sweep.resources | nindent 16 }}
 {{- end }}
