@@ -287,7 +287,7 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
             payment_values["directOrderPaymentSweep"],
             {
                 "enabled": True,
-                "suspend": True,
+                "suspend": False,
                 "runtimeSecretName": DEV_RUNTIME_SECRET_NAME,
                 "verifiedImageTag": DEV_ACTIVATION_IMAGE_TAG,
                 "offSessionMode": "legacy",
@@ -295,7 +295,7 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
         )
 
         cronjob = sweeps[0]
-        self.assertTrue(cronjob["spec"]["suspend"])
+        self.assertFalse(cronjob["spec"]["suspend"])
         self.assertEqual(
             cronjob["metadata"]["annotations"][
                 "citrus.grace/verified-image-tag"
@@ -462,8 +462,8 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
         self.assertNotEqual(failed.returncode, 0)
         self.assertIn("requires paymentSafety.enabled=true", failed.stderr)
 
-        for documents in self.materialized.values():
-            self.assertTrue(_sweeps(documents)[0]["spec"]["suspend"])
+        self.assertTrue(_sweeps(self.materialized["prod"])[0]["spec"]["suspend"])
+        self.assertFalse(_sweeps(self.materialized["dev"])[0]["spec"]["suspend"])
 
     def test_image_receipt_rejects_empty_mismatch_and_current_production(self) -> None:
         empty = _run(
@@ -510,7 +510,7 @@ class CitrusDirectOrderPaymentSweepTests(unittest.TestCase):
             with self.subTest(environment=environment):
                 release = "citrus-dev" if environment == "dev" else "citrus"
                 cronjob = _sweeps(documents)[0]
-                self.assertTrue(cronjob["spec"]["suspend"])
+                self.assertEqual(cronjob["spec"]["suspend"], environment != "dev")
                 self.assertEqual(
                     cronjob["metadata"]["annotations"][
                         "citrus.grace/verified-image-tag"
