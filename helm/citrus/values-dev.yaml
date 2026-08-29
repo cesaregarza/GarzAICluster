@@ -1,5 +1,5 @@
 image:
-  tag: 2d186db052c50c763d0b9f58c89be99047ca77f2 # allow-latest
+  tag: fc18864b9000dddde3d98d87f2237c799ff64f25 # allow-latest
 
 # Activate the CES-845 development deny boundary before retrying the guarded
 # source image. The current rollback image remains pinned for this first phase.
@@ -66,7 +66,7 @@ billingWorker:
 
 recurringRuntime:
   enabled: false
-  expectedSourceRevision: 2d186db052c50c763d0b9f58c89be99047ca77f2
+  expectedSourceRevision: fc18864b9000dddde3d98d87f2237c799ff64f25
 
 # Dev has no approved least-privilege runtime Secret or compatible corrected
 # image. Keep every activation input empty until the prerequisite train lands.
