@@ -10,6 +10,7 @@
         "enabled",
         "suspend",
         "policyRevision",
+        "expectedAccountId",
         "activeDeadlineSeconds",
         "resources"
       ],
@@ -24,6 +25,10 @@
         "policyRevision": {
           "type": "string",
           "const": "ces-883-stripe-smoke-v1"
+        },
+        "expectedAccountId": {
+          "type": "string",
+          "pattern": "^$|^acct_[A-Za-z0-9]{8,64}$"
         },
         "activeDeadlineSeconds": {
           "type": "integer",

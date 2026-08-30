@@ -419,6 +419,7 @@ class CitrusCiContractTests(unittest.TestCase):
         for expected in (
             "rendered/citrus-stripe-smoke-enabled-dev.yaml",
             "--set stripeSmokeRunner.enabled=true",
+            "stripeSmokeRunner.expectedAccountId=acct_0000000000000000",
         ):
             with self.subTest(stripe_smoke_render=expected):
                 self.assertIn(expected, render)
@@ -426,6 +427,8 @@ class CitrusCiContractTests(unittest.TestCase):
             "stripe_smoke=rendered/citrus-stripe-smoke-enabled-dev.yaml",
             "citrus-dev-stripe-smoke-runner-egress",
             "CITRUS_STRIPE_SMOKE_RUNNER",
+            "CITRUS_STRIPE_SMOKE_EXPECTED_ACCOUNT_ID",
+            "acct_0000000000000000",
             "ces-883-stripe-smoke-v1",
             'matchName: "api.stripe.com"',
             "Only the enabled dev runner render may contain Stripe egress",

@@ -28,6 +28,9 @@ stripeSmokeRunner:
   enabled: false
   suspend: true
   policyRevision: ces-883-stripe-smoke-v1
+  # Non-secret provider identity attestation. The separately acknowledged
+  # enable change must bind the exact Stripe test account before rendering.
+  expectedAccountId: ""
   activeDeadlineSeconds: 900
   resources:
     requests:

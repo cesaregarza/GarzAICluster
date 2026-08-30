@@ -42,6 +42,10 @@
 {{- if ne $policyRevision "ces-883-stripe-smoke-v1" -}}
 {{- fail "stripeSmokeRunner.policyRevision must match the source runtime contract ces-883-stripe-smoke-v1" -}}
 {{- end -}}
+{{- $expectedAccountId := required "stripeSmokeRunner.expectedAccountId is required when enabled" (get $runner "expectedAccountId") -}}
+{{- if not (regexMatch "^acct_[A-Za-z0-9]{8,64}$" $expectedAccountId) -}}
+{{- fail "stripeSmokeRunner.expectedAccountId must be a safe nonempty acct_ identifier when enabled" -}}
+{{- end -}}
 {{- if not (regexMatch "^[0-9]+$" (toString $runner.activeDeadlineSeconds)) -}}
 {{- fail "stripeSmokeRunner.activeDeadlineSeconds must be an integer" -}}
 {{- end -}}
@@ -126,6 +130,8 @@ spec:
                   value: "citrus-dev"
                 - name: CITRUS_STRIPE_SMOKE_RUNNER
                   value: "true"
+                - name: CITRUS_STRIPE_SMOKE_EXPECTED_ACCOUNT_ID
+                  value: {{ $expectedAccountId | quote }}
                 - name: CITRUS_EXPECTED_SOURCE_REVISION
                   value: {{ $imageTag | quote }}
                 - name: PAYMENT_NETWORK_MODE

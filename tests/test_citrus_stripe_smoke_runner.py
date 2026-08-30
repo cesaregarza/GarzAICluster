@@ -14,10 +14,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CHART_PATH = REPO_ROOT / "helm" / "citrus"
 TEMPLATE_PATH = CHART_PATH / "templates" / "stripe-smoke-runner.yaml"
 POLICY_REVISION = "ces-883-stripe-smoke-v1"
+SENTINEL_ACCOUNT_ID = "acct_0000000000000000"
 YAML_PARSER = YAML(typ="safe")
 
 
-def _command(*, enabled: bool, dev: bool = True) -> list[str]:
+def _command(
+    *,
+    enabled: bool,
+    dev: bool = True,
+    expected_account_id: str | None = SENTINEL_ACCOUNT_ID,
+) -> list[str]:
     command = [
         "helm",
         "template",
@@ -39,6 +45,16 @@ def _command(*, enabled: bool, dev: bool = True) -> list[str]:
         )
     if enabled:
         command.extend(["--set", "stripeSmokeRunner.enabled=true"])
+        if expected_account_id is not None:
+            command.extend(
+                [
+                    "--set-string",
+                    (
+                        "stripeSmokeRunner.expectedAccountId="
+                        f"{expected_account_id}"
+                    ),
+                ]
+            )
     return command
 
 
@@ -107,7 +123,7 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
             self.assertNotIn("citrus-stripe-smoke-runner", names)
             self.assertFalse(
                 any(
-                    "CITRUS_STRIPE_SMOKE_RUNNER"
+                    "CITRUS_STRIPE_SMOKE_"
                     in json.dumps(document, sort_keys=True)
                     for document in documents
                 )
@@ -183,6 +199,7 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
                     "DJANGO_ENV",
                     "CITRUS_ENVIRONMENT_OWNER",
                     "CITRUS_STRIPE_SMOKE_RUNNER",
+                    "CITRUS_STRIPE_SMOKE_EXPECTED_ACCOUNT_ID",
                     "CITRUS_EXPECTED_SOURCE_REVISION",
                     "PAYMENT_NETWORK_MODE",
                     "PAYMENT_EGRESS_POLICY_REQUIRED",
@@ -194,6 +211,9 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
                 "DJANGO_ENV": "development",
                 "CITRUS_ENVIRONMENT_OWNER": "citrus-dev",
                 "CITRUS_STRIPE_SMOKE_RUNNER": "true",
+                "CITRUS_STRIPE_SMOKE_EXPECTED_ACCOUNT_ID": (
+                    SENTINEL_ACCOUNT_ID
+                ),
                 "CITRUS_EXPECTED_SOURCE_REVISION": image_tag,
                 "PAYMENT_NETWORK_MODE": "allow",
                 "PAYMENT_EGRESS_POLICY_REQUIRED": "true",
@@ -293,6 +313,7 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
 
     def test_only_runner_pod_receives_smoke_marker_and_allow_mode(self) -> None:
         marked: list[tuple[str, str]] = []
+        account_bound: list[tuple[str, str]] = []
         allow_mode: list[tuple[str, str]] = []
         for workload in self.enabled_dev:
             if workload.get("kind") not in {"Deployment", "Job", "CronJob"}:
@@ -307,6 +328,16 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
                     marked.append(
                         (workload["metadata"]["name"], container["name"])
                     )
+                if "CITRUS_STRIPE_SMOKE_EXPECTED_ACCOUNT_ID" in plain_env:
+                    self.assertEqual(
+                        plain_env[
+                            "CITRUS_STRIPE_SMOKE_EXPECTED_ACCOUNT_ID"
+                        ],
+                        SENTINEL_ACCOUNT_ID,
+                    )
+                    account_bound.append(
+                        (workload["metadata"]["name"], container["name"])
+                    )
                 if plain_env.get("PAYMENT_NETWORK_MODE") == "allow":
                     allow_mode.append(
                         (workload["metadata"]["name"], container["name"])
@@ -315,7 +346,55 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
             marked,
             [("citrus-dev-stripe-smoke-runner", "stripe-smoke-runner")],
         )
+        self.assertEqual(account_bound, marked)
         self.assertEqual(allow_mode, marked)
+
+    def test_account_identity_gate_is_empty_by_default_and_mutation_honest(
+        self,
+    ) -> None:
+        dev_values = YAML_PARSER.load(
+            (CHART_PATH / "values-dev.yaml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            dev_values["stripeSmokeRunner"]["expectedAccountId"],
+            "",
+        )
+
+        missing = _run(_command(enabled=True, expected_account_id=None))
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn(
+            "stripeSmokeRunner.expectedAccountId is required when enabled",
+            missing.stderr,
+        )
+
+        for invalid in (
+            "acct_short",
+            "acct_contains-hyphen",
+            "acct_contains/slash",
+            "cus_0000000000000000",
+        ):
+            with self.subTest(invalid=invalid):
+                result = _run(
+                    _command(enabled=True, expected_account_id=invalid)
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(
+                    "stripeSmokeRunner.expectedAccountId",
+                    result.stderr,
+                )
+
+        schema = json.loads(
+            (CHART_PATH / "values.schema.json").read_text(encoding="utf-8")
+        )
+        runner_schema = schema["properties"]["stripeSmokeRunner"]
+        self.assertIn("expectedAccountId", runner_schema["required"])
+        self.assertEqual(
+            runner_schema["properties"]["expectedAccountId"],
+            {
+                "type": "string",
+                "pattern": "^$|^acct_[A-Za-z0-9]{8,64}$",
+            },
+        )
 
     def test_one_stripe_policy_selects_only_the_runner(self) -> None:
         dev_values = YAML_PARSER.load(
