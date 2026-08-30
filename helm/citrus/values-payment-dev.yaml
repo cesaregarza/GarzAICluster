@@ -17,5 +17,5 @@ directOrderPaymentSweep:
   enabled: true
   suspend: false
   runtimeSecretName: citrus-dev-sweep-runtime
-  verifiedImageTag: d5d8d5ce83b20923db21997898b08be511d7acf4
+  verifiedImageTag: e4f1a36f0c754c033c657dd8b8cabbf1d9fe135d
   offSessionMode: legacy
