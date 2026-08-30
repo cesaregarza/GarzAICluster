@@ -20,6 +20,26 @@ paymentSafety:
       port: 25060
     additionalExternalEgress: []
 
+# CES-883 stage 1 is an operator-only test-mode smoke. The scheduled object is
+# inert until a separately acknowledged GitOps change flips this flag, and the
+# template itself is permanently suspended for one-shot `kubectl create job
+# --from=cronjob/...` use only.
+stripeSmokeRunner:
+  enabled: false
+  suspend: true
+  policyRevision: ces-883-stripe-smoke-v1
+  # Non-secret provider identity attestation. The separately acknowledged
+  # enable change must bind the exact Stripe test account before rendering.
+  expectedAccountId: ""
+  activeDeadlineSeconds: 900
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
 strategy:
   type: RollingUpdate
   rollingUpdate:
