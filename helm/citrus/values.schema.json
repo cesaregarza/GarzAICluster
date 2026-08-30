@@ -3,6 +3,38 @@
   "type": "object",
   "required": ["directOrderPaymentSweep"],
   "properties": {
+    "stripeSmokeRunner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "suspend",
+        "policyRevision",
+        "activeDeadlineSeconds",
+        "resources"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "suspend": {
+          "type": "boolean",
+          "const": true
+        },
+        "policyRevision": {
+          "type": "string",
+          "const": "ces-883-stripe-smoke-v1"
+        },
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 1800
+        },
+        "resources": {
+          "type": "object"
+        }
+      }
+    },
     "syncWaves": {
       "type": "object",
       "required": ["config", "migrations", "smsReconciliation"],

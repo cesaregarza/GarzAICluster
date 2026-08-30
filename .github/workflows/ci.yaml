@@ -339,6 +339,17 @@ jobs:
             -f "$chart/values-payment-dev.yaml" \
             > rendered/citrus-dev.yaml
 
+          # Exercise only the CES-883 dev runner against the exact immutable
+          # image.tag selected by the dev overlays. This renders references but
+          # never decrypts or reads Secret values, resolves DNS, or contacts Stripe.
+          helm template citrus-dev "$chart" \
+            --namespace citrus-dev \
+            -f "$chart/values.yaml" \
+            -f "$chart/values-dev.yaml" \
+            -f "$chart/values-payment-dev.yaml" \
+            --set stripeSmokeRunner.enabled=true \
+            > rendered/citrus-stripe-smoke-enabled-dev.yaml
+
           # Exercise disabled-by-default consumers without contacting providers
           # or rendering any Secret object.
           helm template citrus "$chart" \
@@ -614,6 +625,43 @@ jobs:
             echo "Citrus dev Argo render must activate CES-845 deny mode without Stripe or broad egress" >&2
             exit 1
           fi
+
+          stripe_smoke=rendered/citrus-stripe-smoke-enabled-dev.yaml
+          grep -F 'name: citrus-dev-stripe-smoke-runner' "$stripe_smoke" >/dev/null
+          grep -F 'name: citrus-dev-stripe-smoke-runner-egress' "$stripe_smoke" >/dev/null
+          grep -F 'app.kubernetes.io/component: stripe-smoke-runner' "$stripe_smoke" >/dev/null
+          mapfile -t stripe_smoke_images < <(
+            grep -Eo 'registry\.digitalocean\.com/sendouq/citrus:[^"[:space:]]+' "$stripe_smoke" |
+              sort -u
+          )
+          test "${#stripe_smoke_images[@]}" -eq 1
+          stripe_smoke_sha=${stripe_smoke_images[0]##*:}
+          [[ "$stripe_smoke_sha" =~ ^[0-9a-f]{40}$ ]]
+          grep -F "citrus.grace/verified-image-tag: \"$stripe_smoke_sha\"" "$stripe_smoke" >/dev/null
+          grep -F '  suspend: true' "$stripe_smoke" >/dev/null
+          grep -F '      backoffLimit: 0' "$stripe_smoke" >/dev/null
+          grep -F '          automountServiceAccountToken: false' "$stripe_smoke" >/dev/null
+          grep -F '          restartPolicy: Never' "$stripe_smoke" >/dev/null
+          grep -F '                - run_stripe_smoke' "$stripe_smoke" >/dev/null
+          test "$(grep -Fc 'name: CITRUS_STRIPE_SMOKE_RUNNER' "$stripe_smoke")" -eq 1
+          test "$(grep -Fc 'value: "ces-883-stripe-smoke-v1"' "$stripe_smoke")" -eq 1
+          test "$(grep -Fc 'matchName: "api.stripe.com"' "$stripe_smoke")" -eq 1
+          test "$(grep -Fc 'port: "25060"' "$stripe_smoke")" -eq 3
+          test "$(grep -Ec '^kind:[[:space:]]+CiliumNetworkPolicy$' "$stripe_smoke")" -eq 3
+          if grep -F 'serviceAccountName:' "$stripe_smoke" >/dev/null; then
+            echo "The CES-883 stage-1 runner must not add a ServiceAccount" >&2
+            exit 1
+          fi
+
+          for file in rendered/citrus-*.yaml; do
+            if [[ "$file" == "$stripe_smoke" ]]; then
+              continue
+            fi
+            if grep -Ei 'matchName:.*stripe\.(com|network)|CITRUS_STRIPE_SMOKE_RUNNER' "$file" >/dev/null; then
+              echo "Only the enabled dev runner render may contain Stripe egress or the smoke marker: $file" >&2
+              exit 1
+            fi
+          done
 
           safety_dev=rendered/citrus-payment-safety-dev.yaml
           safety_prod=rendered/citrus-payment-safety-prod.yaml

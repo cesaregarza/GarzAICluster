@@ -413,6 +413,27 @@ class CitrusCiContractTests(unittest.TestCase):
             with self.subTest(actual_dev_assertion=expected):
                 self.assertIn(expected, run)
 
+        render = self.steps[
+            "Render Citrus production, dev, and optional workloads"
+        ]["run"]
+        for expected in (
+            "rendered/citrus-stripe-smoke-enabled-dev.yaml",
+            "--set stripeSmokeRunner.enabled=true",
+        ):
+            with self.subTest(stripe_smoke_render=expected):
+                self.assertIn(expected, render)
+        for expected in (
+            "stripe_smoke=rendered/citrus-stripe-smoke-enabled-dev.yaml",
+            "citrus-dev-stripe-smoke-runner-egress",
+            "CITRUS_STRIPE_SMOKE_RUNNER",
+            "ces-883-stripe-smoke-v1",
+            'matchName: "api.stripe.com"',
+            "Only the enabled dev runner render may contain Stripe egress",
+            "must not add a ServiceAccount",
+        ):
+            with self.subTest(stripe_smoke_assertion=expected):
+                self.assertIn(expected, run)
+
     def test_pinned_strict_kubeconform_covers_every_render(self) -> None:
         helm_setup = self.steps["Set up Helm"]
         self.assertEqual(helm_setup["with"]["version"], "v3.14.0")
