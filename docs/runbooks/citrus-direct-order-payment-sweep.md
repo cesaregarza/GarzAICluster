@@ -28,7 +28,7 @@ render already contains all of these controls:
 
 The job imports only the application ConfigMap with `envFrom`. It never imports
 the broad application, email, Spaces, generated-key, or payment Secrets with
-`envFrom`. The production baseline image
+`envFrom`. The historical pre-sweep production image
 `3f68967f777b2665fccb4f0ab423f339b8ea1357` is explicitly rejected because it
 predates `sweep_direct_order_payment_attempts`.
 

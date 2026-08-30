@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CHART = REPO_ROOT / "helm" / "citrus"
 
@@ -134,9 +133,7 @@ def _run(command: Sequence[str], *, cwd: Path) -> subprocess.CompletedProcess[st
         raise ContractError(f"unable to execute {command[0]}: {exc}") from exc
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or "no output"
-        raise ContractError(
-            f"command failed with status {result.returncode}: {detail}"
-        )
+        raise ContractError(f"command failed with status {result.returncode}: {detail}")
     return result
 
 
@@ -145,7 +142,25 @@ def _require(contents: str, expected: str, *, render: str) -> None:
         raise ContractError(f"{render} is missing required marker: {expected}")
 
 
-def _verify_renders(rendered: dict[str, str]) -> None:
+def _active_dev_revision(rendered_dev: str) -> str:
+    image_tags = set(
+        re.findall(
+            r'\bimage:\s*["\']?registry\.digitalocean\.com/'
+            r'sendouq/citrus:([^"\'\s]+)',
+            rendered_dev,
+        )
+    )
+    if len(image_tags) != 1:
+        raise ContractError(
+            "active dev render must contain exactly one unique Citrus image tag"
+        )
+    image_revision = next(iter(image_tags))
+    if not re.fullmatch(r"[0-9a-f]{40}", image_revision):
+        raise ContractError("active dev image tag must be a lowercase 40-hex SHA")
+    return image_revision
+
+
+def _verify_renders(rendered: dict[str, str], *, active_dev_revision: str) -> None:
     prod = rendered["citrus-prod"]
     dev = rendered["citrus-dev"]
     safe_dev = rendered["citrus-payment-safety-dev"]
@@ -189,8 +204,7 @@ def _verify_renders(rendered: dict[str, str]) -> None:
     ):
         if forbidden in prod:
             raise ContractError(
-                "citrus-prod must keep payment safety marker absent: "
-                f"{forbidden}"
+                f"citrus-prod must keep payment safety marker absent: {forbidden}"
             )
 
     for marker in (
@@ -199,25 +213,15 @@ def _verify_renders(rendered: dict[str, str]) -> None:
         'citrus.grace/payment-egress-policy-revision: "ces-845-dev-v1"',
         "app.kubernetes.io/component: direct-order-payment-sweep",
         "  suspend: false",
-        (
-            'citrus.grace/verified-image-tag: '
-            '"2d186db052c50c763d0b9f58c89be99047ca77f2"'
-        ),
+        (f'citrus.grace/verified-image-tag: "{active_dev_revision}"'),
         "name: citrus-dev-sweep-runtime",
         'value: "development"',
         'value: "deny"',
     ):
         _require(dev, marker, render="citrus-dev")
     if dev.count("name: PAYMENT_EGRESS_POLICY_REVISION") != 6:
-        raise ContractError(
-            "citrus-dev must attest exactly 6 active Citrus containers"
-        )
-    if (
-        dev.count(
-            'citrus.grace/payment-egress-policy-revision: "ces-845-dev-v1"'
-        )
-        != 4
-    ):
+        raise ContractError("citrus-dev must attest exactly 6 active Citrus containers")
+    if dev.count('citrus.grace/payment-egress-policy-revision: "ces-845-dev-v1"') != 4:
         raise ContractError(
             "citrus-dev must retain exactly 4 active payment policy receipts"
         )
@@ -307,7 +311,10 @@ def run_contract(
         )
         rendered[spec.name] = contents
 
-    _verify_renders(rendered)
+    _verify_renders(
+        rendered,
+        active_dev_revision=_active_dev_revision(rendered["citrus-dev"]),
+    )
     return {
         "gate": "citrus-recurring-runtime-render",
         "helm_version": version,

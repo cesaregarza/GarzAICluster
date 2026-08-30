@@ -586,6 +586,16 @@ jobs:
           fi
 
           active_dev=rendered/citrus-dev.yaml
+          mapfile -t active_dev_images < <(
+            grep -Eo 'registry\.digitalocean\.com/sendouq/citrus:[^"[:space:]]+' "$active_dev" |
+              sort -u
+          )
+          if [[ ${#active_dev_images[@]} -ne 1 ]]; then
+            echo "Citrus dev render must use exactly one unique Citrus image" >&2
+            exit 1
+          fi
+          active_dev_sha=${active_dev_images[0]##*:}
+          [[ "$active_dev_sha" =~ ^[0-9a-f]{40}$ ]]
           test "$(grep -Ec '^kind:[[:space:]]+CiliumNetworkPolicy$' "$active_dev")" -eq 2
           test "$(grep -Fc 'citrus.grace/payment-egress-boundary: enabled' "$active_dev")" -eq 6
           test "$(grep -Fc 'name: PAYMENT_EGRESS_POLICY_REVISION' "$active_dev")" -eq 6
@@ -595,7 +605,7 @@ jobs:
           test "$(grep -Fc 'port: "25060"' "$active_dev")" -eq 2
           grep -F 'app.kubernetes.io/component: direct-order-payment-sweep' "$active_dev" >/dev/null
           grep -F '  suspend: false' "$active_dev" >/dev/null
-          grep -F 'citrus.grace/verified-image-tag: "2d186db052c50c763d0b9f58c89be99047ca77f2"' "$active_dev" >/dev/null
+          grep -F "citrus.grace/verified-image-tag: \"$active_dev_sha\"" "$active_dev" >/dev/null
           grep -F 'name: citrus-dev-sweep-runtime' "$active_dev" >/dev/null
           grep -F 'value: "development"' "$active_dev" >/dev/null
           grep -F 'value: "deny"' "$active_dev" >/dev/null
