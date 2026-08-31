@@ -35,6 +35,9 @@ spec:
             - "--port=8080"
             - "--telemetry-port=8081"
             - "--resources={{ join "," $ksm.resources_to_collect }}"
+            {{- if $ksm.job_label_allowlist }}
+            - "--metric-labels-allowlist=jobs=[{{ join "," $ksm.job_label_allowlist }}]"
+            {{- end }}
             {{- if $ksm.watched_namespaces }}
             - "--namespaces={{ join "," $ksm.watched_namespaces }}"
             {{- end }}

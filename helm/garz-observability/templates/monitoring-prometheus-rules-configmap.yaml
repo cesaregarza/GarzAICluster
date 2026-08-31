@@ -172,6 +172,53 @@ data:
               summary: Alertmanager is unreachable
               description: Prometheus could not scrape the Alertmanager endpoints for 5 minutes.
 
+          - alert: CitrusStripeSmokeGateFailed
+            expr: |
+              max by (
+                namespace,
+                job_name,
+                label_citrus_grace_source_revision,
+                label_citrus_grace_smoke_step
+              ) (
+                (
+                  (
+                    kube_job_status_failed{
+                      job="kube-state-metrics",
+                      namespace="citrus-dev"
+                    } > 0
+                  )
+                    and on (namespace, job_name)
+                  (
+                    time() - kube_job_status_start_time{
+                      job="kube-state-metrics",
+                      namespace="citrus-dev"
+                    } < 3600
+                  )
+                )
+                  * on (namespace, job_name)
+                    group_left(
+                      label_citrus_grace_source_revision,
+                      label_citrus_grace_smoke_step
+                    )
+                  (
+                    kube_job_labels{
+                      job="kube-state-metrics",
+                      namespace="citrus-dev",
+                      label_app_kubernetes_io_component="stripe-smoke-runner"
+                    } == 1
+                  )
+              ) > 0
+            for: 1m
+            labels:
+              severity: critical
+              service: citrus
+              environment: development
+            annotations:
+              summary: Citrus development Stripe smoke gate failed
+              description: The development Stripe smoke Job {{ "{{ $labels.namespace }}" }}/{{ "{{ $labels.job_name }}" }} failed or exceeded its deadline at step {{ "{{ $labels.label_citrus_grace_smoke_step }}" }} for source {{ "{{ $labels.label_citrus_grace_source_revision }}" }}; production promotion is blocked for this exact image.
+              source_revision: '{{ "{{ $labels.label_citrus_grace_source_revision }}" }}'
+              smoke_step: '{{ "{{ $labels.label_citrus_grace_smoke_step }}" }}'
+
           - alert: MandateSyntheticLiveVerifyFailed
             expr: |
               max by (namespace, owner_name) (

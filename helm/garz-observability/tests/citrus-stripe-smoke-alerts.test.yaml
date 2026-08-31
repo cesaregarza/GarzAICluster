@@ -1,0 +1,86 @@
+rule_files:
+  - critical-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - name: Citrus Stripe smoke failures alert once per exact Job
+    interval: 1m
+    input_series:
+      # Two positive failure-reason series for one Job prove that max by(...)
+      # emits one alert rather than one page per kube-state-metrics reason.
+      - series: 'kube_job_status_failed{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",reason="BackoffLimitExceeded"}'
+        values: '1x4'
+      - series: 'kube_job_status_failed{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",reason="Evicted"}'
+        values: '1x4'
+      - series: 'kube_job_status_start_time{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+        values: '0x4'
+      - series: 'kube_job_labels{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",label_app_kubernetes_io_component="stripe-smoke-runner",label_citrus_grace_source_revision="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",label_citrus_grace_smoke_step="payment-intent-success-confirm"}'
+        values: '1x4'
+
+      - series: 'kube_job_status_failed{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",reason="DeadlineExceeded"}'
+        values: '1x4'
+      - series: 'kube_job_status_start_time{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}'
+        values: '0x4'
+      - series: 'kube_job_labels{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",label_app_kubernetes_io_component="stripe-smoke-runner",label_citrus_grace_source_revision="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",label_citrus_grace_smoke_step="cleanup"}'
+        values: '1x4'
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: CitrusStripeSmokeGateFailed
+        exp_alerts:
+          - exp_labels:
+              environment: development
+              job_name: citrus-smoke-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+              label_citrus_grace_smoke_step: payment-intent-success-confirm
+              label_citrus_grace_source_revision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+              namespace: citrus-dev
+              service: citrus
+              severity: critical
+            exp_annotations:
+              summary: Citrus development Stripe smoke gate failed
+              description: The development Stripe smoke Job citrus-dev/citrus-smoke-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa failed or exceeded its deadline at step payment-intent-success-confirm for source aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; production promotion is blocked for this exact image.
+              source_revision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+              smoke_step: payment-intent-success-confirm
+          - exp_labels:
+              environment: development
+              job_name: citrus-smoke-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+              label_citrus_grace_smoke_step: cleanup
+              label_citrus_grace_source_revision: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+              namespace: citrus-dev
+              service: citrus
+              severity: critical
+            exp_annotations:
+              summary: Citrus development Stripe smoke gate failed
+              description: The development Stripe smoke Job citrus-dev/citrus-smoke-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb failed or exceeded its deadline at step cleanup for source bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb; production promotion is blocked for this exact image.
+              source_revision: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+              smoke_step: cleanup
+
+  - name: Citrus Stripe smoke success unrelated and stale Jobs stay silent
+    interval: 1m
+    input_series:
+      - series: 'kube_job_status_failed{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-cccccccccccccccccccccccccccccccccccccccc"}'
+        values: '0x64'
+      - series: 'kube_job_status_start_time{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-cccccccccccccccccccccccccccccccccccccccc"}'
+        values: '0x64'
+      - series: 'kube_job_labels{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-cccccccccccccccccccccccccccccccccccccccc",label_app_kubernetes_io_component="stripe-smoke-runner",label_citrus_grace_source_revision="cccccccccccccccccccccccccccccccccccccccc",label_citrus_grace_smoke_step="complete"}'
+        values: '1x64'
+
+      - series: 'kube_job_status_failed{job="kube-state-metrics",namespace="citrus-dev",job_name="unrelated-failed-job",reason="BackoffLimitExceeded"}'
+        values: '1x64'
+      - series: 'kube_job_status_start_time{job="kube-state-metrics",namespace="citrus-dev",job_name="unrelated-failed-job"}'
+        values: '0x64'
+      - series: 'kube_job_labels{job="kube-state-metrics",namespace="citrus-dev",job_name="unrelated-failed-job",label_app_kubernetes_io_component="media-gc"}'
+        values: '1x64'
+
+      - series: 'kube_job_status_failed{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-dddddddddddddddddddddddddddddddddddddddd",reason="BackoffLimitExceeded"}'
+        values: '1x64'
+      - series: 'kube_job_status_start_time{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-dddddddddddddddddddddddddddddddddddddddd"}'
+        values: '0x64'
+      - series: 'kube_job_labels{job="kube-state-metrics",namespace="citrus-dev",job_name="citrus-smoke-dddddddddddddddddddddddddddddddddddddddd",label_app_kubernetes_io_component="stripe-smoke-runner",label_citrus_grace_source_revision="dddddddddddddddddddddddddddddddddddddddd",label_citrus_grace_smoke_step="claim"}'
+        values: '1x64'
+
+    alert_rule_test:
+      - eval_time: 61m
+        alertname: CitrusStripeSmokeGateFailed
+        exp_alerts: []

@@ -126,6 +126,14 @@ monitoring:
       tag: v2.19.1
       pull_policy: IfNotPresent
     watched_namespaces: []
+    # Expose only the Job labels required to bind a smoke-gate failure to the
+    # exact Citrus source revision and the reviewed verification step. Avoid
+    # wildcard label export because it expands cardinality and can surface
+    # unrelated workload metadata.
+    job_label_allowlist:
+      - app.kubernetes.io/component
+      - citrus.grace/source-revision
+      - citrus.grace/smoke-step
     resources_to_collect:
       - pods
       - nodes
