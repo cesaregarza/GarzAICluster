@@ -1,8 +1,22 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["directOrderPaymentSweep"],
+  "required": ["directOrderPaymentSweep", "stripeSmokePromotion"],
   "properties": {
+    "stripeSmokePromotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "verifiedImageTag"],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "verifiedImageTag": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
     "stripeSmokeRunner": {
       "type": "object",
       "additionalProperties": false,

@@ -88,6 +88,8 @@ def _base_command(*, dev: bool, chart_path: Path = CHART_PATH) -> list[str]:
     ]
     if dev:
         command.extend(["-f", str(chart_path / "values-dev.yaml")])
+    else:
+        command.extend(["--set", "stripeSmokePromotion.enabled=false"])
     return command
 
 

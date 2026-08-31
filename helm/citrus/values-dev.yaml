@@ -1,6 +1,10 @@
 image:
   tag: 90b90a00931f48a8eef9c8c2303ead5f2c9db7ce # allow-latest
 
+# Production promotion is operator-attested. It must not gate dev image rolls.
+stripeSmokePromotion:
+  enabled: false
+
 # Activate the CES-845 development deny boundary before retrying the guarded
 # source image. The current rollback image remains pinned for this first phase.
 paymentSafety:

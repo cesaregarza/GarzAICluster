@@ -45,6 +45,12 @@
       "policy": "manual-attestation"
     },
     {
+      "name": "stripe-smoke-promotion-image",
+      "enabledPath": "stripeSmokePromotion.enabled",
+      "valuePath": "stripeSmokePromotion.verifiedImageTag",
+      "policy": "manual-attestation"
+    },
+    {
       "name": "direct-order-payment-sweep-image",
       "enabledPath": "directOrderPaymentSweep.enabled",
       "valuePath": "directOrderPaymentSweep.verifiedImageTag",

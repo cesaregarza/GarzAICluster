@@ -78,6 +78,23 @@ outcomes, timestamps, test-mode classification, and the exact SHA. Stop if it
 contains an account ID, provider object identifier, payment detail, credential,
 secret fragment, or unbounded error text.
 
+## Production promotion attestation
+
+For every production promotion PR, complete the CES-806 merge-day checklist
+before merge:
+
+1. Copy only the exact lowercase 40-hex SHA from the durable `passed` receipt
+   for that image. Do not copy receipt metadata, logs, or provider identifiers.
+2. Set both `image.tag` and `stripeSmokePromotion.verifiedImageTag` to that exact
+   SHA in `helm/citrus/values.yaml` in the same reviewed promotion commit.
+3. Render the production values and require exact equality. A receipt for an
+   ancestor, a failed or interrupted receipt, a mutable tag, or any mismatch
+   blocks promotion.
+
+The release updater deliberately fails closed while the manual-attestation
+binding is enabled; it cannot confer promotion authority or copy a cluster
+receipt automatically. Never disable the gate merely to make a promotion pass.
+
 ## Failure or timeout
 
 A failed or deadline-exceeded Job remains for diagnosis and fails the Argo

@@ -113,6 +113,8 @@ def _helm_command(
                 "-f",
                 str(chart_path / DEV_PAYMENT_VALUES_PATH.name),
             ])
+    else:
+        command.extend(["--set", "stripeSmokePromotion.enabled=false"])
     string_overrides = (
         ("image.repository", image_repository),
         ("application.configMapName", config_map_name),

@@ -50,6 +50,8 @@ def _command(
     ]
     if development:
         command.extend(["-f", str(DEV_VALUES)])
+    else:
+        command.extend(["--set", "stripeSmokePromotion.enabled=false"])
     command.extend(
         [
             "--set",

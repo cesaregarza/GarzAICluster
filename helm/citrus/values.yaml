@@ -15,6 +15,14 @@ image:
   tag: 3f68967f777b2665fccb4f0ab423f339b8ea1357 # allow-latest
   pullPolicy: IfNotPresent
 
+# CES-881 production-promotion authority. The operator copies the exact SHA
+# from the durable citrus-dev smoke receipt into this field in the promotion
+# PR. The manual-attestation release binding prevents the release updater from
+# advancing image.tag on its own while this gate is enabled.
+stripeSmokePromotion:
+  enabled: true
+  verifiedImageTag: 3f68967f777b2665fccb4f0ab423f339b8ea1357
+
 nameOverride: ""
 fullnameOverride: ""
 

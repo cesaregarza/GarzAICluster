@@ -339,6 +339,21 @@ jobs:
             -f "$chart/values-payment-dev.yaml" \
             > rendered/citrus-dev.yaml
 
+          # Prove production cannot render a different image until an operator
+          # copies that exact passed-receipt SHA into the attestation field.
+          promotion_candidate=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          if helm template citrus "$chart" \
+            --namespace default \
+            -f "$chart/values.yaml" \
+            --set-string image.tag="$promotion_candidate" \
+            > /dev/null 2> rendered/citrus-promotion-gate-error.txt; then
+            echo "Citrus production must reject an unattested image SHA" >&2
+            exit 1
+          fi
+          grep -F 'stripeSmokePromotion.verifiedImageTag' rendered/citrus-promotion-gate-error.txt >/dev/null
+          grep -F 'must exactly match image.tag' rendered/citrus-promotion-gate-error.txt >/dev/null
+          rm rendered/citrus-promotion-gate-error.txt
+
           # Exercise only the CES-883 dev runner against the exact immutable
           # image.tag selected by the dev overlays. This renders references but
           # never decrypts or reads Secret values, resolves DNS, or contacts Stripe.
@@ -395,6 +410,7 @@ jobs:
             -f "$chart/values.yaml" \
             --show-only templates/sms-reconciliation-cronjob.yaml \
             --set-string image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c \
+            --set-string stripeSmokePromotion.verifiedImageTag=0e2258bf95c6170895c26780258eb42d5b5c557c \
             --set smsReconciliation.enabled=true \
             --set-string smsReconciliation.verifiedImageTag=0e2258bf95c6170895c26780258eb42d5b5c557c \
             --set-string 'smsReconciliation.commandCompatibleImageTags[0]=0e2258bf95c6170895c26780258eb42d5b5c557c' \
@@ -435,6 +451,7 @@ jobs:
             --set recurringRuntime.preflight.enabled=true \
             --set-string recurringRuntime.preflight.topologyRevision=ces-850-ci \
             --set-string recurringRuntime.health.topologyRevision=ces-850-ci \
+            --set-string stripeSmokePromotion.verifiedImageTag=4353f11595094bc4893b5799233cfd56c52aed89 \
             --set directOrderPaymentSweep.enabled=true \
             --set-string directOrderPaymentSweep.runtimeSecretName=citrus-ci-direct-order-runtime \
             --set-string directOrderPaymentSweep.verifiedImageTag=4353f11595094bc4893b5799233cfd56c52aed89 \
@@ -517,6 +534,7 @@ jobs:
             --set-string cloudflareAccess.rolloutRevision=ces-829-ci \
             --set-string cloudflareAccess.verifiedImageTag="$cloudflare_sha" \
             --set-string image.tag="$cloudflare_sha" \
+            --set-string stripeSmokePromotion.verifiedImageTag="$cloudflare_sha" \
             > rendered/citrus-cloudflare-access.yaml
 
       - name: Verify Citrus workload render coverage

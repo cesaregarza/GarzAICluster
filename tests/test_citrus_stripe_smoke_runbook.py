@@ -57,6 +57,18 @@ class CitrusStripeSmokeRunbookTests(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, self.normalized)
 
+    def test_runbook_pins_exact_sha_promotion_attestation(self) -> None:
+        for required in (
+            "CES-806 merge-day checklist",
+            "durable `passed` receipt",
+            "`image.tag` and `stripeSmokePromotion.verifiedImageTag`",
+            "same reviewed promotion commit",
+            "release updater deliberately fails closed",
+            "Never disable the gate",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, self.normalized)
+
 
 if __name__ == "__main__":
     unittest.main()
