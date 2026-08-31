@@ -146,6 +146,8 @@ class CitrusCiContractTests(unittest.TestCase):
                 '--show-only templates/sms-reconciliation-cronjob.yaml '
                 '--set-string '
                 'image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c '
+                '--set-string stripeSmokePromotion.verifiedImageTag='
+                '0e2258bf95c6170895c26780258eb42d5b5c557c '
                 '--set smsReconciliation.enabled=true '
                 '--set-string '
                 'smsReconciliation.verifiedImageTag='
@@ -206,6 +208,8 @@ class CitrusCiContractTests(unittest.TestCase):
                 'recurringRuntime.preflight.topologyRevision=ces-850-ci '
                 '--set-string '
                 'recurringRuntime.health.topologyRevision=ces-850-ci '
+                '--set-string stripeSmokePromotion.verifiedImageTag='
+                '4353f11595094bc4893b5799233cfd56c52aed89 '
                 '--set directOrderPaymentSweep.enabled=true '
                 '--set-string directOrderPaymentSweep.runtimeSecretName='
                 'citrus-ci-direct-order-runtime '
@@ -292,6 +296,8 @@ class CitrusCiContractTests(unittest.TestCase):
                 '--set-string '
                 'cloudflareAccess.verifiedImageTag="$cloudflare_sha" '
                 '--set-string image.tag="$cloudflare_sha" '
+                '--set-string '
+                'stripeSmokePromotion.verifiedImageTag="$cloudflare_sha" '
                 '> rendered/citrus-cloudflare-access.yaml'
             ),
         ):
@@ -418,8 +424,13 @@ class CitrusCiContractTests(unittest.TestCase):
         ]["run"]
         for expected in (
             "rendered/citrus-stripe-smoke-enabled-dev.yaml",
+            "rendered/citrus-stripe-smoke-automated-dev.yaml",
             "--set stripeSmokeRunner.enabled=true",
+            "stripeSmokeRunner.automation.enabled=true",
             "stripeSmokeRunner.expectedAccountId=acct_0000000000000000",
+            "Citrus production must reject an unattested image SHA",
+            "stripeSmokePromotion.verifiedImageTag",
+            "must exactly match image.tag",
         ):
             with self.subTest(stripe_smoke_render=expected):
                 self.assertIn(expected, render)
@@ -433,6 +444,14 @@ class CitrusCiContractTests(unittest.TestCase):
             'matchName: "api.stripe.com"',
             "Only the enabled dev runner render may contain Stripe egress",
             "must not add a ServiceAccount",
+            "argocd.argoproj.io/hook: PostSync",
+            "argocd.argoproj.io/hook-delete-policy: HookSucceeded",
+            "citrus-dev-stripe-smoke-receipts",
+            "citrus.grace/source-revision",
+            "citrus.grace/smoke-step",
+            "ces-881-stripe-smoke-gate-v1",
+            "kube-apiserver",
+            "Failed smoke hooks must remain available for diagnosis",
         ):
             with self.subTest(stripe_smoke_assertion=expected):
                 self.assertIn(expected, run)

@@ -1,0 +1,26 @@
+{{- $promotion := .Values.stripeSmokePromotion -}}
+{{- if not (kindIs "bool" $promotion.enabled) -}}
+{{- fail "stripeSmokePromotion.enabled must be a boolean" -}}
+{{- end -}}
+{{- if $promotion.enabled -}}
+{{- if not (kindIs "string" .Values.image.tag) -}}
+{{- fail "stripeSmokePromotion.enabled requires image.tag to be a lowercase 40-hex string" -}}
+{{- end -}}
+{{- $imageTag := .Values.image.tag -}}
+{{- if not (regexMatch "^[0-9a-f]{40}$" $imageTag) -}}
+{{- fail "stripeSmokePromotion.enabled requires image.tag to be a lowercase 40-hex immutable source tag" -}}
+{{- end -}}
+{{- if not (hasKey $promotion "verifiedImageTag") -}}
+{{- fail "stripeSmokePromotion.verifiedImageTag is required when enabled" -}}
+{{- end -}}
+{{- $verifiedImageTag := get $promotion "verifiedImageTag" -}}
+{{- if not (kindIs "string" $verifiedImageTag) -}}
+{{- fail "stripeSmokePromotion.verifiedImageTag must be a lowercase 40-hex string" -}}
+{{- end -}}
+{{- if not (regexMatch "^[0-9a-f]{40}$" $verifiedImageTag) -}}
+{{- fail "stripeSmokePromotion.verifiedImageTag must attest a lowercase 40-hex smoke-tested image" -}}
+{{- end -}}
+{{- if ne $verifiedImageTag $imageTag -}}
+{{- fail (printf "stripeSmokePromotion.verifiedImageTag %q must exactly match image.tag %q" $verifiedImageTag $imageTag) -}}
+{{- end -}}
+{{- end -}}

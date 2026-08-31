@@ -1,0 +1,54 @@
+{{- if and (hasKey .Values "stripeSmokeRunner") .Values.stripeSmokeRunner.enabled .Values.stripeSmokeRunner.automation.enabled -}}
+{{- $runner := .Values.stripeSmokeRunner -}}
+{{- $imageTag := .Values.image.tag -}}
+{{- $jobName := printf "citrus-smoke-%s" $imageTag -}}
+{{- $receiptConfigMapName := $runner.automation.receiptConfigMapName -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: citrus-dev-stripe-smoke-runner
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stripe-smoke-runner
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: citrus-dev-stripe-smoke-runner
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stripe-smoke-runner
+rules:
+  # Kubernetes cannot resourceName-scope create. Every read or mutation after
+  # creation is restricted to the one fixed runner-owned receipt ConfigMap.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: [{{ $receiptConfigMapName | quote }}]
+    verbs: ["get", "patch"]
+  # The runner publishes only a fixed allowlisted progress label on its own
+  # exact-SHA Job so kube-state-metrics can produce actionable failure alerts.
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    resourceNames: [{{ $jobName | quote }}]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: citrus-dev-stripe-smoke-runner
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stripe-smoke-runner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: citrus-dev-stripe-smoke-runner
+subjects:
+  - kind: ServiceAccount
+    name: citrus-dev-stripe-smoke-runner
+    namespace: {{ .Release.Namespace }}
+{{- end -}}

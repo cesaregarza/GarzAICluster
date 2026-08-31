@@ -57,6 +57,10 @@ class SyntheticRepository:
                     "repository": "registry.example/citrus",
                     "tag": OLD_PROD_REVISION,
                 },
+                "stripeSmokePromotion": {
+                    "enabled": True,
+                    "verifiedImageTag": OLD_PROD_REVISION,
+                },
                 "recurringRuntime": {
                     "enabled": False,
                     "expectedSourceRevision": OLD_PROD_REVISION,
@@ -90,6 +94,7 @@ class SyntheticRepository:
             self.dev_values,
             {
                 "image": {"tag": OLD_DEV_REVISION},
+                "stripeSmokePromotion": {"enabled": False},
                 "recurringRuntime": {
                     "enabled": False,
                     "expectedSourceRevision": OLD_DEV_REVISION,
@@ -255,6 +260,9 @@ class CitrusReleaseUpdaterTests(unittest.TestCase):
         self.assertEqual(output.read_bytes(), b"")
 
     def test_prod_bump_updates_only_applied_production_values(self) -> None:
+        values = _load_yaml(self.repo.values)
+        values["stripeSmokePromotion"]["enabled"] = False
+        _write_yaml(self.repo.values, values)
         before = self.repo.bytes()
         before_values = _load_yaml(self.repo.values)
         output = self.repo.root / "changed-paths"
@@ -288,6 +296,19 @@ class CitrusReleaseUpdaterTests(unittest.TestCase):
         protected["image"]["tag"] = OLD_PROD_REVISION
         protected["recurringRuntime"]["expectedSourceRevision"] = OLD_PROD_REVISION
         self.assertEqual(protected, before_values)
+
+    def test_prod_bump_fails_closed_without_manual_smoke_attestation(self) -> None:
+        before = self.repo.bytes()
+        output = self.repo.root / "changed-paths"
+        with self.assertRaisesRegex(
+            CitrusReleaseContractError,
+            "stripe-smoke-promotion-image requires manual attestation",
+        ):
+            self.repo.update(
+                environment="prod", capabilities=frozenset(), output=output
+            )
+        self.assertEqual(self.repo.bytes(), before)
+        self.assertFalse(output.exists())
 
     def test_malformed_revision_fails_before_any_write(self) -> None:
         before = self.repo.bytes()
@@ -409,7 +430,7 @@ class CitrusReleaseUpdaterTests(unittest.TestCase):
         self.repo.registry.write_text(json.dumps(registry), encoding="utf-8")
         with self.assertRaisesRegex(
             CitrusReleaseContractError,
-            "bindings\\[4\\] contains unknown keys: requiresCapabilty",
+            "bindings\\[5\\] contains unknown keys: requiresCapabilty",
         ):
             load_registry(self.repo.registry)
 

@@ -339,6 +339,21 @@ jobs:
             -f "$chart/values-payment-dev.yaml" \
             > rendered/citrus-dev.yaml
 
+          # Prove production cannot render a different image until an operator
+          # copies that exact passed-receipt SHA into the attestation field.
+          promotion_candidate=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          if helm template citrus "$chart" \
+            --namespace default \
+            -f "$chart/values.yaml" \
+            --set-string image.tag="$promotion_candidate" \
+            > /dev/null 2> rendered/citrus-promotion-gate-error.txt; then
+            echo "Citrus production must reject an unattested image SHA" >&2
+            exit 1
+          fi
+          grep -F 'stripeSmokePromotion.verifiedImageTag' rendered/citrus-promotion-gate-error.txt >/dev/null
+          grep -F 'must exactly match image.tag' rendered/citrus-promotion-gate-error.txt >/dev/null
+          rm rendered/citrus-promotion-gate-error.txt
+
           # Exercise only the CES-883 dev runner against the exact immutable
           # image.tag selected by the dev overlays. This renders references but
           # never decrypts or reads Secret values, resolves DNS, or contacts Stripe.
@@ -350,6 +365,18 @@ jobs:
             --set stripeSmokeRunner.enabled=true \
             --set-string stripeSmokeRunner.expectedAccountId=acct_0000000000000000 \
             > rendered/citrus-stripe-smoke-enabled-dev.yaml
+
+          # Exercise the separately gated CES-881 PostSync lifecycle with only
+          # a reserved account-shaped sentinel. Rendering never contacts Stripe.
+          helm template citrus-dev "$chart" \
+            --namespace citrus-dev \
+            -f "$chart/values.yaml" \
+            -f "$chart/values-dev.yaml" \
+            -f "$chart/values-payment-dev.yaml" \
+            --set stripeSmokeRunner.enabled=true \
+            --set stripeSmokeRunner.automation.enabled=true \
+            --set-string stripeSmokeRunner.expectedAccountId=acct_0000000000000000 \
+            > rendered/citrus-stripe-smoke-automated-dev.yaml
 
           # Exercise disabled-by-default consumers without contacting providers
           # or rendering any Secret object.
@@ -383,6 +410,7 @@ jobs:
             -f "$chart/values.yaml" \
             --show-only templates/sms-reconciliation-cronjob.yaml \
             --set-string image.tag=0e2258bf95c6170895c26780258eb42d5b5c557c \
+            --set-string stripeSmokePromotion.verifiedImageTag=0e2258bf95c6170895c26780258eb42d5b5c557c \
             --set smsReconciliation.enabled=true \
             --set-string smsReconciliation.verifiedImageTag=0e2258bf95c6170895c26780258eb42d5b5c557c \
             --set-string 'smsReconciliation.commandCompatibleImageTags[0]=0e2258bf95c6170895c26780258eb42d5b5c557c' \
@@ -423,6 +451,7 @@ jobs:
             --set recurringRuntime.preflight.enabled=true \
             --set-string recurringRuntime.preflight.topologyRevision=ces-850-ci \
             --set-string recurringRuntime.health.topologyRevision=ces-850-ci \
+            --set-string stripeSmokePromotion.verifiedImageTag=4353f11595094bc4893b5799233cfd56c52aed89 \
             --set directOrderPaymentSweep.enabled=true \
             --set-string directOrderPaymentSweep.runtimeSecretName=citrus-ci-direct-order-runtime \
             --set-string directOrderPaymentSweep.verifiedImageTag=4353f11595094bc4893b5799233cfd56c52aed89 \
@@ -505,6 +534,7 @@ jobs:
             --set-string cloudflareAccess.rolloutRevision=ces-829-ci \
             --set-string cloudflareAccess.verifiedImageTag="$cloudflare_sha" \
             --set-string image.tag="$cloudflare_sha" \
+            --set-string stripeSmokePromotion.verifiedImageTag="$cloudflare_sha" \
             > rendered/citrus-cloudflare-access.yaml
 
       - name: Verify Citrus workload render coverage
@@ -656,8 +686,35 @@ jobs:
             exit 1
           fi
 
+          stripe_smoke_auto=rendered/citrus-stripe-smoke-automated-dev.yaml
+          mapfile -t stripe_smoke_auto_images < <(
+            grep -Eo 'registry\.digitalocean\.com/sendouq/citrus:[^"[:space:]]+' "$stripe_smoke_auto" |
+              sort -u
+          )
+          test "${#stripe_smoke_auto_images[@]}" -eq 1
+          stripe_smoke_auto_sha=${stripe_smoke_auto_images[0]##*:}
+          [[ "$stripe_smoke_auto_sha" =~ ^[0-9a-f]{40}$ ]]
+          grep -F "name: citrus-smoke-$stripe_smoke_auto_sha" "$stripe_smoke_auto" >/dev/null
+          grep -F 'argocd.argoproj.io/hook: PostSync' "$stripe_smoke_auto" >/dev/null
+          grep -F 'argocd.argoproj.io/hook-delete-policy: HookSucceeded' "$stripe_smoke_auto" >/dev/null
+          grep -F 'serviceAccountName: citrus-dev-stripe-smoke-runner' "$stripe_smoke_auto" >/dev/null
+          grep -F 'automountServiceAccountToken: true' "$stripe_smoke_auto" >/dev/null
+          test "$(grep -Fc 'resourceNames: ["citrus-dev-stripe-smoke-receipts"]' "$stripe_smoke_auto")" -eq 1
+          test "$(grep -Fc 'value: "citrus-dev-stripe-smoke-receipts"' "$stripe_smoke_auto")" -eq 1
+          grep -F "citrus.grace/source-revision: \"$stripe_smoke_auto_sha\"" "$stripe_smoke_auto" >/dev/null
+          grep -F 'citrus.grace/smoke-step: "claim"' "$stripe_smoke_auto" >/dev/null
+          grep -F 'value: "ces-881-stripe-smoke-gate-v1"' "$stripe_smoke_auto" >/dev/null
+          grep -F 'toEntities:' "$stripe_smoke_auto" >/dev/null
+          grep -F -- '- kube-apiserver' "$stripe_smoke_auto" >/dev/null
+          test "$(grep -Fc 'matchName: "api.stripe.com"' "$stripe_smoke_auto")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]+(ServiceAccount|Role|RoleBinding)$' "$stripe_smoke_auto")" -eq 3
+          if grep -F 'ttlSecondsAfterFinished:' "$stripe_smoke_auto" >/dev/null; then
+            echo "Failed smoke hooks must remain available for diagnosis" >&2
+            exit 1
+          fi
+
           for file in rendered/citrus-*.yaml; do
-            if [[ "$file" == "$stripe_smoke" ]]; then
+            if [[ "$file" == "$stripe_smoke" || "$file" == "$stripe_smoke_auto" ]]; then
               continue
             fi
             if grep -Ei 'matchName:.*stripe\.(com|network)|CITRUS_STRIPE_SMOKE_' "$file" >/dev/null; then

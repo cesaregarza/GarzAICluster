@@ -63,6 +63,8 @@ def _render(
         arguments.extend(["-f", str(DEV_VALUES)])
         if disable_payment_safety:
             arguments.extend(["--set", "paymentSafety.enabled=false"])
+    else:
+        arguments.extend(["--set", "stripeSmokePromotion.enabled=false"])
     if enabled:
         owner = "citrus-dev" if dev else "citrus"
         secret_name = (
@@ -235,6 +237,8 @@ class CitrusCloudflareAccessTests(unittest.TestCase):
             f"cloudflareAccess.verifiedImageTag={SOURCE_SHA}",
             "--set-string",
             f"image.tag={SOURCE_SHA}",
+            "--set",
+            "stripeSmokePromotion.enabled=false",
         ]
         cases = (
             (["--set", "cloudflareAccess.enabled=true"], "cloudflareAccess.owner"),

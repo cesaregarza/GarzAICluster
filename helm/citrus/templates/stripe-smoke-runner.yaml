@@ -9,6 +9,16 @@
 {{- if not (kindIs "bool" $runner.enabled) -}}
 {{- fail "stripeSmokeRunner.enabled must be a boolean" -}}
 {{- end -}}
+{{- if or (not (hasKey $runner "automation")) (not (kindIs "map" $runner.automation)) -}}
+{{- fail "stripeSmokeRunner.automation must be an object" -}}
+{{- end -}}
+{{- $automation := $runner.automation -}}
+{{- if or (not (hasKey $automation "enabled")) (not (kindIs "bool" $automation.enabled)) -}}
+{{- fail "stripeSmokeRunner.automation.enabled must be a boolean" -}}
+{{- end -}}
+{{- if and $automation.enabled (not $runner.enabled) -}}
+{{- fail "stripeSmokeRunner.automation.enabled requires stripeSmokeRunner.enabled=true" -}}
+{{- end -}}
 {{- if $runner.enabled -}}
 {{- if or (not (hasKey $runner "suspend")) (not (kindIs "bool" $runner.suspend)) (not $runner.suspend) -}}
 {{- fail "stripeSmokeRunner.suspend must remain true when enabled" -}}
@@ -54,6 +64,128 @@
 {{- fail "stripeSmokeRunner.activeDeadlineSeconds must be between 60 and 1800 seconds" -}}
 {{- end -}}
 {{- $networkPolicy := .Values.paymentSafety.networkPolicy -}}
+{{- $receiptConfigMapName := "" -}}
+{{- $jobName := printf "citrus-smoke-%s" $imageTag -}}
+{{- if $automation.enabled -}}
+{{- $receiptConfigMapName = required "stripeSmokeRunner.automation.receiptConfigMapName is required when automation is enabled" (get $automation "receiptConfigMapName") -}}
+{{- if ne $receiptConfigMapName "citrus-dev-stripe-smoke-receipts" -}}
+{{- fail "stripeSmokeRunner.automation.receiptConfigMapName must be citrus-dev-stripe-smoke-receipts" -}}
+{{- end -}}
+{{- $automationPolicyRevision := required "stripeSmokeRunner.automation.policyRevision is required when automation is enabled" (get $automation "policyRevision") -}}
+{{- if ne $automationPolicyRevision "ces-881-stripe-smoke-gate-v1" -}}
+{{- fail "stripeSmokeRunner.automation.policyRevision must match the source runtime contract ces-881-stripe-smoke-gate-v1" -}}
+{{- end -}}
+{{- $policyRevision = $automationPolicyRevision -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $jobName }}
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stripe-smoke-runner
+    citrus.grace/source-revision: {{ $imageTag | quote }}
+    citrus.grace/smoke-step: "claim"
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    citrus.grace/payment-egress-policy-revision: {{ $policyRevision | quote }}
+    citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
+    citrus.grace/verified-image-tag: {{ $imageTag | quote }}
+spec:
+  activeDeadlineSeconds: {{ $activeDeadlineSeconds }}
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "citrus.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: stripe-smoke-runner
+      annotations:
+        citrus.grace/payment-egress-policy-revision: {{ $policyRevision | quote }}
+        citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
+        citrus.grace/verified-image-tag: {{ $imageTag | quote }}
+    spec:
+      {{- include "citrus.imagePullSecrets" . | nindent 6 }}
+      automountServiceAccountToken: true
+      serviceAccountName: citrus-dev-stripe-smoke-runner
+      restartPolicy: Never
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: stripe-smoke-runner
+          image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - python
+            - manage.py
+            - run_stripe_smoke
+            - --receipt-path
+            - /tmp/citrus-stripe-smoke-receipt.json
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
+            - name: DB_SCHEMA
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.application.configMapName }}
+                  key: DB_SCHEMA
+                  optional: false
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "stripeSmokeRunner requires application.generatedSecretName" .Values.application.generatedSecretName }}
+                  key: DJANGO_SECRET_KEY
+                  optional: false
+            - name: DJANGO_ENV
+              value: "development"
+            - name: CITRUS_ENVIRONMENT_OWNER
+              value: "citrus-dev"
+            - name: CITRUS_STRIPE_SMOKE_RUNNER
+              value: "true"
+            - name: CITRUS_STRIPE_SMOKE_EXPECTED_ACCOUNT_ID
+              value: {{ $expectedAccountId | quote }}
+            - name: CITRUS_STRIPE_SMOKE_RECEIPT_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: CITRUS_STRIPE_SMOKE_RECEIPT_CONFIG_MAP
+              value: {{ $receiptConfigMapName | quote }}
+            - name: CITRUS_STRIPE_SMOKE_JOB_NAME
+              value: {{ $jobName | quote }}
+            - name: CITRUS_EXPECTED_SOURCE_REVISION
+              value: {{ $imageTag | quote }}
+            - name: PAYMENT_NETWORK_MODE
+              value: "allow"
+            - name: PAYMENT_EGRESS_POLICY_REQUIRED
+              value: "true"
+            - name: PAYMENT_EGRESS_POLICY_PROVIDER
+              value: "cilium"
+            - name: PAYMENT_EGRESS_POLICY_REVISION
+              value: {{ $policyRevision | quote }}
+            - name: EMAIL_BACKEND
+              value: "django.core.mail.backends.locmem.EmailBackend"
+            - name: EMAIL_USE_AUTH
+              value: "false"
+            - name: EMAIL_HOST
+              value: ""
+            - name: EMAIL_HOST_USER
+              value: ""
+            - name: EMAIL_HOST_PASSWORD
+              value: ""
+            - name: TWILIO_SMS_ENABLED
+              value: "false"
+            - name: NTFY_NOTIFICATION_URL
+              value: ""
+            - name: NTFY_AUTH_TOKEN
+              value: ""
+            - name: DIRECT_ORDER_PAYMENT_SETUP_ENABLED
+              value: "false"
+            - name: RECURRING_ORDER_ENROLLMENT_MODE
+              value: "off"
+            - name: RECURRING_ORDER_ENROLLMENT_ALLOWLIST
+              value: ""
+            {{- include "citrus.paymentCredentials.webEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml $runner.resources | nindent 12 }}
+{{- else }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -66,9 +198,8 @@ metadata:
     citrus.grace/payment-rollout-revision: {{ .Values.paymentCredentials.rolloutRevision | quote }}
     citrus.grace/verified-image-tag: {{ $imageTag | quote }}
 spec:
-  # This intentionally impossible date is defense in depth. suspend=true is
-  # immutable in the chart contract; operators clone a one-shot Job with
-  # `kubectl create job --from=cronjob/<name> <job-name>`.
+  # Defense in depth: the stage-1 operator path remains a suspended template
+  # for an explicitly cloned one-shot Job. Automation uses the PostSync branch.
   schedule: "0 0 31 2 *"
   timeZone: "Etc/UTC"
   suspend: {{ $runner.suspend }}
@@ -167,6 +298,7 @@ spec:
                 {{- include "citrus.paymentCredentials.webEnv" . | nindent 16 }}
               resources:
                 {{- toYaml $runner.resources | nindent 16 }}
+{{- end }}
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -220,5 +352,13 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
+    {{- if $automation.enabled }}
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    {{- end }}
 {{- end -}}
 {{- end -}}

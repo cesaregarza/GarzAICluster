@@ -1,6 +1,10 @@
 image:
   tag: 3cb39aa70759703db06660832723d750858a806a # allow-latest
 
+# Production promotion is operator-attested. It must not gate dev image rolls.
+stripeSmokePromotion:
+  enabled: false
+
 # Activate the CES-845 development deny boundary before retrying the guarded
 # source image. The current rollback image remains pinned for this first phase.
 paymentSafety:
@@ -32,6 +36,12 @@ stripeSmokeRunner:
   # enable change must bind the exact Stripe test account before rendering.
   expectedAccountId: ""
   activeDeadlineSeconds: 900
+  # Stage 2 remains independently disabled. When separately acknowledged it
+  # replaces the suspended operator CronJob with an exact-image PostSync Job.
+  automation:
+    enabled: false
+    policyRevision: ces-881-stripe-smoke-gate-v1
+    receiptConfigMapName: citrus-dev-stripe-smoke-receipts
   resources:
     requests:
       cpu: 50m
