@@ -32,6 +32,12 @@ stripeSmokeRunner:
   # enable change must bind the exact Stripe test account before rendering.
   expectedAccountId: ""
   activeDeadlineSeconds: 900
+  # Stage 2 remains independently disabled. When separately acknowledged it
+  # replaces the suspended operator CronJob with an exact-image PostSync Job.
+  automation:
+    enabled: false
+    policyRevision: ces-881-stripe-smoke-gate-v1
+    receiptConfigMapName: citrus-dev-stripe-smoke-receipts
   resources:
     requests:
       cpu: 50m

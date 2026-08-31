@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CHART_PATH = REPO_ROOT / "helm" / "citrus"
 TEMPLATE_PATH = CHART_PATH / "templates" / "stripe-smoke-runner.yaml"
 POLICY_REVISION = "ces-883-stripe-smoke-v1"
+AUTOMATION_POLICY_REVISION = "ces-881-stripe-smoke-gate-v1"
 SENTINEL_ACCOUNT_ID = "acct_0000000000000000"
 YAML_PARSER = YAML(typ="safe")
 
@@ -22,6 +23,7 @@ def _command(
     *,
     enabled: bool,
     dev: bool = True,
+    automated: bool = False,
     expected_account_id: str | None = SENTINEL_ACCOUNT_ID,
 ) -> list[str]:
     command = [
@@ -45,6 +47,10 @@ def _command(
         )
     if enabled:
         command.extend(["--set", "stripeSmokeRunner.enabled=true"])
+        if automated:
+            command.extend(
+                ["--set", "stripeSmokeRunner.automation.enabled=true"]
+            )
         if expected_account_id is not None:
             command.extend(
                 [
@@ -112,6 +118,9 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
         cls.prod_off = _documents(_command(enabled=False, dev=False))
         cls.dev_off = _documents(_command(enabled=False))
         cls.enabled_dev = _documents(_command(enabled=True))
+        cls.automated_dev = _documents(
+            _command(enabled=True, automated=True)
+        )
 
     def test_runner_is_default_off_in_dev_and_absent_from_prod(self) -> None:
         for documents in (self.dev_off, self.prod_off):
@@ -312,42 +321,70 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
         )
 
     def test_only_runner_pod_receives_smoke_marker_and_allow_mode(self) -> None:
-        marked: list[tuple[str, str]] = []
-        account_bound: list[tuple[str, str]] = []
-        allow_mode: list[tuple[str, str]] = []
-        for workload in self.enabled_dev:
-            if workload.get("kind") not in {"Deployment", "Job", "CronJob"}:
-                continue
-            for container in _pod_template(workload)["spec"].get(
-                "containers", []
-            ):
-                plain_env = _plain_env(container)
-                if plain_env.get(
-                    "CITRUS_STRIPE_SMOKE_RUNNER"
-                ) == "true":
-                    marked.append(
-                        (workload["metadata"]["name"], container["name"])
-                    )
-                if "CITRUS_STRIPE_SMOKE_EXPECTED_ACCOUNT_ID" in plain_env:
-                    self.assertEqual(
-                        plain_env[
-                            "CITRUS_STRIPE_SMOKE_EXPECTED_ACCOUNT_ID"
-                        ],
-                        SENTINEL_ACCOUNT_ID,
-                    )
-                    account_bound.append(
-                        (workload["metadata"]["name"], container["name"])
-                    )
-                if plain_env.get("PAYMENT_NETWORK_MODE") == "allow":
-                    allow_mode.append(
-                        (workload["metadata"]["name"], container["name"])
-                    )
-        self.assertEqual(
-            marked,
-            [("citrus-dev-stripe-smoke-runner", "stripe-smoke-runner")],
+        image_tag = YAML_PARSER.load(
+            (CHART_PATH / "values-dev.yaml").read_text(encoding="utf-8")
+        )["image"]["tag"]
+        cases = (
+            (
+                "manual",
+                self.enabled_dev,
+                "citrus-dev-stripe-smoke-runner",
+            ),
+            (
+                "automated",
+                self.automated_dev,
+                f"citrus-smoke-{image_tag}",
+            ),
         )
-        self.assertEqual(account_bound, marked)
-        self.assertEqual(allow_mode, marked)
+        for name, documents, expected_name in cases:
+            with self.subTest(mode=name):
+                marked: list[tuple[str, str]] = []
+                account_bound: list[tuple[str, str]] = []
+                allow_mode: list[tuple[str, str]] = []
+                for workload in documents:
+                    if workload.get("kind") not in {
+                        "Deployment",
+                        "Job",
+                        "CronJob",
+                    }:
+                        continue
+                    for container in _pod_template(workload)["spec"].get(
+                        "containers", []
+                    ):
+                        plain_env = _plain_env(container)
+                        if plain_env.get("CITRUS_STRIPE_SMOKE_RUNNER") == "true":
+                            marked.append(
+                                (
+                                    workload["metadata"]["name"],
+                                    container["name"],
+                                )
+                            )
+                        if "CITRUS_STRIPE_SMOKE_EXPECTED_ACCOUNT_ID" in plain_env:
+                            self.assertEqual(
+                                plain_env[
+                                    "CITRUS_STRIPE_SMOKE_EXPECTED_ACCOUNT_ID"
+                                ],
+                                SENTINEL_ACCOUNT_ID,
+                            )
+                            account_bound.append(
+                                (
+                                    workload["metadata"]["name"],
+                                    container["name"],
+                                )
+                            )
+                        if plain_env.get("PAYMENT_NETWORK_MODE") == "allow":
+                            allow_mode.append(
+                                (
+                                    workload["metadata"]["name"],
+                                    container["name"],
+                                )
+                            )
+                self.assertEqual(
+                    marked,
+                    [(expected_name, "stripe-smoke-runner")],
+                )
+                self.assertEqual(account_bound, marked)
+                self.assertEqual(allow_mode, marked)
 
     def test_account_identity_gate_is_empty_by_default_and_mutation_honest(
         self,
@@ -358,6 +395,10 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
         self.assertEqual(
             dev_values["stripeSmokeRunner"]["expectedAccountId"],
             "",
+        )
+        self.assertIs(
+            dev_values["stripeSmokeRunner"]["automation"]["enabled"],
+            False,
         )
 
         missing = _run(_command(enabled=True, expected_account_id=None))
@@ -570,7 +611,18 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("stripeSmokeRunner.suspend", result.stderr)
 
-    def test_no_stage_two_resource_or_hook_is_present(self) -> None:
+        automation_only = _command(enabled=False)
+        automation_only.extend(
+            ["--set", "stripeSmokeRunner.automation.enabled=true"]
+        )
+        result = _run(automation_only)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "automation.enabled requires stripeSmokeRunner.enabled=true",
+            result.stderr,
+        )
+
+    def test_manual_runner_keeps_stage_two_resources_absent(self) -> None:
         self.assertFalse(
             any(
                 document.get("kind")
@@ -579,16 +631,191 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
                 for document in self.enabled_dev
             )
         )
-        template = TEMPLATE_PATH.read_text(encoding="utf-8")
-        for forbidden in (
-            "argocd.argoproj.io/hook",
+        runner = _named(
+            self.enabled_dev,
+            "CronJob",
+            "citrus-dev-stripe-smoke-runner",
+        )
+        self.assertNotIn("argocd.argoproj.io/hook", runner["metadata"]["annotations"])
+        pod_spec = _pod_template(runner)["spec"]
+        self.assertNotIn("serviceAccountName", pod_spec)
+        self.assertIs(pod_spec["automountServiceAccountToken"], False)
+
+    def test_automated_runner_is_exact_image_postsync_hook(self) -> None:
+        image_tag = YAML_PARSER.load(
+            (CHART_PATH / "values-dev.yaml").read_text(encoding="utf-8")
+        )["image"]["tag"]
+        job_name = f"citrus-smoke-{image_tag}"
+        runner = _named(self.automated_dev, "Job", job_name)
+
+        self.assertEqual(
+            runner["metadata"]["annotations"]["argocd.argoproj.io/hook"],
             "PostSync",
-            "serviceAccountName",
-            "kind: ServiceAccount",
-            "kind: Role",
-            "kind: RoleBinding",
-        ):
-            self.assertNotIn(forbidden, template)
+        )
+        self.assertEqual(
+            runner["metadata"]["annotations"][
+                "argocd.argoproj.io/hook-delete-policy"
+            ],
+            "HookSucceeded",
+        )
+        self.assertNotIn("ttlSecondsAfterFinished", runner["spec"])
+        self.assertEqual(runner["spec"]["backoffLimit"], 0)
+        self.assertEqual(runner["spec"]["activeDeadlineSeconds"], 900)
+        self.assertEqual(
+            runner["metadata"]["labels"]["citrus.grace/source-revision"],
+            image_tag,
+        )
+        self.assertEqual(
+            runner["metadata"]["labels"]["citrus.grace/smoke-step"],
+            "claim",
+        )
+        self.assertEqual(
+            runner["metadata"]["annotations"][
+                "citrus.grace/payment-egress-policy-revision"
+            ],
+            AUTOMATION_POLICY_REVISION,
+        )
+
+        pod_spec = runner["spec"]["template"]["spec"]
+        self.assertEqual(
+            pod_spec["serviceAccountName"],
+            "citrus-dev-stripe-smoke-runner",
+        )
+        self.assertIs(pod_spec["automountServiceAccountToken"], True)
+        self.assertEqual(pod_spec["restartPolicy"], "Never")
+        container = pod_spec["containers"][0]
+        self.assertEqual(container["image"].rsplit(":", 1)[1], image_tag)
+        plain = _plain_env(container)
+        self.assertEqual(
+            plain["CITRUS_STRIPE_SMOKE_RECEIPT_NAMESPACE"],
+            "citrus-dev",
+        )
+        self.assertEqual(
+            plain["CITRUS_STRIPE_SMOKE_RECEIPT_CONFIG_MAP"],
+            "citrus-dev-stripe-smoke-receipts",
+        )
+        self.assertEqual(plain["CITRUS_STRIPE_SMOKE_JOB_NAME"], job_name)
+        self.assertEqual(plain["CITRUS_EXPECTED_SOURCE_REVISION"], image_tag)
+        self.assertEqual(
+            plain["PAYMENT_EGRESS_POLICY_REVISION"],
+            AUTOMATION_POLICY_REVISION,
+        )
+
+    def test_manual_and_automated_runtime_revisions_are_distinct(self) -> None:
+        manual = _named(
+            self.enabled_dev,
+            "CronJob",
+            "citrus-dev-stripe-smoke-runner",
+        )
+        image_tag = YAML_PARSER.load(
+            (CHART_PATH / "values-dev.yaml").read_text(encoding="utf-8")
+        )["image"]["tag"]
+        automated = _named(
+            self.automated_dev,
+            "Job",
+            f"citrus-smoke-{image_tag}",
+        )
+
+        manual_revision = _plain_env(
+            _pod_template(manual)["spec"]["containers"][0]
+        )["PAYMENT_EGRESS_POLICY_REVISION"]
+        automated_revision = _plain_env(
+            _pod_template(automated)["spec"]["containers"][0]
+        )["PAYMENT_EGRESS_POLICY_REVISION"]
+        self.assertEqual(manual_revision, POLICY_REVISION)
+        self.assertEqual(automated_revision, AUTOMATION_POLICY_REVISION)
+        self.assertNotEqual(manual_revision, automated_revision)
+
+    def test_automated_runner_rbac_is_narrow_and_exact_sha_bound(self) -> None:
+        image_tag = YAML_PARSER.load(
+            (CHART_PATH / "values-dev.yaml").read_text(encoding="utf-8")
+        )["image"]["tag"]
+        job_name = f"citrus-smoke-{image_tag}"
+        service_account = _named(
+            self.automated_dev,
+            "ServiceAccount",
+            "citrus-dev-stripe-smoke-runner",
+        )
+        self.assertIs(service_account["automountServiceAccountToken"], False)
+
+        role = _named(
+            self.automated_dev,
+            "Role",
+            "citrus-dev-stripe-smoke-runner",
+        )
+        self.assertEqual(
+            role["rules"],
+            [
+                {
+                    "apiGroups": [""],
+                    "resources": ["configmaps"],
+                    "verbs": ["create"],
+                },
+                {
+                    "apiGroups": [""],
+                    "resources": ["configmaps"],
+                    "resourceNames": [
+                        "citrus-dev-stripe-smoke-receipts"
+                    ],
+                    "verbs": ["get", "patch"],
+                },
+                {
+                    "apiGroups": ["batch"],
+                    "resources": ["jobs"],
+                    "resourceNames": [job_name],
+                    "verbs": ["patch"],
+                },
+            ],
+        )
+        binding = _named(
+            self.automated_dev,
+            "RoleBinding",
+            "citrus-dev-stripe-smoke-runner",
+        )
+        self.assertEqual(
+            binding["subjects"],
+            [
+                {
+                    "kind": "ServiceAccount",
+                    "name": "citrus-dev-stripe-smoke-runner",
+                    "namespace": "citrus-dev",
+                }
+            ],
+        )
+
+    def test_automated_runner_adds_only_kube_apiserver_egress(self) -> None:
+        policy = _named(
+            self.automated_dev,
+            "CiliumNetworkPolicy",
+            "citrus-dev-stripe-smoke-runner-egress",
+        )
+        egress = policy["spec"]["egress"]
+        self.assertEqual(len(egress), 5)
+        kubernetes_rule = next(
+            rule
+            for rule in egress
+            if rule.get("toEntities") == ["kube-apiserver"]
+        )
+        self.assertEqual(
+            kubernetes_rule,
+            {
+                "toEntities": ["kube-apiserver"],
+                "toPorts": [
+                    {"ports": [{"port": "443", "protocol": "TCP"}]}
+                ],
+            },
+        )
+        entities = [
+            entity
+            for rule in egress
+            for entity in rule.get("toEntities", [])
+        ]
+        self.assertEqual(entities, ["kube-apiserver"])
+        self.assertTrue(
+            {"all", "world", "cluster", "host", "remote-node"}.isdisjoint(
+                entities
+            )
+        )
 
     def test_only_runner_template_names_the_stripe_api_hostname(self) -> None:
         occurrences = []

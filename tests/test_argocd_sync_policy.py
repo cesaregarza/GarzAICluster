@@ -11,6 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 APPLICATIONS_DIR = REPO_ROOT / "argocd" / "applications"
 PROJECT_PATH = REPO_ROOT / "argocd" / "projects" / "splattop-project.yaml"
 CITRUS_DEV_VALUES_PATH = REPO_ROOT / "helm" / "citrus" / "values-dev.yaml"
+CITRUS_DEV_APPLICATION_PATH = APPLICATIONS_DIR / "citrus-dev.yaml"
 YAML_PARSER = YAML(typ="safe")
 
 EXPECTED_AUTOMATED_APPLICATIONS = {
@@ -96,6 +97,32 @@ class ArgoCdSyncPolicyTests(unittest.TestCase):
                 for resource in ignored_secrets
             )
         )
+
+    def test_citrus_dev_runner_receipt_has_one_exact_orphan_exception(self) -> None:
+        project = _load_yaml(PROJECT_PATH)
+        ignored = project["spec"]["orphanedResources"]["ignore"]
+        expected = {
+            "group": "",
+            "kind": "ConfigMap",
+            "name": "citrus-dev-stripe-smoke-receipts",
+        }
+
+        self.assertEqual(ignored.count(expected), 1)
+        self.assertFalse(
+            any(
+                resource.get("kind") == "ConfigMap"
+                and "*" in resource.get("name", "")
+                for resource in ignored
+            )
+        )
+
+    def test_citrus_dev_sync_does_not_selectively_skip_postsync_hooks(self) -> None:
+        application = _load_yaml(CITRUS_DEV_APPLICATION_PATH)
+        sync_policy = application["spec"]["syncPolicy"]
+
+        self.assertEqual(sync_policy["automated"], {"prune": True, "selfHeal": True})
+        self.assertEqual(sync_policy["syncOptions"], ["CreateNamespace=true"])
+        self.assertNotIn("retry", sync_policy)
 
     def test_every_application_has_an_explicit_reviewed_sync_boundary(self) -> None:
         applications = {

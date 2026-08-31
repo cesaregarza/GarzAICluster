@@ -12,6 +12,7 @@
         "policyRevision",
         "expectedAccountId",
         "activeDeadlineSeconds",
+        "automation",
         "resources"
       ],
       "properties": {
@@ -34,6 +35,24 @@
           "type": "integer",
           "minimum": 60,
           "maximum": 1800
+        },
+        "automation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "policyRevision", "receiptConfigMapName"],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "policyRevision": {
+              "type": "string",
+              "const": "ces-881-stripe-smoke-gate-v1"
+            },
+            "receiptConfigMapName": {
+              "type": "string",
+              "const": "citrus-dev-stripe-smoke-receipts"
+            }
+          }
         },
         "resources": {
           "type": "object"

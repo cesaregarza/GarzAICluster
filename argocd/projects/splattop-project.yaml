@@ -123,6 +123,11 @@ spec:
       - group: ''
         kind: Secret
         name: citrus-dev-grace-tls
+      # Runner-created per-SHA outcome evidence. This fixed name is intentionally
+      # not chart-managed so Argo self-heal cannot erase durable pass/fail state.
+      - group: ''
+        kind: ConfigMap
+        name: citrus-dev-stripe-smoke-receipts
       - group: ''
         kind: Secret
         name: blog-db-secrets

@@ -418,7 +418,9 @@ class CitrusCiContractTests(unittest.TestCase):
         ]["run"]
         for expected in (
             "rendered/citrus-stripe-smoke-enabled-dev.yaml",
+            "rendered/citrus-stripe-smoke-automated-dev.yaml",
             "--set stripeSmokeRunner.enabled=true",
+            "stripeSmokeRunner.automation.enabled=true",
             "stripeSmokeRunner.expectedAccountId=acct_0000000000000000",
         ):
             with self.subTest(stripe_smoke_render=expected):
@@ -433,6 +435,14 @@ class CitrusCiContractTests(unittest.TestCase):
             'matchName: "api.stripe.com"',
             "Only the enabled dev runner render may contain Stripe egress",
             "must not add a ServiceAccount",
+            "argocd.argoproj.io/hook: PostSync",
+            "argocd.argoproj.io/hook-delete-policy: HookSucceeded",
+            "citrus-dev-stripe-smoke-receipts",
+            "citrus.grace/source-revision",
+            "citrus.grace/smoke-step",
+            "ces-881-stripe-smoke-gate-v1",
+            "kube-apiserver",
+            "Failed smoke hooks must remain available for diagnosis",
         ):
             with self.subTest(stripe_smoke_assertion=expected):
                 self.assertIn(expected, run)
