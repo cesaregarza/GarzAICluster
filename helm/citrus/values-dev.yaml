@@ -1,5 +1,5 @@
 image:
-  tag: 9e6ffa204612607501c360440d3b1bed67a093a2 # allow-latest
+  tag: 5e16e1e65ae4e134da175ced9119ec2f675d3256 # allow-latest
 
 # Production promotion is operator-attested. It must not gate dev image rolls.
 stripeSmokePromotion:
@@ -96,7 +96,7 @@ billingWorker:
 
 recurringRuntime:
   enabled: false
-  expectedSourceRevision: 9e6ffa204612607501c360440d3b1bed67a093a2
+  expectedSourceRevision: 5e16e1e65ae4e134da175ced9119ec2f675d3256
 
 # Dev has no approved least-privilege runtime Secret or compatible corrected
 # image. Keep every activation input empty until the prerequisite train lands.
