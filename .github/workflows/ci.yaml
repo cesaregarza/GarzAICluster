@@ -681,7 +681,8 @@ jobs:
           grep -F 'argocd.argoproj.io/hook-delete-policy: HookSucceeded' "$stripe_smoke_auto" >/dev/null
           grep -F 'serviceAccountName: citrus-dev-stripe-smoke-runner' "$stripe_smoke_auto" >/dev/null
           grep -F 'automountServiceAccountToken: true' "$stripe_smoke_auto" >/dev/null
-          grep -F 'name: citrus-dev-stripe-smoke-receipts' "$stripe_smoke_auto" >/dev/null
+          test "$(grep -Fc 'resourceNames: ["citrus-dev-stripe-smoke-receipts"]' "$stripe_smoke_auto")" -eq 1
+          test "$(grep -Fc 'value: "citrus-dev-stripe-smoke-receipts"' "$stripe_smoke_auto")" -eq 1
           grep -F "citrus.grace/source-revision: \"$stripe_smoke_auto_sha\"" "$stripe_smoke_auto" >/dev/null
           grep -F 'citrus.grace/smoke-step: "claim"' "$stripe_smoke_auto" >/dev/null
           grep -F 'value: "ces-881-stripe-smoke-gate-v1"' "$stripe_smoke_auto" >/dev/null
