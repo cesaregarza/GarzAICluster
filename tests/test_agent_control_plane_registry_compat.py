@@ -9,12 +9,16 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
+from unittest.mock import patch
 
 from ruamel.yaml import YAML
 
 from scripts.check_agent_control_plane_registry_compat import (
     RegistryCompatError,
     _assert_registry_data_equivalent,
+    _import_registry_snapshot_from,
+    _validate_agent_platform_checkout,
+    materialize_registry_overlay,
     materialize_skill_bundle,
     registry_overlay_data,
     skill_bundle_data,
@@ -102,6 +106,74 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
                 f"compatible with agent-platform {new_sha}",
                 new_result.stdout,
             )
+
+    def test_new_src_layout_passes_the_same_pinned_revision_gate(self) -> None:
+        with TemporaryDirectory() as raw_tmp:
+            tmp = Path(raw_tmp)
+            platform_repo, _old_sha, new_sha = _fake_agent_platform_repo(
+                tmp,
+                source_layout="src",
+            )
+            _git(platform_repo, "checkout", "--quiet", new_sha)
+            config_repo = _config_repo(
+                tmp,
+                target_revision=new_sha,
+                include_per_user_daily_tokens=True,
+            )
+
+            result = _run_gate(config_repo, platform_repo)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_missing_or_ambiguous_source_layout_fails_closed(self) -> None:
+        with TemporaryDirectory() as raw_tmp:
+            tmp = Path(raw_tmp)
+            missing = tmp / "missing"
+            missing.mkdir()
+            with self.assertRaisesRegex(
+                RegistryCompatError,
+                "no supported mandate source layout",
+            ):
+                _validate_agent_platform_checkout(
+                    agent_platform_repo=missing,
+                    expected_revision="0" * 40,
+                )
+
+            platform_repo, old_sha, _new_sha = _fake_agent_platform_repo(tmp)
+            (platform_repo / "src" / "mandate").mkdir(parents=True)
+            with self.assertRaisesRegex(
+                RegistryCompatError,
+                "ambiguous mandate source layouts",
+            ):
+                _validate_agent_platform_checkout(
+                    agent_platform_repo=platform_repo,
+                    expected_revision=old_sha,
+                )
+
+    def test_selected_checkout_import_replaces_ambient_mandate_modules(self) -> None:
+        with TemporaryDirectory() as raw_tmp:
+            tmp = Path(raw_tmp)
+            platform_repo, _old_sha, _new_sha = _fake_agent_platform_repo(
+                tmp,
+                source_layout="src",
+            )
+            materialize_registry_overlay(
+                platform_repo,
+                {
+                    "policy.prod.yaml": "defaults: {}\n",
+                    "workload_imports.yaml": "imports: []\n",
+                },
+            )
+            ambient = type(sys)("mandate")
+            with patch.dict(
+                sys.modules, {"mandate": ambient, "mandate.core.registry": ambient}
+            ):
+                loaded = _import_registry_snapshot_from(platform_repo, environment="prod")
+                self.assertEqual(
+                    Path(loaded.__file__).resolve(),
+                    platform_repo / "src" / "mandate" / "core" / "registry.py",
+                )
+                self.assertIs(sys.modules["mandate"], ambient)
 
     def test_inherited_github_base_ref_does_not_break_fixture_repos(self) -> None:
         with TemporaryDirectory() as raw_tmp:
@@ -337,12 +409,17 @@ def _run_gate(
     )
 
 
-def _fake_agent_platform_repo(tmp: Path) -> tuple[Path, str, str]:
+def _fake_agent_platform_repo(
+    tmp: Path,
+    *,
+    source_layout: str = "old",
+) -> tuple[Path, str, str]:
     repo = tmp / "agent-platform"
-    (repo / "mandate" / "core").mkdir(parents=True)
-    (repo / "mandate" / "__init__.py").write_text("", encoding="utf-8")
-    (repo / "mandate" / "core" / "__init__.py").write_text("", encoding="utf-8")
-    (repo / "mandate" / "core" / "registry.py").write_text(
+    package_root = repo / ("src/mandate" if source_layout == "src" else "mandate")
+    (package_root / "core").mkdir(parents=True)
+    (package_root / "__init__.py").write_text("", encoding="utf-8")
+    (package_root / "core" / "__init__.py").write_text("", encoding="utf-8")
+    (package_root / "core" / "registry.py").write_text(
         textwrap.dedent(
             """
             from pathlib import Path

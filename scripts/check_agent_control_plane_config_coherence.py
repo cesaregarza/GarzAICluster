@@ -16,6 +16,19 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
+try:
+    from scripts.agent_platform_layout import (
+        AgentPlatformLayout,
+        AgentPlatformLayoutError,
+        resolve_agent_platform_layout,
+    )
+except ModuleNotFoundError:  # Direct ``python scripts/check_*.py`` execution.
+    from agent_platform_layout import (  # type: ignore[no-redef]
+        AgentPlatformLayout,
+        AgentPlatformLayoutError,
+        resolve_agent_platform_layout,
+    )
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 APPLICATION_PATH = Path("argocd/applications/agent-control-plane.yaml")
@@ -98,11 +111,27 @@ def check_agent_control_plane_config_coherence(
     workload_imports_path: Path = WORKLOAD_IMPORTS_PATH,
     validate_checkout: bool = True,
 ) -> str:
+    try:
+        source_layout = resolve_agent_platform_layout(
+            agent_platform_repo,
+            required_paths=(
+                Path("core/output_projection.py"),
+                Path("contracts/events.py"),
+                Path("contracts/callback_event_types.py"),
+            ),
+        )
+    except AgentPlatformLayoutError as exc:
+        raise ConfigCoherenceError(str(exc)) from exc
+
     if validate_checkout:
         expected_revision = _agent_platform_target_revision(
             _load_yaml(repo_root / APPLICATION_PATH, APPLICATION_PATH.as_posix())
         )
-        _validate_agent_platform_checkout(agent_platform_repo, expected_revision)
+        _validate_agent_platform_checkout(
+            agent_platform_repo,
+            expected_revision,
+            source_layout=source_layout,
+        )
     else:
         expected_revision = "fixture"
 
@@ -123,14 +152,28 @@ def check_agent_control_plane_config_coherence(
         workload_imports_path=workload_imports_path,
     )
     agents = _agent_records(agent_platform_repo / PLATFORM_AGENTS_PATH)
+    projection_source = _platform_label(
+        PLATFORM_OUTPUT_PROJECTION_PATH,
+        source_layout,
+    )
     projection_fields = _projection_result_fields(
-        agent_platform_repo / PLATFORM_OUTPUT_PROJECTION_PATH
+        _source_path(agent_platform_repo, PLATFORM_OUTPUT_PROJECTION_PATH, source_layout),
+        projection_source,
     )
     skill_ids = _skill_ids(skills_manifest_path, skills_manifest_source)
-    event_members = _event_type_members(agent_platform_repo / PLATFORM_EVENTS_PATH)
+    events_source = _platform_label(PLATFORM_EVENTS_PATH, source_layout)
+    event_members = _event_type_members(
+        _source_path(agent_platform_repo, PLATFORM_EVENTS_PATH, source_layout),
+        events_source,
+    )
     callback_types = _callback_event_types(
-        agent_platform_repo / PLATFORM_CALLBACK_EVENTS_PATH,
+        _source_path(
+            agent_platform_repo,
+            PLATFORM_CALLBACK_EVENTS_PATH,
+            source_layout,
+        ),
         event_members,
+        _platform_label(PLATFORM_CALLBACK_EVENTS_PATH, source_layout),
     )
 
     contradictions: list[str] = []
@@ -167,6 +210,8 @@ def check_agent_control_plane_config_coherence(
                 agents=agents,
                 projection_fields=projection_fields,
                 agent_platform_repo=agent_platform_repo,
+                source_layout=source_layout,
+                projection_source=projection_source,
             )
             for field_index, field in _string_list(
                 journey,
@@ -177,7 +222,8 @@ def check_agent_control_plane_config_coherence(
                 if result_fields is None:
                     contradictions.append(
                         f"{journey_path}.required_result_fields[{field_index}]={field!r} "
-                        f"cannot be validated: {result_source} exposes no static result-field contract"
+                        f"cannot be validated: {result_source} exposes no static "
+                        "result-field contract"
                     )
                 elif field not in result_fields:
                     contradictions.append(
@@ -207,7 +253,7 @@ def check_agent_control_plane_config_coherence(
             if event_type not in event_members.values():
                 contradictions.append(
                     f"{journey_path}.required_event_types[{event_index}]={event_type!r} "
-                    f"is not a member of {_platform_label(PLATFORM_EVENTS_PATH)} EventType"
+                    f"is not a member of {events_source} EventType"
                 )
 
         for callback_index, callback_type in _string_list(
@@ -220,7 +266,7 @@ def check_agent_control_plane_config_coherence(
                 contradictions.append(
                     f"{journey_path}.required_callback_types[{callback_index}]="
                     f"{callback_type!r} is not declared by "
-                    f"{_platform_label(PLATFORM_CALLBACK_EVENTS_PATH)}"
+                    f"{_platform_label(PLATFORM_CALLBACK_EVENTS_PATH, source_layout)}"
                 )
 
     if contradictions:
@@ -371,6 +417,8 @@ def _result_contract(
     agents: list[Mapping[str, Any]],
     projection_fields: Mapping[str, frozenset[str]],
     agent_platform_repo: Path,
+    source_layout: AgentPlatformLayout,
+    projection_source: str,
 ) -> tuple[frozenset[str] | None, str]:
     if capability_source == _platform_label(PLATFORM_CAPABILITIES_PATH):
         for agent in agents:
@@ -381,10 +429,16 @@ def _result_contract(
             module = loop.get("module") if isinstance(loop, Mapping) else None
             if not isinstance(module, str) or not module:
                 continue
-            relative_path = Path(*module.split(".")).with_suffix(".py")
-            source_path = agent_platform_repo / relative_path
-            fields = _worker_result_fields(source_path)
-            return fields, _platform_label(relative_path)
+            try:
+                source_path = source_layout.path_for_module(module)
+            except AgentPlatformLayoutError as exc:
+                raise ConfigCoherenceError(str(exc)) from exc
+            source_label = _platform_label(
+                Path("mandate") / Path(*module.split(".")[1:]).with_suffix(".py"),
+                source_layout,
+            )
+            fields = _worker_result_fields(source_path, source_label)
+            return fields, source_label
 
     output_gate = capability.get("output_gate")
     projection_id = (
@@ -392,13 +446,14 @@ def _result_contract(
     )
     if not isinstance(projection_id, str) or not projection_id:
         projection_id = capability_id
-    return projection_fields.get(projection_id), _platform_label(
-        PLATFORM_OUTPUT_PROJECTION_PATH
-    )
+    return projection_fields.get(projection_id), projection_source
 
 
-def _worker_result_fields(path: Path) -> frozenset[str] | None:
-    tree = _parse_python(path)
+def _worker_result_fields(
+    path: Path,
+    source_label: str | None = None,
+) -> frozenset[str] | None:
+    tree = _parse_python(path, source_label)
     fields: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or _call_name(node.func) != "WorkerResult":
@@ -415,12 +470,18 @@ def _worker_result_fields(path: Path) -> frozenset[str] | None:
     return frozenset(fields) if fields else None
 
 
-def _projection_result_fields(path: Path) -> dict[str, frozenset[str]]:
-    values = _module_assignments(_parse_python(path), event_members={})
+def _projection_result_fields(
+    path: Path,
+    source_label: str,
+) -> dict[str, frozenset[str]]:
+    values = _module_assignments(
+        _parse_python(path, source_label),
+        event_members={},
+    )
     raw = values.get("PUBLIC_RESULT_FIELDS_BY_PROJECTION_ID")
     if not isinstance(raw, Mapping):
         raise ConfigCoherenceError(
-            f"{_platform_label(PLATFORM_OUTPUT_PROJECTION_PATH)} does not declare "
+            f"{source_label} does not declare "
             "PUBLIC_RESULT_FIELDS_BY_PROJECTION_ID"
         )
     result: dict[str, frozenset[str]] = {}
@@ -453,8 +514,8 @@ def _skill_ids(path: Path, source: str) -> frozenset[str]:
     return frozenset(skill_ids)
 
 
-def _event_type_members(path: Path) -> dict[str, str]:
-    tree = _parse_python(path)
+def _event_type_members(path: Path, source_label: str) -> dict[str, str]:
+    tree = _parse_python(path, source_label)
     for node in tree.body:
         if not isinstance(node, ast.ClassDef) or node.name != "EventType":
             continue
@@ -468,12 +529,19 @@ def _event_type_members(path: Path) -> dict[str, str]:
         if members:
             return members
     raise ConfigCoherenceError(
-        f"{_platform_label(PLATFORM_EVENTS_PATH)} does not declare a string EventType enum"
+        f"{source_label} does not declare a string EventType enum"
     )
 
 
-def _callback_event_types(path: Path, event_members: Mapping[str, str]) -> frozenset[str]:
-    values = _module_assignments(_parse_python(path), event_members=event_members)
+def _callback_event_types(
+    path: Path,
+    event_members: Mapping[str, str],
+    source_label: str,
+) -> frozenset[str]:
+    values = _module_assignments(
+        _parse_python(path, source_label),
+        event_members=event_members,
+    )
     callback_types = {
         value
         for name, value in values.items()
@@ -481,7 +549,7 @@ def _callback_event_types(path: Path, event_members: Mapping[str, str]) -> froze
     }
     if not callback_types:
         raise ConfigCoherenceError(
-            f"{_platform_label(PLATFORM_CALLBACK_EVENTS_PATH)} declares no callback types"
+            f"{source_label} declares no callback types"
         )
     return frozenset(callback_types)
 
@@ -630,16 +698,33 @@ def _agent_platform_target_revision(application: Mapping[str, Any]) -> str:
     return revision
 
 
-def _validate_agent_platform_checkout(path: Path, expected_revision: str) -> None:
+def _validate_agent_platform_checkout(
+    path: Path,
+    expected_revision: str,
+    *,
+    source_layout: AgentPlatformLayout | None = None,
+) -> None:
     required = (
         PLATFORM_POLICY_BASE_PATH,
         PLATFORM_CAPABILITIES_PATH,
         PLATFORM_AGENTS_PATH,
-        PLATFORM_OUTPUT_PROJECTION_PATH,
-        PLATFORM_EVENTS_PATH,
-        PLATFORM_CALLBACK_EVENTS_PATH,
     )
-    missing = next((relative for relative in required if not (path / relative).is_file()), None)
+    if source_layout is None:
+        try:
+            source_layout = resolve_agent_platform_layout(
+                path,
+                required_paths=(
+                    Path("core/output_projection.py"),
+                    Path("contracts/events.py"),
+                    Path("contracts/callback_event_types.py"),
+                ),
+            )
+        except AgentPlatformLayoutError as exc:
+            raise ConfigCoherenceError(str(exc)) from exc
+    missing = next(
+        (relative for relative in required if not (path / relative).is_file()),
+        None,
+    )
     if missing is not None:
         raise ConfigCoherenceError(
             f"agent-platform checkout is missing {_platform_label(missing)}: {path}"
@@ -672,15 +757,12 @@ def _load_yaml(path: Path, source: str) -> dict[str, Any]:
     return loaded
 
 
-def _parse_python(path: Path) -> ast.Module:
+def _parse_python(path: Path, source_label: str | None = None) -> ast.Module:
     try:
         return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except (OSError, SyntaxError) as exc:
-        try:
-            relative = path.relative_to(path.parents[2])
-        except ValueError:
-            relative = path
-        raise ConfigCoherenceError(f"could not parse {relative.as_posix()}: {exc}") from exc
+        label = source_label or path.as_posix()
+        raise ConfigCoherenceError(f"could not parse {label}: {exc}") from exc
 
 
 def _deep_merge(base: Mapping[str, Any], overlay: Mapping[str, Any]) -> dict[str, Any]:
@@ -710,7 +792,22 @@ def _call_name(node: ast.expr) -> str | None:
     return None
 
 
-def _platform_label(path: Path) -> str:
+def _source_path(
+    repo_root: Path,
+    legacy_path: Path,
+    source_layout: AgentPlatformLayout,
+) -> Path:
+    if legacy_path.parts[:1] == ("mandate",):
+        return source_layout.path_for(Path(*legacy_path.parts[1:]))
+    return repo_root / legacy_path
+
+
+def _platform_label(
+    path: Path,
+    source_layout: AgentPlatformLayout | None = None,
+) -> str:
+    if source_layout is not None and path.parts[:1] == ("mandate",):
+        path = Path(source_layout.label_for(Path(*path.parts[1:])))
     return f"agent-platform/{path.as_posix()}"
 
 

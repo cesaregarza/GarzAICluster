@@ -19,6 +19,19 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
+try:
+    from scripts.agent_platform_layout import (
+        AgentPlatformLayout,
+        AgentPlatformLayoutError,
+        resolve_agent_platform_layout,
+    )
+except ModuleNotFoundError:  # Direct ``python scripts/check_*.py`` execution.
+    from agent_platform_layout import (  # type: ignore[no-redef]
+        AgentPlatformLayout,
+        AgentPlatformLayoutError,
+        resolve_agent_platform_layout,
+    )
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONTROL_PLANE_APPLICATION_PATH = Path("argocd/applications/agent-control-plane.yaml")
 REGISTRY_OVERLAY_DIR = Path("apps/agent-control-plane-registry-overlay")
@@ -547,13 +560,18 @@ def _validate_agent_platform_checkout(
     *,
     agent_platform_repo: Path,
     expected_revision: str,
-) -> None:
+) -> AgentPlatformLayout:
     if not agent_platform_repo.is_dir():
         raise RegistryCompatError(f"agent-platform repo not found: {agent_platform_repo}")
-    if not (agent_platform_repo / "mandate" / "core" / "registry.py").is_file():
-        raise RegistryCompatError(
-            f"agent-platform checkout is missing mandate/core/registry.py: {agent_platform_repo}"
+    try:
+        layout = resolve_agent_platform_layout(
+            agent_platform_repo,
+            required_paths=(Path("core/registry.py"),),
         )
+    except AgentPlatformLayoutError as exc:
+        raise RegistryCompatError(
+            f"{exc}: {agent_platform_repo}"
+        ) from exc
     try:
         result = subprocess.run(
             ["git", "-C", str(agent_platform_repo), "rev-parse", "HEAD"],
@@ -571,17 +589,15 @@ def _validate_agent_platform_checkout(
             "agent-platform checkout revision mismatch: "
             f"expected {expected_revision}, got {actual}"
         )
+    return layout
 
 
-def _import_registry_snapshot_from(repo_root: Path, *, environment: str) -> None:
-    with _temporary_sys_path(repo_root):
-        for module_name in (
-            "mandate.core.registry",
-            "mandate.loaders.registry",
-            "mandate.paths",
-            "mandate",
-        ):
-            sys.modules.pop(module_name, None)
+def _import_registry_snapshot_from(repo_root: Path, *, environment: str) -> Any:
+    try:
+        layout = resolve_agent_platform_layout(repo_root)
+    except AgentPlatformLayoutError as exc:
+        raise RegistryCompatError(str(exc)) from exc
+    with _isolated_mandate_modules(), _temporary_sys_path(layout.import_root):
         try:
             registry_module = importlib.import_module("mandate.core.registry")
         except Exception as exc:  # noqa: BLE001 - surfacing import failures is the gate.
@@ -613,6 +629,28 @@ def _import_registry_snapshot_from(repo_root: Path, *, environment: str) -> None
             raise RegistryCompatError(
                 f"pinned agent-platform registry snapshot failed: {exc}"
             ) from exc
+        return registry_module
+
+
+def _clear_mandate_modules() -> None:
+    for module_name in tuple(sys.modules):
+        if module_name == "mandate" or module_name.startswith("mandate."):
+            sys.modules.pop(module_name, None)
+
+
+@contextlib.contextmanager
+def _isolated_mandate_modules() -> Any:
+    previous = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "mandate" or name.startswith("mandate.")
+    }
+    _clear_mandate_modules()
+    try:
+        yield
+    finally:
+        _clear_mandate_modules()
+        sys.modules.update(previous)
 
 
 @contextlib.contextmanager

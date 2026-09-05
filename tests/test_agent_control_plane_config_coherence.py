@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 import textwrap
 import unittest
@@ -29,6 +30,32 @@ class AgentControlPlaneConfigCoherenceTests(unittest.TestCase):
 
             self.assertIn("has 2 coherent journey(s)", summary)
             self.assertIn("skills manifest", summary)
+
+    def test_clean_journeys_match_new_src_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            fixture = _fixture(Path(raw_tmp), source_layout="src")
+
+            summary = _check(fixture)
+
+            self.assertIn("has 2 coherent journey(s)", summary)
+
+    def test_missing_or_ambiguous_source_layout_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            fixture = _fixture(Path(raw_tmp))
+            shutil.rmtree(fixture.platform / "mandate")
+            with self.assertRaisesRegex(
+                ConfigCoherenceError,
+                "no supported mandate source layout",
+            ):
+                _check(fixture)
+
+            fixture = _fixture(Path(raw_tmp) / "ambiguous")
+            (fixture.platform / "src" / "mandate").mkdir(parents=True)
+            with self.assertRaisesRegex(
+                ConfigCoherenceError,
+                "ambiguous mandate source layouts",
+            ):
+                _check(fixture)
 
     def test_historical_probe_marker_defect_names_values_and_worker_source(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
@@ -121,6 +148,23 @@ class AgentControlPlaneConfigCoherenceTests(unittest.TestCase):
                 message,
             )
 
+    def test_new_src_layout_errors_name_relocated_source(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            fixture = _fixture(Path(raw_tmp), source_layout="src")
+            values = _load_yaml(fixture.repo / "apps/agent-control-plane/values.yaml")
+            values["syntheticLiveVerify"]["journeys"][0]["required_event_types"] = [
+                "run.create_typo"
+            ]
+            _write_yaml(fixture.repo / "apps/agent-control-plane/values.yaml", values)
+
+            with self.assertRaises(ConfigCoherenceError) as raised:
+                _check(fixture)
+
+            self.assertIn(
+                "agent-platform/src/mandate/contracts/events.py EventType",
+                str(raised.exception),
+            )
+
     def test_cost_uses_effective_per_capability_override(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             fixture = _fixture(Path(raw_tmp))
@@ -182,9 +226,10 @@ class _Fixture:
         self.skills_manifest = skills_manifest
 
 
-def _fixture(tmp: Path) -> _Fixture:
+def _fixture(tmp: Path, *, source_layout: str = "old") -> _Fixture:
     repo = tmp / "GarzAICluster"
     platform = tmp / "agent-platform"
+    source_root = platform / ("src/mandate" if source_layout == "src" else "mandate")
     values_path = repo / "apps/agent-control-plane/values.yaml"
     policy_path = (
         repo / "apps/agent-control-plane-registry-overlay/registry/policy.prod.yaml"
@@ -302,7 +347,7 @@ def _fixture(tmp: Path) -> _Fixture:
         },
     )
     _write_text(
-        platform / "mandate/workers/builtin/deployment_smoke.py",
+        source_root / "workers/builtin/deployment_smoke.py",
         textwrap.dedent(
             """
             def execute():
@@ -317,7 +362,7 @@ def _fixture(tmp: Path) -> _Fixture:
         ).lstrip(),
     )
     _write_text(
-        platform / "mandate/core/output_projection.py",
+        source_root / "core/output_projection.py",
         textwrap.dedent(
             """
             READONLY_QUERY = "agent_workloads.readonly_query"
@@ -329,7 +374,7 @@ def _fixture(tmp: Path) -> _Fixture:
         ).lstrip(),
     )
     _write_text(
-        platform / "mandate/contracts/events.py",
+        source_root / "contracts/events.py",
         textwrap.dedent(
             """
             class EventType(StrEnum):
@@ -343,7 +388,7 @@ def _fixture(tmp: Path) -> _Fixture:
         ).lstrip(),
     )
     _write_text(
-        platform / "mandate/contracts/callback_event_types.py",
+        source_root / "contracts/callback_event_types.py",
         textwrap.dedent(
             """
             JOB_ACCEPTED = "job.accepted"
