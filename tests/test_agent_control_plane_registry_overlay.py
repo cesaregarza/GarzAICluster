@@ -1286,7 +1286,7 @@ exit 64
 
         self.assertTrue(synthetic["enabled"])
         self.assertEqual(synthetic["schedule"], "*/5 * * * *")
-        self.assertEqual(synthetic["baseUrl"], "http://agent-control-plane:80")
+        self.assertEqual(synthetic["baseUrl"], "https://agent-control-plane.garz.ai")
         self.assertEqual(
             synthetic["principal"],
             {
