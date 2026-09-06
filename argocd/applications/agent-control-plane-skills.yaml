@@ -23,8 +23,8 @@ spec:
     syncOptions:
       - CreateNamespace=true
   ignoreDifferences:
-    - group: ""
-      kind: ConfigMap
+    # Omitted group selects the core API group and matches Argo JSON encoding.
+    - kind: ConfigMap
       name: mandate-skill-packs
       namespace: agent-control-plane
       jsonPointers:
