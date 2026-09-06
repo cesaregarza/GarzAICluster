@@ -245,7 +245,6 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             skills_app["spec"]["ignoreDifferences"],
             [
                 {
-                    "group": "",
                     "kind": "ConfigMap",
                     "name": "mandate-skill-packs",
                     "namespace": "agent-control-plane",
