@@ -162,23 +162,26 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
             "mandate-api",
         )
         previous_release = projected["previousRelease"]
-        self.assertIsInstance(previous_release, dict)
-        self.assertEqual(
-            workspace["agent"]["previous_release"],
-            {
-                "service_account_subject": _workspace_service_account_subject(
-                    values,
-                    release=previous_release,
-                ),
-                "code_digest": previous_release["codeDigest"],
-                "manifest_digest": previous_release["manifestDigest"],
-                "image_digest": previous_release["imageDigest"],
-            },
-        )
-        self.assertNotEqual(
-            workspace["agent"]["service_account_subject"],
-            workspace["agent"]["previous_release"]["service_account_subject"],
-        )
+        if previous_release is None:
+            self.assertNotIn("previous_release", workspace["agent"])
+        else:
+            self.assertIsInstance(previous_release, dict)
+            self.assertEqual(
+                workspace["agent"]["previous_release"],
+                {
+                    "service_account_subject": _workspace_service_account_subject(
+                        values,
+                        release=previous_release,
+                    ),
+                    "code_digest": previous_release["codeDigest"],
+                    "manifest_digest": previous_release["manifestDigest"],
+                    "image_digest": previous_release["imageDigest"],
+                },
+            )
+            self.assertNotEqual(
+                workspace["agent"]["service_account_subject"],
+                workspace["agent"]["previous_release"]["service_account_subject"],
+            )
 
         self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE", values["env"])
         self.assertNotIn("extraVolumes", values)
