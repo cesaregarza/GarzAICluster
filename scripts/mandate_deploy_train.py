@@ -209,9 +209,8 @@ def _identity_sources(identity: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 def _identity_automated(identity: Mapping[str, Any]) -> bool:
     spec = _required_mapping(identity.get("spec"), "Application identity spec")
     sync_policy = spec.get("syncPolicy")
-    return isinstance(sync_policy, dict) and isinstance(
-        sync_policy.get("automated"), dict
-    )
+    automated = sync_policy.get("automated") if isinstance(sync_policy, dict) else None
+    return isinstance(automated, dict) and automated.get("enabled") is not False
 
 
 def _identity_sync_options(identity: Mapping[str, Any]) -> tuple[str, ...]:
@@ -268,6 +267,17 @@ def load_application_contracts(
             automated=_identity_automated(identity),
         )
     return contracts
+
+
+def submission_revisions(contract: ApplicationContract) -> tuple[str, ...]:
+    # Argo rejects SHA overrides on auto-sync apps tracking a branch. Submit
+    # their reviewed configured refs; acceptance still requires resolved SHAs.
+    if not contract.automated:
+        return contract.resolved_revisions
+    return tuple(
+        _required_string(source.get("targetRevision"), f"{contract.name} targetRevision")
+        for source in _identity_sources(contract.identity)
+    )
 
 
 def load_journey_contracts(repo_root: Path) -> tuple[JourneyContract, ...]:
@@ -1090,6 +1100,7 @@ def reconcile_application(
     operation_timeout: float,
     adoption_timeout: float,
     interval: float,
+    revision_guard: Callable[[], None],
     runner: Runner = subprocess.run,
 ) -> str:
     payload = argo.read_application_payload(
@@ -1327,9 +1338,22 @@ def reconcile_application(
             )
         run_id = f"{invocation_id}-{contract.name}"[:80]
         emit_receipt(stage, "started", application=contract.name, run_id=run_id)
+        # Waiting for refresh/adoption can outlive another actor's spec edit.
+        # Revalidate the complete reviewed spec and refuse a newly active sync.
+        current = validate_live_application(
+            contract,
+            argo.read_application_payload(
+                contract.name,
+                kubeconfig=kubeconfig,
+                kubectl=kubectl,
+                namespace=namespace,
+                runner=runner,
+            ),
+        )
+        revision_guard()
         argo.submit_sync(
             contract.name,
-            revisions=contract.resolved_revisions,
+            revisions=submission_revisions(contract),
             run_id=run_id,
             kubeconfig=kubeconfig,
             argocd=argocd,
@@ -1348,6 +1372,7 @@ def reconcile_application(
             interval=interval,
             runner=runner,
         )
+        revision_guard()
         outcome = "manual"
 
     assert_full_hook_operation(contract.name, completed)
@@ -1873,6 +1898,13 @@ def run_deploy_train(
                 live_skills.digest if application == SKILLS_APPLICATION else None
             ),
             force_sync=force_sync,
+            revision_guard=lambda: validate_remote_main(
+                repo_root,
+                release_sha,
+                git=git,
+                runner=runner,
+                stage=f"sync-boundary:{application}",
+            ),
             kubeconfig=kubeconfig,
             argocd=argocd,
             kubectl=kubectl,
@@ -1927,6 +1959,9 @@ def run_deploy_train(
             stage="late-drift-restart",
         )
         outcomes = execute_pass()
+    validate_remote_main(
+        repo_root, release_sha, git=git, runner=runner, stage="final-pre-verification"
+    )
     changed = any(outcome in {"manual", "automated", "synced"} for outcome in outcomes)
     if not changed:
         emit_receipt("mandate-verify", "skipped", reason="no-changes")
@@ -1945,6 +1980,9 @@ def run_deploy_train(
         timeout=verify_timeout,
         runner=runner,
         run_id=invocation,
+    )
+    validate_remote_main(
+        repo_root, release_sha, git=git, runner=runner, stage="final-acceptance"
     )
     emit_receipt(
         "deploy-train",
