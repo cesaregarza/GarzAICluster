@@ -149,6 +149,15 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.production_values = _load_yaml(PRODUCTION_VALUES_PATH)
 
+    def test_retained_hmac_tuple_does_not_render_identity_resources(self) -> None:
+        values = copy.deepcopy(self.production_values)
+        values["projectedWorkloadIdentity"]["hmacRollbackRelease"] = {
+            "codeDigest": "sha256:" + "7" * 64,
+            "manifestDigest": "sha256:" + "8" * 64,
+            "imageDigest": "sha256:" + "9" * 64,
+        }
+        self.assertEqual(_render(values), _render(self.production_values))
+
     def _projected_values(self) -> dict[str, Any]:
         values = copy.deepcopy(self.production_values)
         values["projectedWorkloadIdentity"] = {

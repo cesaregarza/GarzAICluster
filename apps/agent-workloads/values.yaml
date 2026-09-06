@@ -22,7 +22,8 @@ projectedWorkloadIdentity:
     expirationSeconds: 3600
     mountPath: /var/run/mandate/workload-identity
     fileName: token
-  previousRelease:
+  previousRelease: null
+  hmacRollbackRelease:
     codeDigest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
     manifestDigest: sha256:912222e0cf0adea2733166543213e6ff70aadff34f13815ca36038bdf30d123f
     imageDigest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed

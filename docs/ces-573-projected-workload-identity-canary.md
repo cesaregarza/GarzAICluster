@@ -89,3 +89,17 @@ credential before the reviewed allowlist restoration is effective.
 
 No merge, sync, production cutover, HMAC rotation, legacy-secret deletion, or
 CES-576 runtime-attestation implementation is authorized by this document.
+
+## Retained HMAC rollback and projected rollout overlap
+
+`apps/agent-workloads/values.yaml` records the data worker's retained HMAC
+credential tuple in `projectedWorkloadIdentity.hmacRollbackRelease`. The identity
+gate requires its exact code, manifest, and image digests to match both the
+retained credential claims and metadata. This record does not map a Kubernetes
+subject, mount a credential, or enable HMAC authentication.
+
+`previousRelease` separately maps a temporarily overlapping projected release.
+After its pods and controller references drain, remove that overlap from values
+and registry imports. Keep `hmacRollbackRelease` and the retained credential
+unchanged across subsequent projected rollouts. Missing or malformed rollback
+metadata fails the gate; HMAC mode still requires the current release tuple.

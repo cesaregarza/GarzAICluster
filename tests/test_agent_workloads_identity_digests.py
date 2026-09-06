@@ -198,6 +198,68 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
         self.assertIn("retained rollback tuples", result)
 
+    def test_retained_hmac_survives_projected_overlap_retirement_and_next_roll(self) -> None:
+        rollback = {key: "sha256:" + digit * 64 for key, digit in
+                    zip(("codeDigest", "manifestDigest", "imageDigest"), "456")}
+        next_previous = {key: "sha256:" + digit * 64 for key, digit in
+                         zip(("codeDigest", "manifestDigest", "imageDigest"), "789")}
+        for previous in (None, next_previous):
+            with self.subTest(previous=previous):
+                root = _fixture_repo()
+                _configure_workspace_projected_identity(root, previous_release=previous)
+                _configure_retained_hmac_token(root, agent_id="data.workspace_probe", release=rollback)
+                path = root / "apps/agent-workloads/values.yaml"
+                values = YAML_PARSER.load(path.read_text())
+                values["projectedWorkloadIdentity"]["hmacRollbackRelease"] = rollback
+                _write_yaml(path, values)
+                self.assertIn("retained rollback tuples", _check(root))
+
+    def test_projected_rollback_requires_explicit_valid_exact_tuple(self) -> None:
+        invalid = (None, {}, "invalid", {**DIGESTS["data.workspace_probe"], "imageDigest": "bad"},
+                   {**DIGESTS["data.workspace_probe"], "extra": "bad"})
+        for rollback in invalid:
+            with self.subTest(rollback=rollback):
+                root = _fixture_repo()
+                _configure_workspace_projected_identity(root)
+                path = root / "apps/agent-workloads/values.yaml"
+                values = YAML_PARSER.load(path.read_text())
+                values["projectedWorkloadIdentity"]["hmacRollbackRelease"] = rollback
+                _write_yaml(path, values)
+                with self.assertRaisesRegex(DriftGateError, "hmacRollbackRelease"):
+                    _check(root)
+        root = _fixture_repo()
+        _configure_workspace_projected_identity(root)
+        path = root / "apps/agent-workloads/values.yaml"
+        values = YAML_PARSER.load(path.read_text())
+        del values["projectedWorkloadIdentity"]["hmacRollbackRelease"]
+        _write_yaml(path, values)
+        with self.assertRaisesRegex(DriftGateError, "hmacRollbackRelease"):
+            _check(root)
+
+    def test_projected_rollback_rejects_each_claim_drift(self) -> None:
+        for key in ("codeDigest", "manifestDigest", "imageDigest"):
+            with self.subTest(key=key):
+                root = _fixture_repo()
+                _configure_workspace_projected_identity(root)
+                path = root / "apps/agent-workloads/values.yaml"
+                values = YAML_PARSER.load(path.read_text())
+                values["projectedWorkloadIdentity"]["hmacRollbackRelease"][key] = "sha256:" + "9" * 64
+                _write_yaml(path, values)
+                with self.assertRaisesRegex(DriftGateError, "mismatch"):
+                    _check(root)
+
+    def test_hmac_mode_cannot_use_rollback_to_override_current_claims(self) -> None:
+        root = _fixture_repo()
+        rollback = {key: "sha256:" + digit * 64 for key, digit in
+                    zip(("codeDigest", "manifestDigest", "imageDigest"), "456")}
+        _configure_retained_hmac_token(root, agent_id="data.workspace_probe", release=rollback)
+        path = root / "apps/agent-workloads/values.yaml"
+        values = YAML_PARSER.load(path.read_text())
+        values["projectedWorkloadIdentity"] = {"enabled": False, "hmacRollbackRelease": rollback}
+        _write_yaml(path, values)
+        with self.assertRaisesRegex(DriftGateError, "code_digest mismatch"):
+            _check(root)
+
     def test_gate_rejects_workspace_projected_subject_drift(self) -> None:
         root = _fixture_repo()
         _configure_workspace_projected_identity(root)
@@ -719,6 +781,7 @@ def _configure_workspace_projected_identity(
         "serviceAccountNamePrefix": "agent-workloads",
         "token": {"audience": "mandate-api"},
         "previousRelease": previous_release,
+        "hmacRollbackRelease": dict(previous_release or DIGESTS[agent_id]),
     }
     _write_yaml(values_path, values)
 

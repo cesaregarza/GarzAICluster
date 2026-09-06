@@ -378,11 +378,6 @@ data:
         max_runtime_seconds: 120
         model_call: true
         readonly_sql_broker: true
-        previous_release:
-          service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-a3404f79b15b11b8b7f3
-          code_digest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
-          manifest_digest: sha256:912222e0cf0adea2733166543213e6ff70aadff34f13815ca36038bdf30d123f
-          image_digest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
       capabilities:
         agent_workloads.db_probe:
           description: Imported reversible staging database workspace probe.
