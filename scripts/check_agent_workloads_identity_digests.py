@@ -498,29 +498,19 @@ def _retained_hmac_release_pins(
         isinstance(workspace_identity, dict)
         and workspace_identity.get("enabled") is True
     ):
-        previous_release = workspace_identity.get("previousRelease")
-        if previous_release is not None:
-            if not isinstance(previous_release, dict):
-                raise DriftGateError(
-                    "projectedWorkloadIdentity.previousRelease must be a mapping"
-                )
-            retained_pins["data.workspace_probe"] = {
-                "codeDigest": _required_str(
-                    previous_release,
-                    "codeDigest",
-                    "projectedWorkloadIdentity.previousRelease",
-                ),
-                "manifestDigest": _required_str(
-                    previous_release,
-                    "manifestDigest",
-                    "projectedWorkloadIdentity.previousRelease",
-                ),
-                "imageDigest": _required_str(
-                    previous_release,
-                    "imageDigest",
-                    "projectedWorkloadIdentity.previousRelease",
-                ),
-            }
+        # Retained HMAC credentials outlive a projected rollout overlap. Never
+        # infer their claims from the current or previous projected release.
+        label = "projectedWorkloadIdentity.hmacRollbackRelease"
+        rollback = _required_mapping(
+            workspace_identity, "hmacRollbackRelease", "projectedWorkloadIdentity"
+        )
+        if set(rollback) != {"codeDigest", "manifestDigest", "imageDigest"}:
+            raise DriftGateError(f"{label} must contain exactly the three release digests")
+        retained_pins["data.workspace_probe"] = {}
+        for key in ("codeDigest", "manifestDigest", "imageDigest"):
+            digest = _required_str(rollback, key, label)
+            _validate_digest(digest, f"{label}.{key}")
+            retained_pins["data.workspace_probe"][key] = digest
     handoff = values.get("opencodeArtifactHandoff")
     if not isinstance(handoff, dict) or handoff.get("mode") != "governedCore":
         return retained_pins

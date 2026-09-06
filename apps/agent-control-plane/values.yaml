@@ -35,7 +35,7 @@ metrics:
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-ce95aee872ee
+  tag: sha-f9694ead6351
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -319,7 +319,8 @@ syntheticLiveVerify:
   args:
     - --http-timeout-seconds
     - "15"
-  baseUrl: http://agent-control-plane:80
+  # The Control SDK requires verified TLS outside explicit loopback probes.
+  baseUrl: https://agent-control-plane.garz.ai
   principal:
     issuer: synthetic
     subject_id: mandate-live-probe

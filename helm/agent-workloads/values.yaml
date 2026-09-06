@@ -35,6 +35,8 @@ projectedWorkloadIdentity:
     fileName: token
   # During a re-pin, retain the prior immutable tuple until old pods drain.
   previousRelease: null
+  # Static rollback credential tuple; independent of projected rollout overlap.
+  hmacRollbackRelease: null
 
 podAnnotations: {}
 podLabels: {}

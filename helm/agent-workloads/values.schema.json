@@ -91,6 +91,16 @@
             }
           },
           "additionalProperties": false
+        },
+        "hmacRollbackRelease": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/releaseTuple"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
