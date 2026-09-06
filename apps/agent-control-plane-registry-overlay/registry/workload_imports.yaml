@@ -2,8 +2,8 @@ schema_version: workload-imports.v1
 imports:
 - id: data.workspace_probe
   manifest_path: registries/imports/agent-data.workspace_probe.json
-  manifest_digest: sha256:d023bd0182c92ed06dcc8c22c4110d76a0a215a3b96f5bc3d4fec8ddbe749aca
-  image_digest: sha256:d3ba0154fb18c59e2d993551aa5fd0f9dafb6e2627f9bd7d662a79bffdeb0936
+  manifest_digest: sha256:bd4de04e044cf204d01faa7a6b5738dbe0ec4b9d50d3d1cda56bfc5475c155da
+  image_digest: sha256:def99cbd3b659ba18823bf2c3b5bae54380a0eb81818bd0e5fed0143e23debe3
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -12,13 +12,18 @@ imports:
     execution_posture: capability_worker
     network_access: database_only
     service_account_ref: agent-workloads-worker
-    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-527e3ccb6cd966725de2
+    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-88ca47faaa499161cc52
     identity_audience: mandate-api
     capacity_tier: 4
     concurrency: 1
     max_runtime_seconds: 120
     model_call: true
     readonly_sql_broker: true
+    previous_release:
+      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-527e3ccb6cd966725de2
+      code_digest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
+      manifest_digest: sha256:d023bd0182c92ed06dcc8c22c4110d76a0a215a3b96f5bc3d4fec8ddbe749aca
+      image_digest: sha256:d3ba0154fb18c59e2d993551aa5fd0f9dafb6e2627f9bd7d662a79bffdeb0936
   capabilities:
     agent_workloads.db_probe:
       description: Imported reversible staging database workspace probe.
@@ -49,7 +54,7 @@ imports:
         required: true
         allowed_tier: fast
         allowed_profiles:
-        - openai.gpt-5.3-codex-spark
+        - openai.gpt-5.6-luna
         max_prompt_tokens: null
         max_completion_tokens: null
         max_total_tokens: null
@@ -83,8 +88,8 @@ imports:
           select_limited: external
 - id: opencode.proposer
   manifest_path: registries/imports/agent-opencode.proposer.json
-  manifest_digest: sha256:0cb8c3266f5b714144288c3047585ead385c00b9ba2fb9568dc18b721b9c1f6e
-  image_digest: sha256:9dd78f9b6c15fb038674772a5e565144869ac6e7f32344bf4a2b6f03ce73f2d5
+  manifest_digest: sha256:919afebe5e808c67c71e9bc4733d296d4a9ec88d8a0e0b02fcb0fd8398c905ed
+  image_digest: sha256:dc7eb3857405d9af485aa190d013bdae84902aaf8f9b8f82b4ccd358416cb06e
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -153,7 +158,7 @@ imports:
         required: true
         allowed_tier: fast
         allowed_profiles:
-        - openai.gpt-5.3-codex-spark
+        - openai.gpt-5.6-luna
         max_cost_usd: 0.25
         max_influence: principal
       limitations:
@@ -211,7 +216,7 @@ imports:
         required: true
         allowed_tier: fast
         allowed_profiles:
-        - openai.gpt-5.3-codex-spark
+        - openai.gpt-5.6-luna
         max_cost_usd: 0.25
         max_influence: principal
       limitations:
@@ -284,7 +289,7 @@ imports:
         required: true
         allowed_tier: fast
         allowed_profiles:
-        - openai.gpt-5.3-codex-spark
+        - openai.gpt-5.6-luna
         max_cost_usd: 10.0
         max_influence: principal
       limitations:
@@ -295,8 +300,8 @@ imports:
       - Must not be used as a local fallback when no governed capability matches.
 - id: opencode.apply_executor
   manifest_path: registries/imports/agent-opencode.apply_executor.json
-  manifest_digest: sha256:34103ec1c645b37d03ba9c85b6fe40bdc91a4ca9cc08cd87d28b75469054b544
-  image_digest: sha256:d40d29feeb9809eb0ecb7fa3fba8eafc19968d59481d183c67457925dad54297
+  manifest_digest: sha256:8f7bca1f10e007397d6944589a0d36be4b0682e8e4d958bd7e45d9299e6f0984
+  image_digest: sha256:62875fadd5f4a7a14e42787df38eba7ac6deced48ed241905aa21d9e8cbc7fc1
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads

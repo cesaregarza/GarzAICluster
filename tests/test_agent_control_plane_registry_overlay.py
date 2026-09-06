@@ -1027,7 +1027,7 @@ exit 64
         self.assertEqual(capability["model_bounds"]["allowed_tier"], "fast")
         self.assertEqual(
             capability["model_bounds"]["allowed_profiles"],
-            ["openai.gpt-5.3-codex-spark"],
+            ["openai.gpt-5.6-luna"],
         )
         self.assertEqual(capability["model_bounds"]["max_cost_usd"], 0.25)
         self.assertEqual(capability["session_authority_budget"]["max_operations"], 100)
