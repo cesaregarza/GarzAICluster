@@ -77,6 +77,15 @@ The command has four hard boundaries:
    exact 480-second active deadline is the execution budget; the client allows
    only a fixed 30-second controller-settlement grace.
 
+Argo requires manually initiated syncs of auto-sync Applications to use their
+configured ref (for this train, `main`). The runner checks remote main at the
+submission boundary and again after completion, and accepts only the correlated
+operation's exact resolved commit. Manual Applications still receive immutable
+commit overrides. Keep release merges serialized: these checks detect a branch
+moving between validation and server-side resolution and stop the train, but
+cannot prevent an automated Application from applying that concurrent change.
+Automation policies and Hook execution remain enabled.
+
 The mutation form requires both `--apply` and `--confirm-sha` with the full
 40-character SHA for the checked-out and remote `main`:
 

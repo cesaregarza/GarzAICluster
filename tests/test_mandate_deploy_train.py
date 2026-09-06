@@ -239,6 +239,22 @@ class MandateDeployTrainTests(unittest.TestCase):
             TRAIN.PRODUCTION_CONTEXT,
         )
 
+    def test_auto_sync_ref_submission_preserves_manual_immutable_pins(self) -> None:
+        contracts = TRAIN.load_application_contracts(ROOT, "a" * 40)
+        for contract in contracts.values():
+            with self.subTest(application=contract.name):
+                expected = ("main",) if contract.automated else contract.resolved_revisions
+                self.assertEqual(TRAIN.submission_revisions(contract), expected)
+                self.assertNotIn("main", contract.resolved_revisions)
+
+    def test_explicitly_disabled_auto_sync_uses_manual_semantics(self) -> None:
+        self.assertFalse(TRAIN._identity_automated({
+            "spec": {"syncPolicy": {"automated": {"enabled": False}}}
+        }))
+        self.assertTrue(TRAIN._identity_automated({
+            "spec": {"syncPolicy": {"automated": {"enabled": True}}}
+        }))
+
     def test_application_contract_pins_all_garz_main_sources_and_multisource_order(
         self,
     ) -> None:
@@ -690,12 +706,7 @@ class MandateDeployTrainTests(unittest.TestCase):
         refreshed = snapshot(
             resource_version="11", reconciled_at="2026-08-18T12:00:01Z"
         )
-        contract = TRAIN.ApplicationContract(
-            "agent-control-plane",
-            {"name": "agent-control-plane"},
-            ("a" * 40,),
-            False,
-        )
+        contract = TRAIN.load_application_contracts(ROOT, "a" * 40)[TRAIN.ROOT_APPLICATION]
         validate_hard_refresh = TRAIN.validate_hard_refresh
 
         def record_hard_refresh(
@@ -709,12 +720,13 @@ class MandateDeployTrainTests(unittest.TestCase):
             validate_hard_refresh(*args, **kwargs)
 
         def record_submit(*args: object, **kwargs: object) -> None:
+            self.assertEqual(kwargs["revisions"], ("main",))
             events.append("submit-sync")
 
         with (
             mock.patch.object(TRAIN.argo, "read_application_payload", return_value={}),
             mock.patch.object(
-                TRAIN, "validate_live_application", side_effect=[before, refreshed]
+                TRAIN, "validate_live_application", side_effect=[before, refreshed, refreshed]
             ),
             mock.patch.object(
                 TRAIN.argo,
@@ -729,7 +741,7 @@ class MandateDeployTrainTests(unittest.TestCase):
                 TRAIN.argo, "read_application_snapshot", return_value=refreshed
             ),
             mock.patch.object(TRAIN.argo, "submit_sync", side_effect=record_submit),
-            mock.patch.object(TRAIN.argo, "poll_operation", return_value=operation()),
+            mock.patch.object(TRAIN.argo, "poll_operation", return_value=operation()) as poll,
             mock.patch.object(
                 TRAIN.argo, "poll_application_ready", return_value=refreshed
             ),
@@ -751,13 +763,59 @@ class MandateDeployTrainTests(unittest.TestCase):
                 operation_timeout=1,
                 adoption_timeout=0,
                 interval=0.01,
+                revision_guard=lambda: events.append("revision-guard"),
             )
 
         self.assertEqual(result, "manual")
         self.assertEqual(
             events,
-            ["hard-refresh", "validate-hard-refresh", "submit-sync"],
+            ["hard-refresh", "validate-hard-refresh", "revision-guard", "submit-sync", "revision-guard"],
         )
+        self.assertEqual(poll.call_args.kwargs["expected_revisions"], ("a" * 40,))
+        self.assertIs(poll.call_args.kwargs["expected_automated"], False)
+
+    def test_sync_boundary_drift_refuses_submission_or_final_acceptance(self) -> None:
+        for failure in ("spec", "before-submit", "after-completion"):
+            with self.subTest(failure=failure):
+                current = snapshot()
+                contract = TRAIN.load_application_contracts(ROOT, "a" * 40)[TRAIN.ROOT_APPLICATION]
+                error = ARGO.ArgoCoreError("release drift")
+                validations = [current, current, error if failure == "spec" else current]
+                guard = mock.Mock(side_effect=[None, error] if failure == "after-completion" else
+                                  [error] if failure == "before-submit" else None)
+                with (
+                    mock.patch.object(TRAIN.argo, "read_application_payload", return_value={}),
+                    mock.patch.object(TRAIN, "validate_live_application", side_effect=validations),
+                    mock.patch.object(TRAIN.argo, "hard_refresh_application", return_value=({}, current)),
+                    mock.patch.object(TRAIN, "validate_hard_refresh"),
+                    mock.patch.object(TRAIN, "_adopt_automated_operation", return_value=None),
+                    mock.patch.object(TRAIN.argo, "read_application_snapshot", return_value=current),
+                    mock.patch.object(TRAIN.argo, "submit_sync") as submit,
+                    mock.patch.object(TRAIN.argo, "poll_operation", return_value=operation()),
+                    mock.patch.object(TRAIN.argo, "poll_application_ready") as ready,
+                    redirect_stdout(io.StringIO()),
+                ):
+                    with self.assertRaisesRegex(ARGO.ArgoCoreError, "release drift"):
+                        TRAIN.reconcile_application(
+                            contract,
+                            stage="application-specs",
+                            invocation_id="ces395-test",
+                            desired_skills=TRAIN.validate_skill_bundle_data(valid_skill_data(), "desired"),
+                            preflight_snapshot=current,
+                            preflight_skill_digest=None,
+                            force_sync=True,
+                            kubeconfig=Path("/tmp/scoped"),
+                            argocd="argocd",
+                            kubectl="kubectl",
+                            namespace="argocd",
+                            refresh_timeout=1,
+                            operation_timeout=1,
+                            adoption_timeout=0,
+                            interval=0.01,
+                            revision_guard=guard,
+                        )
+                    self.assertEqual(submit.call_count, int(failure == "after-completion"))
+                    ready.assert_not_called()
 
     def test_semantic_skill_drift_forces_sync_even_when_argo_is_synced(self) -> None:
         desired = TRAIN.validate_skill_bundle_data(valid_skill_data(), "desired")
@@ -774,7 +832,7 @@ class MandateDeployTrainTests(unittest.TestCase):
             mock.patch.object(
                 TRAIN,
                 "validate_live_application",
-                side_effect=[current, current],
+                side_effect=[current, current, current],
             ),
             mock.patch.object(
                 TRAIN.argo,
@@ -814,6 +872,7 @@ class MandateDeployTrainTests(unittest.TestCase):
                 operation_timeout=1,
                 adoption_timeout=0,
                 interval=0.01,
+                revision_guard=lambda: None,
             )
         self.assertEqual(result, "manual")
         submit.assert_called_once()
@@ -835,7 +894,7 @@ class MandateDeployTrainTests(unittest.TestCase):
         with (
             mock.patch.object(TRAIN.argo, "read_application_payload", return_value={}),
             mock.patch.object(
-                TRAIN, "validate_live_application", side_effect=[before, refreshed]
+                TRAIN, "validate_live_application", side_effect=[before, refreshed, refreshed]
             ),
             mock.patch.object(
                 TRAIN.argo,
@@ -867,6 +926,7 @@ class MandateDeployTrainTests(unittest.TestCase):
                     operation_timeout=1,
                     adoption_timeout=0,
                     interval=0.01,
+                    revision_guard=lambda: None,
                 )
         submit.assert_not_called()
 
@@ -1030,14 +1090,14 @@ class MandateDeployTrainTests(unittest.TestCase):
         manual = operation(resources=(rollout, restart))
         contract = TRAIN.ApplicationContract(
             TRAIN.OVERLAY_APPLICATION,
-            {"name": TRAIN.OVERLAY_APPLICATION},
+            TRAIN.load_application_contracts(ROOT, revision)[TRAIN.OVERLAY_APPLICATION].identity,
             (revision,),
             True,
         )
         with (
             mock.patch.object(TRAIN.argo, "read_application_payload", return_value={}),
             mock.patch.object(
-                TRAIN, "validate_live_application", side_effect=[early, refreshed]
+                TRAIN, "validate_live_application", side_effect=[early, refreshed, refreshed]
             ),
             mock.patch.object(
                 TRAIN.argo,
@@ -1057,7 +1117,7 @@ class MandateDeployTrainTests(unittest.TestCase):
             mock.patch.object(
                 TRAIN.argo,
                 "poll_application_ready",
-                side_effect=[early, refreshed],
+                side_effect=[early, refreshed, refreshed],
             ),
             mock.patch.object(TRAIN.argo, "submit_sync") as submit,
             redirect_stdout(io.StringIO()),
@@ -1080,6 +1140,7 @@ class MandateDeployTrainTests(unittest.TestCase):
                 operation_timeout=1,
                 adoption_timeout=0,
                 interval=0.01,
+                revision_guard=lambda: None,
             )
         self.assertEqual(result, "manual")
         self.assertEqual(poll_operation.call_count, 2)
@@ -1142,6 +1203,42 @@ class MandateDeployTrainTests(unittest.TestCase):
             {"reason": "no-changes", "result": "skipped", "stage": "mandate-verify"},
         )
         self.assertEqual(receipts[-1]["result"], "no-op")
+
+    def test_main_movement_at_final_boundary_cannot_pass_verification(self) -> None:
+        for stage, outcome in (("final-pre-verification", "manual"),
+                               ("final-pre-verification", "skipped"),
+                               ("final-acceptance", "manual")):
+            with self.subTest(stage=stage, outcome=outcome):
+                sha = "a" * 40
+                bundle = TRAIN.validate_skill_bundle_data(valid_skill_data(), "desired")
+                output = io.StringIO()
+                def guard(*args: object, **kwargs: object) -> None:
+                    if kwargs["stage"] == stage:
+                        raise ARGO.ArgoCoreError("main moved")
+                names = ("validate_release_checkout", "load_application_contracts",
+                         "load_journey_contracts", "run_drift_gates", "read_desired_skill_bundle",
+                         "preflight_live_applications", "read_live_skill_bundle",
+                         "preflight_mandate_verify", "validate_remote_main",
+                         "recheck_skill_image_digest", "reconcile_application", "run_mandate_verify")
+                with mock.patch.multiple(TRAIN, **{name: mock.DEFAULT for name in names}) as mocks, redirect_stdout(output):
+                    mocks["load_application_contracts"].return_value = contracts(sha)
+                    mocks["load_journey_contracts"].return_value = journey_contracts()
+                    mocks["read_desired_skill_bundle"].return_value = bundle
+                    mocks["read_live_skill_bundle"].return_value = bundle
+                    mocks["preflight_live_applications"].return_value = ready_snapshots(sha)
+                    mocks["validate_remote_main"].side_effect = guard
+                    mocks["reconcile_application"].return_value = outcome
+                    with self.assertRaisesRegex(ARGO.ArgoCoreError, "main moved"):
+                        TRAIN.run_deploy_train(
+                            repo_root=ROOT, release_sha=sha, kubeconfig=Path("/tmp/scoped"),
+                            argocd="argocd", kubectl="kubectl", uv="uv", git="git", crane="crane",
+                            namespace="argocd", refresh_timeout=1, operation_timeout=1,
+                            adoption_timeout=0, verify_timeout=480, interval=0.01,
+                            invocation_id="ces395-test",
+                        )
+                    self.assertEqual(mocks["run_mandate_verify"].call_count, int(stage == "final-acceptance"))
+                receipts = [json.loads(line) for line in output.getvalue().splitlines()]
+                self.assertFalse(any(item.get("stage") == "deploy-train" for item in receipts))
 
     def test_failure_stops_every_downstream_stage(self) -> None:
         sha = "a" * 40
