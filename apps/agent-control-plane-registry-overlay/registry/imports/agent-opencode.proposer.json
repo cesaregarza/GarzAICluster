@@ -15,8 +15,8 @@
       "consequence_class": "reversible_staging"
     }
   },
-  "code_digest": "sha256:45135c8e2e8a9ef97c041c53d7cc5bda8467257440e9b4f5dcad23a500e15047",
-  "digest": "sha256:0cb8c3266f5b714144288c3047585ead385c00b9ba2fb9568dc18b721b9c1f6e",
+  "code_digest": "sha256:665190e1551dc1165db0c0c9a47564bc9e0d0d8955eb33d85b99f8bdf7d70202",
+  "digest": "sha256:d07f932cd021eb7d9d472970eadf94b576c73089e58c5dcc3bcfa1de9f504837",
   "display_name": "OpenCode Proposer",
   "evals": {
     "optional": [],
@@ -26,7 +26,7 @@
   },
   "id": "opencode.proposer",
   "image": {
-    "digest": "sha256:9dd78f9b6c15fb038674772a5e565144869ac6e7f32344bf4a2b6f03ce73f2d5",
+    "digest": "sha256:b62d0058602dd1acd1467ab94010f81a5c500664a439aac547e331e0a7a8e940",
     "repository": "registry.digitalocean.com/sendouq/opencode-proposer"
   },
   "loop": {
