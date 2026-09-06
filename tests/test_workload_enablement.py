@@ -43,7 +43,7 @@ class WorkloadEnablementTests(unittest.TestCase):
                 "capability": "agent_workloads.readonly_query",
                 "grant": {"binding": "private-admin-controlled-capabilities"},
                 "model_bounds": {
-                    "allowed_profile": "openai.gpt-5.3-codex-spark",
+                    "allowed_profile": "openai.gpt-5.6-luna",
                 },
                 "worker": {"claims": True},
             },
