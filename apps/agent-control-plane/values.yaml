@@ -40,7 +40,8 @@ metrics:
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-0a435e3c0fe4
+  tag: sha-a5b1db23009c
+  digest: sha256:3f815a6121546c3f416b8e1680baa5799486d8851455637b28991116b8f3068f
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -381,6 +382,18 @@ syntheticLiveVerify:
       timeout_seconds: 210
       poll_seconds: 5
       expected_status: succeeded
+      expected_withheld_labels:
+        - attempt_count
+        - broker
+        - broker_call
+        - columns
+        - passes
+        - preset
+        - profile
+        - query_digest
+        - readonly_query_context_attribution
+        - recovered_retry_count
+        - rows
       required_result_fields:
         - output_text
       required_callback_types:
