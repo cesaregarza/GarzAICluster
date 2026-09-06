@@ -44,3 +44,10 @@ The imported manifests are data, not dispatch authority. Mandate still loads the
 `agent_workloads.opencode_propose` is proposal-only reversible-staging authority. It receives only a per-job model-gateway leased token through the worker claim response, and its diff is released as metadata-only `opencode_proposal` artifact metadata.
 
 `agent_workloads.opencode_apply` is consequential authority and remains behind `admin_confirm`. The apply worker is a separate `executor: true` `capability_worker`, not a hosted harness. It receives no model gateway URL, provider credentials, Git credentials, or database credentials.
+
+Argo ignores the complete `spec.strategy.rollingUpdate` map for those four exact
+Deployments; Kubernetes defines only `maxSurge` and `maxUnavailable` in that map.
+Ignoring the individual leaves retained an empty map and produced a spurious
+`$retainKeys` comparison difference. The strategy type stays outside the ignore rule, and the
+model gateway has no such ignore rule. The Sync hook still verifies the exact
+`RollingUpdate|0|1` state before the restart hook runs.

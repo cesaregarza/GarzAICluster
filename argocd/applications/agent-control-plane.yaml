@@ -26,9 +26,11 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: agent-control-plane
-  # The registry-overlay rollout-strategy Sync hook owns these two fields for
-  # the four singleton RollingUpdate Deployments. The pinned reusable chart
-  # omits them, so ignore only the externally managed numeric strategy leaves.
+  # The registry-overlay Sync hook owns the rollingUpdate map, whose only
+  # Kubernetes fields are maxSurge and maxUnavailable. Ignore the map as a
+  # whole to avoid the empty parent left by leaf-only normalization. Verify
+  # the resulting Argo comparison has no spurious $retainKeys directive.
+  # strategy.type stays outside this ignore; the hook verifies RollingUpdate.
   # Model-gateway remains chart-owned Recreate for the shared RWO auth PVC.
   ignoreDifferences:
     - group: apps
@@ -36,29 +38,25 @@ spec:
       name: agent-control-plane
       namespace: agent-control-plane
       jsonPointers:
-        - /spec/strategy/rollingUpdate/maxSurge
-        - /spec/strategy/rollingUpdate/maxUnavailable
+        - /spec/strategy/rollingUpdate
     - group: apps
       kind: Deployment
       name: agent-control-plane-callback-adapter
       namespace: agent-control-plane
       jsonPointers:
-        - /spec/strategy/rollingUpdate/maxSurge
-        - /spec/strategy/rollingUpdate/maxUnavailable
+        - /spec/strategy/rollingUpdate
     - group: apps
       kind: Deployment
       name: agent-control-plane-git-deliverer
       namespace: agent-control-plane
       jsonPointers:
-        - /spec/strategy/rollingUpdate/maxSurge
-        - /spec/strategy/rollingUpdate/maxUnavailable
+        - /spec/strategy/rollingUpdate
     - group: apps
       kind: Deployment
       name: agent-control-plane-local-worker
       namespace: agent-control-plane
       jsonPointers:
-        - /spec/strategy/rollingUpdate/maxSurge
-        - /spec/strategy/rollingUpdate/maxUnavailable
+        - /spec/strategy/rollingUpdate
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
