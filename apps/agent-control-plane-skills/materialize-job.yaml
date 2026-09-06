@@ -59,14 +59,18 @@ spec:
               done
               test "$found" -gt 0
 
+              # Replace only data; SSA migration would steal Argo metadata ownership.
               kubectl -n agent-control-plane create configmap mandate-skill-packs "$@" \
-                --dry-run=client \
-                -o yaml \
-                | kubectl -n agent-control-plane apply \
-                    --server-side \
-                    --field-manager=mandate-skill-bundle-sync \
-                    --force-conflicts \
-                    -f -
+                --dry-run=client -o 'jsonpath={.data}' > /tmp/skill-data.json
+              test -s /tmp/skill-data.json
+              {
+                printf '[{"op":"add","path":"/data","value":'
+                cat /tmp/skill-data.json
+                printf '}]'
+              } > /tmp/skill-data-patch.json
+              kubectl -n agent-control-plane patch configmap mandate-skill-packs \
+                --type=json --patch-file=/tmp/skill-data-patch.json \
+                --field-manager=mandate-skill-bundle-sync
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
