@@ -322,7 +322,11 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         self.assertIn("sha256sum -c SHA256SUMS", script)
         self.assertIn("agent-control-plane-skill-bundle.v1", script)
         self.assertIn("create configmap mandate-skill-packs", script)
-        self.assertIn("--server-side", script)
+        self.assertIn("--dry-run=client -o 'jsonpath={.data}'", script)
+        self.assertIn('"op":"add","path":"/data"', script)
+        self.assertIn("--type=json --patch-file=/tmp/skill-data-patch.json", script)
+        self.assertNotIn("--server-side", script)
+        self.assertNotIn("--force-conflicts", script)
         self.assertIn("--field-manager=mandate-skill-bundle-sync", script)
         self.assertNotIn("kubectl create -f", script)
 
