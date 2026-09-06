@@ -46,7 +46,7 @@ secretKeys:
 - AGENT_WORKLOADS_DATABASE_URL
 secretEnv: {}
 rolloutChecksums:
-  workloadIdentityTokenSecret: sha256:11af48d70445c45732fb09cf141c083ba82df8bc79aa1da8c84c2f493473ce9f
+  workloadIdentityTokenSecret: sha256:713c682f5ace9cfb1c6fc58eecd9681140822f4496116456f9218add6b3b82f9
 resources:
   requests:
     cpu: 25m
