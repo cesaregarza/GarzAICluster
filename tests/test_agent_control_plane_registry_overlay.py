@@ -553,8 +553,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
                 "name": deployment,
                 "namespace": "agent-control-plane",
                 "jsonPointers": [
-                    "/spec/strategy/rollingUpdate/maxSurge",
-                    "/spec/strategy/rollingUpdate/maxUnavailable",
+                    "/spec/strategy/rollingUpdate",
                 ],
             }
             for deployment in REGISTRY_OVERLAY_ROLLING_DEPLOYMENTS
