@@ -8,6 +8,11 @@ fullnameOverride: agent-control-plane
 
 replicaCount: 1
 
+# Match the guarded live singleton budget explicitly in the rendered chart.
+rollingUpdate:
+  maxSurge: 0
+  maxUnavailable: 1
+
 apiServiceAccount:
   create: true
   name: agent-control-plane-tokenreview
@@ -35,7 +40,7 @@ metrics:
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-f9694ead6351
+  tag: sha-d06f4691851c
   pullPolicy: IfNotPresent
 
 secretKeys:

@@ -546,23 +546,8 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
         self.assertNotIn("rollout restart", script)
 
-        ignored_strategy_fields = [
-            {
-                "group": "apps",
-                "kind": "Deployment",
-                "name": deployment,
-                "namespace": "agent-control-plane",
-                "jsonPointers": [
-                    "/spec/strategy/rollingUpdate",
-                ],
-            }
-            for deployment in REGISTRY_OVERLAY_ROLLING_DEPLOYMENTS
-        ]
-        self.assertEqual(
-            self.control_plane_application["spec"]["ignoreDifferences"],
-            ignored_strategy_fields,
-        )
-        self.assertIn(
+        self.assertNotIn("ignoreDifferences", self.control_plane_application["spec"])
+        self.assertNotIn(
             "RespectIgnoreDifferences=true",
             self.control_plane_application["spec"]["syncPolicy"]["syncOptions"],
         )
