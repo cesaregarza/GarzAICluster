@@ -63,6 +63,23 @@ Goal: rollback ≤ 5 minutes from revert merge to healthy status.
 
 ## Verification After Each Deploy
 
+For a Mandate Core pin update, preview and then apply the owned references with
+the repository helper. It updates the values tag/digest, Argo source revision,
+postgres sweep image, current release reference and runnable restore snippet,
+and deploy-train contract fixture as one validated operation:
+
+```bash
+uv run python scripts/check_control_plane_release_pin.py \
+  --repo-root . \
+  --source-sha d3d4d2f955805fd66da131f29cd3bec108a27f75 \
+  --image-digest sha256:a62a0b6d3608d810dfb1bf0fe82b0a4bf35aaa668b7f097ae05f3e9106441008
+uv run python scripts/check_control_plane_release_pin.py \
+  --repo-root . \
+  --source-sha d3d4d2f955805fd66da131f29cd3bec108a27f75 \
+  --image-digest sha256:a62a0b6d3608d810dfb1bf0fe82b0a4bf35aaa668b7f097ae05f3e9106441008 \
+  --apply
+```
+
 - [ ] Argo shows `Synced` & `Healthy`.
 - [ ] `kubectl get deployment <svc>` shows new digest.
 - [ ] For a Mandate control-plane, registry-overlay, or workload deploy, start
