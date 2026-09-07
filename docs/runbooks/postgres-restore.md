@@ -36,11 +36,13 @@ DigitalOcean context:
 | Values overlay | `apps/agent-control-plane/values.yaml` |
 | Chart source | `argocd/applications/agent-control-plane.yaml` |
 | Public hostname | `agent-control-plane.garz.ai` |
-| Current image | `registry.digitalocean.com/sendouq/agent-platform:sha-d3d4d2f95580` |
+| Current image | `registry.digitalocean.com/sendouq/agent-platform:sha-fa3afd59e3af` |
 
 DigitalOcean managed PostgreSQL documents automatic backups and point-in-time
 restore by forking a new database cluster. Restores must create a new cluster;
 do not restore in place over the current writer.
+
+Current GitOps Core release pin: `registry.digitalocean.com/sendouq/agent-platform:sha-d3d4d2f95580` (`sha256:a62a0b6d3608d810dfb1bf0fe82b0a4bf35aaa668b7f097ae05f3e9106441008`), source `d3d4d2f955805fd66da131f29cd3bec108a27f75`.
 
 ## Accepted Recovery Targets
 
