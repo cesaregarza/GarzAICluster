@@ -254,9 +254,9 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             workspace_account,
             *opencode_accounts.values(),
         }
-        previous_release = self.production_values["projectedWorkloadIdentity"][
+        previous_release = self.production_values["projectedWorkloadIdentity"].get(
             "previousRelease"
-        ]
+        )
         if previous_release is not None:
             expected_service_accounts.add(
                 _release_service_account_name(

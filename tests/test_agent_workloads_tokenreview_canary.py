@@ -163,7 +163,7 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
             ),
             "mandate-api",
         )
-        previous_release = projected["previousRelease"]
+        previous_release = projected.get("previousRelease")
         if previous_release is None:
             self.assertNotIn("previous_release", workspace["agent"])
         else:
