@@ -308,10 +308,11 @@ def _assert_workspace_release_subject_binding(
         "audience",
         "projectedWorkloadIdentity.token",
     )
-    if agent.get("identity_audience") != expected_audience:
+    configured_audience = agent.get("identity_audience", expected_audience)
+    if configured_audience != expected_audience:
         raise DriftGateError(
             "data.workspace_probe identity_audience differs from projected render: "
-            f"expected {expected_audience}, got {agent.get('identity_audience')}"
+            f"expected {expected_audience}, got {configured_audience}"
         )
 
     configured_previous = identity.get("previousRelease")
@@ -408,10 +409,11 @@ def _assert_opencode_release_subject_bindings(
             "audience",
             f"{values_key}.identity.token",
         )
-        if agent.get("identity_audience") != expected_audience:
+        configured_audience = agent.get("identity_audience", expected_audience)
+        if configured_audience != expected_audience:
             raise DriftGateError(
                 f"{agent_id} identity_audience differs from governed render: "
-                f"expected {expected_audience}, got {agent.get('identity_audience')}"
+                f"expected {expected_audience}, got {configured_audience}"
             )
 
         identity_mode = _required_str(

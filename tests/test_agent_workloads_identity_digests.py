@@ -180,6 +180,31 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
         self.assertIn("match release pins", result)
 
+    def test_gate_accepts_omitted_workspace_identity_audience_default(self) -> None:
+        root = _fixture_repo()
+        _configure_workspace_projected_identity(root)
+        _set_workspace_identity_audience(root, None)
+
+        self.assertIn("match release pins", _check(root))
+
+    def test_gate_accepts_explicit_workspace_identity_audience_override(self) -> None:
+        root = _fixture_repo()
+        _configure_workspace_projected_identity(root)
+        _set_workspace_identity_audience(root, "mandate-api")
+
+        self.assertIn("match release pins", _check(root))
+
+    def test_gate_rejects_wrong_workspace_identity_audience(self) -> None:
+        root = _fixture_repo()
+        _configure_workspace_projected_identity(root)
+        _set_workspace_identity_audience(root, "wrong-audience")
+
+        with self.assertRaisesRegex(
+            DriftGateError,
+            "identity_audience differs from projected render",
+        ):
+            _check(root)
+
     def test_gate_accepts_workspace_projected_subject_with_current_hmac_rollback(
         self,
     ) -> None:
@@ -708,6 +733,24 @@ def _configmap() -> dict[str, Any]:
         "metadata": {"name": "agent-control-plane-registry-overlay"},
         "data": data,
     }
+
+
+def _set_workspace_identity_audience(root: Path, audience: str | None) -> None:
+    configmap_path = (
+        root / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
+    )
+    configmap = YAML_PARSER.load(configmap_path.read_text())
+    imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
+    workspace = next(
+        entry for entry in imports["imports"] if entry["id"] == "data.workspace_probe"
+    )
+    agent = workspace["agent"]
+    if audience is None:
+        agent.pop("identity_audience", None)
+    else:
+        agent["identity_audience"] = audience
+    configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
+    _write_yaml(configmap_path, configmap)
 
 
 def _configure_governed_release_subjects(

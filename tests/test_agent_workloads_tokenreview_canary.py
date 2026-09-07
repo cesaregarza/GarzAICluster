@@ -158,7 +158,9 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
             _workspace_service_account_subject(values),
         )
         self.assertEqual(
-            workspace["agent"]["identity_audience"],
+            workspace["agent"].get(
+                "identity_audience", projected["token"]["audience"]
+            ),
             "mandate-api",
         )
         previous_release = projected["previousRelease"]

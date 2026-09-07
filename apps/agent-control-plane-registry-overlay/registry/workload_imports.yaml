@@ -13,7 +13,6 @@ imports:
     network_access: database_only
     service_account_ref: agent-workloads-worker
     service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-88ca47faaa499161cc52
-    identity_audience: mandate-api
     capacity_tier: 4
     concurrency: 1
     max_runtime_seconds: 120
@@ -28,9 +27,6 @@ imports:
     agent_workloads.db_probe:
       description: Imported reversible staging database workspace probe.
       output_schema: agent_workloads_db_probe_result_v1
-      output_gate:
-        policy_id: deterministic-public-result-v1
-        projection_id: agent_workloads.db_probe
     agent_workloads.readonly_query:
       description: Imported governed readonly SQL query worker.
       output_schema: agent_workloads_readonly_query_result_v1
@@ -98,7 +94,6 @@ imports:
     execution_posture: hosted_harness
     network_access: broker_only
     service_account_ref: opencode-proposer
-    identity_audience: mandate-api
     capacity_tier: 4
     concurrency: 1
     max_runtime_seconds: 900
@@ -168,9 +163,6 @@ imports:
       description: Imported OpenCode answer task that performs bounded local work
         and returns answer text through the output gate.
       output_schema: agent_workloads_opencode_task_result_v1
-      output_gate:
-        policy_id: deterministic-public-result-v1
-        projection_id: agent_workloads.opencode_task
       task_contract:
         input_schema: task_intent
         text: Describe the work to perform in task.text.
@@ -310,7 +302,6 @@ imports:
     execution_posture: capability_worker
     network_access: broker_only
     service_account_ref: opencode-apply-executor
-    identity_audience: mandate-api
     executor: true
     capacity_tier: 4
     concurrency: 1

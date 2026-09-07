@@ -45,6 +45,8 @@ The Argo Application intentionally does not set `ApplyOutOfSyncOnly=true`; selec
 
 The imported manifests are data, not dispatch authority. Mandate still loads the overlay through registry validators, and dispatch still requires a policy grant, admission, a matching workload identity claim, lease projection, output-gate processing, and audit.
 
+Imports without an `output_gate` use Core's deterministic public-result policy and raw public-result projection defaults; keep an explicit gate when a capability needs a different contract.
+
 `agent_workloads.opencode_propose` is proposal-only reversible-staging authority. It receives only a per-job model-gateway leased token through the worker claim response, and its diff is released as metadata-only `opencode_proposal` artifact metadata.
 
 `agent_workloads.opencode_apply` is consequential authority and remains behind `admin_confirm`. The apply worker is a separate `executor: true` `capability_worker`, not a hosted harness. It receives no model gateway URL, provider credentials, Git credentials, or database credentials.
