@@ -21,7 +21,7 @@
             "steps": [
               {"color": "green", "value": null},
               {"color": "orange", "value": 1800},
-              {"color": "red", "value": 2700}
+              {"color": "red", "value": 21600}
             ]
           }
         },

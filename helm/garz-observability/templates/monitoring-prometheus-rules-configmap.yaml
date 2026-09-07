@@ -49,13 +49,13 @@ data:
 
           - alert: LookupSQLiteSnapshotStale
             expr: |
-              time() - max(lookup_sqlite_snapshot_last_success_timestamp_seconds{kind="build"}) > 2700
+              time() - max(lookup_sqlite_snapshot_last_success_timestamp_seconds{kind="build"}) > 21600
             for: 15m
             labels:
               severity: warning
             annotations:
               summary: Lookup SQLite snapshot is stale
-              description: The lookup snapshot has not published a successful build for at least 45 minutes, so search and lookup-backed endpoints may drift stale.
+              description: The lookup snapshot has not published a new build for at least six hours, which exceeds the observed healthy unchanged-data cadence.
 
           - alert: CompetitionPlayerSummaryLatencyHigh
             expr: |
@@ -131,10 +131,9 @@ data:
           - alert: KubernetesNodeCPURequestHeadroomLow
             expr: |
               (
-                sum by (node) (
+                sum(
                   kube_pod_container_resource_requests{
                     job="kube-state-metrics",
-                    node!="",
                     resource="cpu",
                     unit="core"
                   }
@@ -147,21 +146,21 @@ data:
                   )
                 )
                   /
-                max by (node) (
+                sum(
                   kube_node_status_allocatable{
                     job="kube-state-metrics",
                     resource="cpu",
                     unit="core"
                   }
                 )
-              ) > 0.85
+              ) > 0.90
             for: 10m
             labels:
               severity: warning
               service: kubernetes
             annotations:
-              summary: Kubernetes node CPU request headroom is low
-              description: Node {{ "{{ $labels.node }}" }} has reserved more than 85% of allocatable CPU for 10 minutes, leaving less than the Citrus rollout and scheduled-job headroom target.
+              summary: Kubernetes cluster CPU request headroom is low
+              description: Running pods have reserved more than 90% of cluster allocatable CPU for 10 minutes, leaving too little durable headroom for scheduled jobs and one rolling replacement.
 
           - alert: AlertmanagerDown
             expr: sum(up{job="alertmanager"}) == 0
@@ -221,22 +220,22 @@ data:
 
           - alert: MandateSyntheticLiveVerifyFailed
             expr: |
-              max by (namespace, owner_name) (
-                kube_job_status_failed{namespace="agent-control-plane"}
+              sum by (namespace, owner_name) (
+                (kube_job_status_failed{namespace="agent-control-plane"} > 0)
                   * on (namespace, job_name) group_left(owner_name)
                     kube_job_owner{
                       namespace="agent-control-plane",
                       owner_kind="CronJob",
                       owner_name="agent-control-plane-synthetic-live-verify"
                     }
-              ) > 0
+              ) > 1
             for: 2m
             labels:
               severity: critical
               service: mandate
             annotations:
               summary: Mandate synthetic live verify failed
-              description: The scheduled Mandate synthetic live verify CronJob has a failed Job; inspect the agent-control-plane synthetic-live-verify logs before the next deploy.
+              description: At least two recent Mandate synthetic live verify Jobs failed before retention cleanup; inspect the exact failed Job logs before the next deploy.
 
           - alert: CitrusPodPending
             expr: |
@@ -643,39 +642,39 @@ data:
               summary: Citrus recurring charge or order materialization is stalled
               description: A due charge remains unclaimed or a paid recurring cycle is still missing its generated order beyond the grace window.
 
-          - alert: HermesGovernedRuntimeDown
+          - alert: HermesNativeRuntimeDown
             expr: |
-              absent(up{job="hermes-governed-runtime"})
-                or up{job="hermes-governed-runtime"} == 0
+              absent(up{job="hermes-native-runtime"})
+                or up{job="hermes-native-runtime"} == 0
             for: 2m
             labels:
               severity: critical
               service: hermes
             annotations:
-              summary: Hermes governed runtime is unreachable
-              description: Prometheus cannot scrape the Hermes governed runtime on the nyc3 private endpoint.
+              summary: Hermes native runtime health exporter is unreachable
+              description: Prometheus cannot scrape the native Hermes health exporter on the nyc3 private endpoint.
 
-          - alert: HermesGovernedRuntimeNotReady
+          - alert: HermesNativeRuntimeNotReady
             expr: |
-              absent(hermes_governed_runtime_ready{job="hermes-governed-runtime"})
-                or hermes_governed_runtime_ready{job="hermes-governed-runtime"} == 0
+              absent(hermes_native_runtime_ready{job="hermes-native-runtime"})
+                or hermes_native_runtime_ready{job="hermes-native-runtime"} == 0
             for: 2m
             labels:
               severity: critical
               service: hermes
             annotations:
-              summary: Hermes governed runtime readiness failed
-              description: The Hermes runtime exporter is reachable, but the governed profile, provenance, operations, or observed runtime gate is not ready.
+              summary: Hermes native runtime readiness failed
+              description: The Hermes gateway, cron ticker, or private alert-triage job is not healthy.
 
-          - alert: HermesGovernedRuntimeCheckFailed
-            expr: hermes_governed_runtime_check_ok{job="hermes-governed-runtime"} == 0
+          - alert: HermesNativeRuntimeCheckFailed
+            expr: hermes_native_runtime_check_ok{job="hermes-native-runtime"} == 0
             for: 2m
             labels:
               severity: critical
               service: hermes
             annotations:
-              summary: Hermes governed runtime check failed
-              description: One of the Hermes governed-runtime checks is failing; inspect the check label and runtime evidence before continuing cutover.
+              summary: Hermes native runtime check failed
+              description: One of the native Hermes checks is failing; inspect the check label before relying on Canary alert triage.
 
           - alert: GrafanaDown
             expr: sum(up{job="grafana"}) == 0

@@ -127,17 +127,52 @@ class GarzObservabilityKubeStateMetricsTests(unittest.TestCase):
             name="prometheus-rules",
             namespace="monitoring",
         )["data"]["critical-alerts.yaml"]
-
-        self.assertIn("MandateSyntheticLiveVerifyFailed", rules)
+        document = YAML_PARSER.load(rules)
+        alert = next(
+            rule
+            for group in document["groups"]
+            for rule in group["rules"]
+            if rule.get("alert") == "MandateSyntheticLiveVerifyFailed"
+        )
+        expression = " ".join(alert["expr"].split())
         self.assertIn(
             'kube_job_status_failed{namespace="agent-control-plane"}',
-            rules,
+            expression,
         )
-        self.assertIn("kube_job_owner", rules)
-        self.assertIn('owner_kind="CronJob"', rules)
+        self.assertIn("kube_job_owner", expression)
+        self.assertIn('owner_kind="CronJob"', expression)
         self.assertIn(
             'owner_name="agent-control-plane-synthetic-live-verify"',
-            rules,
+            expression,
+        )
+        self.assertIn("sum by (namespace, owner_name)", expression)
+        self.assertTrue(expression.endswith(") > 1"))
+
+    def test_lookup_and_native_hermes_alerts_match_live_contract(self) -> None:
+        rules = _find_doc(
+            self.docs,
+            kind="ConfigMap",
+            name="prometheus-rules",
+            namespace="monitoring",
+        )["data"]["critical-alerts.yaml"]
+        document = YAML_PARSER.load(rules)
+        alerts = {
+            rule["alert"]: rule
+            for group in document["groups"]
+            for rule in group["rules"]
+            if "alert" in rule
+        }
+
+        lookup = alerts["LookupSQLiteSnapshotStale"]
+        self.assertIn("> 21600", " ".join(lookup["expr"].split()))
+        self.assertIn("six hours", lookup["annotations"]["description"])
+
+        self.assertIn("HermesNativeRuntimeDown", alerts)
+        self.assertIn("HermesNativeRuntimeNotReady", alerts)
+        self.assertIn("HermesNativeRuntimeCheckFailed", alerts)
+        self.assertIn(
+            'hermes_native_runtime_ready{job="hermes-native-runtime"}',
+            alerts["HermesNativeRuntimeNotReady"]["expr"],
         )
 
     def test_cpu_headroom_and_citrus_pending_alerts_are_bounded(self) -> None:
@@ -162,7 +197,9 @@ class GarzObservabilityKubeStateMetricsTests(unittest.TestCase):
         self.assertIn("kube_pod_container_resource_requests", headroom_expression)
         self.assertIn("kube_node_status_allocatable", headroom_expression)
         self.assertIn('phase="Running"', headroom_expression)
-        self.assertIn("> 0.85", headroom_expression)
+        self.assertIn("sum( kube_pod_container_resource_requests", headroom_expression)
+        self.assertIn("> 0.90", headroom_expression)
+        self.assertNotIn("sum by (node)", headroom_expression)
 
         pending = alerts["CitrusPodPending"]
         pending_expression = " ".join(pending["expr"].split())

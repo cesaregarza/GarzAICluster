@@ -20,6 +20,8 @@ The historical evidence is the offline August 12–26 analysis documented in [CE
 
 Steady-state requests change from 3,094m to 3,259m of 3,800m allocatable: reclaim 300m, add 465m of previously missing reservations. The intended placement is approximately 1,732m on the memory node and 1,527m on the general node. Jobs and rolling surge can change those per-node totals. Neither node capacity nor spending changes.
 
+The follow-up alert repair measures the same reservations cluster-wide at 90% for ten minutes. Per-node placement can exceed 85% while the other node still has enough room for a replacement, and short scheduled Jobs legitimately add requests for less than the alert duration. The cluster-wide signal pages only when durable total reservations leave less than 380m, enough for the largest 150m application replacement plus routine scheduled work.
+
 Exact pod records after the first rollout show Alertmanager and external-dns moved to the general node as intended, but Grafana (25m), metrics-server (25m), and vanity-hosts (5m) moved to the memory node. An initial comparison of node totals misidentified which workloads had moved; the subsequent unnecessary restrictions on Alertmanager/external-dns are reverted. Grafana and metrics-server instead require the general pool, moving 50m of actual reservations away from the worker. Losing that single-node pool temporarily makes those two services unschedulable until the pool returns. This explicit placement tradeoff keeps a 150m Celery surge pod schedulable in steady state. Reserve the pinned Celery worker first, then roll the flexible FastAPI/React deployments so they cannot take its CPU slot during the transition.
 
 ## Deployment and verification

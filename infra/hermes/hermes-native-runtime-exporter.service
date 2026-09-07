@@ -1,0 +1,28 @@
+[Unit]
+Description=Hermes native runtime health exporter
+After=network-online.target hermes-gateway.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hermes
+Group=hermes
+Environment="HERMES_HOME=/var/lib/hermes"
+Environment="HERMES_ALERT_TRIAGE_JOB_ID=15f2db57cd0c"
+ExecStart=/usr/bin/python3 /usr/local/lib/hermes-native-runtime-exporter.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryMax=48M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target
