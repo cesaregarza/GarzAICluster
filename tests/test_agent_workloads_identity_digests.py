@@ -180,6 +180,69 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
         self.assertIn("match release pins", result)
 
+    def test_gate_accepts_omitted_workspace_identity_audience_default(self) -> None:
+        root = _fixture_repo()
+        _configure_workspace_projected_identity(root)
+        _set_workspace_identity_audience(root, None)
+
+        self.assertIn("match release pins", _check(root))
+
+    def test_gate_accepts_explicit_workspace_identity_audience_override(self) -> None:
+        root = _fixture_repo()
+        _configure_workspace_projected_identity(root)
+        _set_workspace_identity_audience(root, "mandate-api")
+
+        self.assertIn("match release pins", _check(root))
+
+    def test_gate_rejects_wrong_workspace_identity_audience(self) -> None:
+        root = _fixture_repo()
+        _configure_workspace_projected_identity(root)
+        _set_workspace_identity_audience(root, "wrong-audience")
+
+        with self.assertRaisesRegex(
+            DriftGateError,
+            "identity_audience differs from projected render",
+        ):
+            _check(root)
+
+    def test_omitted_audience_still_rejects_wrong_worker_token_audiences(self) -> None:
+        cases = [("data.workspace_probe", "projectedWorkloadIdentity"),
+                 ("opencode.proposer", "opencodeProposer"),
+                 ("opencode.apply_executor", "opencodeApplyExecutor")]
+        for worker, values_key in cases:
+            with self.subTest(worker=worker):
+                root = _fixture_repo()
+                _configure_workspace_projected_identity(root)
+                _configure_governed_release_subjects(root)
+                path = root / "apps/agent-control-plane-registry-overlay/configmap.yaml"
+                configmap = YAML_PARSER.load(path.read_text())
+                imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
+                for entry in imports["imports"]:
+                    entry.setdefault("agent", {}).pop("identity_audience", None)
+                configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
+                _write_yaml(path, configmap)
+                path = root / "apps/agent-workloads/values.yaml"
+                values = YAML_PARSER.load(path.read_text())
+                identity = values[values_key] if worker == "data.workspace_probe" else values[values_key]["identity"]
+                identity["token"]["audience"] = "wrong-audience"
+                _write_yaml(path, values)
+                with self.assertRaisesRegex(DriftGateError, "identity_audience differs"):
+                    _check(root)
+
+    def test_omitted_audience_uses_configured_core_verifier_audience(self) -> None:
+        root = _fixture_repo()
+        _configure_workspace_projected_identity(root)
+        _set_workspace_identity_audience(root, None)
+        path = root / "apps/agent-control-plane/values.yaml"
+        _write_yaml(path, {"env": {"AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE": "custom-core"}})
+        with self.assertRaisesRegex(DriftGateError, "identity_audience differs"):
+            _check(root)
+        path = root / "apps/agent-workloads/values.yaml"
+        values = YAML_PARSER.load(path.read_text())
+        values["projectedWorkloadIdentity"]["token"]["audience"] = "custom-core"
+        _write_yaml(path, values)
+        self.assertIn("match release pins", _check(root))
+
     def test_gate_accepts_workspace_projected_subject_with_current_hmac_rollback(
         self,
     ) -> None:
@@ -595,6 +658,9 @@ def _fixture_repo(
     import tempfile
 
     root = Path(tempfile.mkdtemp())
+    core_path = root / "apps/agent-control-plane/values.yaml"
+    core_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_yaml(core_path, {"env": {"AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE": "mandate-api"}})
     values_path = root / "apps" / "agent-workloads" / "values.yaml"
     values_path.parent.mkdir(parents=True)
     values: dict[str, Any] = {
@@ -708,6 +774,24 @@ def _configmap() -> dict[str, Any]:
         "metadata": {"name": "agent-control-plane-registry-overlay"},
         "data": data,
     }
+
+
+def _set_workspace_identity_audience(root: Path, audience: str | None) -> None:
+    configmap_path = (
+        root / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
+    )
+    configmap = YAML_PARSER.load(configmap_path.read_text())
+    imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
+    workspace = next(
+        entry for entry in imports["imports"] if entry["id"] == "data.workspace_probe"
+    )
+    agent = workspace["agent"]
+    if audience is None:
+        agent.pop("identity_audience", None)
+    else:
+        agent["identity_audience"] = audience
+    configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
+    _write_yaml(configmap_path, configmap)
 
 
 def _configure_governed_release_subjects(

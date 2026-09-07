@@ -37,7 +37,6 @@ control-plane restart and do not require re-minting.
 | capability | key | owner | consequence |
 | --- | --- | --- | --- |
 | `agent_workloads.db_probe` | `description` | `workload_release` | `digest_moves_repin_remint` |
-| `agent_workloads.db_probe` | `output_gate` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.db_probe` | `output_schema` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_apply` | `approval_mode` | `deployment_overlay` | `control_plane_restart` |
 | `agent_workloads.opencode_apply` | `artifacts` | `deployment_overlay` | `control_plane_restart` |
@@ -77,7 +76,6 @@ control-plane restart and do not require re-minting.
 | `agent_workloads.opencode_task` | `disclosure_summary` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_task` | `limitations` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_task` | `model_bounds` | `deployment_overlay` | `control_plane_restart` |
-| `agent_workloads.opencode_task` | `output_gate` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_task` | `output_schema` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_task` | `result_contract` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_task` | `session_authority_budget` | `mixed` | `control_plane_restart` |
