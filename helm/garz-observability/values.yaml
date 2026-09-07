@@ -27,6 +27,7 @@ monitoring:
       extraEgress: []
     prometheus:
       enabled: true
+      citrusDevMetrics: false
       allowedIngressNamespaces:
       - monitoring
       - ingress-nginx
@@ -49,6 +50,7 @@ monitoring:
   prometheus:
     enabled: false
     replicas: 1
+    nodeSelector: {}
     image:
       repository: prom/prometheus
       tag: v2.52.0
@@ -156,6 +158,7 @@ monitoring:
   # Grafana configuration
   grafana:
     enabled: false
+    nodeSelector: {}
     replicas: 1
     image:
       repository: grafana/grafana
@@ -239,6 +242,7 @@ monitoring:
   alertmanager:
     enabled: false
     replicas: 1
+    affinity: {}
     image:
       repository: prom/alertmanager
       tag: v0.27.0
