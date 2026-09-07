@@ -65,6 +65,13 @@ react:
   image:
     tag: v2.0.38
 celeryWorker:
+  # This node cannot reserve CPU for a second worker during a rolling update.
+  # Drain the old consumer before sync; queued work resumes on its replacement.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   nodeSelector:
     doks.digitalocean.com/node-pool: pool-garz-memory
   # Reserve typical CPU use; concurrency and burst capacity stay unchanged.
