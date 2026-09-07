@@ -142,17 +142,24 @@ def check_agent_workloads_identity_digests(
             values,
             release_pins[agent_id],
         )
+    core_values = _load_yaml(repo_root / "apps/agent-control-plane/values.yaml")
+    core_env = _required_mapping(core_values, "env", "Core values")
+    default_identity_audience = _required_str(
+        core_env, "AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE", "Core verifier env"
+    )
     _assert_workspace_release_subject_binding(
         values=values,
         overlay_pins=overlay_pins,
         overlay_imports=overlay_imports,
         workload_namespace=workload_namespace,
+        default_identity_audience=default_identity_audience,
     )
     _assert_opencode_release_subject_bindings(
         values=values,
         overlay_pins=overlay_pins,
         overlay_imports=overlay_imports,
         workload_namespace=workload_namespace,
+        default_identity_audience=default_identity_audience,
     )
     retained_hmac_pins = _retained_hmac_release_pins(
         values=values,
@@ -253,6 +260,7 @@ def _assert_workspace_release_subject_binding(
     overlay_pins: dict[str, dict[str, str]],
     overlay_imports: dict[str, dict[str, Any]],
     workload_namespace: str,
+    default_identity_audience: str,
 ) -> None:
     agent_id = "data.workspace_probe"
     identity = values.get("projectedWorkloadIdentity")
@@ -308,7 +316,7 @@ def _assert_workspace_release_subject_binding(
         "audience",
         "projectedWorkloadIdentity.token",
     )
-    configured_audience = agent.get("identity_audience", expected_audience)
+    configured_audience = agent.get("identity_audience", default_identity_audience)
     if configured_audience != expected_audience:
         raise DriftGateError(
             "data.workspace_probe identity_audience differs from projected render: "
@@ -366,6 +374,7 @@ def _assert_opencode_release_subject_bindings(
     overlay_pins: dict[str, dict[str, str]],
     overlay_imports: dict[str, dict[str, Any]],
     workload_namespace: str,
+    default_identity_audience: str,
 ) -> None:
     handoff = values.get("opencodeArtifactHandoff")
     if not isinstance(handoff, dict) or handoff.get("mode") != "governedCore":
@@ -409,7 +418,7 @@ def _assert_opencode_release_subject_bindings(
             "audience",
             f"{values_key}.identity.token",
         )
-        configured_audience = agent.get("identity_audience", expected_audience)
+        configured_audience = agent.get("identity_audience", default_identity_audience)
         if configured_audience != expected_audience:
             raise DriftGateError(
                 f"{agent_id} identity_audience differs from governed render: "
