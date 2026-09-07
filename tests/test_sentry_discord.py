@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
+from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "helm/garz-observability/files/sentry_discord.py"
@@ -14,8 +15,8 @@ spec.loader.exec_module(m)
 NOW = datetime(2026, 9, 7, 10, tzinfo=timezone.utc)
 
 
-def issue(i, when=NOW):
-    return {"id": str(i), "firstSeen": m.stamp(when), "title": "Example", "project": {"slug": "test"}}
+def issue(i, when=NOW, level="error"):
+    return {"id": str(i), "firstSeen": m.stamp(when), "title": "Example", "level": level, "project": {"slug": "test"}}
 
 
 class PollTests(unittest.TestCase):
@@ -74,6 +75,20 @@ class PollTests(unittest.TestCase):
         m.poll(self.db, self.sentry, self.discord, NOW + timedelta(minutes=3))
         self.discord.send.assert_not_called()
 
+    def test_only_error_and_fatal_are_delivered_and_count_toward_cap(self):
+        self.initialize()
+        rows = [issue(i, level=level) for i, level in enumerate(
+            ("debug", "info", "warning", "critical", "ERROR", "", None, "error", "fatal"))]
+        missing = issue("missing"); missing.pop("level")
+        self.sentry.issues.return_value = rows + [missing]
+        result = m.poll(self.db, self.sentry, self.discord, NOW + timedelta(minutes=3), max_alerts=2)
+        self.assertEqual(result, {"sent": 2, "backlog": False})
+        self.assertEqual([call.args[0]["level"] for call in self.discord.send.call_args_list], ["error", "fatal"])
+        self.assertEqual(self.db.execute("SELECT count(*) FROM sent").fetchone()[0], 2)
+        self.assertEqual(dict(self.db.execute("SELECT * FROM meta"))["checkpoint"], m.stamp(NOW + timedelta(minutes=3)))
+        m.poll(self.db, self.sentry, self.discord, NOW + timedelta(minutes=6))
+        self.assertEqual(self.discord.send.call_count, 2)
+
     def test_overlap_recovers_delayed_indexing(self):
         self.initialize()
         m.poll(self.db, self.sentry, self.discord, NOW + timedelta(minutes=30))
@@ -91,6 +106,9 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertTrue(request.call_args_list[1].args[0].startswith("https://sentry.io/"))
         self.assertIn("cursor=next", request.call_args_list[1].args[0])
+        for call in request.call_args_list:
+            query = parse_qs(urlsplit(call.args[0]).query)
+            self.assertEqual(query["query"], [f"firstSeen:>={m.stamp(NOW)} level:[error,fatal]"])
 
     @patch.object(m, "request_json")
     def test_repeated_cursor_fails(self, request):

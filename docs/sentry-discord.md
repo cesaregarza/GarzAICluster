@@ -1,8 +1,8 @@
 # Sentry issue notifications in Discord
 
 The `sentry-discord-alerts` CronJob polls Sentry's issue API every three minutes
-and sends new issues to the existing private Discord alerts webhook. It uses a
-read-only personal token (`event:read`); no paid Sentry notification integration
+and sends new **error** and **fatal** issues to the existing private Discord
+alerts webhook. It uses a read-only personal token (`event:read`); no paid Sentry notification integration
 or application instrumentation change is required.
 
 The production organization is `cesar-eduardo-garza`. An empty projects list means
@@ -24,6 +24,9 @@ HTTPS to `sentry.io` and `discord.com`. There is no inbound service.
 
 ## Delivery behavior
 
+- The API query restricts severity to `error` and `fatal`. A local check also
+  skips debug, info, warning, unknown, and missing levels before delivery. Skipped
+  issues do not consume the delivery limit or enter the sent ledger.
 - The first successful run establishes a baseline and sends no historical issues.
 - Later runs page through new issues from the checkpoint with a one-hour overlap
   for indexing delay. Confirmed deliveries are committed individually to SQLite.
