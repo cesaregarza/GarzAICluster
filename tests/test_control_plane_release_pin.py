@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
+import shutil
 import tempfile
 import unittest
-import shutil
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 from ruamel.yaml import YAML
 
@@ -14,7 +16,6 @@ from scripts.check_control_plane_release_pin import (
     update_control_plane_release_pin,
 )
 
-
 YAML_PARSER = YAML(typ="safe")
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,27 +23,158 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 class ControlPlaneReleasePinTests(unittest.TestCase):
     def test_update_all_sites_and_is_idempotent(self) -> None:
         root = _pin_fixture()
-        kwargs = dict(repo_root=root, source_sha="d3d4d2f955805fd66da131f29cd3bec108a27f75", image_digest="sha256:" + "a" * 64)
+        kwargs = dict(
+            repo_root=root,
+            source_sha="d3d4d2f955805fd66da131f29cd3bec108a27f75",
+            image_digest="sha256:" + "a" * 64,
+        )
         self.assertIn("files=5", update_control_plane_release_pin(**kwargs, apply=True))
         snapshot = {p: (root / p).read_text() for p in _PIN_FILES}
-        self.assertIn("already current", update_control_plane_release_pin(**kwargs, apply=True))
+        self.assertIn(
+            "already current", update_control_plane_release_pin(**kwargs, apply=True)
+        )
         self.assertEqual(snapshot, {p: (root / p).read_text() for p in _PIN_FILES})
 
     def test_update_rejects_malformed_inputs_without_changes(self) -> None:
         root = _pin_fixture()
         before = {p: (root / p).read_text() for p in _PIN_FILES}
         with self.assertRaisesRegex(ControlPlanePinError, "full lowercase"):
-            update_control_plane_release_pin(repo_root=root, source_sha="bad", image_digest="sha256:" + "a" * 64, apply=True)
+            update_control_plane_release_pin(
+                repo_root=root,
+                source_sha="bad",
+                image_digest="sha256:" + "a" * 64,
+                apply=True,
+            )
         self.assertEqual(before, {p: (root / p).read_text() for p in _PIN_FILES})
 
     def test_update_rejects_ambiguous_site_without_changes(self) -> None:
         root = _pin_fixture()
-        path = root / "apps/agent-control-plane-runtime-controls/postgres-sweep-cronjob.yaml"
+        path = (
+            root
+            / "apps/agent-control-plane-runtime-controls/postgres-sweep-cronjob.yaml"
+        )
         path.write_text(path.read_text() + "\n" + path.read_text())
         before = {p: (root / p).read_text() for p in _PIN_FILES}
-        with self.assertRaisesRegex(ControlPlanePinError, "postgres sweep"):
-            update_control_plane_release_pin(repo_root=root, source_sha="d3d4d2f955805fd66da131f29cd3bec108a27f75", image_digest="sha256:" + "a" * 64, apply=True)
+        with self.assertRaisesRegex(ControlPlanePinError, "sweep"):
+            update_control_plane_release_pin(
+                repo_root=root,
+                source_sha="d3d4d2f955805fd66da131f29cd3bec108a27f75",
+                image_digest="sha256:" + "a" * 64,
+                apply=True,
+            )
         self.assertEqual(before, {p: (root / p).read_text() for p in _PIN_FILES})
+
+    def test_preview_and_two_step_recovery_ignore_historical_prose(self) -> None:
+        root = _pin_fixture()
+        source = "d3d4d2f955805fd66da131f29cd3bec108a27f75"
+        previous = "fa3afd59e3afe9e55c79387521bd6099da89f97e"
+        runbook = root / "docs/runbooks/postgres-restore.md"
+        runbook.write_text(
+            runbook.read_text() + "\nHistorical July image: sha-5efddce68417\n"
+        )
+        for relative in _PIN_FILES[:2]:
+            path = root / relative
+            path.write_text(
+                path.read_text()
+                .replace(previous, source)
+                .replace("sha-fa3afd59e3af", "sha-d3d4d2f95580")
+            )
+        before = {p: (root / p).read_text() for p in _PIN_FILES}
+        kwargs = dict(
+            repo_root=root, source_sha=source, image_digest="sha256:" + "a" * 64
+        )
+        self.assertIn("preview", update_control_plane_release_pin(**kwargs))
+        self.assertEqual(before, {p: (root / p).read_text() for p in _PIN_FILES})
+        update_control_plane_release_pin(**kwargs, apply=True)
+        self.assertIn("Historical July image: sha-5efddce68417", runbook.read_text())
+        self.assertIn(
+            "already current", update_control_plane_release_pin(**kwargs, apply=True)
+        )
+        # A second, different release must work without any runbook history state.
+        kwargs["source_sha"] = "b" * 40
+        kwargs["image_digest"] = "sha256:" + "c" * 64
+        self.assertIn("files=5", update_control_plane_release_pin(**kwargs, apply=True))
+        self.assertIn(
+            "already current", update_control_plane_release_pin(**kwargs, apply=True)
+        )
+
+    def test_invalid_preimages_leave_every_file_unchanged(self) -> None:
+        cases = {
+            "duplicate_tag": (
+                "apps/agent-control-plane/values.yaml",
+                "\n  tag: sha-012345678901\n",
+            ),
+            "duplicate_reference": (
+                "docs/runbooks/postgres-restore.md",
+                "\nCurrent GitOps Core release pin: malformed\n",
+            ),
+            "duplicate_source": (
+                "argocd/applications/agent-control-plane.yaml",
+                "\n      targetRevision: " + "b" * 40 + "\n",
+            ),
+        }
+        for case, (relative, addition) in cases.items():
+            with self.subTest(case=case):
+                root = _pin_fixture()
+                path = root / relative
+                path.write_text(path.read_text() + addition)
+                before = {p: (root / p).read_text() for p in _PIN_FILES}
+                with self.assertRaises(ControlPlanePinError):
+                    update_control_plane_release_pin(
+                        repo_root=root,
+                        source_sha="d" * 40,
+                        image_digest="sha256:" + "a" * 64,
+                        apply=True,
+                    )
+                self.assertEqual(
+                    before, {p: (root / p).read_text() for p in _PIN_FILES}
+                )
+
+    def test_conflicting_runtime_pin_is_rejected_without_writes(self) -> None:
+        root = _pin_fixture()
+        path = (
+            root
+            / "apps/agent-control-plane-runtime-controls/postgres-sweep-cronjob.yaml"
+        )
+        path.write_text(
+            path.read_text().replace("sha-fa3afd59e3af", "sha-012345678901")
+        )
+        before = {p: (root / p).read_text() for p in _PIN_FILES}
+        with self.assertRaisesRegex(ControlPlanePinError, "inconsistent"):
+            update_control_plane_release_pin(
+                repo_root=root,
+                source_sha="d" * 40,
+                image_digest="sha256:" + "a" * 64,
+                apply=True,
+            )
+        self.assertEqual(before, {p: (root / p).read_text() for p in _PIN_FILES})
+
+    def test_install_failure_restores_originals(self) -> None:
+        root = _pin_fixture()
+        before = {p: (root / p).read_text() for p in _PIN_FILES}
+        replace = os.replace
+        count = 0
+
+        def fail_second(source: Path, destination: Path) -> None:
+            nonlocal count
+            count += 1
+            if count == 2:
+                raise OSError("injected installation failure")
+            replace(source, destination)
+
+        with patch(
+            "scripts.check_control_plane_release_pin.os.replace",
+            side_effect=fail_second,
+        ):
+            with self.assertRaisesRegex(ControlPlanePinError, "restored"):
+                update_control_plane_release_pin(
+                    repo_root=root,
+                    source_sha="d" * 40,
+                    image_digest="sha256:" + "a" * 64,
+                    apply=True,
+                )
+        self.assertEqual(before, {p: (root / p).read_text() for p in _PIN_FILES})
+
     def test_current_control_plane_release_pin_matches(self) -> None:
         result = check_control_plane_release_pin(
             repo_root=REPO_ROOT,
@@ -148,10 +280,23 @@ def _pin_fixture() -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(REPO_ROOT / relative, destination)
         text = destination.read_text()
-        text = text.replace("d3d4d2f955805fd66da131f29cd3bec108a27f75", "fa3afd59e3afe9e55c79387521bd6099da89f97e")
+        text = text.replace(
+            "d3d4d2f955805fd66da131f29cd3bec108a27f75",
+            "fa3afd59e3afe9e55c79387521bd6099da89f97e",
+        )
         text = text.replace("sha-d3d4d2f95580", "sha-fa3afd59e3af")
-        text = text.replace("sha256:a62a0b6d3608d810dfb1bf0fe82b0a4bf35aaa668b7f097ae05f3e9106441008", "sha256:" + "6" * 64)
-        text = "\n".join(line for line in text.splitlines() if not line.startswith("Current GitOps Core release pin:")) + "\n"
+        text = text.replace(
+            "sha256:a62a0b6d3608d810dfb1bf0fe82b0a4bf35aaa668b7f097ae05f3e9106441008",
+            "sha256:" + "6" * 64,
+        )
+        text = (
+            "\n".join(
+                line
+                for line in text.splitlines()
+                if not line.startswith("Current GitOps Core release pin:")
+            )
+            + "\n"
+        )
         destination.write_text(text)
     return root
 
