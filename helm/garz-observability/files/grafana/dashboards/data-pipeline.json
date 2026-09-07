@@ -3,7 +3,7 @@
   "title": "Data Pipelines",
   "tags": ["splattop", "celery"],
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "panels": [
     {
@@ -172,6 +172,166 @@
         {
           "expr": "histogram_quantile(0.5, sum by (table, le) (rate(fastapi_table_refresh_duration_seconds_bucket[5m])))",
           "legendFormat": "{{table}} P50"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "RSS Before Task",
+      "description": "Worker process RSS immediately before the latest completed task. Different task completions may come from different worker processes; this is not total worker memory. One Redis-backed sample is shared by API replicas; max by task removes duplicate scrapes. See Minutes Since Last Completion for sample age.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(celery_task_rss_before_bytes) by (task)",
+          "legendFormat": "{{task}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "RSS After Task",
+      "description": "Worker process RSS immediately after the latest completed task. Use sustained elevated current RSS to investigate retained memory. One Redis-backed sample is shared by API replicas; max by task removes duplicate scrapes. See Minutes Since Last Completion for sample age.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(celery_task_rss_after_bytes) by (task)",
+          "legendFormat": "{{task}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "RSS Change Across Task",
+      "description": "Signed difference between paired before/after process RSS readings. May be negative; measures process memory change, not unique task allocations. One Redis-backed sample is shared by API replicas; max by task removes duplicate scrapes. See Minutes Since Last Completion for sample age.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(celery_task_rss_delta_bytes) by (task)",
+          "legendFormat": "{{task}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Process Lifetime RSS High-Water Mark",
+      "description": "Process lifetime high-water mark seen at the latest task completion. This is not the task peak and stays high after memory is released; do not use it alone to trigger recycling. One Redis-backed sample is shared by API replicas; max by task removes duplicate scrapes. See Minutes Since Last Completion for sample age.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(celery_task_process_rss_high_water_bytes) by (task)",
+          "legendFormat": "{{task}}"
         }
       ]
     }
