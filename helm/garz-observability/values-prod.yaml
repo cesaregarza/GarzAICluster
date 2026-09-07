@@ -154,3 +154,7 @@ monitoring:
           app.kubernetes.io/component: alertmanager
           app.kubernetes.io/instance: splattop-prod
           app.kubernetes.io/name: splattop
+
+sentryDiscord:
+  enabled: true
+  organization: cesar-eduardo-garza

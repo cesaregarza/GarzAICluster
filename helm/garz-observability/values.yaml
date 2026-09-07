@@ -275,3 +275,14 @@ monitoring:
       limits:
         cpu: 200m
         memory: 256Mi
+
+# Poll Sentry issues into an existing Discord webhook without a paid integration.
+sentryDiscord:
+  enabled: false
+  organization: ""
+  projects: []
+  schedule: "*/3 * * * *"
+  existingSecret: sentry-discord-alerts
+  image:
+    repository: docker.io/library/python
+    digest: sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534
