@@ -7,7 +7,7 @@ global:
   environment: production
 
 # FastAPI backend configuration
-  appImageTag: v2.0.39
+  appImageTag: v2.0.40
 fastapi:
   replicas: 2
   # Reserve typical CPU use while allowing burst above it; no CPU limit.
@@ -43,7 +43,7 @@ fastapi:
 
 # React frontend configuration
   image:
-    tag: v2.0.39
+    tag: v2.0.40
 react:
   replicas: 2
   resources:
@@ -79,14 +79,14 @@ celeryWorker:
 
 # Celery beat configuration
   image:
-    tag: v2.0.39
+    tag: v2.0.40
 celeryBeat:
   env:
     COMP_LEADERBOARD_ENABLED: "true"
 
 # Redis compatibility service overrides
   image:
-    tag: v2.0.39
+    tag: v2.0.40
 redis:
   service:
     extraServices:

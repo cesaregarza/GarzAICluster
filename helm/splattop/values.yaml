@@ -32,7 +32,7 @@ fastapi:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/fast-api
-    tag: v2.0.39
+    tag: v2.0.40
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -112,7 +112,7 @@ celeryWorker:
   terminationGracePeriodSeconds: 30
   image:
     repository: registry.digitalocean.com/sendouq/celery
-    tag: v2.0.39
+    tag: v2.0.40
     pullPolicy: Always
   command:
   - celery
@@ -146,7 +146,7 @@ celeryBeat:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/celery
-    tag: v2.0.39
+    tag: v2.0.40
     pullPolicy: Always
   command:
   - celery
