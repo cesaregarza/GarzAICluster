@@ -86,7 +86,7 @@ class Sentry:
         visited = set()
         issues = {}
         for _ in range(20):
-            params = {"query": f"firstSeen:>={stamp(since)}", "sort": "new", "limit": 100,
+            params = {"query": f"firstSeen:>={stamp(since)} level:[error,fatal]", "sort": "new", "limit": 100,
                       "start": stamp(since), "end": stamp(until)}
             if self.projects:
                 params["project"] = self.projects
@@ -120,7 +120,7 @@ class Discord:
         project = issue.get("project", {}).get("slug", "unknown")
         title = f"Sentry · {issue.get('shortId', issue['id'])}: {issue.get('title', 'New issue')}"[:256]
         embed = {"title": title, "color": 15158332,
-                 "description": f"Project: {project}\nLevel: {issue.get('level', 'error')}\nFirst seen: {issue['firstSeen']}"[:1500]}
+                 "description": f"Project: {project}\nLevel: {issue.get('level', 'unknown')}\nFirst seen: {issue['firstSeen']}"[:1500]}
         link = issue.get("permalink", "")
         parsed = urlsplit(link)
         if parsed.scheme == "https" and (parsed.hostname == "sentry.io" or (parsed.hostname or "").endswith(".sentry.io")):
@@ -155,6 +155,9 @@ def poll(db, sentry, discord, now, max_alerts=20):
     issues = sentry.issues(since, now)
     count = 0
     for issue in sorted(issues, key=lambda row: (parse_time(row["firstSeen"]), str(row["id"]))):
+        # Fail closed if Sentry returns a lower or unknown level despite its query filter.
+        if issue.get("level") not in ("error", "fatal"):
+            continue
         first_seen = parse_time(issue["firstSeen"])
         if first_seen < baseline or first_seen > now:
             continue
