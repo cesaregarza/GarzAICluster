@@ -39,7 +39,7 @@ monitoring:
     kubeletScrape:
       enabled: true
     staticScrapeConfigs:
-    - jobName: hermes-governed-runtime
+    - jobName: hermes-native-runtime
       metricsPath: /metrics
       targets:
       - 10.108.0.8:8080
