@@ -33,7 +33,11 @@ The chart is intentionally a single Argo CD source. Kustomize cannot transform a
 
 The rollout order is API, model gateway, optional callback adapter, git deliverer, then local worker. Restarting the API while the live model gateway anchors its required affinity keeps the shared RWO auth volume node-local; restarting the gateway immediately afterward lets it prefer the newly healthy API node. The remaining boot-cached consumers do not start until that core pair is healthy, and the hook does not overlap their old pods' termination windows. This bounds the choreography to one Deployment's replacement and terminating pods at a time, but it does not replace CES-352's required hard topology guarantee for the shared RWO volume.
 
-`kustomization.yaml` remains only as a local render-equivalence input for existing source-file tooling. CI renders the actual Helm Application source and requires the ConfigMap, scoped RBAC, generated rollout-strategy Sync Job, and generated restart PostSync Job to appear together.
+The three registry files at the top of `registry/` remain explicit chart inputs;
+the ConfigMap template globs every file directly under `registry/imports/`. CI
+renders that Helm Application source and requires the ConfigMap, scoped RBAC,
+generated rollout-strategy Sync Job, and generated restart PostSync Job to
+appear together.
 
 The Argo Application intentionally does not set `ApplyOutOfSyncOnly=true`; selective syncs skip hooks, which would skip the strategy and restart jobs and leave the control plane serving the previous boot-cached registry snapshot.
 

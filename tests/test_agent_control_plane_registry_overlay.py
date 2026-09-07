@@ -13,6 +13,10 @@ from ruamel.yaml import YAML
 from scripts.check_agent_control_plane_registry_overlay_render import (
     render_registry_overlay_application,
 )
+from scripts.registry_overlay_render import (
+    RegistryOverlayRenderError,
+    render_registry_overlay_data,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_OVERLAY_DIR = REPO_ROOT / "apps" / "agent-control-plane-registry-overlay"
@@ -71,24 +75,7 @@ def _load_yaml_documents(path: Path) -> list[dict[str, Any]]:
 
 
 def _load_registry_overlay_data() -> dict[str, str]:
-    legacy_configmap_path = REGISTRY_OVERLAY_DIR / "configmap.yaml"
-    if legacy_configmap_path.exists():
-        configmap = _load_yaml(legacy_configmap_path)
-        return configmap["data"]
-
-    kustomization = _load_yaml(REGISTRY_OVERLAY_DIR / "kustomization.yaml")
-    generators = kustomization.get("configMapGenerator") or []
-    generator = next(
-        item
-        for item in generators
-        if isinstance(item, dict)
-        and item.get("name") == REGISTRY_OVERLAY_CONFIGMAP_NAME
-    )
-    data: dict[str, str] = {}
-    for file_spec in generator["files"]:
-        key, relative_path = file_spec.split("=", 1)
-        data[key] = (REGISTRY_OVERLAY_DIR / relative_path).read_text()
-    return data
+    return render_registry_overlay_data(REGISTRY_OVERLAY_DIR)
 
 
 class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
@@ -157,25 +144,13 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
         )
 
     def test_registry_overlay_is_authored_as_single_source_helm_chart(self) -> None:
-        kustomization = _load_yaml(REGISTRY_OVERLAY_DIR / "kustomization.yaml")
-        self.assertFalse((REGISTRY_OVERLAY_DIR / "configmap.yaml").exists())
         chart = _load_yaml(REGISTRY_OVERLAY_DIR / "Chart.yaml")
         self.assertEqual(chart["name"], "agent-control-plane-registry-overlay")
-        self.assertEqual(kustomization["kind"], "Kustomization")
-        self.assertEqual(
-            kustomization["resources"], ["templates/restart-rbac.yaml"]
-        )
+        self.assertFalse((REGISTRY_OVERLAY_DIR / "kustomization.yaml").exists())
         self.assertTrue(REGISTRY_OVERLAY_RESTART_HOOK_PATH.exists())
         self.assertTrue(REGISTRY_OVERLAY_ROLLOUT_STRATEGY_HOOK_PATH.exists())
         self.assertTrue(REGISTRY_OVERLAY_RESTART_RBAC_PATH.exists())
         self.assertFalse(any((REGISTRY_OVERLAY_DIR / "hooks").glob("*.yaml")))
-        self.assertTrue(kustomization["generatorOptions"]["disableNameSuffixHash"])
-
-        generator = next(
-            item
-            for item in kustomization["configMapGenerator"]
-            if item["name"] == REGISTRY_OVERLAY_CONFIGMAP_NAME
-        )
         self.assertEqual(
             set(self.data),
             {
@@ -189,7 +164,38 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
                 "opencode_apply_smoke.jsonl",
             },
         )
-        self.assertEqual(len(generator["files"]), len(self.data))
+
+    def test_registry_import_glob_includes_new_file_without_template_edit(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            chart_dir = Path(raw_tmp) / "registry-overlay"
+            shutil.copytree(REGISTRY_OVERLAY_DIR, chart_dir)
+            new_path = chart_dir / "registry/imports/new-import.json"
+            new_path.write_text('{"id":"new"}\n', encoding="utf-8")
+
+            data = render_registry_overlay_data(chart_dir)
+
+            self.assertEqual(data["new-import.json"], '{"id":"new"}\n')
+
+    def test_registry_overlay_renderer_rejects_duplicate_named_configmaps(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            chart_dir = Path(raw_tmp) / "registry-overlay"
+            shutil.copytree(REGISTRY_OVERLAY_DIR, chart_dir)
+            (chart_dir / "templates/duplicate-configmap.yaml").write_text(
+                "apiVersion: v1\n"
+                "kind: ConfigMap\n"
+                "metadata:\n"
+                "  name: agent-control-plane-registry-overlay\n"
+                "data:\n"
+                "  duplicate.yaml: |\n"
+                "    duplicate\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                RegistryOverlayRenderError,
+                "expected exactly one match, got 2",
+            ):
+                render_registry_overlay_data(chart_dir)
 
     def test_readonly_query_skills_sync_from_published_bundle_consumer(self) -> None:
         imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
@@ -1110,10 +1116,7 @@ exit 64
         ]
 
         self.assertIn("azure/setup-helm@v4", uses_steps)
-        self.assertTrue(
-            any("kustomize version" in step for step in run_steps),
-            "render job must retain the source-file Kustomize equivalence check",
-        )
+        self.assertFalse(any("kustomize version" in step for step in run_steps))
         self.assertTrue(
             any(
                 "scripts/check_agent_control_plane_registry_overlay_render.py" in step
