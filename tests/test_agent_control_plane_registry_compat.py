@@ -194,7 +194,7 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_kustomize_source_reader_survives_resource_render_failure(self) -> None:
+    def test_helm_source_reader_extracts_registry_configmap(self) -> None:
         with TemporaryDirectory() as raw_tmp:
             overlay_dir = Path(raw_tmp) / "overlay"
             registry_dir = overlay_dir / "registry"
@@ -203,31 +203,19 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
                 "defaults:\n  max_cost_usd_per_job: 10.0\n",
                 encoding="utf-8",
             )
-            (overlay_dir / "restart-hook.yaml").write_text(
-                textwrap.dedent(
-                    """
-                    apiVersion: batch/v1
-                    kind: Job
-                    metadata:
-                      generateName: registry-overlay-restart-
-                    spec: {}
-                    """
-                ).lstrip(),
+            (overlay_dir / "Chart.yaml").write_text(
+                "apiVersion: v2\nname: test-overlay\nversion: 0.1.0\n",
                 encoding="utf-8",
             )
-            (overlay_dir / "kustomization.yaml").write_text(
-                textwrap.dedent(
-                    """
-                    apiVersion: kustomize.config.k8s.io/v1beta1
-                    kind: Kustomization
-                    resources:
-                      - restart-hook.yaml
-                    configMapGenerator:
-                      - name: agent-control-plane-registry-overlay
-                        files:
-                          - policy.prod.yaml=registry/policy.prod.yaml
-                    """
-                ).lstrip(),
+            (overlay_dir / "templates").mkdir()
+            (overlay_dir / "templates/configmap.yaml").write_text(
+                "apiVersion: v1\n"
+                "kind: ConfigMap\n"
+                "metadata:\n"
+                "  name: agent-control-plane-registry-overlay\n"
+                "data:\n"
+                "  policy.prod.yaml: |\n"
+                '{{ .Files.Get "registry/policy.prod.yaml" | indent 4 }}\n',
                 encoding="utf-8",
             )
 
@@ -604,6 +592,36 @@ def _write_overlay_configmap(
             "metadata": {"name": "agent-control-plane-registry-overlay"},
             "data": data,
         },
+    )
+    overlay_dir = repo / "apps" / "agent-control-plane-registry-overlay"
+    registry_dir = overlay_dir / "registry"
+    imports_dir = registry_dir / "imports"
+    imports_dir.mkdir(parents=True)
+    for key, value in data.items():
+        target = registry_dir / key if key in {"workload_imports.yaml", "policy.prod.yaml", "evals.yaml"} else imports_dir / key
+        target.write_text(value, encoding="utf-8")
+    (overlay_dir / "Chart.yaml").write_text(
+        "apiVersion: v2\nname: test-overlay\nversion: 0.1.0\n",
+        encoding="utf-8",
+    )
+    (overlay_dir / "templates").mkdir()
+    (overlay_dir / "templates/configmap.yaml").write_text(
+        "apiVersion: v1\n"
+        "kind: ConfigMap\n"
+        "metadata:\n"
+        "  name: agent-control-plane-registry-overlay\n"
+        "data:\n"
+        "  workload_imports.yaml: |\n"
+        '{{ .Files.Get "registry/workload_imports.yaml" | indent 4 }}\n'
+        "  policy.prod.yaml: |\n"
+        '{{ .Files.Get "registry/policy.prod.yaml" | indent 4 }}\n'
+        "  evals.yaml: |\n"
+        '{{ .Files.Get "registry/evals.yaml" | indent 4 }}\n'
+        '{{- range $path, $_ := .Files.Glob "registry/imports/*" }}\n'
+        "  {{ base $path }}: |\n"
+        "{{ $.Files.Get $path | indent 4 }}\n"
+        "{{- end }}\n",
+        encoding="utf-8",
     )
 
 

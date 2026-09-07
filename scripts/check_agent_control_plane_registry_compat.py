@@ -32,11 +32,21 @@ except ModuleNotFoundError:  # Direct ``python scripts/check_*.py`` execution.
         resolve_agent_platform_layout,
     )
 
+try:
+    from scripts.registry_overlay_render import (
+        RegistryOverlayRenderError,
+        render_registry_overlay_data,
+    )
+except ModuleNotFoundError:  # Direct ``python scripts/check_*.py`` execution.
+    from registry_overlay_render import (  # type: ignore[no-redef]
+        RegistryOverlayRenderError,
+        render_registry_overlay_data,
+    )
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONTROL_PLANE_APPLICATION_PATH = Path("argocd/applications/agent-control-plane.yaml")
 REGISTRY_OVERLAY_DIR = Path("apps/agent-control-plane-registry-overlay")
 REGISTRY_OVERLAY_CONFIGMAP_PATH = REGISTRY_OVERLAY_DIR / "configmap.yaml"
-REGISTRY_OVERLAY_KUSTOMIZATION_PATH = REGISTRY_OVERLAY_DIR / "kustomization.yaml"
 REGISTRY_OVERLAY_CONFIGMAP_NAME = "agent-control-plane-registry-overlay"
 SKILL_BUNDLE_DIR = Path("apps/agent-control-plane-skills")
 SKILL_BUNDLE_COMPAT_FIXTURE_DIR = Path("tests/fixtures/agent-control-plane-skills")
@@ -166,21 +176,13 @@ def agent_platform_target_revision(application_path: Path) -> str:
 
 
 def registry_overlay_data(overlay_path: Path) -> dict[str, str]:
-    """Read registry overlay data from Kustomize sources or the legacy ConfigMap."""
-    if overlay_path.is_dir():
-        kustomization_path = overlay_path / "kustomization.yaml"
-        if kustomization_path.exists():
-            return _registry_overlay_data_from_rendered_kustomization(
-                overlay_dir=overlay_path,
-                kustomization_path=kustomization_path,
-            )
-        configmap_path = overlay_path / "configmap.yaml"
-        if configmap_path.exists():
-            return _registry_overlay_data_from_configmap(configmap_path)
-        raise RegistryCompatError(
-            "registry overlay must contain kustomization.yaml or configmap.yaml"
-        )
-    return _registry_overlay_data_from_configmap(overlay_path)
+    """Read registry overlay data from the authoritative Helm chart."""
+    if overlay_path.is_file():
+        return _registry_overlay_data_from_configmap(overlay_path)
+    try:
+        return render_registry_overlay_data(overlay_path)
+    except RegistryOverlayRenderError as exc:
+        raise RegistryCompatError(str(exc)) from exc
 
 
 def skill_bundle_data(bundle_path: Path) -> dict[str, str]:
@@ -372,30 +374,6 @@ def _registry_overlay_data_from_configmap(configmap_path: Path) -> dict[str, str
     return strings
 
 
-def _registry_overlay_data_from_rendered_kustomization(
-    *,
-    overlay_dir: Path,
-    kustomization_path: Path,
-) -> dict[str, str]:
-    rendered = _render_kustomization(overlay_dir)
-    if rendered is not None:
-        data = _registry_overlay_data_from_rendered_yaml(rendered)
-        if data:
-            return data
-    return _registry_overlay_data_from_kustomization_sources(
-        overlay_dir=overlay_dir,
-        kustomization_path=kustomization_path,
-    )
-
-
-def _registry_overlay_data_from_rendered_yaml(rendered: str) -> dict[str, str]:
-    return _named_configmap_data_from_rendered_yaml(
-        rendered,
-        configmap_name=REGISTRY_OVERLAY_CONFIGMAP_NAME,
-        label="registry overlay",
-    )
-
-
 def _named_configmap_data_from_rendered_yaml(
     rendered: str,
     *,
@@ -445,19 +423,6 @@ def _render_kustomization(overlay_dir: Path) -> str | None:
         if result.returncode == 0:
             return result.stdout
     return None
-
-
-def _registry_overlay_data_from_kustomization_sources(
-    *,
-    overlay_dir: Path,
-    kustomization_path: Path,
-) -> dict[str, str]:
-    return _configmap_data_from_kustomization_sources(
-        source_dir=overlay_dir,
-        kustomization_path=kustomization_path,
-        configmap_name=REGISTRY_OVERLAY_CONFIGMAP_NAME,
-        label="registry overlay",
-    )
 
 
 def _configmap_data_from_kustomization_sources(

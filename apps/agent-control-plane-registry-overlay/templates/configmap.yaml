@@ -13,13 +13,7 @@ data:
 {{ .Files.Get "registry/policy.prod.yaml" | indent 4 }}
   evals.yaml: |
 {{ .Files.Get "registry/evals.yaml" | indent 4 }}
-  agent-data.workspace_probe.json: |
-{{ .Files.Get "registry/imports/agent-data.workspace_probe.json" | indent 4 }}
-  agent-opencode.proposer.json: |
-{{ .Files.Get "registry/imports/agent-opencode.proposer.json" | indent 4 }}
-  agent-opencode.apply_executor.json: |
-{{ .Files.Get "registry/imports/agent-opencode.apply_executor.json" | indent 4 }}
-  opencode_proposer_smoke.jsonl: |
-{{ .Files.Get "registry/imports/opencode_proposer_smoke.jsonl" | indent 4 }}
-  opencode_apply_smoke.jsonl: |
-{{ .Files.Get "registry/imports/opencode_apply_smoke.jsonl" | indent 4 }}
+{{- range $path, $_ := .Files.Glob "registry/imports/*" }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}

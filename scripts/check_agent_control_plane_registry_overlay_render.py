@@ -48,13 +48,11 @@ def main() -> int:
         description=(
             "Render the registry-overlay Application's real Helm source, require "
             "the generated rollout-strategy Sync and restart PostSync Jobs with "
-            "scoped RBAC, and compare its ConfigMap with both the local Kustomize "
-            "source render and committed golden."
+            "scoped RBAC, and compare its ConfigMap with the committed golden."
         )
     )
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
     parser.add_argument("--helm", default="helm")
-    parser.add_argument("--kustomize", default="kustomize")
     parser.add_argument(
         "--golden-configmap",
         type=Path,
@@ -73,7 +71,6 @@ def main() -> int:
         check_registry_overlay_render(
             repo_root=repo_root,
             helm=args.helm,
-            kustomize=args.kustomize,
             golden_configmap_path=golden_path,
         )
     except RegistryOverlayRenderError as exc:
@@ -82,7 +79,7 @@ def main() -> int:
     print(
         "registry overlay Helm Application render contains ConfigMap, scoped RBAC, "
         "rollout-strategy Sync Job, and restart PostSync Job; ConfigMap matches "
-        "Kustomize and golden."
+        "the golden."
     )
     return 0
 
@@ -91,7 +88,6 @@ def check_registry_overlay_render(
     *,
     repo_root: Path,
     helm: str,
-    kustomize: str,
     golden_configmap_path: Path,
 ) -> None:
     _assert_single_helm_application_source(repo_root)
@@ -100,19 +96,9 @@ def check_registry_overlay_render(
         helm=helm,
     )
     helm_configmap = _extract_registry_configmap(helm_documents)
-
-    kustomize_rendered = _kustomize_build(
-        repo_root=repo_root,
-        overlay_dir=repo_root / REGISTRY_OVERLAY_DIR,
-        kustomize=kustomize,
-    )
-    kustomize_configmap = _extract_registry_configmap(
-        _load_rendered_documents(kustomize_rendered, label="kustomize")
-    )
     golden_configmap = _load_yaml(golden_configmap_path)
-    for rendered_configmap in (helm_configmap, kustomize_configmap):
-        _assert_configmap_identity_matches(rendered_configmap, golden_configmap)
-        _assert_configmap_data_matches(rendered_configmap, golden_configmap)
+    _assert_configmap_identity_matches(helm_configmap, golden_configmap)
+    _assert_configmap_data_matches(helm_configmap, golden_configmap)
 
 
 def render_registry_overlay_application(
@@ -166,12 +152,6 @@ def _helm_template(*, repo_root: Path, chart_dir: Path, helm: str) -> str:
     return _run_render_command(command, cwd=repo_root, label="helm template")
 
 
-def _kustomize_build(*, repo_root: Path, overlay_dir: Path, kustomize: str) -> str:
-    subcommand = "kustomize" if Path(kustomize).name == "kubectl" else "build"
-    command = [kustomize, subcommand, str(overlay_dir.relative_to(repo_root))]
-    return _run_render_command(command, cwd=repo_root, label="kustomize build")
-
-
 def _run_render_command(command: list[str], *, cwd: Path, label: str) -> str:
     try:
         result = subprocess.run(
@@ -180,9 +160,12 @@ def _run_render_command(command: list[str], *, cwd: Path, label: str) -> str:
             capture_output=True,
             text=True,
             check=False,
+            timeout=30,
         )
     except FileNotFoundError as exc:
         raise RegistryOverlayRenderError(f"binary not found: {command[0]}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RegistryOverlayRenderError(f"{label} exceeded 30s") from exc
     if result.returncode != 0:
         stderr = result.stderr.strip() or result.stdout.strip()
         raise RegistryOverlayRenderError(f"{label} failed: {stderr}")

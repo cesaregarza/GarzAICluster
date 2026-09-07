@@ -21,6 +21,7 @@ from scripts.grant_ownership import (
     check_ownership_outputs,
     load_registry_overlay_data,
     render_ownership_markdown,
+    registry_overlay_source_paths,
     write_ownership_outputs,
     write_registry_overlay_values,
 )
@@ -345,7 +346,7 @@ class GrantOwnershipTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             GrantOwnershipError,
-            "registry overlay ConfigMap source file not found",
+            "registry overlay source file not found",
         ):
             write_ownership_outputs(
                 repo_root=root,
@@ -356,6 +357,34 @@ class GrantOwnershipTests(unittest.TestCase):
             {path: path.read_bytes() for path in output_paths},
             before,
         )
+
+    def test_registry_overlay_source_paths_rejects_external_import_symlink(self) -> None:
+        root = _fixture_repo()
+        outside = Path(tempfile.mkdtemp()) / "outside.json"
+        outside.write_text('{"outside":true}\n', encoding="utf-8")
+        escape = root / REGISTRY_OVERLAY_DIR / "registry/imports/escape.json"
+        escape.symlink_to(outside)
+
+        with self.assertRaisesRegex(
+            GrantOwnershipError,
+            "registry overlay source path escapes overlay",
+        ):
+            registry_overlay_source_paths(root)
+
+    def test_registry_overlay_source_paths_rejects_reserved_import_key(self) -> None:
+        root = _fixture_repo()
+        reserved = (
+            root
+            / REGISTRY_OVERLAY_DIR
+            / "registry/imports/workload_imports.yaml"
+        )
+        reserved.write_text("reserved\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            GrantOwnershipError,
+            "registry overlay ConfigMap key is reserved or duplicated",
+        ):
+            registry_overlay_source_paths(root)
 
     def test_explicit_check_rejects_stale_ownership_source(self) -> None:
         root = _fixture_repo()

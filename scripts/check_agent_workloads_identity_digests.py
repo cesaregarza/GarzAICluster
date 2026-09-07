@@ -16,6 +16,17 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
+try:
+    from scripts.registry_overlay_render import (
+        RegistryOverlayRenderError,
+        render_registry_overlay_data,
+    )
+except ModuleNotFoundError:  # Direct ``python scripts/check_*.py`` execution.
+    from registry_overlay_render import (  # type: ignore[no-redef]
+        RegistryOverlayRenderError,
+        render_registry_overlay_data,
+    )
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VALUES_PATH = Path("apps/agent-workloads/values.yaml")
@@ -621,68 +632,10 @@ def _load_overlay_data(configmap_path: Path) -> dict[str, str]:
             for key, value in data.items()
             if isinstance(key, str) and isinstance(value, str)
         }
-    overlay_dir = configmap_path.parent
-    kustomization_path = overlay_dir / "kustomization.yaml"
-    if not kustomization_path.exists():
-        raise DriftGateError("registry overlay ConfigMap must contain data")
-    return _load_overlay_data_from_kustomization(overlay_dir, kustomization_path)
-
-
-def _load_overlay_data_from_kustomization(
-    overlay_dir: Path,
-    kustomization_path: Path,
-) -> dict[str, str]:
-    kustomization = _load_yaml(kustomization_path)
-    generators = kustomization.get("configMapGenerator")
-    if not isinstance(generators, list):
-        raise DriftGateError("registry overlay kustomization missing configMapGenerator")
-    generator = next(
-        (
-            item
-            for item in generators
-            if isinstance(item, dict)
-            and item.get("name") == REGISTRY_OVERLAY_CONFIGMAP_NAME
-        ),
-        None,
-    )
-    if generator is None:
-        raise DriftGateError(
-            f"registry overlay kustomization missing {REGISTRY_OVERLAY_CONFIGMAP_NAME}"
-        )
-    files = generator.get("files")
-    if not isinstance(files, list):
-        raise DriftGateError("registry overlay ConfigMap generator must contain files")
-    data: dict[str, str] = {}
-    for raw_spec in files:
-        if not isinstance(raw_spec, str) or not raw_spec:
-            raise DriftGateError("registry overlay ConfigMap file spec is invalid")
-        key, relative_path = _parse_kustomize_file_spec(raw_spec)
-        source_path = (overlay_dir / relative_path).resolve()
-        try:
-            source_path.relative_to(overlay_dir.resolve())
-        except ValueError as exc:
-            raise DriftGateError(
-                f"registry overlay ConfigMap file escapes overlay directory: {relative_path}"
-            ) from exc
-        if not source_path.is_file():
-            raise DriftGateError(
-                f"registry overlay ConfigMap source file not found: {relative_path}"
-            )
-        data[key] = source_path.read_text(encoding="utf-8")
-    return data
-
-
-def _parse_kustomize_file_spec(file_spec: str) -> tuple[str, str]:
-    if "=" in file_spec:
-        key, relative_path = file_spec.split("=", 1)
-    else:
-        relative_path = file_spec
-        key = Path(relative_path).name
-    if not key or not relative_path:
-        raise DriftGateError(f"registry overlay ConfigMap file spec is invalid: {file_spec}")
-    if "/" in key or key in {"", ".", ".."}:
-        raise DriftGateError(f"registry overlay ConfigMap key is invalid: {key}")
-    return key, relative_path
+    try:
+        return render_registry_overlay_data(configmap_path.parent)
+    except RegistryOverlayRenderError as exc:
+        raise DriftGateError(str(exc)) from exc
 
 
 def _assert_pin_matches_overlay(

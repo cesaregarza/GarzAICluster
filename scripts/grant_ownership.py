@@ -15,7 +15,11 @@ from ruamel.yaml import YAML
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIGMAP_PATH = Path("apps/agent-control-plane-registry-overlay/configmap.yaml")
 REGISTRY_OVERLAY_DIR = CONFIGMAP_PATH.parent
-REGISTRY_OVERLAY_CONFIGMAP_NAME = "agent-control-plane-registry-overlay"
+REGISTRY_ROOT_KEYS = (
+    "workload_imports.yaml",
+    "policy.prod.yaml",
+    "evals.yaml",
+)
 OWNERSHIP_SOURCE_PATH = Path("docs/grant-ownership-source.yaml")
 OWNERSHIP_MAP_PATH = Path("docs/grant-ownership.yaml")
 OWNERSHIP_DOC_PATH = Path("docs/grant-ownership.md")
@@ -920,61 +924,53 @@ def _registry_overlay_value_reference(repo_root: Path, key: str) -> str:
 
 def registry_overlay_source_paths(repo_root: Path) -> dict[str, Path]:
     overlay_dir = repo_root / REGISTRY_OVERLAY_DIR
-    kustomization_path = overlay_dir / "kustomization.yaml"
-    if not kustomization_path.exists():
-        raise GrantOwnershipError("registry overlay must contain configmap.yaml or kustomization.yaml")
-    kustomization = _load_yaml(kustomization_path)
-    generators = kustomization.get("configMapGenerator")
-    if not isinstance(generators, list):
-        raise GrantOwnershipError("registry overlay kustomization missing configMapGenerator")
-    generator = next(
-        (
-            item
-            for item in generators
-            if isinstance(item, dict)
-            and item.get("name") == REGISTRY_OVERLAY_CONFIGMAP_NAME
-        ),
-        None,
-    )
-    if generator is None:
+    overlay_root = overlay_dir.resolve()
+    registry_dir = overlay_dir / "registry"
+    registry_root = registry_dir.resolve()
+    try:
+        registry_root.relative_to(overlay_root)
+    except ValueError as exc:
         raise GrantOwnershipError(
-            f"registry overlay kustomization missing {REGISTRY_OVERLAY_CONFIGMAP_NAME}"
-        )
-    files = generator.get("files")
-    if not isinstance(files, list):
-        raise GrantOwnershipError("registry overlay ConfigMap generator must contain files")
+            "registry overlay registry directory escapes overlay"
+        ) from exc
+    if not registry_root.is_dir():
+        raise GrantOwnershipError("registry overlay registry directory is missing")
 
-    paths: dict[str, Path] = {}
-    for raw_spec in files:
-        if not isinstance(raw_spec, str) or not raw_spec:
-            raise GrantOwnershipError("registry overlay ConfigMap file spec is invalid")
-        key, relative_path = _parse_kustomize_file_spec(raw_spec)
-        source_path = (overlay_dir / relative_path).resolve()
+    def _safe_source_path(source_path: Path, key: str) -> Path:
+        resolved = source_path.resolve()
         try:
-            source_path.relative_to(overlay_dir.resolve())
+            resolved.relative_to(overlay_root)
         except ValueError as exc:
             raise GrantOwnershipError(
-                f"registry overlay ConfigMap file escapes overlay directory: {relative_path}"
+                f"registry overlay source path escapes overlay: {key}"
             ) from exc
-        if not source_path.is_file():
-            raise GrantOwnershipError(
-                f"registry overlay ConfigMap source file not found: {relative_path}"
-            )
-        paths[key] = source_path
+        if not resolved.is_file():
+            raise GrantOwnershipError(f"registry overlay source file not found: {key}")
+        return resolved
+
+    paths: dict[str, Path] = {}
+    for key in REGISTRY_ROOT_KEYS:
+        source_path = registry_dir / key
+        paths[key] = _safe_source_path(source_path, key)
+    imports_dir = registry_dir / "imports"
+    imports_root = imports_dir.resolve()
+    try:
+        imports_root.relative_to(overlay_root)
+    except ValueError as exc:
+        raise GrantOwnershipError(
+            "registry overlay imports directory escapes overlay"
+        ) from exc
+    if not imports_root.is_dir():
+        raise GrantOwnershipError("registry overlay imports directory is missing")
+    for source_path in sorted(imports_root.iterdir()):
+        if source_path.is_file():
+            key = source_path.name
+            if key in paths or key in REGISTRY_ROOT_KEYS:
+                raise GrantOwnershipError(
+                    f"registry overlay ConfigMap key is reserved or duplicated: {key}"
+                )
+            paths[key] = _safe_source_path(source_path, key)
     return paths
-
-
-def _parse_kustomize_file_spec(file_spec: str) -> tuple[str, str]:
-    if "=" in file_spec:
-        key, relative_path = file_spec.split("=", 1)
-    else:
-        relative_path = file_spec
-        key = Path(relative_path).name
-    if not key or not relative_path:
-        raise GrantOwnershipError(f"registry overlay ConfigMap file spec is invalid: {file_spec}")
-    if "/" in key or key in {"", ".", ".."}:
-        raise GrantOwnershipError(f"registry overlay ConfigMap key is invalid: {key}")
-    return key, relative_path
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
