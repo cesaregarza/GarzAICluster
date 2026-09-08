@@ -70,8 +70,9 @@ class ControllerUpgradePlanTests(unittest.TestCase):
 
     def test_certificate_sources_pin_legacy_rotation_behavior(self):
         root = SCRIPT.parents[1]
-        templates = list((root / "helm").glob("*/templates/certificate.yaml")) + [root / "k8s/argocd/certificate.yaml"]
-        self.assertEqual(len(templates), 9)
+        templates = list((root / "helm").glob("*/templates/certificate.yaml"))
+        self.assertEqual(len(templates), 8)
+        self.assertFalse((root / "k8s/argocd/certificate.yaml").exists())
         for path in templates:
             self.assertIn("rotationPolicy: Never", path.read_text(), path)
         shim_sources = [
@@ -88,11 +89,11 @@ class ControllerUpgradePlanTests(unittest.TestCase):
         for path in shim_sources:
             self.assertIn("cert-manager.io/private-key-rotation-policy", path.read_text(), path)
 
-    def test_live_rotation_patch_covers_exactly_fifteen_certificates(self):
+    def test_live_rotation_patch_covers_exact_inventory(self):
         root = SCRIPT.parents[1]
         items = [item for item in YAML_SAFE.load_all((root / "ops/certificate-rotation-never-patch.yaml").read_text()) if item]
-        self.assertEqual(len(items), 15)
-        self.assertEqual(len({(item["metadata"]["namespace"], item["metadata"]["name"]) for item in items}), 15)
+        self.assertEqual(len(items), 13)
+        self.assertEqual(len({(item["metadata"]["namespace"], item["metadata"]["name"]) for item in items}), 13)
         self.assertTrue(all(item["spec"]["privateKey"]["rotationPolicy"] == "Never" for item in items))
         self.assertIn("private-key-rotation-policy", (root / "apps/agent-control-plane/values.yaml").read_text())
 
