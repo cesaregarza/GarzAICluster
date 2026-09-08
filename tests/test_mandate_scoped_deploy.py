@@ -330,7 +330,10 @@ class DryRunReceiptTests(unittest.TestCase):
                 "status": {
                     "operationState": {
                         "operation": {
-                            "sync": {"dryRun": defect != "real-sync", "prune": True}
+                            "sync": {
+                                "dryRun": defect != "real-sync",
+                                "prune": defect != "no-prune",
+                            }
                         }
                     }
                 }
