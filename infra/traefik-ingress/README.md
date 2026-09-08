@@ -9,9 +9,11 @@ a ClusterIP Service, and a PDB in the existing `ingress-nginx` namespace.
 
 The substrate is intentionally separate from the live `nginx` and
 `legacy-nginx` controllers. Its `traefik-nginx` IngressClass uses
-`traefik.io/ingress-controller`, while the Traefik provider leaves its
-string-valued `publishservice` option unset. Existing Ingress status and
-external-dns records are not changed by a substrate-only apply.
+`traefik.io/ingress-controller`, and its reviewed status publication points
+only at `ingress-nginx/ingress-nginx-controller-source-ip`. Existing
+external-dns records are not changed when this payload is applied with
+ExternalDNS writes paused under `--dry-run`; that pause is a prerequisite to
+any apply of this publication-enabled payload.
 
 ## Immutable release receipt
 
@@ -51,12 +53,12 @@ startup message was only that an in-cluster Kubernetes endpoint was absent.
 - The controller listens as an unprivileged process on pod ports 8000 and
   8443. The internal ClusterIP Service preserves external ports 80 and 443
   and maps them to the named `http` and `https` container ports.
-- The Traefik dashboard, CRD provider, Gateway provider, anonymous usage, and
-  status publication are disabled. The string-valued `publishservice` option
-  and `publishstatusaddress` are omitted, and the ClusterRole omits Ingress
-  status writes;
-  granting that permission is a separate reviewed migration step. No Gateway
-  API conversion is included.
+- The Traefik dashboard, CRD provider, Gateway provider, and anonymous usage
+  are disabled. Status publication uses the exact string-valued
+  `--providers.kubernetesingressnginx.publishservice=ingress-nginx/ingress-nginx-controller-source-ip`
+  reference. `publishstatusaddress` remains omitted, and the ClusterRole adds
+  only `update` on `networking.k8s.io/ingresses/status`; no other status or
+  resource write is granted. No Gateway API conversion is included.
 - Snippet annotations remain disabled. The NGINX-provider class and controller
   identity are explicit, and ingress-without-class is disabled.
 - No TLS secret, application Secret, ACME solver, DNS annotation, or workload
@@ -66,14 +68,17 @@ The pinned provider source filters IngressClasses by `controllerClass` when
 `ingressClassByName` is false, then accepts a route whose
 `spec.ingressClassName` names one of those filtered classes. The target class
 therefore uses the unique `traefik.io/ingress-controller` value. Its
-`updateIngressStatus` path returns immediately when both `publishService` and
-`publishStatusAddress` are empty, which is why the substrate can omit both the
-status-write RBAC rule and publish flags.
+`updateIngressStatus` publishes through the configured Service and leaves the
+address override empty. The source-IP Service is therefore the sole reviewed
+status address source; the payload does not grant writes beyond the bounded
+Ingress status subresource rule.
 
-The checked-in `canary/citrus.yaml` is a separate operator fixture and is not
-included by this Kustomization. It references the existing `default/citrus-grace-tls`
-Secret and `default/citrus-service:80`, selects `traefik-nginx`, and has no
-annotations. Generate an equivalent fixture for another host or backend with:
+The checked-in `canary/citrus.yaml` is a historical operator fixture and is
+not included by this Kustomization. Its initial tests were run against the
+substrate while status publication was disabled. It references the existing
+`default/citrus-grace-tls` Secret and `default/citrus-service:80`, selects
+`traefik-nginx`, and has no annotations. Generate an equivalent fixture for
+another host or backend with:
 
 ```text
 python scripts/generate_ingress_canary.py \\
@@ -121,13 +126,14 @@ the inert payload and must not be run by Argo automatically.
    digest, RBAC, requests, and two-node placement have been reviewed. Wait for
    two Ready pods on different nodes. A substrate apply must not create a
    public load balancer.
-3. Create a temporary same-host canary Ingress in the target application
-   namespace. Give it `spec.ingressClassName: traefik-nginx`, the existing
-   backend Service and port, and the existing TLS Secret. Do not copy
-   `cert-manager.io/cluster-issuer`, `acme.cert-manager.io/*`, or
-   `external-dns.alpha.kubernetes.io/*` annotations. The old controllers ignore
-   this different class, and the target does not publish status, so the canary
-   does not race old status writers or external-dns.
+3. The temporary same-host canary Ingresses were historical substrate tests
+   while status publication was disabled. Before applying this
+   publication-enabled payload, remove all temporary canaries after their
+   cutover, certificate, and ExternalDNS `--dry-run` gates pass. Require an
+   exact namespace/name plus UID/resourceVersion guard for each removal; do
+   not enable this payload while any temporary canary remains. Historical
+   fixture generation: Do not copy `cert-manager.io/cluster-issuer`,
+   `acme.cert-manager.io/*`, or `external-dns.alpha.kubernetes.io/*`.
 4. After recording the selector and numeric target ports, patch only the
    existing source-IP Service in one guarded operation: change its selector
    to the target pod labels and its target ports to the named `http` and
@@ -156,10 +162,16 @@ the inert payload and must not be run by Argo automatically.
    the old selector’s EndpointSlices and the old LB route, then remove only
    the temporary canary Ingress. Do not delete the old Service or either load
    balancer.
-7. A production cutover requires separate reviewed changes to application
-   Ingress classes, the cert-manager HTTP-01 solver class, status publication,
-   and authoritative DNS. Only after public DNS has moved and remained healthy
-   for the agreed TTL-plus-observation window may old-LB cleanup be considered.
+7. After production Service selectors and canonical Ingress classes are
+   confirmed, apply the separately reviewed status-publication payload only
+   after the endpoint and public route gates pass and all temporary canaries
+   are gone. Verify migrated Ingress
+   statuses point at the source-IP Service; the reviewed payload publishes
+   status only through the reviewed source-IP Service, and old controllers are no longer
+   status writers for those routes. Keep ExternalDNS writes paused with
+   `--dry-run`; an intentional DNS plan review is required before removing
+   that pause, writing DNS records, or considering old-LB cleanup. This payload
+   performs none of those DNS or load-balancer operations.
 
 The exact route gates are:
 
@@ -240,15 +252,19 @@ behavior.
   resource kinds and no Secret, Ingress, Gateway, or LoadBalancer Service.
 - Strict Kubernetes schema validation passes for the rendered payload.
 - Static assertions prove image digest, release labels, class/controller match,
-  provider filters, disabled status publication, two replicas, no-surge
-  strategy, topology spread, resource requests, and least-privilege RBAC.
-- The live canary has two Ready target pods on separate nodes, exact target
-  endpoints, direct HTTPS 200/certificate success, client-IP and forged-header
-  checks, and representative WebSocket/auth/session checks before DNS changes.
+  provider filters, the exact source-IP `publishservice` and omitted
+  `publishstatusaddress`, two replicas, no-surge strategy, topology spread,
+  resource requests, and bounded status-publication RBAC.
+- The historical canary had two Ready target pods on separate nodes, exact
+  target endpoints, direct HTTPS 200/certificate success, client-IP and
+  forged-header checks, and representative WebSocket/auth/session checks
+  before DNS changes.
+- All temporary canaries are removed with exact UID/resourceVersion guards
+  before production status publication is enabled.
 - Production status publication is enabled only after old controllers are no
-  longer status writers for the migrated Ingresses. External-dns and ACME are
-  then checked against the target LB, with public DNS and certificate
-  validation from outside the cluster.
+  longer status writers for the migrated Ingresses and the source-IP endpoint
+  gate passes. ExternalDNS writes remain paused with `--dry-run` until an
+  intentional DNS plan review authorizes any later DNS change.
 - Rollback evidence records the original source-IP selector, old LB Service,
   public DNS, and old route health. Deletion of old resources is a separate,
   explicitly approved cleanup operation.

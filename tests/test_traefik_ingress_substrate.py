@@ -101,9 +101,15 @@ class TraefikIngressSubstrateTests(unittest.TestCase):
             "--providers.kubernetesingressnginx.controllerclass=traefik.io/ingress-controller",
             args,
         )
+        self.assertIn(
+            "--providers.kubernetesingressnginx.publishservice=ingress-nginx/ingress-nginx-controller-source-ip",
+            args,
+        )
         self.assertFalse(
             any(
-                argument.startswith("--providers.kubernetesingressnginx.publishservice")
+                argument.startswith(
+                    "--providers.kubernetesingressnginx.publishstatusaddress"
+                )
                 for argument in args
             )
         )
@@ -144,7 +150,7 @@ class TraefikIngressSubstrateTests(unittest.TestCase):
         )
         self.assertEqual(self.by_kind["PodDisruptionBudget"]["spec"]["minAvailable"], 1)
 
-    def test_rbac_is_read_only_until_status_publication_is_reviewed(self) -> None:
+    def test_rbac_has_only_bounded_status_publication_write(self) -> None:
         role = self.by_kind["ClusterRole"]
         self.assertEqual(
             {
@@ -162,6 +168,7 @@ class TraefikIngressSubstrateTests(unittest.TestCase):
                 ("discovery.k8s.io", "endpointslices", ("list", "watch")),
                 ("networking.k8s.io", "ingressclasses", ("get", "list", "watch")),
                 ("networking.k8s.io", "ingresses", ("get", "list", "watch")),
+                ("networking.k8s.io", "ingresses/status", ("update",)),
             },
         )
 
@@ -446,9 +453,12 @@ class TraefikIngressSubstrateTests(unittest.TestCase):
         normalized_runbook = " ".join(self.runbook.split())
         for phrase in (
             "creates no `LoadBalancer` Service",
-            "string-valued `publishservice` option and `publishstatusaddress` are omitted",
+            "publishservice=ingress-nginx/ingress-nginx-controller-source-ip",
+            "`publishstatusaddress` remains omitted",
             "same-host canary Ingress",
-            "does not publish status",
+            "publishes status only through the reviewed source-IP Service",
+            "ExternalDNS writes remain paused with `--dry-run`",
+            "intentional DNS plan review",
             "patch only the existing source-IP Service",
             "exact saved source-IP Service selector and its numeric target ports",
             "`X-Forwarded-For`; the forged",
