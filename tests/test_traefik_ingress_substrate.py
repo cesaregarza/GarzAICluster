@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 import unittest
+from copy import deepcopy
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 from typing import Any
 
 from ruamel.yaml import YAML
@@ -250,6 +253,190 @@ class TraefikIngressSubstrateTests(unittest.TestCase):
             [{"port": 8000, "protocol": "TCP"}, {"port": 9090, "protocol": "TCP"}],
         )
 
+    def test_clone_mode_preserves_multi_rule_tls_and_reviewed_routes(self) -> None:
+        source = {
+            "apiVersion": "v1",
+            "kind": "IngressList",
+            "items": [
+                {
+                    "apiVersion": "networking.k8s.io/v1",
+                    "kind": "Ingress",
+                    "metadata": {
+                        "name": "prod-ingress",
+                        "namespace": "default",
+                        "labels": {
+                            "app.kubernetes.io/instance": "splat-top",
+                            "argocd.argoproj.io/instance": "splat-top:default",
+                            "argocd.argoproj.io/tracking-id": "splat-top:Ingress:default/prod-ingress",
+                            "team": "splat-top",
+                        },
+                        "annotations": {
+                            "cert-manager.io/cluster-issuer": "letsencrypt-prod",
+                            "external-dns.alpha.kubernetes.io/cloudflare-proxied": "true",
+                            "kubernetes.io/ingress.class": "nginx",
+                            "nginx.org/websocket-services": "fast-api-app-service",
+                            "nginx.ingress.kubernetes.io/proxy-body-size": "10m",
+                        },
+                    },
+                    "spec": {
+                        "ingressClassName": "nginx",
+                        "tls": [{"hosts": ["splat.top", "comp.splat.top"], "secretName": "tls-secret"}],
+                        "rules": [
+                            {
+                                "host": "splat.top",
+                                "http": {
+                                    "paths": [
+                                        {
+                                            "path": "/api",
+                                            "pathType": "Prefix",
+                                            "backend": {"service": {"name": "fast-api-app-service", "port": {"number": 8000}}},
+                                        },
+                                        {
+                                            "path": "/ws",
+                                            "pathType": "Prefix",
+                                            "backend": {"service": {"name": "fast-api-app-service", "port": {"number": 8001}}},
+                                        },
+                                    ]
+                                },
+                            },
+                            {
+                                "host": "comp.splat.top",
+                                "http": {
+                                    "paths": [
+                                        {
+                                            "path": "/",
+                                            "pathType": "Prefix",
+                                            "backend": {"service": {"name": "react-app-service", "port": {"number": 80}}},
+                                        }
+                                    ]
+                                },
+                            },
+                        ],
+                    },
+                },
+                {
+                    "apiVersion": "networking.k8s.io/v1",
+                    "kind": "Ingress",
+                    "metadata": {
+                        "name": "argocd-server",
+                        "namespace": "argocd",
+                        "annotations": {
+                            "cert-manager.io/cluster-issuer": "letsencrypt-prod",
+                            "nginx.ingress.kubernetes.io/backend-protocol": "HTTPS",
+                            "nginx.ingress.kubernetes.io/ssl-redirect": "true",
+                        },
+                    },
+                    "spec": {
+                        "tls": [{"hosts": ["argo.splat.top"], "secretName": "argo-splat-top-tls"}],
+                        "rules": [{
+                            "host": "argo.splat.top",
+                            "http": {"paths": [{
+                                "path": "/",
+                                "pathType": "Prefix",
+                                "backend": {"service": {"name": "argocd-server", "port": {"name": "https"}}},
+                            }]},
+                        }],
+                    },
+                },
+                {
+                    "apiVersion": "networking.k8s.io/v1",
+                    "kind": "Ingress",
+                    "metadata": {
+                        "name": "vanity-hosts-vanity-hosts-0",
+                        "namespace": "vanity-hosts",
+                        "annotations": {
+                            "external-dns.alpha.kubernetes.io/cloudflare-proxied": "true",
+                            "nginx.ingress.kubernetes.io/permanent-redirect": "https://grafana.splat.top/public-dashboards/example",
+                            "nginx.ingress.kubernetes.io/permanent-redirect-code": "302",
+                        },
+                    },
+                    "spec": {
+                        "tls": [{"hosts": ["excalibur.splat.top"], "secretName": "grafana-tls"}],
+                        "rules": [{
+                            "host": "excalibur.splat.top",
+                            "http": {"paths": [{
+                                "path": "/",
+                                "pathType": "Prefix",
+                                "backend": {"service": {"name": "vanity-hosts-vanity-hosts", "port": {"number": 80}}},
+                            }]},
+                        }],
+                    },
+                },
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = Path(directory) / "ingresses.json"
+            input_path.write_text(json.dumps(source), encoding="utf-8")
+            generated = subprocess.run(
+                [sys.executable, str(CANARY_GENERATOR), "--input", str(input_path)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        documents = _documents_from_text(generated.stdout)
+        self.assertEqual([document["metadata"]["name"] for document in documents], [
+            "argocd-server-traefik-canary",
+            "prod-ingress-traefik-canary",
+            "vanity-hosts-vanity-hosts-0-traefik-canary",
+        ])
+        self.assertTrue(all(document["spec"]["ingressClassName"] == "traefik-nginx" for document in documents))
+        splattop = documents[1]
+        self.assertEqual(splattop["spec"]["tls"], source["items"][0]["spec"]["tls"])
+        self.assertEqual(splattop["spec"]["rules"], source["items"][0]["spec"]["rules"])
+        self.assertEqual(
+            splattop["metadata"]["annotations"],
+            {"nginx.ingress.kubernetes.io/proxy-body-size": "10m"},
+        )
+        self.assertEqual(
+            splattop["metadata"]["labels"],
+            {
+                "team": "splat-top",
+                "app.kubernetes.io/part-of": "gaic-ingress-migration-canary",
+            },
+        )
+        self.assertEqual(
+            documents[0]["metadata"]["annotations"],
+            {
+                "nginx.ingress.kubernetes.io/backend-protocol": "HTTPS",
+                "nginx.ingress.kubernetes.io/ssl-redirect": "true",
+            },
+        )
+        self.assertEqual(
+            documents[2]["metadata"]["annotations"],
+            {
+                "nginx.ingress.kubernetes.io/permanent-redirect": "https://grafana.splat.top/public-dashboards/example",
+                "nginx.ingress.kubernetes.io/permanent-redirect-code": "302",
+            },
+        )
+
+        unsupported = deepcopy(source)
+        unsupported["items"][0]["metadata"]["annotations"][
+            "nginx.ingress.kubernetes.io/auth-url"
+        ] = "https://auth.example.test/verify"
+        collision = deepcopy(source)
+        collision["items"][0]["metadata"]["name"] = "a" * 48 + "x"
+        collision["items"][1]["metadata"]["name"] = "a" * 48 + "y"
+        collision["items"][1]["metadata"]["namespace"] = "default"
+        with tempfile.TemporaryDirectory() as directory:
+            unsupported_path = Path(directory) / "unsupported.json"
+            collision_path = Path(directory) / "collision.json"
+            unsupported_path.write_text(json.dumps(unsupported), encoding="utf-8")
+            collision_path.write_text(json.dumps(collision), encoding="utf-8")
+            unsupported_result = subprocess.run(
+                [sys.executable, str(CANARY_GENERATOR), "--input", str(unsupported_path)],
+                capture_output=True,
+                text=True,
+            )
+            collision_result = subprocess.run(
+                [sys.executable, str(CANARY_GENERATOR), "--input", str(collision_path)],
+                capture_output=True,
+                text=True,
+            )
+        self.assertNotEqual(unsupported_result.returncode, 0)
+        self.assertIn("unsupported nginx ingress annotations", unsupported_result.stderr)
+        self.assertNotEqual(collision_result.returncode, 0)
+        self.assertIn("canary names collide", collision_result.stderr)
+
     def test_runbook_protects_status_dns_acme_and_selector_rollback(self) -> None:
         normalized_runbook = " ".join(self.runbook.split())
         for phrase in (
@@ -263,6 +450,7 @@ class TraefikIngressSubstrateTests(unittest.TestCase):
             "Do not copy `cert-manager.io/cluster-issuer`",
             "do not start a renewal",
             "`nginx.org/websocket-services`",
+            "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
             "Do not delete the old Service or either load balancer",
         ):
             self.assertIn(phrase, normalized_runbook)

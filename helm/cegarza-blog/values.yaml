@@ -117,6 +117,9 @@ networkPolicy:
     podLabels:
       app.kubernetes.io/name: ingress-nginx
       app.kubernetes.io/instance: nginx-ingress
+    # Additional ingress peers are ORed with podLabels during a controller
+    # migration. Keep the existing peer for rollback reachability.
+    additionalPeers: []
     port: 8000
   egress:
     dns:
