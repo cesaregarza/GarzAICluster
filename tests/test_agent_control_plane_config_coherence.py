@@ -14,6 +14,7 @@ from scripts.check_agent_control_plane_config_coherence import (
     ConfigCoherenceError,
     check_agent_control_plane_config_coherence,
 )
+from scripts.agent_platform_projection_contract import read_projection_contract
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +23,140 @@ SKILLS_IMAGE = "registry.digitalocean.com/sendouq/agent-workloads-skills:main"
 
 
 class AgentControlPlaneConfigCoherenceTests(unittest.TestCase):
+    def test_modern_card_contracts_use_registered_schema_and_capability_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            source = Path(raw_tmp) / "output_projection.py"
+            _write_text(source, _modern_projection_source())
+            contract = read_projection_contract(source, "modern projection")
+
+            self.assertEqual(
+                contract.result_fields(
+                    capability_id="first",
+                    capability={
+                        "output_schema": "schema_one",
+                        "result_contract": {"released_result_fields": ["first"]},
+                    },
+                    projection_id="released_fields_v1",
+                ),
+                frozenset({"first"}),
+            )
+            self.assertEqual(
+                contract.result_fields(
+                    capability_id="second",
+                    capability={
+                        "output_schema": "schema_two",
+                        "result_contract": {"released_result_fields": ["second"]},
+                    },
+                    projection_id="released_fields_v1",
+                ),
+                frozenset({"second"}),
+            )
+
+    def test_clean_journeys_match_exact_modern_core_projection_source(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            fixture = _fixture(Path(raw_tmp))
+            imports_path = fixture.repo / "apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml"
+            imports = _load_yaml(imports_path)
+            imports["imports"][0]["capabilities"]["agent_workloads.readonly_query"][
+                "output_schema"
+            ] = "schema_one"
+            _write_yaml(imports_path, imports)
+            values_path = fixture.repo / "apps/agent-control-plane/values.yaml"
+            values = _load_yaml(values_path)
+            values["syntheticLiveVerify"]["journeys"][1]["required_result_fields"] = [
+                "first"
+            ]
+            _write_yaml(values_path, values)
+            _write_text(
+                fixture.platform / "mandate/core/output_projection.py",
+                _modern_projection_source(),
+            )
+
+            summary = _check(fixture)
+
+            self.assertIn("has 2 coherent journey(s)", summary)
+
+    def test_modern_compatibility_alias_falls_back_to_registered_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            source = Path(raw_tmp) / "output_projection.py"
+            _write_text(source, _modern_projection_source())
+            contract = read_projection_contract(source, "modern projection")
+
+            self.assertEqual(
+                contract.result_fields(
+                    capability_id="readonly",
+                    capability={"output_schema": "schema_one"},
+                    projection_id="agent_workloads.readonly_query",
+                ),
+                frozenset({"first", "shared"}),
+            )
+
+    def test_modern_card_contract_rejects_unknown_or_missing_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            source = Path(raw_tmp) / "output_projection.py"
+            _write_text(source, _modern_projection_source())
+            contract = read_projection_contract(source, "modern projection")
+
+            with self.assertRaisesRegex(ValueError, "unregistered result fields"):
+                contract.result_fields(
+                    capability_id="first",
+                    capability={
+                        "output_schema": "schema_one",
+                        "result_contract": {"released_result_fields": ["missing"]},
+                    },
+                    projection_id="released_fields_v1",
+                )
+            with self.assertRaisesRegex(ValueError, "requires capability"):
+                contract.result_fields(
+                    capability_id="first",
+                    capability={"output_schema": "schema_one"},
+                    projection_id="released_fields_v1",
+                )
+            with self.assertRaisesRegex(ValueError, "unknown registered output schema"):
+                contract.result_fields(
+                    capability_id="first",
+                    capability={"output_schema": "unknown"},
+                    projection_id="agent_workloads.readonly_query",
+                )
+
+            with self.assertRaisesRegex(ValueError, "duplicate"):
+                contract.result_fields(
+                    capability_id="first",
+                    capability={
+                        "output_schema": "schema_one",
+                        "result_contract": {"released_result_fields": ["first", "first"]},
+                    },
+                    projection_id="released_fields_v1",
+                )
+            self.assertIsNone(
+                contract.result_fields(
+                    capability_id="first",
+                    capability={
+                        "output_schema": "schema_one",
+                        "result_contract": {"released_result_fields": ["first"]},
+                    },
+                    projection_id="raw_public_result_v1",
+                )
+            )
+
+    def test_legacy_projection_map_remains_supported(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            source = Path(raw_tmp) / "output_projection.py"
+            _write_text(
+                source,
+                'PUBLIC_RESULT_FIELDS_BY_PROJECTION_ID = {"legacy": frozenset(("value",))}\n',
+            )
+            contract = read_projection_contract(source, "legacy projection")
+
+            self.assertEqual(
+                contract.result_fields(
+                    capability_id="legacy",
+                    capability={},
+                    projection_id="legacy",
+                ),
+                frozenset({"value"}),
+            )
+
     def test_clean_journeys_match_effective_source_contracts(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             fixture = _fixture(Path(raw_tmp))
@@ -418,6 +553,28 @@ def _fixture(tmp: Path, *, source_layout: str = "old") -> _Fixture:
         encoding="utf-8",
     )
     return _Fixture(repo, platform, skills_manifest)
+
+
+def _modern_projection_source() -> str:
+    return """
+from dataclasses import dataclass
+from typing import Mapping
+
+@dataclass(frozen=True)
+class RegisteredOutputSchema:
+    field_types: Mapping[str, type]
+
+REGISTERED_OUTPUT_SCHEMAS = {
+    "schema_one": RegisteredOutputSchema(
+        field_types={"first": str, "shared": str},
+    ),
+    "schema_two": RegisteredOutputSchema(
+        field_types={"second": str},
+    ),
+}
+RELEASED_FIELDS_PROJECTION_ID = "released_fields_v1"
+COMPAT_CARD_PROJECTION_IDS = frozenset({"agent_workloads.readonly_query"})
+""".lstrip()
 
 
 def _check(fixture: _Fixture) -> str:
