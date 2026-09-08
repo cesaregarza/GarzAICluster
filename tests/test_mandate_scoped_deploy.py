@@ -76,6 +76,10 @@ class ScopedDeployTests(unittest.TestCase):
         self.guard = self.patch(SCOPED, "guard")
         self.read = self.patch(SCOPED, "read_snapshot", return_value=ready_snapshot())
         self.dry = self.patch(SCOPED, "dry_run")
+        self.post_dry = self.patch(
+            SCOPED, "dry_run_snapshot", return_value=ready_snapshot()
+        )
+        self.unchanged = self.patch(SCOPED.train, "assert_preflight_state_unchanged")
         self.patch(
             SCOPED.train, "load_application_contracts", return_value=self.contracts
         )
@@ -152,6 +156,19 @@ class ScopedDeployTests(unittest.TestCase):
         self.assertTrue(
             all(call.kwargs["force_sync"] for call in self.reconcile.call_args_list)
         )
+
+    def test_reconcile_baseline_is_the_verified_owned_dry_run(self) -> None:
+        SCOPED.execute(self.args, Path("kubeconfig"), self.receipt)
+        for call in self.reconcile.call_args_list:
+            self.assertIs(call.kwargs["preflight_snapshot"], self.post_dry.return_value)
+        self.assertEqual(set(self.receipt["dry_runs"]), set(WORKERS))
+
+    def test_external_movement_before_dry_run_prevents_submission(self) -> None:
+        self.unchanged.side_effect = SCOPED.argo.ArgoCoreError("external operation")
+        with self.assertRaisesRegex(SCOPED.argo.ArgoCoreError, "external operation"):
+            SCOPED.execute(self.args, Path("kubeconfig"), self.receipt)
+        self.dry.assert_not_called()
+        self.reconcile.assert_not_called()
 
     def test_expired_pause_recovers_before_dependency_readiness_is_checked(
         self,
@@ -261,12 +278,91 @@ class DryRunTests(unittest.TestCase):
                     "run",
                     return_value=subprocess.CompletedProcess([], 0),
                 ) as run:
-                    SCOPED.dry_run(contract, args, Path("temporary-kubeconfig"))
+                    SCOPED.dry_run(
+                        contract,
+                        args,
+                        Path("temporary-kubeconfig"),
+                        "scoped-test-dryrun",
+                    )
                 command = run.call_args.args[0]
                 self.assertIn("--dry-run", command)
+                self.assertEqual(
+                    command[command.index("--info") + 1],
+                    "ces-395-run-id=scoped-test-dryrun",
+                )
                 self.assertEqual(command[command.index("--revision") + 1], expected)
                 self.assertEqual(command[command.index("--strategy") + 1], "hook")
                 self.assertNotIn("--resource", command)
+
+
+class DryRunReceiptTests(unittest.TestCase):
+    def test_only_owned_exact_successful_full_dry_run_is_accepted(self):
+        for defect in (
+            None,
+            "owner",
+            "revision",
+            "failed",
+            "real-sync",
+            "active",
+            "selected",
+            "automated",
+            "no-prune",
+            "strategy",
+            "comparison-revision",
+        ):
+            snapshot = ready_snapshot()
+            snapshot.operation_present = defect == "active"
+            snapshot.operation.automated = defect == "automated"
+            snapshot.operation.selected_resources = defect == "selected"
+            snapshot.operation.sync_strategy = (
+                "apply" if defect == "strategy" else "hook"
+            )
+            snapshot.operation.info = (
+                ("ces-395-run-id", "other" if defect == "owner" else "our-dryrun"),
+            )
+            if defect == "revision":
+                snapshot.operation.revisions = ("b" * 40,)
+            if defect == "comparison-revision":
+                snapshot.revisions = ("b" * 40,)
+            if defect == "failed":
+                snapshot.operation.phase = "Failed"
+            payload = {
+                "status": {
+                    "operationState": {
+                        "operation": {
+                            "sync": {
+                                "dryRun": defect != "real-sync",
+                                "prune": defect != "no-prune",
+                            }
+                        }
+                    }
+                }
+            }
+            args = SimpleNamespace(kubectl="kubectl", namespace="argocd")
+            contract = SimpleNamespace(name="example", resolved_revisions=(SHA,))
+            with (
+                self.subTest(defect=defect),
+                mock.patch.object(
+                    SCOPED.argo, "read_application_payload", return_value=payload
+                ),
+                mock.patch.object(
+                    SCOPED.train, "validate_live_application", return_value=snapshot
+                ),
+            ):
+                if defect:
+                    with self.assertRaisesRegex(
+                        SCOPED.argo.ArgoCoreError, "unverified dry-run"
+                    ):
+                        SCOPED.dry_run_snapshot(
+                            contract, args, Path("config"), "our-dryrun"
+                        )
+                else:
+                    self.assertIs(
+                        SCOPED.dry_run_snapshot(
+                            contract, args, Path("config"), "our-dryrun"
+                        ),
+                        snapshot,
+                    )
 
 
 if __name__ == "__main__":
