@@ -11,7 +11,11 @@ INFRA_DIR = REPO_ROOT / "infra" / "ingress-nginx"
 MANIFEST = INFRA_DIR / "citrus-source-ip-load-balancer.yaml"
 RUNBOOK = INFRA_DIR / "README.md"
 YAML_PARSER = YAML(typ="safe")
-CONTROLLER_SELECTOR = {
+TRAEFIK_SELECTOR = {
+    "app.kubernetes.io/instance": "gaic-traefik-ingress",
+    "app.kubernetes.io/name": "gaic-traefik-ingress",
+}
+LEGACY_CONTROLLER_SELECTOR = {
     "app.kubernetes.io/component": "controller",
     "app.kubernetes.io/instance": "ingress-nginx",
     "app.kubernetes.io/name": "ingress-nginx",
@@ -55,10 +59,10 @@ class CitrusSourceIpLoadBalancerTests(unittest.TestCase):
         spec = service["spec"]
         self.assertEqual(spec["type"], "LoadBalancer")
         self.assertEqual(spec["externalTrafficPolicy"], "Local")
-        self.assertEqual(spec["selector"], CONTROLLER_SELECTOR)
+        self.assertEqual(spec["selector"], TRAEFIK_SELECTOR)
         self.assertEqual(
             [(port["protocol"], port["port"], port["targetPort"]) for port in spec["ports"]],
-            [("TCP", 80, 80), ("TCP", 443, 443)],
+            [("TCP", 80, "http"), ("TCP", 443, "https")],
         )
         self.assertNotIn("clusterIP", spec)
         self.assertNotIn("nodePort", str(spec))
@@ -67,7 +71,10 @@ class CitrusSourceIpLoadBalancerTests(unittest.TestCase):
         pdb = self.by_kind["PodDisruptionBudget"]
         self.assertEqual(pdb["metadata"]["name"], "ingress-nginx-controller-source-ip-cutover")
         self.assertEqual(pdb["spec"]["minAvailable"], 1)
-        self.assertEqual(pdb["spec"]["selector"]["matchLabels"], CONTROLLER_SELECTOR)
+        self.assertEqual(
+            pdb["spec"]["selector"]["matchLabels"],
+            LEGACY_CONTROLLER_SELECTOR,
+        )
 
     def test_payload_is_not_wired_to_automatic_gitops_reconciliation(self) -> None:
         self.assertFalse(list(INFRA_DIR.glob("kustomization.y*ml")))
@@ -85,7 +92,7 @@ class CitrusSourceIpLoadBalancerTests(unittest.TestCase):
             "at least seven days before",
             "only new public worker rule",
             "kubectl apply -f infra/ingress-nginx/citrus-source-ip-load-balancer.yaml",
-            "80→80 and 443→443",
+            "named target ports",
             "known public IPv4 address",
             "get_client_ip",
             "forged `X-Forwarded-For`",

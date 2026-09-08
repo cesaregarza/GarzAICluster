@@ -1,16 +1,48 @@
 # Citrus source-IP load balancer
 
-This directory contains the operator-only CES-748 blue/green payload. It
-creates a second DigitalOcean `REGIONAL_NETWORK` load balancer in front of the
-existing legacy ingress-nginx pods. DigitalOcean network load balancers
-preserve the client source address natively, so neither NGINX nor the existing
-`REGIONAL` load balancer needs a risky one-sided PROXY-protocol transition.
+This directory contains the operator-only CES-748 blue/green payload. The
+spare DigitalOcean `REGIONAL_NETWORK` load balancer at
+`129.212.154.58` is verified against the GAIC Traefik pod labels and named
+ports. DigitalOcean network load balancers preserve the client source address
+natively, so neither NGINX nor the existing `REGIONAL` load balancer needs a
+risky one-sided PROXY-protocol transition.
 
 The payload is deliberately not referenced by Argo CD, Helm, or Kustomize.
 Merging it is inert. It does not modify the current Service/load balancer,
 Ingresses, controller ConfigMap or Deployment, DNS, or the Citrus payment flag.
 Applying it and changing DNS are separate production operations that require
 explicit approval.
+
+## GAIC Stage A source contract
+
+Stage A records the already verified spare mapping and pauses external-dns
+writes while both `nginx` and `traefik-nginx` sources are observed. It does not
+change application Ingress classes, Traefik status publication, or the
+production Services at `143.244.222.41` and `152.42.155.167`.
+
+The 143 Citrus Service and IP remain the rollback and DNS floor. Its existing
+Service may later move to the verified Traefik selector while retaining the
+same IP, ports, annotations, and `externalTrafficPolicy: Local`; Google DNS
+provider access is needed only to move Citrus A records. Keep the
+`ingress-nginx` namespace and every PVC permanently. Cleanup of either old
+controller is a separate reviewed step after public DNS and rollback
+observation.
+
+Stage order for a later operator activation:
+
+1. Confirm the spare Service has endpoints on two Ready Traefik pods and pass
+   client-IP, forged-`X-Forwarded-For`, TLS, redirect, and backend checks.
+2. Keep external-dns in `--dry-run` with both ingress class filters until all
+   15 non-Citrus hosts across 11 Ingresses have moved through the verified
+   Service selector and class gate.
+3. Move the 143 selector only in the guarded Citrus selector/class window;
+   retain 143 throughout the Google DNS handoff and TTL-plus-observation
+   period.
+4. Enable status publication and remove external-dns `--dry-run` only after
+   the status address and intentional DNS plan are reviewed.
+5. Prune only named, verified controller resources after rollback proof;
+   never prune `ingress-nginx`, application namespaces, PVCs, or serving TLS
+   Secrets.
 
 ## Legacy admission webhook class isolation
 
@@ -118,10 +150,10 @@ and for `doctl` to report a healthy `REGIONAL_NETWORK` load balancer named
 Re-read the DOKS worker firewall and require the provider-created public rule
 to be limited to TCP port 10256. Stop if any workload or NodePort is exposed.
 
-The Service ports and numeric target ports intentionally match (80→80 and
-443→443), as DigitalOcean requires for a network load balancer. Its
-`externalTrafficPolicy: Local` health check sends traffic only to nodes with a
-ready controller pod.
+The Service exposes ports 80 and 443 and uses named target ports `http` and
+`https`, which resolve to the Traefik container ports 8000 and 8443. Keep
+`externalTrafficPolicy: Local`; its health check sends traffic only to nodes
+with a ready Traefik pod.
 
 ## Prove the new route before DNS
 
