@@ -94,8 +94,14 @@ fails closed if the configured pause will expire before the reviewed cutover
 grace period; it then releases the source pause and emits no success receipt.
 
 Review the receipt's Deployment UID, source pod UID, source node, PVC UID, byte count, and
-checksum. Then perform the separately authorized Helm/Argo cutover with the
-production persistence values. Wait for the old source pod to terminate and
+checksum. Immediately before syncing, require at least 180 seconds before
+`pause_expires_at`, unchanged source/PVC identities and snapshot checksum,
+all writer Deployments at zero replicas, no remaining writer Pods (including
+terminating Pods), and no unexpected Redis clients. An expired or uncertain
+receipt invalidates the seed; stop and prepare a fresh verified seed before
+cutover. Sync only the Redis Deployment and PVC while writers remain stopped.
+Then perform the authorized Helm/Argo cutover with the production persistence
+values. Wait for the old source pod to terminate and
 the new pod to become Ready. Check Redis `PING`, the application Service
 endpoints, worker/beat health, queue health, and the expected restored data
 shape without printing values. Only after those checks pass may the source
