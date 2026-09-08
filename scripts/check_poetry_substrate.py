@@ -179,7 +179,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
     ] == EXPECTED_SECRETS
     runtime_ingress = _find(runtime_docs, "Ingress", "poetry")
     runtime_ingress_spec = runtime_ingress["spec"]
-    assert runtime_ingress_spec["ingressClassName"] == "nginx"
+    assert runtime_ingress_spec["ingressClassName"] == "traefik-nginx"
     assert runtime_ingress_spec["rules"][0]["host"] == "poetry.cegarza.com"
     assert runtime_ingress_spec["tls"] == [
         {
@@ -278,7 +278,7 @@ def check(default_render: Path, enabled_render: Path) -> None:
 
     ingress = _find(docs, "Ingress", "poetry")
     ingress_spec = ingress["spec"]
-    assert ingress_spec["ingressClassName"] == "nginx"
+    assert ingress_spec["ingressClassName"] == "traefik-nginx"
     assert ingress_spec["rules"][0]["host"] == "poetry.cegarza.com"
     assert ingress_spec["tls"] == [
         {
