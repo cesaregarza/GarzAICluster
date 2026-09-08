@@ -129,13 +129,18 @@ class TraefikIngressSubstrateTests(unittest.TestCase):
         self.assertEqual(container["resources"]["requests"], {"cpu": "50m", "memory": "128Mi"})
         self.assertEqual(
             [(port["name"], port["containerPort"]) for port in container["ports"]],
-            [("traefik", 8080), ("web", 80), ("websecure", 443)],
+            [("traefik", 8080), ("http", 8000), ("https", 8443)],
         )
+        self.assertIn("--entrypoints.web.address=:8000/tcp", container["args"])
+        self.assertIn("--entrypoints.websecure.address=:8443/tcp", container["args"])
+        self.assertNotIn("--entrypoints.web.address=:80/tcp", container["args"])
+        self.assertNotIn("--entrypoints.websecure.address=:443/tcp", container["args"])
+        self.assertEqual(container["securityContext"]["capabilities"], {"drop": ["ALL"]})
         service = self.by_kind["Service"]
         self.assertEqual(service["spec"]["selector"], SELECTOR)
         self.assertEqual(
             [(port["port"], port["targetPort"]) for port in service["spec"]["ports"]],
-            [(80, "web"), (443, "websecure")],
+            [(80, "http"), (443, "https")],
         )
         self.assertEqual(self.by_kind["PodDisruptionBudget"]["spec"]["minAvailable"], 1)
 
@@ -445,7 +450,7 @@ class TraefikIngressSubstrateTests(unittest.TestCase):
             "same-host canary Ingress",
             "does not publish status",
             "patch only the existing source-IP Service",
-            "exact saved source-IP Service selector",
+            "exact saved source-IP Service selector and its numeric target ports",
             "`X-Forwarded-For`; the forged",
             "Do not copy `cert-manager.io/cluster-issuer`",
             "do not start a renewal",
