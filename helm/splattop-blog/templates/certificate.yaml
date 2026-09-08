@@ -15,6 +15,8 @@ metadata:
     {{- include "splattop-blog.labels" . | nindent 4 }}
 spec:
   secretName: {{ .Values.ingress.tls.secretName }}
+  privateKey:
+    rotationPolicy: Never
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer

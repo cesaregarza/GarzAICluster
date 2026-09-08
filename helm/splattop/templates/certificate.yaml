@@ -20,6 +20,8 @@ metadata:
     {{- include "splattop.labels" . | nindent 4 }}
 spec:
   secretName: {{ .Values.ingress.tls.secretName }}
+  privateKey:
+    rotationPolicy: Never
   issuerRef:
     name: {{ .Values.ingress.tls.certificate.issuerName }}
     kind: {{ .Values.ingress.tls.certificate.issuerKind }}

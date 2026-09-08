@@ -5,6 +5,8 @@ metadata:
   namespace: argocd
 spec:
   secretName: argo-splat-top-tls
+  privateKey:
+    rotationPolicy: Never
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer

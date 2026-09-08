@@ -16,6 +16,7 @@ resources:
     cpu: 5m
 defaultAnnotations:
   cert-manager.io/cluster-issuer: letsencrypt-prod
+  cert-manager.io/private-key-rotation-policy: "Never"
 defaultTlsSecretName: ""
 defaultRedirectCode: 302
 defaultCloudflareProxied: null
