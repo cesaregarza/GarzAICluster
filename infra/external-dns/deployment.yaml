@@ -46,14 +46,12 @@ spec:
             - --domain-filter=cegarza.com
             - --provider=cloudflare
             - --policy=sync
-            # Stage A keeps the sync policy unchanged but pauses provider writes
-            # while both ingress classes are observed together.
-            - --dry-run
             - --registry=txt
             - --txt-owner-id=splattop-prod
-            - --txt-prefix=_externaldns.
+            # The template's empty form remains _externaldns. for legacy reads.
+            # Its A-record form is a separate label, including at zone apexes.
+            - --txt-prefix=_externaldns%{record_type}.
             - --interval=1m
-            - --ingress-class=nginx
             - --ingress-class=traefik-nginx
             - --metrics-address=:7979
             - --log-format=json

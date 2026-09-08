@@ -33,10 +33,10 @@ class CitrusSourceIpLoadBalancerTests(unittest.TestCase):
         cls.by_kind = {document["kind"]: document for document in cls.documents}
         cls.runbook = RUNBOOK.read_text(encoding="utf-8")
 
-    def test_payload_contains_only_pdb_and_parallel_service(self) -> None:
+    def test_payload_contains_only_parallel_service(self) -> None:
         self.assertEqual(
             [document["kind"] for document in self.documents],
-            ["PodDisruptionBudget", "Service"],
+            ["Service"],
         )
         for document in self.documents:
             metadata = document["metadata"]
@@ -67,14 +67,9 @@ class CitrusSourceIpLoadBalancerTests(unittest.TestCase):
         self.assertNotIn("clusterIP", spec)
         self.assertNotIn("nodePort", str(spec))
 
-    def test_pdb_preserves_a_controller_during_cutover(self) -> None:
-        pdb = self.by_kind["PodDisruptionBudget"]
-        self.assertEqual(pdb["metadata"]["name"], "ingress-nginx-controller-source-ip-cutover")
-        self.assertEqual(pdb["spec"]["minAvailable"], 1)
-        self.assertEqual(
-            pdb["spec"]["selector"]["matchLabels"],
-            LEGACY_CONTROLLER_SELECTOR,
-        )
+    def test_payload_does_not_recreate_legacy_controller_pdb(self) -> None:
+        self.assertNotIn("PodDisruptionBudget", self.by_kind)
+        self.assertIn("omits a PodDisruptionBudget", self.runbook)
 
     def test_payload_is_not_wired_to_automatic_gitops_reconciliation(self) -> None:
         self.assertFalse(list(INFRA_DIR.glob("kustomization.y*ml")))

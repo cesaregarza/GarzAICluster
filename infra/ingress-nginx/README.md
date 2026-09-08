@@ -142,7 +142,7 @@ Apply the checked-in payload:
 kubectl apply -f infra/ingress-nginx/citrus-source-ip-load-balancer.yaml
 ```
 
-This adds a PDB and a second Service. It does not alter the old Service named
+This adds a second Service. It does not alter the old Service named
 `ingress-nginx-controller`. Wait for the new Service to receive an external IP
 and for `doctl` to report a healthy `REGIONAL_NETWORK` load balancer named
 `citrus-source-ip`.
@@ -154,6 +154,11 @@ The Service exposes ports 80 and 443 and uses named target ports `http` and
 `https`, which resolve to the Traefik container ports 8000 and 8443. Keep
 `externalTrafficPolicy: Local`; its health check sends traffic only to nodes
 with a ready Traefik pod.
+
+The payload intentionally omits a PodDisruptionBudget. The former PDB selected
+the legacy `ingress-nginx` controller; recreating it after the Traefik
+transition would constrain the wrong workload. The existing Traefik PDB is
+owned by `infra/traefik-ingress/pdb.yaml` and is not duplicated here.
 
 ## Prove the new route before DNS
 
