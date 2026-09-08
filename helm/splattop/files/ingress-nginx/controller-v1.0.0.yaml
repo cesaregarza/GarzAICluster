@@ -437,6 +437,13 @@ metadata:
 webhooks:
   - name: validate.nginx.ingress.kubernetes.io
     matchPolicy: Equivalent
+    matchConditions:
+      - name: skip-traefik-nginx-ingresses
+        expression: >-
+          !(has(object.spec.ingressClassName) && object.spec.ingressClassName == 'traefik-nginx' &&
+          (!has(object.metadata.annotations) ||
+          !('kubernetes.io/ingress.class' in object.metadata.annotations) ||
+          object.metadata.annotations['kubernetes.io/ingress.class'] == 'traefik-nginx'))
     rules:
       - apiGroups:
           - networking.k8s.io
