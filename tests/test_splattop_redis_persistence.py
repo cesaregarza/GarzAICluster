@@ -111,6 +111,10 @@ class SplatTopRedisMigrationContractTests(unittest.TestCase):
         self.assertTrue(helper["spec"]["securityContext"]["runAsNonRoot"])
         self.assertFalse(helper["spec"]["automountServiceAccountToken"])
         self.assertEqual(helper["spec"]["nodeSelector"], {"kubernetes.io/hostname": "node-1"})
+        self.assertEqual(helper["spec"]["containers"][0]["resources"], {
+            "requests": {"cpu": "10m", "memory": "768Mi"},
+            "limits": {"cpu": "500m", "memory": "1Gi"},
+        })
 
     def test_preflight_rejects_source_node_hostname_mismatch(self) -> None:
         deployment = {
