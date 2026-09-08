@@ -223,6 +223,57 @@ class VerifierWindowTests(unittest.TestCase):
         self.assertFalse(self.current["spec"]["suspend"])
         self.assertEqual(window.signal.getsignal(window.signal.SIGTERM), previous)
 
+    def expired_window(self):
+        self.current["spec"]["suspend"] = True
+        self.current["metadata"]["annotations"].update(
+            {
+                window.OWNER: "stale-owner",
+                window.EXPIRES: "2020-01-01T00:00:00+00:00",
+                window.UID: "cron-a",
+            }
+        )
+
+    def test_expired_owned_window_is_reclaimed_before_new_pause(self):
+        self.expired_window()
+        with self.run_window():
+            self.assertEqual(
+                self.current["metadata"]["annotations"][window.OWNER], "owner-a"
+            )
+            self.assertEqual(
+                self.receipt["reclaimed_verifier_window"]["owner"], "stale-owner"
+            )
+        self.assertFalse(self.current["spec"]["suspend"])
+        self.assertEqual(
+            self.current["metadata"]["annotations"], {"existing": "preserved"}
+        )
+
+    def test_expired_replacement_and_nonexpired_windows_are_not_reclaimed(self):
+        for key, value in (
+            (window.UID, "other-cron"),
+            (window.EXPIRES, "2999-01-01T00:00:00+00:00"),
+            (window.EXPIRES, "invalid"),
+        ):
+            self.expired_window()
+            self.current["metadata"]["annotations"][key] = value
+            with (
+                self.subTest(key=key, value=value),
+                self.assertRaises(window.argo.ArgoCoreError),
+                self.run_window(),
+            ):
+                self.fail("must not deploy")
+            self.assertEqual(self.patches, [])
+            self.assertTrue(self.current["spec"]["suspend"])
+
+    def test_total_window_deadline_restores_schedule(self):
+        with (
+            self.assertRaisesRegex(window.argo.ArgoCoreError, "interrupted"),
+            self.run_window(),
+        ):
+            self.assertGreater(window.signal.getitimer(window.signal.ITIMER_REAL)[0], 0)
+            window.signal.getsignal(window.signal.SIGALRM)(window.signal.SIGALRM, None)
+        self.assertFalse(self.current["spec"]["suspend"])
+        self.assertEqual(window.signal.getitimer(window.signal.ITIMER_REAL), (0.0, 0.0))
+
 
 if __name__ == "__main__":
     unittest.main()

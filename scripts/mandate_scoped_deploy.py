@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import mandate_deploy_train as train
-from mandate_verifier_window import verifier_window
+from mandate_verifier_window import recover_expired_window, verifier_window
 
 argo = train.argo
 ALLOWED_APPLICATIONS = (
@@ -194,6 +194,22 @@ def execute(
     selected = selected_applications(args.application)
     guard(args)
     contracts = train.load_application_contracts(args.repo_root, args.confirm_sha)
+    if recover_expired_window(args, kubeconfig, receipt, save_receipt):
+        argo.hard_refresh_application(
+            "agent-control-plane",
+            kubeconfig=kubeconfig,
+            argocd=args.argocd,
+            timeout=args.refresh_timeout,
+        )
+        argo.poll_application_ready(
+            "agent-control-plane",
+            expected_revisions=contracts["agent-control-plane"].resolved_revisions,
+            kubeconfig=kubeconfig,
+            kubectl=args.kubectl,
+            namespace=args.namespace,
+            timeout=args.refresh_timeout,
+            interval=args.poll_interval,
+        )
     snapshots = application_preflight(args, selected, contracts, kubeconfig, receipt)
     with verifier_window(args, kubeconfig, receipt, save_receipt):
         preflight(args, selected, contracts, kubeconfig, receipt)

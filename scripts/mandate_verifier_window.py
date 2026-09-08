@@ -7,6 +7,7 @@ import signal
 import subprocess
 import time
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import mandate_deploy_train as train
@@ -14,6 +15,9 @@ import mandate_deploy_train as train
 argo = train.argo
 OWNER = "mandate.garz.ai/verifier-window"
 OWNER_PATH = "/metadata/annotations/mandate.garz.ai~1verifier-window"
+EXPIRES = OWNER + "-expires-at"
+UID = OWNER + "-uid"
+WINDOW_SECONDS = 1800
 
 
 class VerifierWindow:
@@ -62,8 +66,39 @@ class VerifierWindow:
         self.receipt["verifier_window"] = {"uid": self.uid, "state": state}
         self.save(self.args, self.receipt)
 
+    def reclaim_expired(self, current: dict) -> dict:
+        metadata = current["metadata"]
+        annotations = metadata.get("annotations") or {}
+        if OWNER not in annotations:
+            return current
+        try:
+            expires = datetime.fromisoformat(annotations[EXPIRES])
+        except (KeyError, TypeError, ValueError) as error:
+            raise argo.ArgoCoreError("owned verifier has no valid expiry") from error
+        if expires.tzinfo is None or expires > datetime.now(UTC):
+            raise argo.ArgoCoreError("verifier window has not expired")
+        if annotations.get(UID) != metadata["uid"]:
+            raise argo.ArgoCoreError("expired verifier UID changed; refusing reclaim")
+        operations = [
+            {"op": "test", "path": "/metadata/uid", "value": metadata["uid"]},
+            {"op": "test", "path": "/spec/suspend", "value": True},
+        ]
+        for key in (OWNER, EXPIRES, UID):
+            path = "/metadata/annotations/" + key.replace("/", "~1")
+            operations.append({"op": "test", "path": path, "value": annotations[key]})
+            operations.append({"op": "remove", "path": path})
+        operations.append({"op": "replace", "path": "/spec/suspend", "value": False})
+        self.patch(operations)
+        self.receipt["reclaimed_verifier_window"] = {
+            "uid": metadata["uid"],
+            "owner": annotations[OWNER],
+            "expired_at": annotations[EXPIRES],
+        }
+        self.save(self.args, self.receipt)
+        return self.read()
+
     def acquire(self) -> None:
-        current = self.read()
+        current = self.reclaim_expired(self.read())
         metadata, spec = current["metadata"], current["spec"]
         annotations = metadata.get("annotations") or {}
         if spec.get("suspend") is not False or OWNER in annotations:
@@ -84,6 +119,14 @@ class VerifierWindow:
             )
         operations += [
             {"op": "add", "path": OWNER_PATH, "value": self.receipt["run_id"]},
+            {
+                "op": "add",
+                "path": OWNER_PATH + "-expires-at",
+                "value": (
+                    datetime.now(UTC) + timedelta(seconds=WINDOW_SECONDS)
+                ).isoformat(),
+            },
+            {"op": "add", "path": OWNER_PATH + "-uid", "value": self.uid},
             {"op": "replace", "path": "/spec/suspend", "value": True},
         ]
         self.record("pause-requested")
@@ -113,6 +156,8 @@ class VerifierWindow:
                 {"op": "test", "path": "/spec/suspend", "value": True},
                 {"op": "replace", "path": "/spec/suspend", "value": False},
                 {"op": "remove", "path": OWNER_PATH},
+                {"op": "remove", "path": OWNER_PATH + "-expires-at"},
+                {"op": "remove", "path": OWNER_PATH + "-uid"},
             ]
         )
         self.record("resumed")
@@ -137,6 +182,18 @@ class VerifierWindow:
                 time.sleep(self.args.poll_interval)
 
 
+def recover_expired_window(
+    args: Any, kubeconfig: Any, receipt: dict, save: Any
+) -> bool:
+    if not args.pause_verifier:
+        return False
+    if not args.apply or "agent-control-plane" in args.application:
+        raise argo.ArgoCoreError("verifier pause requires --apply without Core sync")
+    window = VerifierWindow(args, kubeconfig, receipt, save)
+    window.reclaim_expired(window.read())
+    return "reclaimed_verifier_window" in receipt
+
+
 @contextmanager
 def verifier_window(args: Any, kubeconfig: Any, receipt: dict, save: Any):
     if not args.pause_verifier:
@@ -146,17 +203,21 @@ def verifier_window(args: Any, kubeconfig: Any, receipt: dict, save: Any):
         raise argo.ArgoCoreError("verifier pause requires --apply without Core sync")
     window = VerifierWindow(args, kubeconfig, receipt, save)
     old_handlers = {}
+    if signal.getitimer(signal.ITIMER_REAL) != (0.0, 0.0):
+        raise argo.ArgoCoreError("cannot replace an existing process timer")
 
     def interrupted(signum: int, _frame: Any) -> None:
         raise argo.ArgoCoreError(f"deployment interrupted by signal {signum}")
 
     try:
-        for signum in (signal.SIGINT, signal.SIGTERM):
+        for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGALRM):
             old_handlers[signum] = signal.signal(signum, interrupted)
+        signal.alarm(WINDOW_SECONDS)
         window.acquire()
         window.drain()
         yield
     finally:
+        signal.alarm(0)
         try:
             window.release()
         except (argo.ArgoCoreError, OSError, ValueError, subprocess.TimeoutExpired):

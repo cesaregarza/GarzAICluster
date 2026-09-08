@@ -153,6 +153,32 @@ class ScopedDeployTests(unittest.TestCase):
             all(call.kwargs["force_sync"] for call in self.reconcile.call_args_list)
         )
 
+    def test_expired_pause_recovers_before_dependency_readiness_is_checked(
+        self,
+    ) -> None:
+        sequence = []
+        self.patch(
+            SCOPED,
+            "recover_expired_window",
+            side_effect=lambda *args: sequence.append("recover") or True,
+        )
+        self.patch(
+            SCOPED.argo,
+            "hard_refresh_application",
+            side_effect=lambda *args, **kwargs: sequence.append("refresh"),
+        )
+        self.patch(
+            SCOPED.argo,
+            "poll_application_ready",
+            side_effect=lambda *args, **kwargs: sequence.append("ready"),
+        )
+        self.read.side_effect = lambda *args: (
+            sequence.append("read") or ready_snapshot()
+        )
+        SCOPED.execute(self.args, Path("kubeconfig"), self.receipt)
+        self.assertEqual(sequence[:4], ["recover", "refresh", "ready", "read"])
+        self.assertEqual(self.calls, list(WORKERS))
+
     def test_guard_failure_stops_later_stages_and_preserves_completed_receipt(
         self,
     ) -> None:
