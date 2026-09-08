@@ -186,6 +186,15 @@ warmupJob:
 redis:
   enabled: true
   replicas: 1
+  # Keep the default render ephemeral. Production enables this only after the
+  # reviewed RDB migration has seeded the retained claim.
+  persistence:
+    enabled: false
+    name: splattop-prod-redis-data
+    storageClassName: do-block-storage-retain
+    size: 1Gi
+    accessModes:
+      - ReadWriteOnce
   image:
     repository: redis
     tag: "7.2.4"
@@ -233,6 +242,7 @@ ingress:
     nginx.org/websocket-services: '{{ include "splattop.fullname" . }}-fastapi'
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/private-key-rotation-policy: "Never"
   hosts: []
   # Example configuration (uncomment and modify for your needs):
   # hosts:

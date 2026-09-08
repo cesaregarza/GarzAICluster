@@ -147,6 +147,18 @@ spec:
         {{- end }}
       {{- end }}
     {{- end }}
+    {{- range .prometheus.metricsEgress }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ required "metricsEgress namespace is required" .namespace | quote }}
+          podSelector:
+            matchLabels:
+              {{- required "metricsEgress podSelector must not be empty" .podSelector | toYaml | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ required "metricsEgress port is required" .port }}
+    {{- end }}
     - to:
         - namespaceSelector:
             matchLabels:

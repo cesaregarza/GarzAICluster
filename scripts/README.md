@@ -4,6 +4,34 @@ Utilities that were previously bundled with the app repo move here when they are
 
 ## Available
 
+- `splattop_writer_control.py` – stops, verifies, or restores the exact
+  contracted SplatTop API, beat, and Celery writer Deployments. Supply a
+  private JSON contract containing `writers` entries with `deployment`, `uid`,
+  and `baseline_replicas`, plus `worker_deployment`; supply the reviewed
+  `cluster-memory-2026-09-07/celery_quiesce.py` with `--quiesce-script`. The
+  helper uses UID/current-replica JSON Patch tests, waits for selectors to have
+  no pods including terminating pods, and resumes only the same quiesced
+  worker Pod when it persists. A contract has this shape (keep it outside the
+  repository with live UIDs):
+
+  ```json
+  {"worker_deployment":"splattop-prod-celery-worker","writers":[
+    {"deployment":"splattop-prod-fastapi","uid":"<reviewed-uid>","baseline_replicas":2},
+    {"deployment":"splattop-prod-celery-beat","uid":"<reviewed-uid>","baseline_replicas":1},
+    {"deployment":"splattop-prod-celery-worker","uid":"<reviewed-uid>","baseline_replicas":1}
+  ]}
+  ```
+
+- `splattop_redis_snapshot_move.py` – performs a guarded, one-time transfer of
+  an RDB from the still-ephemeral SplatTop Redis pod to a pre-created retained
+  PVC. `preflight` is read-only; `seed` requires an owner-only receipt path,
+  enforces the reviewed Deployment/PVC identities, bounds the RDB at 512 MiB,
+  verifies SHA-256 and `redis-check-rdb`, and leaves the source paused for the
+  separately reviewed cutover. The receipt records pause expiry and the seed
+  fails closed if the reviewed cutover grace no longer fits. Use `--dry-run` to validate the seed plan
+  without creating a helper or writing the PVC. See
+  `docs/runbooks/splattop-redis-persistence.md`.
+
 - `verify_manifest_delta.py` – verifies an exact, value-aware delta between two
   multi-document Kubernetes manifests without printing changed values. It
   rejects duplicate resources and inventory changes and writes a receipt with

@@ -36,6 +36,7 @@ monitoring:
       - default
       - ingress-nginx
       extraEgress: []
+      metricsEgress: []
     kube_state_metrics:
       enabled: true
     alertmanager:
@@ -44,6 +45,8 @@ monitoring:
       outboundPort: 443
   cilium:
     prometheusEgressKubeAPI:
+      enabled: false
+    prometheusEgressNodeMetrics:
       enabled: false
 
   # Prometheus configuration

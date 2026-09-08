@@ -7,6 +7,10 @@ metadata:
     {{- include "splattop.componentLabels" (dict "component" "redis" "root" .) | nindent 4 }}
 spec:
   replicas: {{ .Values.redis.replicas }}
+  {{- if .Values.redis.persistence.enabled }}
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       {{- include "splattop.componentSelectorLabels" (dict "component" "redis" "root" .) | nindent 6 }}
@@ -15,6 +19,13 @@ spec:
       labels:
         {{- include "splattop.componentSelectorLabels" (dict "component" "redis" "root" .) | nindent 8 }}
     spec:
+      {{- if .Values.redis.persistence.enabled }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+      {{- end }}
       containers:
         - name: redis
           image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
@@ -23,8 +34,39 @@ spec:
             - name: redis
               containerPort: 6379
               protocol: TCP
+          {{- if .Values.redis.persistence.enabled }}
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          {{- end }}
+          {{- if .Values.redis.persistence.enabled }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - test "$(redis-cli --raw ping)" = PONG
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          {{- end }}
           {{- if .Values.redis.resources }}
           resources:
             {{- toYaml .Values.redis.resources | nindent 12 }}
           {{- end }}
+      {{- if .Values.redis.persistence.enabled }}
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.redis.persistence.name }}
+      {{- end }}
 {{- end }}

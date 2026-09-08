@@ -1,0 +1,78 @@
+# Review-only merge-patch payload. It contains Certificate identities and the
+# rotation field only; it contains no Secret data. Apply only after the owning
+# source annotations/templates are reconciled and the field-level diff passes.
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: agent-control-plane, name: agent-control-plane-cert}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: argocd, name: argo-splat-top}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: argocd, name: argo-splat-top-tls}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: cegarza-blog, name: cegarza-blog-cert}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: citrus-dev, name: citrus-dev-grace-tls}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: default, name: blog-tls-secret}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: default, name: citrus-grace-tls}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: default, name: skyquiet-server-cert}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: default, name: splattop-blog-cert}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: default, name: spotify-hot-100-cert}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: default, name: tls-secret}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: garz-ai, name: garz-ai-cert}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: monitoring, name: grafana-tls}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: poetry, name: poetry-cegarza-com-tls}
+spec: {privateKey: {rotationPolicy: Never}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {namespace: vanity-hosts, name: grafana-tls}
+spec: {privateKey: {rotationPolicy: Never}}

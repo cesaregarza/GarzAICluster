@@ -14,6 +14,10 @@
 {{- if not $selectorNames }}
 {{- $selectorNames = list (include "cegarza-blog.selectorName" .) }}
 {{- end }}
+{{- $ingressPeers := list .Values.networkPolicy.ingress.podLabels }}
+{{- range .Values.networkPolicy.ingress.additionalPeers }}
+{{- $ingressPeers = append $ingressPeers . }}
+{{- end }}
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -34,16 +38,18 @@ spec:
           - {{ $selectorName | quote }}
           {{- end }}
   ingress:
+    {{- range $peer := $ingressPeers }}
     - fromEndpoints:
         - matchLabels:
-            "k8s:io.kubernetes.pod.namespace": {{ .Values.networkPolicy.ingress.namespace | quote }}
-            {{- range $key, $value := .Values.networkPolicy.ingress.podLabels }}
+            "k8s:io.kubernetes.pod.namespace": {{ $.Values.networkPolicy.ingress.namespace | quote }}
+            {{- range $key, $value := $peer }}
             {{ printf "k8s:%s" $key | quote }}: {{ $value | quote }}
             {{- end }}
       toPorts:
         - ports:
-            - port: {{ .Values.networkPolicy.ingress.port | quote }}
+            - port: {{ $.Values.networkPolicy.ingress.port | quote }}
               protocol: TCP
+    {{- end }}
   egress:
     - toEndpoints:
         - matchLabels:

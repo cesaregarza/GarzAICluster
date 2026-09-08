@@ -115,6 +115,9 @@ networkPolicy:
     podLabels:
       app.kubernetes.io/name: ingress-nginx
       app.kubernetes.io/instance: nginx-ingress
+    additionalPeers:
+    - app.kubernetes.io/name: gaic-traefik-ingress
+      app.kubernetes.io/instance: gaic-traefik-ingress
     port: 8000
   egress:
     dns:

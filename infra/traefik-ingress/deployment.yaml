@@ -1,0 +1,120 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gaic-traefik-ingress
+  namespace: ingress-nginx
+  labels:
+    app.kubernetes.io/name: gaic-traefik-ingress
+    app.kubernetes.io/instance: gaic-traefik-ingress
+    app.kubernetes.io/version: v3.7.13
+    app.kubernetes.io/part-of: gaic-ingress-migration
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gaic-traefik-ingress
+      app.kubernetes.io/instance: gaic-traefik-ingress
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gaic-traefik-ingress
+        app.kubernetes.io/instance: gaic-traefik-ingress
+        app.kubernetes.io/version: v3.7.13
+        app.kubernetes.io/part-of: gaic-ingress-migration
+    spec:
+      serviceAccountName: gaic-traefik-ingress
+      automountServiceAccountToken: true
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: gaic-traefik-ingress
+              app.kubernetes.io/instance: gaic-traefik-ingress
+      containers:
+        - name: traefik
+          image: docker.io/library/traefik@sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259
+          imagePullPolicy: IfNotPresent
+          args:
+            - --entrypoints.traefik.address=:8080/tcp
+            - --entrypoints.web.address=:8000/tcp
+            - --entrypoints.websecure.address=:8443/tcp
+            - --entrypoints.websecure.http.tls=true
+            - --api.dashboard=false
+            - --api.insecure=false
+            - --ping=true
+            - --global.checknewversion=false
+            - --global.sendanonymoususage=false
+            - --providers.kubernetescrd=false
+            - --providers.kubernetesgateway=false
+            - --providers.kubernetesingress=false
+            - --providers.kubernetesingressnginx=true
+            - --providers.kubernetesingressnginx.controllerclass=traefik.io/ingress-controller
+            - --providers.kubernetesingressnginx.ingressclass=traefik-nginx
+            - --providers.kubernetesingressnginx.ingressclassbyname=false
+            - --providers.kubernetesingressnginx.watchingresswithoutclass=false
+            # An empty publishservice is the disabled/default status mode. The
+            # v3.7 CLI flag is a string service reference, not a boolean.
+            - --providers.kubernetesingressnginx.allowsnippetannotations=false
+          ports:
+            - name: traefik
+              containerPort: 8080
+              protocol: TCP
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: traefik
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: traefik
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

@@ -40,8 +40,8 @@ metrics:
 
 image:
   repository: registry.digitalocean.com/sendouq/agent-platform
-  tag: sha-d3d4d2f95580
-  digest: sha256:a62a0b6d3608d810dfb1bf0fe82b0a4bf35aaa668b7f097ae05f3e9106441008
+  tag: sha-e08ece2f7548
+  digest: sha256:74bf08eaa15bcd7e7bbee8655e10cb2bb4f91ac919afb0d2dc3cb5d12a260b08
   pullPolicy: IfNotPresent
 
 secretKeys:
@@ -188,6 +188,7 @@ ingress:
   className: nginx
   annotations:
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+    cert-manager.io/private-key-rotation-policy: "Never"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
     - agent-control-plane.garz.ai
@@ -195,7 +196,7 @@ ingress:
     enabled: true
     secretName: agent-control-plane-tls
     certificate:
-      enabled: true
+      enabled: false
       issuerName: letsencrypt-prod
       dnsNames: []
 
@@ -209,6 +210,15 @@ networkPolicy:
         podSelector:
           matchLabels:
             app.kubernetes.io/name: ingress-nginx
+      # Keep Mandate reachable while the reversible source-IP canary selects
+      # the maintained Traefik pods in this namespace.
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: gaic-traefik-ingress
+            app.kubernetes.io/instance: gaic-traefik-ingress
       - namespaceSelector:
           matchLabels:
             kubernetes.io/metadata.name: agent-workloads
