@@ -457,6 +457,39 @@ class CegarzaBlogContractTests(unittest.TestCase):
             name="cegarza-blog",
         )
         self.assertEqual(
+            cilium_policy["spec"]["ingress"],
+            [
+                {
+                    "fromEndpoints": [
+                        {
+                            "matchLabels": {
+                                "k8s:io.kubernetes.pod.namespace": "ingress-nginx",
+                                "k8s:app.kubernetes.io/name": "ingress-nginx",
+                                "k8s:app.kubernetes.io/instance": "nginx-ingress",
+                            }
+                        }
+                    ],
+                    "toPorts": [
+                        {"ports": [{"port": "8000", "protocol": "TCP"}]}
+                    ],
+                },
+                {
+                    "fromEndpoints": [
+                        {
+                            "matchLabels": {
+                                "k8s:io.kubernetes.pod.namespace": "ingress-nginx",
+                                "k8s:app.kubernetes.io/name": "gaic-traefik-ingress",
+                                "k8s:app.kubernetes.io/instance": "gaic-traefik-ingress",
+                            }
+                        }
+                    ],
+                    "toPorts": [
+                        {"ports": [{"port": "8000", "protocol": "TCP"}]}
+                    ],
+                },
+            ],
+        )
+        self.assertEqual(
             cilium_policy["spec"]["endpointSelector"],
             {
                 "matchLabels": {

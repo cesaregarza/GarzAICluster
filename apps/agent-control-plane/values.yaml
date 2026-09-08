@@ -210,6 +210,15 @@ networkPolicy:
         podSelector:
           matchLabels:
             app.kubernetes.io/name: ingress-nginx
+      # Keep Mandate reachable while the reversible source-IP canary selects
+      # the maintained Traefik pods in this namespace.
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: gaic-traefik-ingress
+            app.kubernetes.io/instance: gaic-traefik-ingress
       - namespaceSelector:
           matchLabels:
             kubernetes.io/metadata.name: agent-workloads
