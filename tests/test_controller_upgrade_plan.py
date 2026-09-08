@@ -39,6 +39,7 @@ class ControllerUpgradePlanTests(unittest.TestCase):
         upstream = [
             {"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "argocd-cm", "namespace": "argocd"}, "data": {}},
             {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": "argocd-repo-server", "namespace": "argocd"}, "spec": {"template": {"spec": {"containers": [{"name": "argocd-repo-server", "env": []}]}}}},
+            {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": "argocd-redis"}, "spec": {"template": {"spec": {"containers": [{"name": "redis", "args": ["--appendonly", "no"]}]}}}},
         ]
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "argo.yaml"
@@ -60,6 +61,11 @@ class ControllerUpgradePlanTests(unittest.TestCase):
             self.assertEqual(next(x for x in repo["initContainers"] if x["name"] == "install-ksops")["image"], "viaductoss/ksops:v4.3.2")
             self.assertIn("ksops-tools", {x["name"] for x in repo["volumes"]})
             self.assertIn("sops-age", {x["name"] for x in repo["volumes"]})
+            kubernetes_yaml = YAML(typ="safe")
+            kubernetes_yaml.version = (1, 1)
+            decoded = list(kubernetes_yaml.load_all(output.read_text()))
+            self.assertEqual(decoded, rendered)
+            self.assertEqual(decoded[2]["spec"]["template"]["spec"]["containers"][0]["args"], ["--appendonly", "no"])
 
     def test_plan_has_separate_review_and_apply_without_automatic_force(self):
         result = plan.build_plan({"cert_manager": [], "argo_cd": ["v3.5.2"]}, Path("/payloads"), Path("/plan"))
