@@ -89,6 +89,22 @@ Utilities that were previously bundled with the app repo move here when they are
   not publish or materialize a new skills bundle; use the complete train when
   skills or root Application specs must change.
 
+  For worker-only deployment when scheduled verification leaves no idle window,
+  add `--apply --pause-verifier`. The helper first validates application readiness,
+  then owns a temporary CronJob pause, lets existing verification finish within
+  510 seconds, and runs the same dry runs, rollout and fresh verification. It
+  restores the schedule on success, failure, SIGINT or SIGTERM. The whole window
+  has a 30-minute deadline. Expiry and original UID annotations let a later
+  invocation reclaim an expired pause only when UID, owner and expiry still
+  match. A hard-killed process needs that later invocation or manual recovery;
+  the annotations alone do not schedule automatic resumption. Core sync is
+  forbidden in this mode because it would overwrite the pause. Default preflight
+  remains read-only. A `resume-failed` receipt requires operator recovery: inspect
+  the recorded CronJob UID and matching `mandate.garz.ai/verifier-window` owner,
+  then restore `spec.suspend: false` and remove that owner annotation using JSON
+  Patch tests for both UID and owner. Never resume a replacement or another
+  operator's pause. SIGKILL and host loss cannot run automatic cleanup.
+
 - `mandate_deploy_train.py` – the CES-395 interim `mandate up` command for the
   complete Mandate GitOps train. It uses the bounded `argocd_core.py`
   primitives through an owner-only temporary kubeconfig, enforces the client
