@@ -1,10 +1,10 @@
 # CES-748 operator-only blue/green load balancer.
 #
 # This file is deliberately not referenced by Argo CD, Helm, or Kustomize.
-# It records the spare load balancer and leaves the current 143 REGIONAL
-# load balancer and its Service unchanged for immediate rollback.  It contains
-# no legacy-controller PDB: the old selector would be recreated accidentally
-# by applying this operator payload after the Traefik transition.
+# It records the source-IP Service definition and leaves the existing 143
+# REGIONAL Service identity unchanged.  It contains no legacy-controller PDB:
+# the old selector would be recreated accidentally after the Traefik
+# transition.
 apiVersion: v1
 kind: Service
 metadata:

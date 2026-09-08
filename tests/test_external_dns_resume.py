@@ -13,24 +13,6 @@ def load_documents(path: Path):
 
 
 class ExternalDnsResumeTests(unittest.TestCase):
-    def test_deployment_removes_stage_a_pause_and_legacy_class_only(self):
-        deployment = YAML_PARSER.load((ROOT / "infra/external-dns/deployment.yaml").read_text(encoding="utf-8"))
-        args = deployment["spec"]["template"]["spec"]["containers"][0]["args"]
-        self.assertNotIn("--dry-run", args)
-        self.assertNotIn("--ingress-class=nginx", args)
-        self.assertEqual(args.count("--ingress-class=traefik-nginx"), 1)
-        for retained in (
-            "--source=ingress", "--source=service", "--provider=cloudflare", "--policy=sync",
-            "--registry=txt", "--txt-owner-id=splattop-prod", "--txt-prefix=_externaldns.",
-            "--domain-filter=splat.top", "--domain-filter=garz.ai", "--domain-filter=cegarza.com",
-        ):
-            self.assertIn(retained, args)
-        self.assertEqual(deployment["spec"]["replicas"], 1)
-        self.assertEqual(deployment["spec"]["template"]["spec"]["containers"][0]["resources"], {
-            "requests": {"cpu": "25m", "memory": "64Mi"},
-            "limits": {"cpu": "200m", "memory": "256Mi"},
-        })
-
     def test_source_ip_payload_has_service_only_and_preserves_identity(self):
         documents = load_documents(ROOT / "infra/ingress-nginx/citrus-source-ip-load-balancer.yaml")
         self.assertEqual([(item["kind"], item["metadata"]["name"]) for item in documents], [("Service", "ingress-nginx-controller-source-ip")])

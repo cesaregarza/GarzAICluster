@@ -11,7 +11,7 @@ MANIFEST = REPO_ROOT / "infra" / "external-dns" / "deployment.yaml"
 YAML_PARSER = YAML(typ="safe")
 
 
-class ExternalDnsStageATests(unittest.TestCase):
+class ExternalDnsLifecycleTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         document = YAML_PARSER.load(MANIFEST.read_text(encoding="utf-8"))
@@ -20,12 +20,12 @@ class ExternalDnsStageATests(unittest.TestCase):
         cls.deployment: dict[str, Any] = document
         cls.args = document["spec"]["template"]["spec"]["containers"][0]["args"]
 
-    def test_stage_a_pauses_writes_and_accepts_both_ingress_classes(self) -> None:
-        self.assertEqual(self.args.count("--dry-run"), 1)
-        self.assertEqual(self.args.count("--ingress-class=nginx"), 1)
+    def test_resume_removes_pause_and_legacy_class(self) -> None:
+        self.assertEqual(self.args.count("--dry-run"), 0)
+        self.assertEqual(self.args.count("--ingress-class=nginx"), 0)
         self.assertEqual(self.args.count("--ingress-class=traefik-nginx"), 1)
 
-    def test_stage_a_preserves_external_dns_identity_and_scope(self) -> None:
+    def test_resume_preserves_external_dns_identity_and_scope(self) -> None:
         for argument in (
             "--source=ingress",
             "--source=service",
