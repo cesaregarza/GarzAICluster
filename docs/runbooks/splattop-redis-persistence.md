@@ -113,8 +113,7 @@ attempt is required.
 
 If cutover readiness or application checks fail, keep the retained PVC and
 stop writers. Do not revert to an empty ephemeral Redis instance. Inspect the
-new pod and RDB receipt, and either repair the persistent candidate or restore
-the reviewed pre-cutover Helm revision while preserving the seeded PVC. Any
-rollback must retain one writer and the same Service selectors. Resume source
-writes only after the active Redis endpoint and queue consumers have been
-verified.
+new pod and RDB receipt, and repair the persistent candidate while preserving
+the seeded PVC. Any rollback must retain one writer and the same Service
+selectors. Resume source writes only after the active Redis endpoint and queue
+consumers have been verified.

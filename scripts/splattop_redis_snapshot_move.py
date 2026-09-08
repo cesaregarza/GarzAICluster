@@ -530,19 +530,21 @@ def seed(args: argparse.Namespace, kubectl: Kubectl) -> dict[str, Any]:
     phase = "create-helper"
     try:
         # create, rather than apply, so a stale helper can never be adopted.
-        kubectl.run(
-            ["create", "-f", "-"],
-            stdin=_json_bytes(
-                helper_manifest(
-                    pod_name=helper_name,
-                    pvc_name=args.pvc,
-                    node_name=source["node_name"],
-                )
-            ),
+        created_document = json.loads(
+            kubectl.run(
+                ["create", "-f", "-", "-o", "json"],
+                stdin=_json_bytes(
+                    helper_manifest(
+                        pod_name=helper_name,
+                        pvc_name=args.pvc,
+                        node_name=source["node_name"],
+                    )
+                ),
+            )
         )
-        created_helper_uid = _metadata_uid(
-            kubectl.get_json("pod", helper_name), "created migration helper pod"
-        )
+        if not isinstance(created_document, dict):
+            raise MigrationError("helper create did not return a JSON object")
+        created_helper_uid = _metadata_uid(created_document, "created migration helper pod")
         _wait_helper(kubectl, helper_name)
         # Existing final or partial files may be prior/partial seeds. Never
         # overwrite either, and create the partial file exclusively.

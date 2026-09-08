@@ -77,14 +77,15 @@ class SplatTopRedisPersistenceTests(unittest.TestCase):
             "/bin/sh", "-ec", 'test "$(redis-cli --raw ping)" = PONG'
         ])
 
-    def test_persistent_redis_rejects_multiple_replicas(self) -> None:
-        result = subprocess.run(
-            ["helm", "template", "splattop-prod", str(CHART), "-f", str(CHART / "values-prod.yaml"), "--set", "redis.replicas=2"],
-            capture_output=True,
-            text=True,
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("redis.persistence.enabled requires redis.replicas", result.stderr)
+    def test_persistent_redis_requires_exactly_one_replica(self) -> None:
+        for replicas in (0, 2):
+            result = subprocess.run(
+                ["helm", "template", "splattop-prod", str(CHART), "-f", str(CHART / "values-prod.yaml"), "--set", f"redis.replicas={replicas}"],
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("redis.persistence.enabled requires redis.replicas to be exactly 1", result.stderr)
 
 
 class SplatTopRedisMigrationContractTests(unittest.TestCase):
@@ -203,7 +204,7 @@ class SplatTopRedisMigrationContractTests(unittest.TestCase):
             with self.assertRaisesRegex(self.module.MigrationError, "copy failed"):
                 self.module.seed(args, fake)
         self.assertTrue(any(command and command[0] == "delete" for command in fake.calls))
-        self.assertEqual(fake.helper_uid_reads, 2)
+        self.assertEqual(fake.helper_uid_reads, 1)
 
     def test_checksum_failure_deletes_owned_helper_and_unpauses(self) -> None:
         fake = self._FakeKubectl(self.module)
@@ -344,6 +345,8 @@ class SplatTopRedisMigrationContractTests(unittest.TestCase):
 
         def run(self, command: list[str], **_: Any) -> bytes:
             self.calls.append(command)
+            if command[:2] == ["create", "-f"]:
+                return json.dumps({"metadata": {"uid": "helper-1"}}).encode()
             return b""
 
         def get_json(self, kind: str, name: str) -> dict[str, Any]:
