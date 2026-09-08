@@ -160,8 +160,6 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
                 "agent-data.workspace_probe.json",
                 "agent-opencode.proposer.json",
                 "agent-opencode.apply_executor.json",
-                "opencode_proposer_smoke.jsonl",
-                "opencode_apply_smoke.jsonl",
             },
         )
 
@@ -1190,6 +1188,7 @@ exit 64
             manifest["capability_metadata"]["agent_workloads.opencode_propose"],
             {"consequence_class": "reversible_staging"},
         )
+        self.assertEqual(manifest["evals"]["required"], [])
 
     def test_opencode_apply_import_is_executor_only_and_admin_confirmed(self) -> None:
         imports = YAML_PARSER.load(self.data["workload_imports.yaml"])
@@ -1298,7 +1297,7 @@ exit 64
             manifest["capability_metadata"]["agent_workloads.opencode_apply"],
             {"consequence_class": "consequential"},
         )
-        self.assertEqual(manifest["evals"]["required"], ["eval.opencode_apply_smoke"])
+        self.assertEqual(manifest["evals"]["required"], [])
 
     def test_opencode_policy_and_eval_overlay_are_mounted(self) -> None:
         policy = YAML_PARSER.load(self.data["policy.prod.yaml"])
@@ -1378,16 +1377,10 @@ exit 64
             evals_by_id["eval.readonly_sql_safety"]["applies_to"],
             ["data.readonly_sql"],
         )
-        self.assertEqual(
-            evals_by_id["eval.opencode_proposer_smoke"]["dataset"],
-            "registries/imports/opencode_proposer_smoke.jsonl",
-        )
-        self.assertEqual(
-            evals_by_id["eval.opencode_apply_smoke"]["dataset"],
-            "registries/imports/opencode_apply_smoke.jsonl",
-        )
-        self.assertIn("opencode_proposer_smoke.jsonl", self.data)
-        self.assertIn("opencode_apply_smoke.jsonl", self.data)
+        self.assertNotIn("eval.opencode_proposer_smoke", evals_by_id)
+        self.assertNotIn("eval.opencode_apply_smoke", evals_by_id)
+        self.assertNotIn("opencode_proposer_smoke.jsonl", self.data)
+        self.assertNotIn("opencode_apply_smoke.jsonl", self.data)
 
         mounts = {
             mount["mountPath"]: mount

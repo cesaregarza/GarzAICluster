@@ -96,7 +96,9 @@ CES-576 runtime-attestation implementation is authorized by this document.
 credential tuple in `projectedWorkloadIdentity.hmacRollbackRelease`. The identity
 gate requires its exact code, manifest, and image digests to match both the
 retained credential claims and metadata. This record does not map a Kubernetes
-subject, mount a credential, or enable HMAC authentication.
+subject, mount a credential, or enable HMAC authentication. In projected mode,
+compare retained token metadata against `hmacRollbackRelease`; its digests may
+intentionally differ from the active `mandateReleasePins` tuple.
 
 `previousRelease` separately maps a temporarily overlapping projected release.
 After its pods and controller references drain, remove that overlap from values

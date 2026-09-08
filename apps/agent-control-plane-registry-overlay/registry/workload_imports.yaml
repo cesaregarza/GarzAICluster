@@ -2,8 +2,8 @@ schema_version: workload-imports.v1
 imports:
 - id: data.workspace_probe
   manifest_path: registries/imports/agent-data.workspace_probe.json
-  manifest_digest: sha256:bd4de04e044cf204d01faa7a6b5738dbe0ec4b9d50d3d1cda56bfc5475c155da
-  image_digest: sha256:def99cbd3b659ba18823bf2c3b5bae54380a0eb81818bd0e5fed0143e23debe3
+  manifest_digest: sha256:c912934ba399dcd07086764c6971e8d525cc0f7af58273100a67e88061a875ae
+  image_digest: sha256:3c0765ba6c5a7475cda5dfa0fee1a4722069ace7d4798163c8a67a2ae39202f0
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -12,12 +12,17 @@ imports:
     execution_posture: capability_worker
     network_access: database_only
     service_account_ref: agent-workloads-worker
-    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-88ca47faaa499161cc52
+    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-a766ecf5fcd6d109634c
     capacity_tier: 4
     concurrency: 1
     max_runtime_seconds: 120
     model_call: true
     readonly_sql_broker: true
+    previous_release:
+      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-88ca47faaa499161cc52
+      code_digest: sha256:27a560f88b407c5287e93acb6fc734e682ae8ef427c7e7120ec432522150e189
+      manifest_digest: sha256:bd4de04e044cf204d01faa7a6b5738dbe0ec4b9d50d3d1cda56bfc5475c155da
+      image_digest: sha256:def99cbd3b659ba18823bf2c3b5bae54380a0eb81818bd0e5fed0143e23debe3
   capabilities:
     agent_workloads.db_probe:
       description: Imported reversible staging database workspace probe.
@@ -79,8 +84,8 @@ imports:
           select_limited: external
 - id: opencode.proposer
   manifest_path: registries/imports/agent-opencode.proposer.json
-  manifest_digest: sha256:919afebe5e808c67c71e9bc4733d296d4a9ec88d8a0e0b02fcb0fd8398c905ed
-  image_digest: sha256:dc7eb3857405d9af485aa190d013bdae84902aaf8f9b8f82b4ccd358416cb06e
+  manifest_digest: sha256:d69820fe79941fa9dab307f33097d35c0703b11d5f66e9f4e7754d2468753906
+  image_digest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -287,8 +292,8 @@ imports:
       - Must not be used as a local fallback when no governed capability matches.
 - id: opencode.apply_executor
   manifest_path: registries/imports/agent-opencode.apply_executor.json
-  manifest_digest: sha256:8f7bca1f10e007397d6944589a0d36be4b0682e8e4d958bd7e45d9299e6f0984
-  image_digest: sha256:62875fadd5f4a7a14e42787df38eba7ac6deced48ed241905aa21d9e8cbc7fc1
+  manifest_digest: sha256:2d36cfef1ed45057f3e396039ec21450ac34f4da145eb40fc0ec4aa6f67fc479
+  image_digest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
