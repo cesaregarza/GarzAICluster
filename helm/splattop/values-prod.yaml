@@ -14,6 +14,7 @@ fastapi:
   resources:
     requests:
       cpu: 150m
+      memory: 256Mi
   affinity:
     nodeAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
@@ -78,6 +79,7 @@ celeryWorker:
   resources:
     requests:
       cpu: 150m
+      memory: 1Gi
   # Let in-flight tasks finish during future moves. The initial migration must
   # separately quiesce the old pod, which still has its previous 30-second grace.
   terminationGracePeriodSeconds: 600
@@ -102,6 +104,12 @@ redis:
     size: 1Gi
     accessModes:
     - ReadWriteOnce
+  # Apply only after the retained Redis PVC migration has completed. This
+  # reserves above the observed 639 MiB Redis lifetime memory peak; no cap.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 768Mi
   service:
     extraServices:
     - name: redis
