@@ -48,7 +48,9 @@ spec:
             - --policy=sync
             - --registry=txt
             - --txt-owner-id=splattop-prod
-            - --txt-prefix=_externaldns.
+            # The template's empty form remains _externaldns. for legacy reads.
+            # Its A-record form is a separate label, including at zone apexes.
+            - --txt-prefix=_externaldns%{record_type}.
             - --interval=1m
             - --ingress-class=traefik-nginx
             - --metrics-address=:7979

@@ -26,7 +26,7 @@ class ExternalDnsResumeTests(unittest.TestCase):
 
     def test_runbook_requires_all_external_dns_resume_gates(self):
         runbook = (ROOT / "infra/external-dns/README.md").read_text(encoding="utf-8")
-        for phrase in ("129.212.154.58", "temporary canary Ingress", "15-record A-content move", "missing `cegarza.com` TXT", "server dry-run", "automated sync"):
+        for phrase in ("129.212.154.58", "temporary canary Ingress", "15-record A-content move", "12 replacement ownership", "server dry-run", "automated sync"):
             self.assertIn(phrase, runbook)
 
 

@@ -36,7 +36,7 @@ class ExternalDnsLifecycleTests(unittest.TestCase):
             "--policy=sync",
             "--registry=txt",
             "--txt-owner-id=splattop-prod",
-            "--txt-prefix=_externaldns.",
+            "--txt-prefix=_externaldns%{record_type}.",
             "--interval=1m",
         ):
             self.assertIn(argument, self.args)
@@ -46,6 +46,14 @@ class ExternalDnsLifecycleTests(unittest.TestCase):
             container["env"][0]["valueFrom"]["secretKeyRef"],
             {"name": "cloudflare-api-token", "key": "api-token"},
         )
+
+    def test_prefix_preserves_legacy_read_form_and_keeps_apex_in_zone(self) -> None:
+        prefix = next(arg.split("=", 1)[1] for arg in self.args if arg.startswith("--txt-prefix="))
+        self.assertEqual(prefix.replace("%{record_type}", ""), "_externaldns.")
+        for host, zone in (("cegarza.com", "cegarza.com"), ("dev.cegarza.com", "cegarza.com"), ("blog.splat.top", "splat.top")):
+            name = prefix.replace("%{record_type}", "a") + host
+            self.assertTrue(name.endswith("." + zone))
+        self.assertFalse("_externaldns.a-cegarza.com".endswith(".cegarza.com"))
 
 
 if __name__ == "__main__":
