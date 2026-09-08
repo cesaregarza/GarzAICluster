@@ -345,7 +345,7 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
                 },
                 indent=2,
             ),
-            "opencode_proposer_smoke.jsonl": json.dumps({"ok": True}) + "\n",
+            "example_eval_fixture.jsonl": json.dumps({"ok": True}) + "\n",
         }
         formatted = {
             "policy.prod.yaml": "defaults: {max_cost_usd_per_job: 10.0}\n",
@@ -356,7 +356,7 @@ class AgentControlPlaneRegistryCompatTests(unittest.TestCase):
                 },
                 separators=(",", ":"),
             ),
-            "opencode_proposer_smoke.jsonl": json.dumps({"ok": True}) + "\n",
+            "example_eval_fixture.jsonl": json.dumps({"ok": True}) + "\n",
         }
 
         _assert_registry_data_equivalent(formatted, expected)
