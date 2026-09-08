@@ -2,20 +2,9 @@
 #
 # This file is deliberately not referenced by Argo CD, Helm, or Kustomize.
 # It records the spare load balancer and leaves the current 143 REGIONAL
-# load balancer and its Service unchanged for immediate rollback.
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: ingress-nginx-controller-source-ip-cutover
-  namespace: ingress-nginx
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/component: controller
-      app.kubernetes.io/instance: ingress-nginx
-      app.kubernetes.io/name: ingress-nginx
----
+# load balancer and its Service unchanged for immediate rollback.  It contains
+# no legacy-controller PDB: the old selector would be recreated accidentally
+# by applying this operator payload after the Traefik transition.
 apiVersion: v1
 kind: Service
 metadata:
