@@ -95,6 +95,13 @@ celeryBeat:
   image:
     tag: v2.0.40
 redis:
+  persistence:
+    enabled: true
+    name: splattop-prod-redis-data
+    storageClassName: do-block-storage-retain
+    size: 1Gi
+    accessModes:
+    - ReadWriteOnce
   service:
     extraServices:
     - name: redis
