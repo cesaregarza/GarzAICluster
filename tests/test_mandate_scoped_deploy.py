@@ -306,17 +306,24 @@ class DryRunReceiptTests(unittest.TestCase):
             "active",
             "selected",
             "automated",
+            "no-prune",
+            "strategy",
+            "comparison-revision",
         ):
             snapshot = ready_snapshot()
             snapshot.operation_present = defect == "active"
             snapshot.operation.automated = defect == "automated"
             snapshot.operation.selected_resources = defect == "selected"
-            snapshot.operation.sync_strategy = "hook"
+            snapshot.operation.sync_strategy = (
+                "apply" if defect == "strategy" else "hook"
+            )
             snapshot.operation.info = (
                 ("ces-395-run-id", "other" if defect == "owner" else "our-dryrun"),
             )
             if defect == "revision":
                 snapshot.operation.revisions = ("b" * 40,)
+            if defect == "comparison-revision":
+                snapshot.revisions = ("b" * 40,)
             if defect == "failed":
                 snapshot.operation.phase = "Failed"
             payload = {
