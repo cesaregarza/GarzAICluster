@@ -83,8 +83,11 @@ uv run python scripts/splattop_redis_snapshot_move.py seed \
 ```
 
 The helper creates a non-root temporary pod on the source Redis node with the
-exact destination PVC,
-refuses to adopt an existing helper, refuses to overwrite any existing
+exact destination PVC. It requests `768Mi` and caps at `1Gi` memory, with a
+`10m` CPU request and `500m` limit: the observed Redis allocator peak was about
+`639Mi`, while the RDB itself was only about `130Mi`, so the checker needs
+headroom beyond the snapshot size. It refuses to adopt an existing helper and
+refuses to overwrite any existing
 `/data/dump.rdb`, pauses source writes, runs `SAVE`, bounds the RDB at 512 MiB,
 copies it through stdin, verifies byte count and SHA-256 on both sides, and
 runs `redis-check-rdb`. A successful run deletes the helper and writes a

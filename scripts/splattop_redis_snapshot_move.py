@@ -192,8 +192,8 @@ def helper_manifest(*, pod_name: str, pvc_name: str, node_name: str) -> dict[str
                     "imagePullPolicy": "IfNotPresent",
                     "command": ["/bin/sh", "-c", "trap 'exit 0' TERM; sleep 3600 & wait"],
                     "resources": {
-                        "requests": {"cpu": "1m", "memory": "16Mi"},
-                        "limits": {"cpu": "100m", "memory": "64Mi"},
+                        "requests": {"cpu": "10m", "memory": "768Mi"},
+                        "limits": {"cpu": "500m", "memory": "1Gi"},
                     },
                     "securityContext": {
                         "allowPrivilegeEscalation": False,
