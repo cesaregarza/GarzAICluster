@@ -19,3 +19,27 @@ spec:
             - port: "443"
               protocol: TCP
 {{- end }}
+{{- if and .Values.monitoring.prometheus.enabled .Values.monitoring.cilium.prometheusEgressNodeMetrics.enabled }}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus-egress-node-metrics
+  namespace: {{ include "garzObservability.monitoringNamespace" . }}
+  labels:
+    {{- include "garzObservability.componentLabels" (dict "component" "monitoring-cnp-prometheus-node-metrics" "root" .) | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "garzObservability.componentSelectorLabels" (dict "component" "prometheus" "root" .) | nindent 6 }}
+  egress:
+    # Cilium's host-network metrics endpoints use node identities, not pod
+    # namespace selectors. Permit only their metrics port, including this node.
+    - toEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+{{- end }}

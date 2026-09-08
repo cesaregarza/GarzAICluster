@@ -25,8 +25,22 @@ monitoring:
       extraEgress:
       - cidr: 10.108.0.8/32
         ports: [8080]
+      metricsEgress:
+      - namespace: cert-manager
+        podSelector:
+          app.kubernetes.io/name: cert-manager
+          app.kubernetes.io/component: controller
+        port: 9402
+      - namespace: agent-control-plane
+        podSelector:
+          app.kubernetes.io/name: agent-control-plane
+          app.kubernetes.io/instance: agent-control-plane
+          app.kubernetes.io/component: api
+        port: 9090
   cilium:
     prometheusEgressKubeAPI:
+      enabled: true
+    prometheusEgressNodeMetrics:
       enabled: true
   prometheus:
     enabled: true
