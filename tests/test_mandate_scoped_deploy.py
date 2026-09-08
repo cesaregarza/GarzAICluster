@@ -49,6 +49,7 @@ class ScopedDeployTests(unittest.TestCase):
             confirm_sha=SHA,
             application=list(WORKERS),
             apply=True,
+            pause_verifier=False,
             namespace="argocd",
             receipt_dir=Path(self.directory.name) / "receipt",
             git="git",

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import mandate_deploy_train as train
+from mandate_verifier_window import verifier_window
 
 argo = train.argo
 ALLOWED_APPLICATIONS = (
@@ -123,7 +124,7 @@ def guard(args: argparse.Namespace) -> None:
     train.validate_release_checkout(args.repo_root, args.confirm_sha, git=args.git)
 
 
-def preflight(
+def application_preflight(
     args: argparse.Namespace,
     selected: tuple[str, ...],
     contracts: dict[str, Any],
@@ -142,6 +143,10 @@ def preflight(
             raise argo.ArgoCoreError(f"omitted dependency is not ready: {name}")
         snapshots[name] = snapshot
         receipt["before"][name] = state_receipt(snapshot)
+    return snapshots
+
+
+def preflight(args, selected, contracts, kubeconfig, receipt):
     train.preflight_mandate_verify(
         invocation_id=receipt["run_id"],
         kubeconfig=kubeconfig,
@@ -150,7 +155,6 @@ def preflight(
     for name in selected:
         guard(args)
         dry_run(contracts[name], args, kubeconfig)
-    return snapshots
 
 
 def reconcile_one(
@@ -190,7 +194,13 @@ def execute(
     selected = selected_applications(args.application)
     guard(args)
     contracts = train.load_application_contracts(args.repo_root, args.confirm_sha)
-    snapshots = preflight(args, selected, contracts, kubeconfig, receipt)
+    snapshots = application_preflight(args, selected, contracts, kubeconfig, receipt)
+    with verifier_window(args, kubeconfig, receipt, save_receipt):
+        preflight(args, selected, contracts, kubeconfig, receipt)
+        deploy_selected(args, selected, contracts, snapshots, kubeconfig, receipt)
+
+
+def deploy_selected(args, selected, contracts, snapshots, kubeconfig, receipt):
     skills = train.read_live_skill_bundle(kubeconfig=kubeconfig, kubectl=args.kubectl)
     receipt["skill_bundle_digest"] = skills.digest
     if not args.apply:
@@ -241,6 +251,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--application", action="append", required=True, choices=ALLOWED_APPLICATIONS
     )
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument(
+        "--pause-verifier",
+        action="store_true",
+        help="Pause scheduled verification during a worker-only apply",
+    )
     parser.add_argument("--receipt-dir", type=Path, required=True)
     parser.add_argument("--kubeconfig", type=Path, default=Path.home() / ".kube/config")
     parser.add_argument("--context", required=True, choices=(train.PRODUCTION_CONTEXT,))
@@ -271,6 +286,10 @@ def main() -> int:
     }
     try:
         selected_applications(args.application)
+        if args.pause_verifier and (
+            not args.apply or "agent-control-plane" in args.application
+        ):
+            parser.error("--pause-verifier requires --apply without Core sync")
         train.validate_production_context(args.context)
         timeouts = (args.refresh_timeout, args.operation_timeout, args.poll_interval)
         if any(not math.isfinite(value) or value <= 0 for value in timeouts):
