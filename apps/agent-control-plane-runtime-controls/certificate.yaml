@@ -1,0 +1,19 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: agent-control-plane-cert
+  namespace: agent-control-plane
+  labels:
+    app.kubernetes.io/name: agent-control-plane
+    app.kubernetes.io/instance: agent-control-plane
+    app.kubernetes.io/component: tls
+    app.kubernetes.io/managed-by: argocd
+spec:
+  secretName: agent-control-plane-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - agent-control-plane.garz.ai
+  privateKey:
+    rotationPolicy: Never
