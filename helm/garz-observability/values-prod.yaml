@@ -31,6 +31,16 @@ monitoring:
           app.kubernetes.io/name: cert-manager
           app.kubernetes.io/component: controller
         port: 9402
+      - namespace: cert-manager
+        podSelector:
+          app.kubernetes.io/name: cainjector
+          app.kubernetes.io/component: cainjector
+        port: 9402
+      - namespace: cert-manager
+        podSelector:
+          app.kubernetes.io/name: webhook
+          app.kubernetes.io/component: webhook
+        port: 9402
       - namespace: agent-control-plane
         podSelector:
           app.kubernetes.io/name: agent-control-plane

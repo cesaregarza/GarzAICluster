@@ -27,24 +27,36 @@ class PrometheusMetricsEgressTests(unittest.TestCase):
 
     def test_pod_metrics_require_both_namespace_and_workload_on_exact_port(self) -> None:
         policy = next(doc for doc in self.production if doc["metadata"]["name"] == "prometheus-ingress-egress")
-        actual = {}
+        cert_manager = []
+        mandate = []
         for rule in policy["spec"]["egress"]:
             for peer in rule.get("to", []):
                 namespace = peer.get("namespaceSelector", {}).get("matchLabels", {}).get("kubernetes.io/metadata.name")
-                if namespace in ("cert-manager", "agent-control-plane"):
+                if namespace == "cert-manager":
                     self.assertEqual(len(rule["to"]), 1)
-                    actual[namespace] = (peer["podSelector"]["matchLabels"], rule["ports"])
-        self.assertEqual(actual, {
-            "cert-manager": ({
+                    cert_manager.append((peer["podSelector"]["matchLabels"], rule["ports"]))
+                elif namespace == "agent-control-plane":
+                    self.assertEqual(len(rule["to"]), 1)
+                    mandate.append((peer["podSelector"]["matchLabels"], rule["ports"]))
+        self.assertEqual(cert_manager, [
+            ({
                 "app.kubernetes.io/name": "cert-manager",
                 "app.kubernetes.io/component": "controller",
             }, [{"protocol": "TCP", "port": 9402}]),
-            "agent-control-plane": ({
+            ({
+                "app.kubernetes.io/name": "cainjector",
+                "app.kubernetes.io/component": "cainjector",
+            }, [{"protocol": "TCP", "port": 9402}]),
+            ({
+                "app.kubernetes.io/name": "webhook",
+                "app.kubernetes.io/component": "webhook",
+            }, [{"protocol": "TCP", "port": 9402}]),
+        ])
+        self.assertEqual(mandate, [({
                 "app.kubernetes.io/name": "agent-control-plane",
                 "app.kubernetes.io/instance": "agent-control-plane",
                 "app.kubernetes.io/component": "api",
-            }, [{"protocol": "TCP", "port": 9090}]),
-        })
+            }, [{"protocol": "TCP", "port": 9090}])])
 
     def test_node_metrics_allow_only_prometheus_to_node_metrics_port(self) -> None:
         policy = next(doc for doc in self.production if doc["metadata"]["name"] == "prometheus-egress-node-metrics")
