@@ -130,7 +130,7 @@ Keep renewal dates in `developer-cheat-sheet.md` or a shared calendar.
 ## Argo UI Exposure
 
 - `argo.splat.top` is the public entry point for the Argo CD UI/API. The DNS record already maps to the nginx ingress load balancer; keep it updated if the LB IP changes.
-- TLS is provisioned by cert-manager via `k8s/argocd/certificate.yaml` (secret `argo-splat-top-tls`, issuer `letsencrypt-prod`). Reapply it after issuer/cluster moves.
+- TLS for `argo.splat.top` is provisioned by cert-manager's ingress-shim from `k8s/argocd/ingress.yaml`, which is the sole Certificate owner for `argo-splat-top-tls` (`cert-manager.io/cluster-issuer: letsencrypt-prod`). Keep the ingress annotation and TLS Secret identity unchanged during controller maintenance. The former duplicate `Certificate/argo-splat-top` is retired; cert-manager leaves the serving Secret in place by default when a Certificate is deleted unless certificate owner references are enabled.
 - The ingress at `k8s/argocd/ingress.yaml` fronts `svc/argocd-server` with HTTPS pass-through. Apply this manifest whenever the controller name or annotations need to change.
 - Once the ingress is reachable, patch `argocd-cm` with `data.url: https://argo.splat.top` so CLI logins and links point at the new hostname.
 

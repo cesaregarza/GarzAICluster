@@ -12,6 +12,63 @@ Ingresses, controller ConfigMap or Deployment, DNS, or the Citrus payment flag.
 Applying it and changing DNS are separate production operations that require
 explicit approval.
 
+## Legacy admission webhook class isolation
+
+The v1.0.0 `ingress-nginx-admission` webhook historically checks host/path
+overlap before applying its own class filter. That makes a same-host Traefik
+canary fail when it overlaps a legacy Ingress. The checked-in webhook source
+adds one Kubernetes 1.30+ `matchConditions` CEL expression to
+`validate.nginx.ingress.kubernetes.io`. The expression skips only an Ingress
+whose `spec.ingressClassName` is `traefik-nginx` and whose deprecated
+`kubernetes.io/ingress.class` annotation is absent or also `traefik-nginx`.
+Legacy `legacy-nginx`, `nginx`, no-class, and conflicting-class inputs still
+reach the webhook. `failurePolicy: Fail`, the existing rules, service client,
+selectors, and any existing match conditions remain unchanged.
+
+Kubernetes documents that all match conditions must evaluate true for a
+webhook call, that `matchConditions` is stable since 1.30, and that an
+evaluation error with `failurePolicy: Fail` rejects the request. The expression
+therefore checks class-field and annotation-map presence before reading optional fields or using the CEL `in` operator.
+
+The source patch is inert until explicitly applied. Review it with the helper's
+default server dry-run, without printing webhook CA material:
+
+```bash
+python3 scripts/patch_legacy_ingress_webhook.py \
+  --context do-nyc3-k8s-nyc3-garz-ai \
+  --kubectl /root/dev/.tools/kubectl-v1.33.12
+```
+
+If that dry-run and the route review pass, an operator may create the private
+pre-mutation receipt and apply the UID/resourceVersion-guarded patch:
+
+```bash
+python3 scripts/patch_legacy_ingress_webhook.py \
+  --apply \
+  --receipt /root/dev/gaic-optimization-2026-09-08/legacy-webhook-receipt.json
+```
+
+The helper changes only `matchConditions`; it never reads Secrets or DNS and
+never prints `clientConfig.caBundle`. If a post-apply verification fails, use
+the same receipt for a guarded rollback server dry-run, followed by explicit
+`--apply` only after reviewing that rollback:
+
+```bash
+python3 scripts/patch_legacy_ingress_webhook.py \
+  --rollback \
+  --receipt /root/dev/gaic-optimization-2026-09-08/legacy-webhook-receipt.json
+python3 scripts/patch_legacy_ingress_webhook.py \
+  --rollback --apply \
+  --receipt /root/dev/gaic-optimization-2026-09-08/legacy-webhook-receipt.json
+```
+
+After applying, the operator must server-dry-run all 13 existing canary
+Ingresses with their original `spec.ingressClassName: traefik-nginx` and no
+class annotation. Separately server-dry-run a private duplicate host/path
+fixture with the legacy class; the legacy webhook must still reject that
+fixture. Do not add a deprecated annotation to the canaries as an experiment:
+the match condition intentionally protects the clean `spec`-class contract.
+
 DigitalOcean currently labels `REGIONAL_NETWORK` as public preview and does not
 support IPv6 on it. This is not a current Citrus regression: the old load
 balancer has an IPv4-only network stack and all three Citrus hosts have A

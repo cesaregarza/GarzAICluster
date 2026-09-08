@@ -66,6 +66,29 @@ Utilities that were previously bundled with the app repo move here when they are
   fails without advancing the release tuple. Production does not apply or
   modify `values-payment-prod.yaml`.
 
+- `mandate_scoped_deploy.py` – preflight and reconcile an explicit subset of
+  Mandate applications in the canonical order, using the existing deployment
+  guards and full hook syncs. It excludes the root Application and verifies
+  omitted upstream dependencies without syncing them. Supply the current clean
+  checkout's full `main` SHA and a receipt directory outside that checkout:
+
+  ```bash
+  uv run python scripts/mandate_scoped_deploy.py \
+    --context do-nyc3-k8s-nyc3-garz-ai \
+    --confirm-sha <full-garzaicluster-main-sha> \
+    --application agent-workloads-secrets \
+    --application agent-control-plane-registry-overlay \
+    --application agent-workloads \
+    --receipt-dir /tmp/mandate-release
+  ```
+
+  The default performs dry runs. Add `--apply` for the authorized rollout;
+  successful apply always creates a fresh governed verification Job and records
+  its name, exact revisions and application health in `scoped-deploy.json`.
+  A failed stage preserves completed-stage evidence and stops. This scope does
+  not publish or materialize a new skills bundle; use the complete train when
+  skills or root Application specs must change.
+
 - `mandate_deploy_train.py` – the CES-395 interim `mandate up` command for the
   complete Mandate GitOps train. It uses the bounded `argocd_core.py`
   primitives through an owner-only temporary kubeconfig, enforces the client

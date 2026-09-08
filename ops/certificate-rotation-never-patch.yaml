@@ -9,11 +9,6 @@ spec: {privateKey: {rotationPolicy: Never}}
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
-metadata: {namespace: argocd, name: argo-splat-top}
-spec: {privateKey: {rotationPolicy: Never}}
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
 metadata: {namespace: argocd, name: argo-splat-top-tls}
 spec: {privateKey: {rotationPolicy: Never}}
 ---
@@ -25,11 +20,6 @@ spec: {privateKey: {rotationPolicy: Never}}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata: {namespace: citrus-dev, name: citrus-dev-grace-tls}
-spec: {privateKey: {rotationPolicy: Never}}
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata: {namespace: default, name: blog-tls-secret}
 spec: {privateKey: {rotationPolicy: Never}}
 ---
 apiVersion: cert-manager.io/v1
