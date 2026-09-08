@@ -22,11 +22,29 @@ try:
         AgentPlatformLayoutError,
         resolve_agent_platform_layout,
     )
-except ModuleNotFoundError:  # Direct ``python scripts/check_*.py`` execution.
+except ModuleNotFoundError:  # Direct script execution.
     from agent_platform_layout import (  # type: ignore[no-redef]
         AgentPlatformLayout,
         AgentPlatformLayoutError,
         resolve_agent_platform_layout,
+    )
+try:
+    from scripts.agent_platform_projection_contract import (
+        ProjectionContract,
+        ProjectionContractError,
+        read_projection_contract,
+        _assignment,
+        _literal_value,
+        _module_assignments,
+    )
+except ModuleNotFoundError:  # Direct script execution.
+    from agent_platform_projection_contract import (  # type: ignore[no-redef]
+        ProjectionContract,
+        ProjectionContractError,
+        read_projection_contract,
+        _assignment,
+        _literal_value,
+        _module_assignments,
     )
 
 
@@ -156,7 +174,7 @@ def check_agent_control_plane_config_coherence(
         PLATFORM_OUTPUT_PROJECTION_PATH,
         source_layout,
     )
-    projection_fields = _projection_result_fields(
+    projection_contract = _read_projection_contract(
         _source_path(agent_platform_repo, PLATFORM_OUTPUT_PROJECTION_PATH, source_layout),
         projection_source,
     )
@@ -208,7 +226,7 @@ def check_agent_control_plane_config_coherence(
                 capability=capabilities[capability_id],
                 capability_source=capability_sources[capability_id],
                 agents=agents,
-                projection_fields=projection_fields,
+                projection_contract=projection_contract,
                 agent_platform_repo=agent_platform_repo,
                 source_layout=source_layout,
                 projection_source=projection_source,
@@ -415,7 +433,7 @@ def _result_contract(
     capability: Mapping[str, Any],
     capability_source: str,
     agents: list[Mapping[str, Any]],
-    projection_fields: Mapping[str, frozenset[str]],
+    projection_contract: ProjectionContract,
     agent_platform_repo: Path,
     source_layout: AgentPlatformLayout,
     projection_source: str,
@@ -446,7 +464,15 @@ def _result_contract(
     )
     if not isinstance(projection_id, str) or not projection_id:
         projection_id = capability_id
-    return projection_fields.get(projection_id), projection_source
+    try:
+        fields = projection_contract.result_fields(
+            capability_id=capability_id,
+            capability=capability,
+            projection_id=projection_id,
+        )
+    except ProjectionContractError as exc:
+        raise ConfigCoherenceError(str(exc)) from exc
+    return fields, projection_source
 
 
 def _worker_result_fields(
@@ -470,29 +496,14 @@ def _worker_result_fields(
     return frozenset(fields) if fields else None
 
 
-def _projection_result_fields(
+def _read_projection_contract(
     path: Path,
     source_label: str,
-) -> dict[str, frozenset[str]]:
-    values = _module_assignments(
-        _parse_python(path, source_label),
-        event_members={},
-    )
-    raw = values.get("PUBLIC_RESULT_FIELDS_BY_PROJECTION_ID")
-    if not isinstance(raw, Mapping):
-        raise ConfigCoherenceError(
-            f"{source_label} does not declare "
-            "PUBLIC_RESULT_FIELDS_BY_PROJECTION_ID"
-        )
-    result: dict[str, frozenset[str]] = {}
-    for projection_id, fields in raw.items():
-        if not isinstance(projection_id, str) or not isinstance(
-            fields, (set, frozenset, tuple, list)
-        ):
-            continue
-        if all(isinstance(field, str) for field in fields):
-            result[projection_id] = frozenset(fields)
-    return result
+) -> ProjectionContract:
+    try:
+        return read_projection_contract(path, source_label)
+    except ProjectionContractError as exc:
+        raise ConfigCoherenceError(str(exc)) from exc
 
 
 def _skill_ids(path: Path, source: str) -> frozenset[str]:
@@ -552,91 +563,6 @@ def _callback_event_types(
             f"{source_label} declares no callback types"
         )
     return frozenset(callback_types)
-
-
-def _module_assignments(
-    tree: ast.Module,
-    *,
-    event_members: Mapping[str, str],
-) -> dict[str, Any]:
-    values: dict[str, Any] = {}
-    for statement in tree.body:
-        name, expression = _assignment(statement)
-        if name is None or expression is None:
-            continue
-        try:
-            values[name] = _literal_value(
-                expression,
-                values=values,
-                event_members=event_members,
-            )
-        except ValueError:
-            continue
-    return values
-
-
-def _assignment(statement: ast.stmt) -> tuple[str | None, ast.expr | None]:
-    if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
-        target = statement.targets[0]
-        if isinstance(target, ast.Name):
-            return target.id, statement.value
-    if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
-        return statement.target.id, statement.value
-    return None, None
-
-
-def _literal_value(
-    node: ast.expr,
-    *,
-    values: Mapping[str, Any],
-    event_members: Mapping[str, str],
-) -> Any:
-    if isinstance(node, ast.Constant):
-        return node.value
-    if isinstance(node, ast.Name):
-        if node.id in values:
-            return values[node.id]
-        raise ValueError(node.id)
-    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
-        members = [
-            _literal_value(item, values=values, event_members=event_members)
-            for item in node.elts
-        ]
-        if isinstance(node, ast.Tuple):
-            return tuple(members)
-        if isinstance(node, ast.Set):
-            return set(members)
-        return members
-    if isinstance(node, ast.Dict):
-        return {
-            _literal_value(key, values=values, event_members=event_members): _literal_value(
-                value,
-                values=values,
-                event_members=event_members,
-            )
-            for key, value in zip(node.keys, node.values, strict=True)
-            if key is not None
-        }
-    if (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "frozenset"
-        and len(node.args) == 1
-    ):
-        return frozenset(
-            _literal_value(node.args[0], values=values, event_members=event_members)
-        )
-    if (
-        isinstance(node, ast.Attribute)
-        and node.attr == "value"
-        and isinstance(node.value, ast.Attribute)
-        and isinstance(node.value.value, ast.Name)
-        and node.value.value.id == "EventType"
-    ):
-        member = event_members.get(node.value.attr)
-        if member is not None:
-            return member
-    raise ValueError(ast.dump(node))
 
 
 def _string_list(
