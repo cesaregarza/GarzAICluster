@@ -9,7 +9,7 @@ metadata:
     nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik-nginx
   tls:
     - hosts:
         - argo.splat.top

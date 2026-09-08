@@ -68,7 +68,7 @@ health:
 
 ingress:
   enabled: true
-  className: nginx
+  className: traefik-nginx
   annotations:
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"

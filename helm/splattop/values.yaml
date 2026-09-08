@@ -17,7 +17,7 @@ clusterIssuer:
   email: ""
   server: https://acme-v02.api.letsencrypt.org/directory
   privateKeySecretName: letsencrypt-prod
-  ingressClass: nginx
+  ingressClass: traefik-nginx
 
 # Database/application secret management
 databaseSecret:
@@ -237,7 +237,7 @@ splatnlp:
 ingress:
   enabled: false
   nameOverride: ""
-  className: nginx
+  className: traefik-nginx
   annotations:
     nginx.org/websocket-services: '{{ include "splattop.fullname" . }}-fastapi'
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
