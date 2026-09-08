@@ -8,6 +8,8 @@ metadata:
     {{- include "garz-ai.labels" . | nindent 4 }}
 spec:
   secretName: {{ .Values.ingress.tls.secretName }}
+  privateKey:
+    rotationPolicy: Never
   issuerRef:
     name: {{ .Values.ingress.tls.certificate.issuerName | default "letsencrypt-prod" }}
     kind: ClusterIssuer

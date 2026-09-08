@@ -1,0 +1,420 @@
+[
+  {
+    "namespace": "argocd",
+    "name": "argocd-applicationset-controller",
+    "replicas": 1,
+    "pod": {
+      "serviceAccountName": "argocd-applicationset-controller",
+      "nodeSelector": {
+        "kubernetes.io/os": "linux"
+      },
+      "affinity": null,
+      "tolerations": null,
+      "topologySpreadConstraints": null,
+      "securityContext": {},
+      "containers": [
+        {
+          "name": "argocd-applicationset-controller",
+          "command": null,
+          "args": [
+            "/usr/local/bin/argocd-applicationset-controller"
+          ],
+          "securityContext": {
+            "allowPrivilegeEscalation": false,
+            "capabilities": {
+              "drop": [
+                "ALL"
+              ]
+            },
+            "readOnlyRootFilesystem": true,
+            "runAsNonRoot": true,
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "resources": {}
+        }
+      ]
+    }
+  },
+  {
+    "namespace": "argocd",
+    "name": "argocd-dex-server",
+    "replicas": 1,
+    "pod": {
+      "serviceAccountName": "argocd-dex-server",
+      "nodeSelector": {
+        "kubernetes.io/os": "linux"
+      },
+      "affinity": {
+        "podAntiAffinity": {
+          "preferredDuringSchedulingIgnoredDuringExecution": [
+            {
+              "podAffinityTerm": {
+                "labelSelector": {
+                  "matchLabels": {
+                    "app.kubernetes.io/part-of": "argocd"
+                  }
+                },
+                "topologyKey": "kubernetes.io/hostname"
+              },
+              "weight": 5
+            }
+          ]
+        }
+      },
+      "tolerations": null,
+      "topologySpreadConstraints": null,
+      "securityContext": {},
+      "containers": [
+        {
+          "name": "dex",
+          "command": [
+            "/shared/argocd-dex",
+            "rundex"
+          ],
+          "args": null,
+          "securityContext": {
+            "allowPrivilegeEscalation": false,
+            "capabilities": {
+              "drop": [
+                "ALL"
+              ]
+            },
+            "readOnlyRootFilesystem": true,
+            "runAsNonRoot": true,
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "resources": {}
+        }
+      ]
+    }
+  },
+  {
+    "namespace": "argocd",
+    "name": "argocd-notifications-controller",
+    "replicas": 1,
+    "pod": {
+      "serviceAccountName": "argocd-notifications-controller",
+      "nodeSelector": {
+        "kubernetes.io/os": "linux"
+      },
+      "affinity": null,
+      "tolerations": null,
+      "topologySpreadConstraints": null,
+      "securityContext": {
+        "runAsNonRoot": true,
+        "seccompProfile": {
+          "type": "RuntimeDefault"
+        }
+      },
+      "containers": [
+        {
+          "name": "argocd-notifications-controller",
+          "command": null,
+          "args": [
+            "/usr/local/bin/argocd-notifications"
+          ],
+          "securityContext": {
+            "allowPrivilegeEscalation": false,
+            "capabilities": {
+              "drop": [
+                "ALL"
+              ]
+            },
+            "readOnlyRootFilesystem": true
+          },
+          "resources": {}
+        }
+      ]
+    }
+  },
+  {
+    "namespace": "argocd",
+    "name": "argocd-redis",
+    "replicas": 1,
+    "pod": {
+      "serviceAccountName": "argocd-redis",
+      "nodeSelector": {
+        "kubernetes.io/os": "linux"
+      },
+      "affinity": {
+        "podAntiAffinity": {
+          "preferredDuringSchedulingIgnoredDuringExecution": [
+            {
+              "podAffinityTerm": {
+                "labelSelector": {
+                  "matchLabels": {
+                    "app.kubernetes.io/name": "argocd-redis"
+                  }
+                },
+                "topologyKey": "kubernetes.io/hostname"
+              },
+              "weight": 100
+            },
+            {
+              "podAffinityTerm": {
+                "labelSelector": {
+                  "matchLabels": {
+                    "app.kubernetes.io/part-of": "argocd"
+                  }
+                },
+                "topologyKey": "kubernetes.io/hostname"
+              },
+              "weight": 5
+            }
+          ]
+        }
+      },
+      "tolerations": null,
+      "topologySpreadConstraints": null,
+      "securityContext": {
+        "runAsNonRoot": true,
+        "runAsUser": 999,
+        "seccompProfile": {
+          "type": "RuntimeDefault"
+        }
+      },
+      "containers": [
+        {
+          "name": "redis",
+          "command": null,
+          "args": [
+            "--save",
+            "",
+            "--appendonly",
+            "no",
+            "--requirepass $(REDIS_PASSWORD)"
+          ],
+          "securityContext": {
+            "allowPrivilegeEscalation": false,
+            "capabilities": {
+              "drop": [
+                "ALL"
+              ]
+            },
+            "readOnlyRootFilesystem": true
+          },
+          "resources": {}
+        }
+      ]
+    }
+  },
+  {
+    "namespace": "argocd",
+    "name": "argocd-repo-server",
+    "replicas": 1,
+    "pod": {
+      "serviceAccountName": "argocd-repo-server",
+      "nodeSelector": {
+        "kubernetes.io/os": "linux"
+      },
+      "affinity": {
+        "podAntiAffinity": {
+          "preferredDuringSchedulingIgnoredDuringExecution": [
+            {
+              "podAffinityTerm": {
+                "labelSelector": {
+                  "matchLabels": {
+                    "app.kubernetes.io/name": "argocd-repo-server"
+                  }
+                },
+                "topologyKey": "kubernetes.io/hostname"
+              },
+              "weight": 100
+            },
+            {
+              "podAffinityTerm": {
+                "labelSelector": {
+                  "matchLabels": {
+                    "app.kubernetes.io/part-of": "argocd"
+                  }
+                },
+                "topologyKey": "kubernetes.io/hostname"
+              },
+              "weight": 5
+            }
+          ]
+        }
+      },
+      "tolerations": null,
+      "topologySpreadConstraints": null,
+      "securityContext": {},
+      "containers": [
+        {
+          "name": "argocd-repo-server",
+          "command": null,
+          "args": [
+            "/usr/local/bin/argocd-repo-server"
+          ],
+          "securityContext": {
+            "allowPrivilegeEscalation": false,
+            "capabilities": {
+              "drop": [
+                "ALL"
+              ]
+            },
+            "readOnlyRootFilesystem": true,
+            "runAsNonRoot": true,
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "resources": {}
+        }
+      ]
+    }
+  },
+  {
+    "namespace": "argocd",
+    "name": "argocd-server",
+    "replicas": 1,
+    "pod": {
+      "serviceAccountName": "argocd-server",
+      "nodeSelector": {
+        "kubernetes.io/os": "linux"
+      },
+      "affinity": {
+        "podAntiAffinity": {
+          "preferredDuringSchedulingIgnoredDuringExecution": [
+            {
+              "podAffinityTerm": {
+                "labelSelector": {
+                  "matchLabels": {
+                    "app.kubernetes.io/name": "argocd-server"
+                  }
+                },
+                "topologyKey": "kubernetes.io/hostname"
+              },
+              "weight": 100
+            },
+            {
+              "podAffinityTerm": {
+                "labelSelector": {
+                  "matchLabels": {
+                    "app.kubernetes.io/part-of": "argocd"
+                  }
+                },
+                "topologyKey": "kubernetes.io/hostname"
+              },
+              "weight": 5
+            }
+          ]
+        }
+      },
+      "tolerations": null,
+      "topologySpreadConstraints": null,
+      "securityContext": {},
+      "containers": [
+        {
+          "name": "argocd-server",
+          "command": null,
+          "args": [
+            "/usr/local/bin/argocd-server"
+          ],
+          "securityContext": {
+            "allowPrivilegeEscalation": false,
+            "capabilities": {
+              "drop": [
+                "ALL"
+              ]
+            },
+            "readOnlyRootFilesystem": true,
+            "runAsNonRoot": true,
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "resources": {}
+        }
+      ]
+    }
+  },
+  {
+    "namespace": "cert-manager",
+    "name": "cert-manager",
+    "replicas": 1,
+    "pod": {
+      "serviceAccountName": "cert-manager",
+      "nodeSelector": null,
+      "affinity": null,
+      "tolerations": null,
+      "topologySpreadConstraints": null,
+      "securityContext": {
+        "runAsNonRoot": true
+      },
+      "containers": [
+        {
+          "name": "cert-manager",
+          "command": null,
+          "args": [
+            "--v=2",
+            "--cluster-resource-namespace=$(POD_NAMESPACE)",
+            "--leader-election-namespace=kube-system"
+          ],
+          "securityContext": null,
+          "resources": {}
+        }
+      ]
+    }
+  },
+  {
+    "namespace": "cert-manager",
+    "name": "cert-manager-cainjector",
+    "replicas": 1,
+    "pod": {
+      "serviceAccountName": "cert-manager-cainjector",
+      "nodeSelector": null,
+      "affinity": null,
+      "tolerations": null,
+      "topologySpreadConstraints": null,
+      "securityContext": {
+        "runAsNonRoot": true
+      },
+      "containers": [
+        {
+          "name": "cert-manager",
+          "command": null,
+          "args": [
+            "--v=2",
+            "--leader-election-namespace=kube-system"
+          ],
+          "securityContext": null,
+          "resources": {}
+        }
+      ]
+    }
+  },
+  {
+    "namespace": "cert-manager",
+    "name": "cert-manager-webhook",
+    "replicas": 1,
+    "pod": {
+      "serviceAccountName": "cert-manager-webhook",
+      "nodeSelector": null,
+      "affinity": null,
+      "tolerations": null,
+      "topologySpreadConstraints": null,
+      "securityContext": {
+        "runAsNonRoot": true
+      },
+      "containers": [
+        {
+          "name": "cert-manager",
+          "command": null,
+          "args": [
+            "--v=2",
+            "--secure-port=10250",
+            "--dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)",
+            "--dynamic-serving-ca-secret-name=cert-manager-webhook-ca",
+            "--dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.cert-manager,cert-manager-webhook.cert-manager.svc"
+          ],
+          "securityContext": null,
+          "resources": {}
+        }
+      ]
+    }
+  }
+]

@@ -188,6 +188,7 @@ ingress:
   className: nginx
   annotations:
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+    cert-manager.io/private-key-rotation-policy: "Never"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
     - agent-control-plane.garz.ai

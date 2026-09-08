@@ -466,6 +466,7 @@ ingress:
     external-dns.alpha.kubernetes.io/controller: "manual"
     kubernetes.io/ingress.class: "legacy-nginx"
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/private-key-rotation-policy: "Never"
     acme.cert-manager.io/http01-edit-in-place: "true"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
