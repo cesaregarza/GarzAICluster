@@ -1,0 +1,12 @@
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: traefik-nginx
+  annotations:
+    ingressclass.kubernetes.io/is-default-class: "false"
+  labels:
+    app.kubernetes.io/name: gaic-traefik-ingress
+    app.kubernetes.io/instance: gaic-traefik-ingress
+    app.kubernetes.io/part-of: gaic-ingress-migration
+spec:
+  controller: traefik.io/ingress-controller

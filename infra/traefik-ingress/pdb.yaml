@@ -1,0 +1,15 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gaic-traefik-ingress
+  namespace: ingress-nginx
+  labels:
+    app.kubernetes.io/name: gaic-traefik-ingress
+    app.kubernetes.io/instance: gaic-traefik-ingress
+    app.kubernetes.io/part-of: gaic-ingress-migration
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gaic-traefik-ingress
+      app.kubernetes.io/instance: gaic-traefik-ingress
