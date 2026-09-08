@@ -10,7 +10,7 @@
 #     annotations:
 #       cert-manager.io/cluster-issuer: letsencrypt-prod
 
-ingressClassName: nginx
+ingressClassName: traefik-nginx
 resources:
   requests:
     cpu: 5m

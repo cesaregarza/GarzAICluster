@@ -120,7 +120,7 @@ probes:
 
 ingress:
   enabled: true
-  className: nginx
+  className: traefik-nginx
   host: poetry.cegarza.com
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"

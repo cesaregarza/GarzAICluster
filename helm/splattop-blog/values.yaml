@@ -82,7 +82,7 @@ blog:
 
 ingress:
   enabled: false
-  className: nginx
+  className: traefik-nginx
   # cert-manager issuer annotations drive ingress-shim only when the explicit
   # ingress.tls.certificate resource below is disabled.
   annotations:
