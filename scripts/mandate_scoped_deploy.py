@@ -80,7 +80,9 @@ def read_snapshot(contract: Any, args: argparse.Namespace, kubeconfig: Path) -> 
     return train.validate_live_application(contract, payload)
 
 
-def dry_run(contract: Any, args: argparse.Namespace, kubeconfig: Path) -> None:
+def dry_run(
+    contract: Any, args: argparse.Namespace, kubeconfig: Path, run_id: str
+) -> None:
     command = [
         args.argocd,
         "--core",
@@ -88,6 +90,8 @@ def dry_run(contract: Any, args: argparse.Namespace, kubeconfig: Path) -> None:
         "sync",
         contract.name,
         "--dry-run",
+        "--info",
+        f"ces-395-run-id={run_id}",
         "--strategy",
         "hook",
         "--prune",
@@ -111,6 +115,37 @@ def dry_run(contract: Any, args: argparse.Namespace, kubeconfig: Path) -> None:
     if result.returncode:
         raise argo.command_failure(f"dry run {contract.name}", result)
     train.emit_receipt("scoped-dry-run", "succeeded", application=contract.name)
+
+
+def dry_run_snapshot(contract, args, kubeconfig, run_id):
+    payload = argo.read_application_payload(
+        contract.name,
+        kubeconfig=kubeconfig,
+        kubectl=args.kubectl,
+        namespace=args.namespace,
+    )
+    snapshot = train.validate_live_application(contract, payload)
+    operation = snapshot.operation
+    sync = (
+        payload.get("status", {})
+        .get("operationState", {})
+        .get("operation", {})
+        .get("sync", {})
+    )
+    if (
+        snapshot.operation_present
+        or operation.phase != "Succeeded"
+        or operation.automated
+        or operation.revisions != contract.resolved_revisions
+        or snapshot.revisions != contract.resolved_revisions
+        or dict(operation.info).get("ces-395-run-id") != run_id
+        or sync.get("dryRun") is not True
+        or sync.get("prune") is not True
+        or operation.selected_resources
+        or operation.sync_strategy != "hook"
+    ):
+        raise argo.ArgoCoreError(f"unverified dry-run operation: {contract.name}")
+    return snapshot
 
 
 def save_receipt(args: argparse.Namespace, receipt: dict[str, Any]) -> None:
@@ -146,7 +181,7 @@ def application_preflight(
     return snapshots
 
 
-def preflight(args, selected, contracts, kubeconfig, receipt):
+def preflight(args, selected, contracts, snapshots, kubeconfig, receipt):
     train.preflight_mandate_verify(
         invocation_id=receipt["run_id"],
         kubeconfig=kubeconfig,
@@ -154,7 +189,21 @@ def preflight(args, selected, contracts, kubeconfig, receipt):
     )
     for name in selected:
         guard(args)
-        dry_run(contracts[name], args, kubeconfig)
+        current = read_snapshot(contracts[name], args, kubeconfig)
+        train.assert_preflight_state_unchanged(
+            name,
+            snapshots[name],
+            current,
+            force_sync=False,
+            expected_revisions=contracts[name].resolved_revisions,
+        )
+        dry_run_id = receipt["run_id"] + "-dryrun"
+        dry_run(contracts[name], args, kubeconfig, dry_run_id)
+        snapshots[name] = dry_run_snapshot(
+            contracts[name], args, kubeconfig, dry_run_id
+        )
+        receipt.setdefault("dry_runs", {})[name] = state_receipt(snapshots[name])
+        save_receipt(args, receipt)
 
 
 def reconcile_one(
@@ -212,7 +261,7 @@ def execute(
         )
     snapshots = application_preflight(args, selected, contracts, kubeconfig, receipt)
     with verifier_window(args, kubeconfig, receipt, save_receipt):
-        preflight(args, selected, contracts, kubeconfig, receipt)
+        preflight(args, selected, contracts, snapshots, kubeconfig, receipt)
         deploy_selected(args, selected, contracts, snapshots, kubeconfig, receipt)
 
 

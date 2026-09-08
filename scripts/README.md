@@ -82,7 +82,11 @@ Utilities that were previously bundled with the app repo move here when they are
     --receipt-dir /tmp/mandate-release
   ```
 
-  The default performs dry runs. Add `--apply` for the authorized rollout;
+  The default performs dry runs, which update Argo operation history but do not
+  apply workload resources. Each dry run is tagged with the invocation owner;
+  only its successful, exact-revision full-hook receipt becomes the baseline for
+  the subsequent real sync. Unrelated operations still stop the train.
+  Add `--apply` for the authorized rollout;
   successful apply always creates a fresh governed verification Job and records
   its name, exact revisions and application health in `scoped-deploy.json`.
   A failed stage preserves completed-stage evidence and stops. This scope does
@@ -99,7 +103,7 @@ Utilities that were previously bundled with the app repo move here when they are
   match. A hard-killed process needs that later invocation or manual recovery;
   the annotations alone do not schedule automatic resumption. Core sync is
   forbidden in this mode because it would overwrite the pause. Default preflight
-  remains read-only. A `resume-failed` receipt requires operator recovery: inspect
+  never pauses the verifier or applies workload resources. A `resume-failed` receipt requires operator recovery: inspect
   the recorded CronJob UID and matching `mandate.garz.ai/verifier-window` owner,
   then restore `spec.suspend: false` and remove that owner annotation using JSON
   Patch tests for both UID and owner. Never resume a replacement or another
