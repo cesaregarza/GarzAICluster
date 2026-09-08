@@ -24,6 +24,16 @@ YAML_OUT = YAML()
 YAML_OUT.default_flow_style = False
 
 
+def represent_string(representer: Any, value: str) -> Any:
+    # Kubernetes' YAML 1.1 decoder treats these otherwise valid YAML 1.2
+    # strings as booleans, including Redis' appendonly argument "no".
+    style = '"' if value.lower() in {"y", "yes", "n", "no", "true", "false", "on", "off"} else None
+    return representer.represent_scalar("tag:yaml.org,2002:str", value, style=style)
+
+
+YAML_OUT.representer.add_representer(str, represent_string)
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:

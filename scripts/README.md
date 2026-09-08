@@ -161,7 +161,7 @@ Utilities that were previously bundled with the app repo move here when they are
   `stage=deploy-train,result=no-op`. The command never re-mints identity, edits
   a Secret, changes an Argo sync window, or directly restarts a Deployment.
 
-- `argocd_core.py` – pinned Argo CD 3.2.0 core-mode primitives used by the
+- `argocd_core.py` – pinned Argo CD 3.5.2 core-mode primitives used by the
   deploy train. It keeps the temporary kubeconfig, JSON snapshot parsing,
   exact-revision Hook sync submission, unique operation correlation, and
   race-safe polling in one reusable owner. Its command-line surface exposes
