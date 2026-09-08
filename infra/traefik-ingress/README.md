@@ -48,9 +48,9 @@ startup message was only that an in-cluster Kubernetes endpoint was absent.
   insufficient topology is visible instead of silently co-locating both
   replicas. This relies on the live Kubernetes server’s v1.33 support for
   `minDomains`.
-- The controller listens on pod ports 80 and 443 so the existing Citrus
-  source-IP Service can be tested with a selector-only canary. The internal
-  ClusterIP Service maps those ports to the same named ports.
+- The controller listens as an unprivileged process on pod ports 8000 and
+  8443. The internal ClusterIP Service preserves external ports 80 and 443
+  and maps them to the named `http` and `https` container ports.
 - The Traefik dashboard, CRD provider, Gateway provider, anonymous usage, and
   status publication are disabled. The string-valued `publishservice` option
   and `publishstatusaddress` are omitted, and the ClusterRole omits Ingress
@@ -128,11 +128,14 @@ the inert payload and must not be run by Argo automatically.
    `external-dns.alpha.kubernetes.io/*` annotations. The old controllers ignore
    this different class, and the target does not publish status, so the canary
    does not race old status writers or external-dns.
-4. After recording the selector, patch only the existing source-IP Service to
-   the target pod labels. Do not change its ports, type, annotations, or
-   `externalTrafficPolicy`. The target pods expose numeric ports 80 and 443
-   specifically for this reversible canary. Verify EndpointSlices show exactly
-   the two target pods on the two eligible nodes before sending traffic.
+4. After recording the selector and numeric target ports, patch only the
+   existing source-IP Service in one guarded operation: change its selector
+   to the target pod labels and its target ports to the named `http` and
+   `https` ports. Keep the Service ports at 80 and 443. Preserve its type,
+   annotations, node ports, protocols, and `externalTrafficPolicy`. This
+   targetPort change is required because the unprivileged target listens on
+   8000 and 8443. Verify EndpointSlices show exactly the two target pods on
+   the two eligible nodes before sending traffic.
 5. For every canary host, use `curl --resolve` to the source-IP address and
    require certificate validation, the expected 200/redirect behavior, and the
    expected backend response. Test a known public IPv4 address through the
@@ -148,10 +151,11 @@ the inert payload and must not be run by Argo automatically.
      -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
      -i https://splat.top/ws
    ```
-6. If any gate fails, restore the exact saved source-IP Service selector,
-   verify the old selector’s EndpointSlices and the old LB route, then remove
-   only the temporary canary Ingress. Do not delete the old Service or either
-   load balancer.
+6. If any gate fails, restore the exact saved source-IP Service selector and
+   its numeric target ports 80 and 443 in the same guarded operation, verify
+   the old selector’s EndpointSlices and the old LB route, then remove only
+   the temporary canary Ingress. Do not delete the old Service or either load
+   balancer.
 7. A production cutover requires separate reviewed changes to application
    Ingress classes, the cert-manager HTTP-01 solver class, status publication,
    and authoritative DNS. Only after public DNS has moved and remained healthy
@@ -181,10 +185,14 @@ The exact route gates are:
   route conversion must test HTTP/1.1 upgrade, long-lived timeout behavior, and
   backend port 8001; `nginx.org/websocket-services` is not assumed portable.
 - The source-IP Service is a `REGIONAL_NETWORK` LoadBalancer at
-  `129.212.154.58`, with ports 80/443, `targetPort` 80/443, and
-  `externalTrafficPolicy: Local`. A canary selector patch may change only its
-  selector. Capture EndpointSlices before and after, verify source-IP and
-  forged-`X-Forwarded-For` handling, and retain the old `REGIONAL` LB at
+  `129.212.154.58`, with ports 80/443, numeric `targetPort` 80/443, and
+  `externalTrafficPolicy: Local`. Its canary patch must change the selector
+  and target ports together: the target uses named `http`/`https` ports that
+  resolve to 8000/8443. The existing Services at `143.244.222.41` and
+  `152.42.155.167` already use named `http`/`https` target ports, so their
+  selector canaries do not need this targetPort conversion. Capture
+  EndpointSlices before and after, verify source-IP and forged-
+  `X-Forwarded-For` handling, and retain the old `REGIONAL` LB at
   `143.244.222.41` for rollback.
 
 ## Conversion blockers and invariants
