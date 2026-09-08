@@ -186,6 +186,15 @@ warmupJob:
 redis:
   enabled: true
   replicas: 1
+  # Keep the default render ephemeral. Production enables this only after the
+  # reviewed RDB migration has seeded the retained claim.
+  persistence:
+    enabled: false
+    name: splattop-prod-redis-data
+    storageClassName: do-block-storage-retain
+    size: 1Gi
+    accessModes:
+      - ReadWriteOnce
   image:
     repository: redis
     tag: "7.2.4"

@@ -156,6 +156,10 @@ The following table lists the configurable parameters and their default values.
 |-----------|-------------|---------|
 | `redis.enabled` | Enable Redis deployment | `true` |
 | `redis.replicas` | Number of replicas | `1` |
+| `redis.persistence.enabled` | Attach the retained Redis data PVC | `false` (default), `true` (production) |
+| `redis.persistence.name` | PVC name | `splattop-prod-redis-data` |
+| `redis.persistence.storageClassName` | PVC StorageClass | `do-block-storage-retain` |
+| `redis.persistence.size` | PVC requested size | `1Gi` |
 | `redis.image.repository` | Image repository | `redis` |
 | `redis.service.port` | Service port | `6379` |
 | `redis.service.extraServices` | Additional Service objects for compatibility | `[]` |
