@@ -275,18 +275,25 @@ _PIN_FILES = (
 
 def _pin_fixture() -> Path:
     root = Path(tempfile.mkdtemp())
+    image = YAML_PARSER.load((REPO_ROOT / _PIN_FILES[0]).read_text())["image"]
+    application = YAML_PARSER.load((REPO_ROOT / _PIN_FILES[1]).read_text())
+    source = next(
+        entry["targetRevision"]
+        for entry in application["spec"]["sources"]
+        if entry.get("path") == "helm/mandate"
+    )
     for relative in _PIN_FILES:
         destination = root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(REPO_ROOT / relative, destination)
         text = destination.read_text()
         text = text.replace(
-            "d3d4d2f955805fd66da131f29cd3bec108a27f75",
+            source,
             "fa3afd59e3afe9e55c79387521bd6099da89f97e",
         )
-        text = text.replace("sha-d3d4d2f95580", "sha-fa3afd59e3af")
+        text = text.replace(image["tag"], "sha-fa3afd59e3af")
         text = text.replace(
-            "sha256:a62a0b6d3608d810dfb1bf0fe82b0a4bf35aaa668b7f097ae05f3e9106441008",
+            image["digest"],
             "sha256:" + "6" * 64,
         )
         text = (
