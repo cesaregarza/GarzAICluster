@@ -1,9 +1,0 @@
-diff --git a/helm/mandate/templates/certificate.yaml b/helm/mandate/templates/certificate.yaml
---- a/helm/mandate/templates/certificate.yaml
-+++ b/helm/mandate/templates/certificate.yaml
-@@
- spec:
-   secretName: {{ .Values.ingress.tls.secretName }}
-+  privateKey:
-+    rotationPolicy: Never
-   issuerRef:

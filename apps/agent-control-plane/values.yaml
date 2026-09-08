@@ -196,7 +196,7 @@ ingress:
     enabled: true
     secretName: agent-control-plane-tls
     certificate:
-      enabled: true
+      enabled: false
       issuerName: letsencrypt-prod
       dnsNames: []
 
