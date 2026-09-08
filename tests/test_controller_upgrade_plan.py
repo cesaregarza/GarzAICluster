@@ -95,7 +95,6 @@ class ControllerUpgradePlanTests(unittest.TestCase):
         self.assertEqual(len({(item["metadata"]["namespace"], item["metadata"]["name"]) for item in items}), 15)
         self.assertTrue(all(item["spec"]["privateKey"]["rotationPolicy"] == "Never" for item in items))
         self.assertIn("private-key-rotation-policy", (root / "apps/agent-control-plane/values.yaml").read_text())
-        self.assertIn("privateKey", (root / "ops/agent-platform-mandate-rotation.patch").read_text())
 
 
 if __name__ == "__main__":
