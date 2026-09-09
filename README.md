@@ -40,6 +40,11 @@ Kubernetes + Argo CD source of truth for SplatTop. Charts, AppSets, secrets work
 - Apply changes to the cluster via Argo CD (prefer GitOps over UI edits).
 - Keep secrets encrypted (`*.enc.yaml`); use `sops` with the Age key from CI or the cluster secret.
 
+The grant ownership generator reads literal constants from the explicit
+agent-workloads checkout. It supports the original release-applier file and the
+split `release_applier_common.py` layout without importing workload code. Missing,
+ambiguous, or nonliteral contracts fail instead of using the committed snapshot.
+
 ## Request a bump
 
 Want your bot deployed? Use our one-click form:  
