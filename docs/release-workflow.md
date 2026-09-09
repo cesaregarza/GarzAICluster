@@ -8,7 +8,7 @@ This doc describes the target-state flow once the config repo owns deployments. 
 2. Automation (GitHub App or Actions workflow) consumes the artifact and opens a PR in this repo that bumps only the affected services’ digests/tags under `helm/splattop/values-*.yaml`.
 3. Config repo CI validates manifests (helm lint/template, kubeconform, Prometheus rule checks, optional OPA/Kyverno tests).
 4. Review + merge rules:
-   - Dev: auto-merge OK after CI.
+   - Citrus dev: successful new dev builds opt in to automatic image PR merge after all required checks. See [image PR automation](image-pr-automerge.md) for eligibility, installation and rollback. Other apps remain manual until explicitly opted in.
    - Staging/Prod: require human review (platform DRI) + green CI.
 5. Post-merge, Argo syncs dev automatically; staging/prod either auto-sync with gates or require manual sync, depending on `argo-operations.md`.
 
