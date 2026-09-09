@@ -41,7 +41,10 @@ def git(root: Path, *args: str) -> str:
 
 
 def api(endpoint: str) -> dict:
-    return json.loads(run(["gh", "api", "--method", "GET", endpoint]))
+    try:
+        return json.loads(run(["gh", "api", "--method", "GET", endpoint]))
+    except PolicyError as exc:
+        raise PolicyError(f"GitHub metadata read failed: GET {endpoint}") from exc
 
 
 def source_sha(value: object) -> str:
@@ -185,9 +188,13 @@ def validate_protection(
         raise PolicyError(
             "repository auto-merge and squash merge must be enabled first"
         )
-    if protection.get("enforce_admins", {}).get("enabled") is not True:
+    if protection.get("protected") is not True:
+        raise PolicyError("the target branch must remain protected")
+    branch_protection = protection.get("protection") or {}
+    required_status = branch_protection.get("required_status_checks") or {}
+    if required_status.get("enforcement_level") != "everyone":
         raise PolicyError("required checks must apply to administrators too")
-    checks = (protection.get("required_status_checks") or {}).get("checks", [])
+    checks = required_status.get("checks", [])
     present = {item["context"] for item in checks if item.get("app_id") == ACTIONS_APP}
     missing = set(required) - present
     if missing:
@@ -253,7 +260,7 @@ def enable(args: argparse.Namespace) -> dict:
     validate_diff(root, parents[1], head, policy, revision)
     validate_protection(
         api(endpoint),
-        api(f"{endpoint}/branches/{config['baseBranch']}/protection"),
+        api(f"{endpoint}/branches/{config['baseBranch']}"),
         config["requiredChecks"],
     )
     receipt = {

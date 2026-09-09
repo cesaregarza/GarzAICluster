@@ -45,9 +45,10 @@ The source calls `scripts/image_pr_automerge.py` on the exact PR/head it just
 created and verified. The helper reads repository protection, validates the
 complete file/value delta, then uses native GitHub auto-merge with
 `--match-head-commit`. It defaults to read-only without `--apply`. The existing
-config writer needs contents/PR write and permission to read branch protection
-(`Administration: read` for fine-grained or App tokens). It never submits an
-approval or bypasses branch rules.
+config writer needs contents/PR write. Protection is read through GitHub's
+ordinary branch endpoint (contents read), including Actions app IDs and
+`enforcement_level: everyone`; no administration permission is needed. It never
+submits an approval or bypasses branch rules.
 
 A separate `pull_request_target` workflow runs the policy from the trusted base
 revision and parses candidate files as data; it never executes candidate code.
