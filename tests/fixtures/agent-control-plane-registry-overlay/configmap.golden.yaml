@@ -102,8 +102,8 @@ data:
           "consequence_class": "reversible_staging"
         }
       },
-      "code_digest": "sha256:02f824315c53d671a40c4357e8868e6950eb330a6e495c6b21b3e8f71b095db7",
-      "digest": "sha256:d69820fe79941fa9dab307f33097d35c0703b11d5f66e9f4e7754d2468753906",
+      "code_digest": "sha256:be93ef1f2e0bc36c4ede6795a9423804e31e5b16e74a3afccb0f3ac7498fe6e3",
+      "digest": "sha256:9104b8dfc03590c48e7fb9183020f64e43dd0988c6e88777f515c8c542bb3633",
       "display_name": "OpenCode Proposer",
       "evals": {
         "optional": [],
@@ -111,7 +111,7 @@ data:
       },
       "id": "opencode.proposer",
       "image": {
-        "digest": "sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b",
+        "digest": "sha256:89adae8acc9a65139fa7d17e66ae175a9eb4e404b018f9e7529d25575c2fac63",
         "repository": "registry.digitalocean.com/sendouq/opencode-proposer"
       },
       "loop": {
@@ -406,8 +406,8 @@ data:
               select_limited: external
     - id: opencode.proposer
       manifest_path: registries/imports/agent-opencode.proposer.json
-      manifest_digest: sha256:d69820fe79941fa9dab307f33097d35c0703b11d5f66e9f4e7754d2468753906
-      image_digest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
+      manifest_digest: sha256:9104b8dfc03590c48e7fb9183020f64e43dd0988c6e88777f515c8c542bb3633
+      image_digest: sha256:89adae8acc9a65139fa7d17e66ae175a9eb4e404b018f9e7529d25575c2fac63
       expected_source:
         repo: agent-workloads
         repo_url: https://github.com/cesaregarza/agent-workloads
@@ -420,11 +420,16 @@ data:
         concurrency: 1
         max_runtime_seconds: 900
         model_gateway_token: true
-        service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-f84256315d07ba69d595
+        service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-f194a7d61ab07eeba167
+        previous_release:
+          service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-f84256315d07ba69d595
+          code_digest: sha256:02f824315c53d671a40c4357e8868e6950eb330a6e495c6b21b3e8f71b095db7
+          manifest_digest: sha256:d69820fe79941fa9dab307f33097d35c0703b11d5f66e9f4e7754d2468753906
+          image_digest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
       capabilities:
         agent_workloads.opencode_propose:
-          description: Imported OpenCode proposer that returns metadata-only proposal
-            artifacts.
+          description: Imported OpenCode proposer that writes requested edits as isolated
+            drafts and returns metadata-only proposal artifacts.
           output_schema: agent_workloads_opencode_proposal_result_v1
           output_gate:
             policy_id: patch-aware-opencode-proposal-v1
@@ -482,6 +487,16 @@ data:
           limitations:
           - Returns metadata only; cannot show proposal diff bytes.
           - Must not be used for answer-style tasks.
+          task_contract:
+            input_schema: task_intent
+            text: Describe the requested edits in task.text and preserve explicit user
+              constraints.
+            required_hints: []
+            optional_hints: []
+            routing_guidance: Proposing writes draft edits in the isolated proposer workspace
+              for Mandate-owned capture; metadata-only describes the released output.
+              Keep apply as a separate governed approval flow, never rewrite a user prohibition,
+              and never treat proposal metadata as execution authority.
         agent_workloads.opencode_task:
           description: Imported OpenCode answer task that performs bounded local work
             and returns answer text through the output gate.
@@ -544,7 +559,7 @@ data:
           output_schema: agent_workloads_opencode_orchestrate_result_v1
           output_gate:
             policy_id: deterministic-public-result-v1
-            projection_id: agent_workloads.opencode_orchestrate
+            projection_id: released_fields_v1
           task_contract:
             input_schema: task_intent
             text: Describe the governed work to route or answer in task.text.
