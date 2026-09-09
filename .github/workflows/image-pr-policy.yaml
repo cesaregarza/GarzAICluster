@@ -1,0 +1,33 @@
+name: Image PR policy
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  image-pr-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted base policy
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install trusted policy parser
+        run: >-
+          python -m pip install --require-hashes --only-binary=:all: --no-deps
+          -r scripts/requirements-citrus-release.txt
+
+      - name: Validate current PR using trusted policy
+        run: python scripts/image_pr_automerge.py --check-pr-event "$GITHUB_EVENT_PATH"

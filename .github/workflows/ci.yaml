@@ -14,6 +14,41 @@ permissions:
   contents: read
 
 jobs:
+  config-ci-required:
+    needs:
+      - python-contracts
+      - agent-workloads-identity-digest-drift
+      - agent-control-plane-deployed-registry-compat
+      - agent-control-plane-provider-digest-pins
+      - agent-control-plane-registry-overlay-render
+      - operator-manifests
+      - helm-and-kubeconform
+      - prometheus-rules
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every config validation job
+        env:
+          JOB_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          results = json.loads(os.environ["JOB_RESULTS"])
+          expected = {
+              "python-contracts", "agent-workloads-identity-digest-drift",
+              "agent-control-plane-deployed-registry-compat", "agent-control-plane-provider-digest-pins",
+              "agent-control-plane-registry-overlay-render", "operator-manifests",
+              "helm-and-kubeconform", "prometheus-rules",
+          }
+          if set(results) != expected:
+              raise SystemExit("Config validation result set is incomplete or unexpected")
+          failed = [name for name, job in results.items() if job.get("result") != "success"]
+          if not results or failed:
+              raise SystemExit("Config validation did not pass: " + ", ".join(failed or ["missing jobs"]))
+          print("Every config validation job passed.")
+          PY
+
   python-contracts:
     runs-on: ubuntu-latest
     steps:

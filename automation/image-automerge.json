@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "repository": "cesaregarza/GarzAICluster",
+  "baseBranch": "main",
+  "requiredChecks": [
+    "agent-workloads-identity-digest-drift",
+    "config-ci-required",
+    "plaintext-secrets",
+    "immutable-image-tags",
+    "image-pr-policy"
+  ],
+  "policies": {
+    "citrus-dev": {
+      "enabled": true,
+      "sourceRepository": "cesaregarza/Citrus",
+      "sourceRef": "refs/heads/dev",
+      "branchPrefix": "bot/update-citrus-dev-",
+      "files": {
+        "helm/citrus/values-dev.yaml": [
+          "image.tag",
+          "recurringRuntime.expectedSourceRevision"
+        ],
+        "helm/citrus/values-payment-dev.yaml": [
+          "directOrderPaymentSweep.verifiedImageTag"
+        ]
+      }
+    }
+  }
+}

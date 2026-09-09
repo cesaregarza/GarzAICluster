@@ -2,16 +2,15 @@ name: no-latest
 
 on:
   pull_request:
-    paths:
-      - 'apps/**'
-      - 'helm/**'
-      - 'argocd/**'
+    branches: [main]
+  merge_group:
 
 permissions:
   contents: read
 
 jobs:
   scan:
+    name: immutable-image-tags
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
