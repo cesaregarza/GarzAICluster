@@ -425,6 +425,7 @@ data:
         concurrency: 1
         max_runtime_seconds: 900
         model_gateway_token: true
+        service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-f84256315d07ba69d595
       capabilities:
         agent_workloads.opencode_propose:
           description: Imported OpenCode proposer that returns metadata-only proposal
