@@ -107,19 +107,27 @@ class PolicyTests(unittest.TestCase):
     def test_protection_requires_all_checks_with_actions_identity(self):
         repository = {"allow_auto_merge": True, "allow_squash_merge": True}
         protection = {
-            "enforce_admins": {"enabled": True},
-            "required_status_checks": {
-                "checks": [
-                    {"context": name, "app_id": subject.ACTIONS_APP}
-                    for name in CONFIG["requiredChecks"]
-                ]
+            "protected": True,
+            "protection": {
+                "required_status_checks": {
+                    "enforcement_level": "everyone",
+                    "checks": [
+                        {"context": name, "app_id": subject.ACTIONS_APP}
+                        for name in CONFIG["requiredChecks"]
+                    ],
+                },
             },
         }
         subject.validate_protection(repository, protection, CONFIG["requiredChecks"])
         for mutate in (
-            lambda p: p["enforce_admins"].update(enabled=False),
-            lambda p: p["required_status_checks"]["checks"].pop(),
-            lambda p: p["required_status_checks"]["checks"][0].update(app_id=None),
+            lambda p: p.update(protected=False),
+            lambda p: p["protection"]["required_status_checks"].update(
+                enforcement_level="non_admins"
+            ),
+            lambda p: p["protection"]["required_status_checks"]["checks"].pop(),
+            lambda p: p["protection"]["required_status_checks"]["checks"][0].update(
+                app_id=None
+            ),
         ):
             changed = copy.deepcopy(protection)
             mutate(changed)
@@ -127,6 +135,16 @@ class PolicyTests(unittest.TestCase):
                 subject.validate_protection(
                     repository, changed, CONFIG["requiredChecks"]
                 )
+
+    def test_api_failure_identifies_endpoint_without_echoing_output(self):
+        with patch.object(
+            subject, "run", side_effect=subject.PolicyError("private diagnostic")
+        ), self.assertRaises(subject.PolicyError) as raised:
+            subject.api("repos/cesaregarza/GarzAICluster/branches/main")
+        self.assertIn(
+            "GET repos/cesaregarza/GarzAICluster/branches/main", str(raised.exception)
+        )
+        self.assertNotIn("private diagnostic", str(raised.exception))
 
     def test_non_candidate_event_never_fetches_or_merges(self):
         event = {"pull_request": pr(NEW)}
@@ -240,12 +258,17 @@ class GitTransactionTests(unittest.TestCase):
             return "" if args[:3] == ["gh", "pr", "merge"] else real_run(args)
 
         with (
-            patch.object(subject, "api", return_value=candidate),
+            patch.object(subject, "api", return_value=candidate) as github,
             patch.object(subject, "validate_protection"),
             patch.object(subject, "run", side_effect=command),
         ):
             result = subject.enable(self.args())
             self.assertFalse(result["applied"])
+            endpoints = [item.args[0] for item in github.call_args_list]
+            self.assertIn("repos/cesaregarza/GarzAICluster/branches/main", endpoints)
+            self.assertFalse(
+                any(endpoint.endswith("/protection") for endpoint in endpoints)
+            )
             self.assertFalse(
                 any(args[:3] == ["gh", "pr", "merge"] for args in commands)
             )

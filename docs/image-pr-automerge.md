@@ -1,7 +1,7 @@
 # Automatic Citrus development image PRs
 
 Citrus development follows: source tests → image publication → GAIC PR →
-GAIC checks → automatic merge → existing Argo auto-sync and PostSync checks.
+GAIC checks → automatic merge → existing Argo auto-sync and release checks.
 Production image PRs require a human merge decision. Production's existing
 Argo auto-sync remains unchanged: manually merging production values can deploy.
 
@@ -45,9 +45,10 @@ The source calls `scripts/image_pr_automerge.py` on the exact PR/head it just
 created and verified. The helper reads repository protection, validates the
 complete file/value delta, then uses native GitHub auto-merge with
 `--match-head-commit`. It defaults to read-only without `--apply`. The existing
-config writer needs contents/PR write and permission to read branch protection
-(`Administration: read` for fine-grained or App tokens). It never submits an
-approval or bypasses branch rules.
+config writer needs contents/PR write. Protection is read through GitHub's
+ordinary branch endpoint (contents read), including Actions app IDs and
+`enforcement_level: everyone`; no administration permission is needed. It never
+submits an approval or bypasses branch rules.
 
 A separate `pull_request_target` workflow runs the policy from the trusted base
 revision and parses candidate files as data; it never executes candidate code.
@@ -72,8 +73,8 @@ reports only on PR events.
 3. Merge the reviewed source workflow change to Citrus dev after source CI.
    Its subsequent successful build creates and opts in the first real image PR.
 4. Verify every required check reports on that PR's current head, native
-   auto-merge completes, and Citrus dev Argo sync/health and existing PostSync
-   acceptance finish. This is the live end-to-end proof; offline mocks alone
+   auto-merge completes, and Citrus dev Argo sync/health and enabled release
+   hooks finish. This is the live end-to-end proof; offline mocks alone
    are not deployment acceptance.
 
 A failed check leaves the PR unmerged. Inspect and fix the owning source/config
