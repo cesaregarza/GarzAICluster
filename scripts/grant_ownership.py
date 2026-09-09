@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import os
 import re
 import subprocess
@@ -11,6 +10,7 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
+from scripts.grant_ownership_contract import read_contract_literals
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIGMAP_PATH = Path("apps/agent-control-plane-registry-overlay/configmap.yaml")
@@ -33,9 +33,6 @@ APPLIER_CONTRACT_CONSTANT_NAMES = frozenset(
         "SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS",
         "INFLUENCE_KEY",
     }
-)
-APPLIER_COLLECTION_CONSTANT_NAMES = APPLIER_CONTRACT_CONSTANT_NAMES.difference(
-    {"INFLUENCE_KEY"}
 )
 
 YAML_SAFE = YAML(typ="safe")
@@ -161,50 +158,11 @@ def load_applier_contract(
 def extract_applier_contract(agent_workloads_repo: Path) -> ApplierContract:
     source_path = agent_workloads_repo / APPLIER_PATH
     try:
-        module = ast.parse(
-            source_path.read_text(encoding="utf-8"),
-            filename=str(source_path),
+        values = read_contract_literals(
+            agent_workloads_repo, APPLIER_PATH, APPLIER_CONTRACT_CONSTANT_NAMES
         )
-    except (OSError, SyntaxError) as exc:
-        raise GrantOwnershipError(
-            f"cannot read the agent-workloads applier contract at {source_path}: {exc}"
-        ) from exc
-
-    values: dict[str, Any] = {}
-    for node in module.body:
-        targets: list[ast.expr]
-        if isinstance(node, ast.Assign):
-            targets = list(node.targets)
-        elif isinstance(node, ast.AnnAssign):
-            targets = [node.target]
-        else:
-            continue
-        for target in targets:
-            if (
-                isinstance(target, ast.Name)
-                and target.id in APPLIER_CONTRACT_CONSTANT_NAMES
-            ):
-                try:
-                    value = ast.literal_eval(node.value)
-                except (TypeError, ValueError) as exc:
-                    raise GrantOwnershipError(
-                        f"{source_path} applier contract constant {target.id} "
-                        "must be a literal value"
-                    ) from exc
-                if target.id in APPLIER_COLLECTION_CONSTANT_NAMES:
-                    _reject_duplicate_collection_literals(
-                        node.value,
-                        source_path=source_path,
-                        constant_name=target.id,
-                    )
-                values[target.id] = value
-
-    missing = sorted(APPLIER_CONTRACT_CONSTANT_NAMES.difference(values))
-    if missing:
-        raise GrantOwnershipError(
-            f"{source_path} is missing expected applier contract constant(s): "
-            + ", ".join(missing)
-        )
+    except ValueError as exc:
+        raise GrantOwnershipError(str(exc)) from exc
 
     return _validated_applier_contract(
         deployment_owned_capability_keys=values[
@@ -286,23 +244,6 @@ def _nonempty_string_collection(value: Any, label: str) -> tuple[str, ...]:
     if len(set(items)) != len(items):
         raise GrantOwnershipError(f"{label} must not contain duplicate keys")
     return tuple(sorted(items))
-
-
-def _reject_duplicate_collection_literals(
-    node: ast.expr | None,
-    *,
-    source_path: Path,
-    constant_name: str,
-) -> None:
-    if not isinstance(node, ast.List | ast.Tuple | ast.Set):
-        return
-    literal_items = [ast.literal_eval(element) for element in node.elts]
-    for index, item in enumerate(literal_items):
-        if item in literal_items[:index]:
-            raise GrantOwnershipError(
-                f"{source_path} applier contract constant {constant_name} "
-                "must not contain duplicate literal values"
-            )
 
 
 def build_ownership_map(
