@@ -100,8 +100,8 @@ opencodeProposer:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-b3b8459685f2
-    digest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
+    tag: sha-7c58c68999c1
+    digest: sha256:89adae8acc9a65139fa7d17e66ae175a9eb4e404b018f9e7529d25575c2fac63
     pullPolicy: IfNotPresent
   secretEnv: {}
   secretEnvSecretName: agent-workloads-workload-identity-tokens
@@ -117,7 +117,10 @@ opencodeProposer:
       expirationSeconds: 3600
       mountPath: /var/run/mandate/workload-identity
       fileName: token
-    previousRelease: null
+    previousRelease:
+      codeDigest: sha256:02f824315c53d671a40c4357e8868e6950eb330a6e495c6b21b3e8f71b095db7
+      manifestDigest: sha256:d69820fe79941fa9dab307f33097d35c0703b11d5f66e9f4e7754d2468753906
+      imageDigest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
@@ -304,6 +307,6 @@ mandateReleasePins:
     manifestDigest: sha256:2d36cfef1ed45057f3e396039ec21450ac34f4da145eb40fc0ec4aa6f67fc479
     imageDigest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
   opencode.proposer:
-    codeDigest: sha256:02f824315c53d671a40c4357e8868e6950eb330a6e495c6b21b3e8f71b095db7
-    manifestDigest: sha256:d69820fe79941fa9dab307f33097d35c0703b11d5f66e9f4e7754d2468753906
-    imageDigest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
+    codeDigest: sha256:be93ef1f2e0bc36c4ede6795a9423804e31e5b16e74a3afccb0f3ac7498fe6e3
+    manifestDigest: sha256:9104b8dfc03590c48e7fb9183020f64e43dd0988c6e88777f515c8c542bb3633
+    imageDigest: sha256:89adae8acc9a65139fa7d17e66ae175a9eb4e404b018f9e7529d25575c2fac63

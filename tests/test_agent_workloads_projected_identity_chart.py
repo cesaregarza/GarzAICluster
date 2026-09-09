@@ -125,6 +125,27 @@ def _opencode_service_account_name(
     )
 
 
+def _opencode_previous_service_account_name(
+    values: dict[str, Any],
+    *,
+    worker_id: str,
+    worker_key: str,
+) -> str | None:
+    identity = (
+        values[worker_key]
+        if worker_key == "projectedWorkloadIdentity"
+        else values[worker_key]["identity"]
+    )
+    previous_release = identity.get("previousRelease")
+    if previous_release is None:
+        return None
+    return _release_service_account_name(
+        worker_id,
+        previous_release,
+        prefix=identity["serviceAccountNamePrefix"],
+    )
+
+
 def _release_service_account_name(
     worker_id: str,
     release: dict[str, str],
@@ -254,19 +275,18 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             workspace_account,
             *opencode_accounts.values(),
         }
-        previous_release = self.production_values["projectedWorkloadIdentity"].get(
-            "previousRelease"
-        )
-        if previous_release is not None:
-            expected_service_accounts.add(
-                _release_service_account_name(
-                    "data.workspace_probe",
-                    previous_release,
-                    prefix=self.production_values["projectedWorkloadIdentity"][
-                        "serviceAccountNamePrefix"
-                    ],
-                )
+        for worker_id, worker_key in (
+            ("data.workspace_probe", "projectedWorkloadIdentity"),
+            ("opencode.proposer", "opencodeProposer"),
+            ("opencode.apply_executor", "opencodeApplyExecutor"),
+        ):
+            previous_service_account = _opencode_previous_service_account_name(
+                self.production_values,
+                worker_id=worker_id,
+                worker_key=worker_key,
             )
+            if previous_service_account is not None:
+                expected_service_accounts.add(previous_service_account)
         self.assertEqual(
             {account["metadata"]["name"] for account in service_accounts},
             expected_service_accounts,
@@ -360,6 +380,20 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
                 ("opencode.apply_executor", "opencodeApplyExecutor"),
             )
         }
+        expected_opencode_previous_accounts = {
+            previous_service_account
+            for worker_id, worker_key in (
+                ("opencode.proposer", "opencodeProposer"),
+                ("opencode.apply_executor", "opencodeApplyExecutor"),
+            )
+            if (
+                previous_service_account := _opencode_previous_service_account_name(
+                    self._projected_values(),
+                    worker_id=worker_id,
+                    worker_key=worker_key,
+                )
+            )
+        }
         self.assertEqual(
             set(service_accounts),
             {
@@ -367,6 +401,7 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
                 CURRENT_SERVICE_ACCOUNT,
                 PREVIOUS_SERVICE_ACCOUNT,
                 *opencode_accounts.values(),
+                *expected_opencode_previous_accounts,
             },
         )
         self.assertNotEqual(CURRENT_SERVICE_ACCOUNT, PREVIOUS_SERVICE_ACCOUNT)
