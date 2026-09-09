@@ -185,7 +185,7 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
         values["extraVolumeMounts"] = []
         return values
 
-    def test_production_values_render_workspace_projected_and_opencode_hmac(
+    def test_production_values_render_workspace_projected_proposer_and_hmac_apply(
         self,
     ) -> None:
         documents = _render()
@@ -289,22 +289,43 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
                 kind="Deployment",
                 name=deployment_name,
             )
-            opencode_pod = opencode["spec"]["template"]["spec"]
+            opencode_template = opencode["spec"]["template"]
+            opencode_pod = opencode_template["spec"]
+            opencode_volumes = {
+                volume["name"]: volume for volume in opencode_pod["volumes"]
+            }
+            opencode_env = _environment(_container(opencode, container_name))
             self.assertIs(opencode_pod["automountServiceAccountToken"], False)
             self.assertEqual(
                 opencode_pod["serviceAccountName"],
                 opencode_accounts[worker_id],
             )
-            self.assertNotIn(
-                "projected-workload-identity-token",
-                {volume["name"] for volume in opencode_pod["volumes"]},
-            )
-            self.assertIn(
-                "secretKeyRef",
-                _environment(_container(opencode, container_name))[
-                    "MANDATE_WORKLOAD_IDENTITY_TOKEN"
-                ]["valueFrom"],
-            )
+            if worker_id == "opencode.proposer":
+                self.assertNotIn(
+                    "checksum.garz.ai/agent-workloads-token-secret",
+                    opencode_template["metadata"]["annotations"],
+                )
+                self.assertIn("projected-workload-identity-token", opencode_volumes)
+                self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN", opencode_env)
+                self.assertEqual(
+                    opencode_env["MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE"]["value"],
+                    "/var/run/mandate/workload-identity/token",
+                )
+                self.assertFalse(
+                    any("secret" in volume for volume in opencode_pod["volumes"])
+                )
+            else:
+                self.assertIn(
+                    "checksum.garz.ai/agent-workloads-token-secret",
+                    opencode_template["metadata"]["annotations"],
+                )
+                self.assertNotIn(
+                    "projected-workload-identity-token", opencode_volumes
+                )
+                self.assertIn(
+                    "secretKeyRef",
+                    opencode_env["MANDATE_WORKLOAD_IDENTITY_TOKEN"]["valueFrom"],
+                )
 
     def test_projected_current_and_previous_release_identity_render(self) -> None:
         canonical_payload = {
@@ -418,18 +439,34 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
                 opencode_pod["serviceAccountName"],
                 opencode_accounts[worker_id],
             )
-            self.assertNotIn(
-                "projected-workload-identity-token",
-                {volume["name"] for volume in opencode_pod["volumes"]},
-            )
-            self.assertIn(
-                "checksum.garz.ai/agent-workloads-token-secret",
-                opencode_template["metadata"]["annotations"],
-            )
-            token = _environment(_container(opencode, container_name))[
-                "MANDATE_WORKLOAD_IDENTITY_TOKEN"
-            ]
-            self.assertIn("secretKeyRef", token["valueFrom"])
+            opencode_volumes = {
+                volume["name"]: volume for volume in opencode_pod["volumes"]
+            }
+            opencode_env = _environment(_container(opencode, container_name))
+            if worker_id == "opencode.proposer":
+                self.assertNotIn(
+                    "checksum.garz.ai/agent-workloads-token-secret",
+                    opencode_template["metadata"]["annotations"],
+                )
+                self.assertIn("projected-workload-identity-token", opencode_volumes)
+                self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN", opencode_env)
+                self.assertEqual(
+                    opencode_env["MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE"]["value"],
+                    "/var/run/mandate/workload-identity/token",
+                )
+                self.assertFalse(
+                    any("secret" in volume for volume in opencode_pod["volumes"])
+                )
+            else:
+                self.assertNotIn(
+                    "projected-workload-identity-token", opencode_volumes
+                )
+                self.assertIn(
+                    "checksum.garz.ai/agent-workloads-token-secret",
+                    opencode_template["metadata"]["annotations"],
+                )
+                token = opencode_env["MANDATE_WORKLOAD_IDENTITY_TOKEN"]
+                self.assertIn("secretKeyRef", token["valueFrom"])
 
     def test_projected_worker_is_decoupled_from_legacy_token_checksum(self) -> None:
         values = self._projected_values()
@@ -452,9 +489,13 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             annotations(original_documents, "agent-workloads"),
             annotations(changed_documents, "agent-workloads"),
         )
-        self.assertNotEqual(
+        self.assertEqual(
             annotations(original_documents, "agent-workloads-opencode-proposer"),
             annotations(changed_documents, "agent-workloads-opencode-proposer"),
+        )
+        self.assertNotEqual(
+            annotations(original_documents, "agent-workloads-opencode-apply-executor"),
+            annotations(changed_documents, "agent-workloads-opencode-apply-executor"),
         )
 
     def test_projected_identity_rejects_static_identity_injection(self) -> None:

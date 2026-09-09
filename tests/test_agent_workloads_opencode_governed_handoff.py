@@ -93,6 +93,12 @@ def _ports(policy: dict[str, Any]) -> set[tuple[int, str]]:
     }
 
 
+REVIEWED_HMAC_PROPOSER_TOKEN_BINDING = {
+    "name": "agent-workloads-workload-identity-tokens",
+    "key": "OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN",
+}
+
+
 def _component_egress_rules(
     policy: dict[str, Any],
     component: str,
@@ -135,7 +141,31 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
         values["opencodeArtifactHandoff"] = {"mode": "governedCore"}
         return values
 
-    def test_production_activates_governed_hmac_canary(self) -> None:
+    def _reviewed_hmac_values(self) -> dict[str, Any]:
+        values = self._governed_values()
+        values["opencodeProposer"]["identity"] = {
+            "workerId": "opencode.proposer",
+            "serviceAccountNamePrefix": "agent-workloads",
+            "mode": "hmac",
+            "serviceAccount": {"create": True, "annotations": {}},
+            "token": {
+                "audience": "mandate-api",
+                "expirationSeconds": 3600,
+                "mountPath": "/var/run/mandate/workload-identity",
+                "fileName": "token",
+            },
+            "previousRelease": None,
+        }
+        values["opencodeProposer"]["secretEnv"] = {
+            "MANDATE_WORKLOAD_IDENTITY_TOKEN": REVIEWED_HMAC_PROPOSER_TOKEN_BINDING[
+                "key"
+            ],
+        }
+        return values
+
+    def test_production_activates_governed_projected_proposer_and_hmac_apply(
+        self,
+    ) -> None:
         values = _load_values()
         documents = _render(values)
         opencode_deployments = [
@@ -153,7 +183,7 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
         )
         self.assertEqual(
             values["opencodeProposer"]["identity"]["mode"],
-            "hmac",
+            "projected",
         )
         self.assertEqual(
             values["opencodeApplyExecutor"]["identity"]["mode"],
@@ -192,6 +222,55 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
             ["opencode-apply-executor"],
         )
 
+        proposer = _find(
+            documents,
+            kind="Deployment",
+            name="agent-workloads-opencode-proposer",
+        )
+        proposer_template = proposer["spec"]["template"]
+        proposer_pod = proposer_template["spec"]
+        proposer_env = _environment(_container(proposer, "opencode-proposer"))
+        proposer_volumes = {
+            volume["name"]: volume for volume in proposer_pod["volumes"]
+        }
+        self.assertNotIn(
+            "checksum.garz.ai/agent-workloads-token-secret",
+            proposer_template["metadata"]["annotations"],
+        )
+        self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN", proposer_env)
+        self.assertEqual(
+            proposer_env["MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE"]["value"],
+            "/var/run/mandate/workload-identity/token",
+        )
+        self.assertIn("projected-workload-identity-token", proposer_volumes)
+        self.assertFalse(
+            any("secret" in volume for volume in proposer_pod["volumes"])
+        )
+
+        apply = _find(
+            documents,
+            kind="Deployment",
+            name="agent-workloads-opencode-apply-executor",
+        )
+        apply_template = apply["spec"]["template"]
+        apply_pod = apply_template["spec"]
+        apply_env = _environment(_container(apply, "opencode-apply-executor"))
+        self.assertIn(
+            "checksum.garz.ai/agent-workloads-token-secret",
+            apply_template["metadata"]["annotations"],
+        )
+        self.assertIn("MANDATE_WORKLOAD_IDENTITY_TOKEN", apply_env)
+        self.assertEqual(
+            apply_env["MANDATE_WORKLOAD_IDENTITY_TOKEN"]["valueFrom"][
+                "secretKeyRef"
+            ]["key"],
+            "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
+        )
+        self.assertNotIn(
+            "projected-workload-identity-token",
+            {volume["name"] for volume in apply_pod["volumes"]},
+        )
+
     def test_legacy_shared_volume_remains_available_for_rollback(self) -> None:
         values = copy.deepcopy(_load_values())
         values["opencodeArtifactHandoff"] = {"mode": "legacySharedVolume"}
@@ -217,7 +296,7 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
         self.assertIn("proposals", {volume["name"] for volume in pod["volumes"]})
 
     def test_governed_hmac_mode_splits_identity_storage_and_egress(self) -> None:
-        values = self._governed_values()
+        values = self._reviewed_hmac_values()
         documents = _render(values)
         proposer = _find(
             documents,
@@ -276,8 +355,8 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
         self.assertEqual(
             proposer_env["MANDATE_WORKLOAD_IDENTITY_TOKEN"]["valueFrom"][
                 "secretKeyRef"
-            ]["key"],
-            "OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN",
+            ],
+            REVIEWED_HMAC_PROPOSER_TOKEN_BINDING,
         )
         self.assertEqual(
             apply_env["MANDATE_WORKLOAD_IDENTITY_TOKEN"]["valueFrom"]["secretKeyRef"][
@@ -386,7 +465,7 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
             self.assertFalse(any("secret" in volume for volume in pod["volumes"]))
 
     def test_governed_release_overlap_renders_distinct_tuple_subjects(self) -> None:
-        values = self._governed_values()
+        values = self._reviewed_hmac_values()
         previous_by_worker = {
             "opencode.proposer": {
                 "codeDigest": "sha256:" + "1" * 64,
@@ -399,12 +478,12 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
                 "imageDigest": "sha256:" + "6" * 64,
             },
         }
-        values["opencodeProposer"]["identity"] = {
-            "previousRelease": previous_by_worker["opencode.proposer"]
-        }
-        values["opencodeApplyExecutor"]["identity"] = {
-            "previousRelease": previous_by_worker["opencode.apply_executor"]
-        }
+        values["opencodeProposer"]["identity"]["previousRelease"] = (
+            previous_by_worker["opencode.proposer"]
+        )
+        values["opencodeApplyExecutor"]["identity"]["previousRelease"] = (
+            previous_by_worker["opencode.apply_executor"]
+        )
 
         documents = _render(values)
         accounts = {
@@ -449,10 +528,10 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
             )
 
     def test_governed_mode_rejects_cross_worker_hmac_key_reuse(self) -> None:
-        values = self._governed_values()
+        values = self._reviewed_hmac_values()
         values["opencodeApplyExecutor"]["secretEnv"][
             "MANDATE_WORKLOAD_IDENTITY_TOKEN"
-        ] = "OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN"
+        ] = REVIEWED_HMAC_PROPOSER_TOKEN_BINDING["key"]
 
         result = _render_process(values)
 

@@ -107,13 +107,12 @@ opencodeProposer:
     tag: sha-b3b8459685f2
     digest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
     pullPolicy: IfNotPresent
-  secretEnv:
-    MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
+  secretEnv: {}
   secretEnvSecretName: agent-workloads-workload-identity-tokens
   identity:
     workerId: opencode.proposer
     serviceAccountNamePrefix: agent-workloads
-    mode: hmac
+    mode: projected
     serviceAccount:
       create: true
       annotations: {}

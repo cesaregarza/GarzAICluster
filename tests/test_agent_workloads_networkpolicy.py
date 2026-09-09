@@ -186,9 +186,6 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
                 "agent-workloads-opencode-apply-executor",
             )
         }
-        expected_token_checksum = self.values["rolloutChecksums"][
-            "workloadIdentityTokenSecret"
-        ]
         expected_release_checksum = _release_pins_checksum(self.values)
 
         workspace_annotations = deployments["agent-workloads"]["spec"]["template"][
@@ -205,10 +202,18 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             annotations = deployments[name]["spec"]["template"]["metadata"][
                 "annotations"
             ]
-            self.assertEqual(
-                annotations["checksum.garz.ai/agent-workloads-token-secret"],
-                expected_token_checksum,
-            )
+            if name == "agent-workloads-opencode-proposer":
+                self.assertNotIn(
+                    "checksum.garz.ai/agent-workloads-token-secret",
+                    annotations,
+                )
+            else:
+                self.assertEqual(
+                    annotations["checksum.garz.ai/agent-workloads-token-secret"],
+                    self.values["rolloutChecksums"][
+                        "workloadIdentityTokenSecret"
+                    ],
+                )
         for deployment in deployments.values():
             annotations = deployment["spec"]["template"]["metadata"]["annotations"]
             self.assertEqual(
@@ -323,14 +328,17 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
                 "key": "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
             },
         )
+        self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN", proposer_env)
         self.assertEqual(
-            proposer_env["MANDATE_WORKLOAD_IDENTITY_TOKEN"]["valueFrom"][
-                "secretKeyRef"
-            ],
-            {
-                "name": "agent-workloads-workload-identity-tokens",
-                "key": "OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN",
-            },
+            proposer_env["MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE"]["value"],
+            "/var/run/mandate/workload-identity/token",
+        )
+        proposer_volumes = {
+            volume["name"]: volume for volume in proposer_pod["volumes"]
+        }
+        self.assertIn("projected-workload-identity-token", proposer_volumes)
+        self.assertFalse(
+            any("secret" in volume for volume in proposer_pod["volumes"])
         )
         self.assertEqual(
             apply_env["AGENT_WORKLOADS_WORKER_ID"]["value"],
