@@ -4,9 +4,10 @@ This change canaries Kubernetes-native workload identity for
 `data.workspace_probe`. It removes the per-release HMAC/SOPS mint from that
 worker's normal re-pin path while preserving the existing HMAC credential,
 ciphertext, metadata, and rollout checksum as an unchanged rollback input.
-After the accepted data and proposer projected rollouts, the normal API and
-postgres-sweep HMAC allowlists accept only `opencode.apply_executor`. Retained
-`mwit_v1` credentials for data and proposer are rollback-only.
+After the accepted data, proposer, and apply projected rollouts, the normal
+API and postgres-sweep HMAC allowlists are empty. Retained `mwit_v1` credentials for
+data, proposer, and apply executor are rollback-only; the empty allowlists
+fail closed until a reviewed rollback restores an explicitly selected worker.
 
 ## Security boundary
 
@@ -130,3 +131,23 @@ Proposer `previousRelease` remains in place during this allowlist-only change.
 Before retiring that overlap, record its retained HMAC tuple explicitly and
 update the identity gate, which currently infers proposer rollback claims from
 `previousRelease`. Never remint a credential to compensate for overlap cleanup.
+
+## Apply executor HMAC rollback-only follow-up (CES-1008; live CES-656)
+
+The apply executor remains projected while its retained HMAC credential is
+removed from both normal API and postgres-sweep allowlists. The explicit
+`{"worker_service":[]}` configuration is fail closed under deployed Core
+`b230da9`; it does not change `kubernetes_hybrid`, the required
+`worker_service` scope, projected workers, TokenReview configuration, release
+tuples, current/previous subjects, or retained credential material. Hybrid
+TokenReview remains enabled for projected authentication.
+
+The apply activation passed the approved exact-diff flow, natural token
+rotation, and live negative probes before publication. The subsequent
+projected re-pin in PR #729 passed current/previous acceptance. After this
+source-only follow-up merges, CES-656 owns the scoped Core reconcile and
+live allowlist/projected-claim verification; merging alone does not complete
+that migration. If rollback is required, restore the reviewed HMAC
+allowlist and static credential configuration, remove the projected credential
+configuration, and activate the retained tuple only after the allowlist is
+effective. Do not rotate or delete retained credentials.

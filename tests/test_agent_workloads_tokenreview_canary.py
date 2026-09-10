@@ -235,11 +235,15 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
                 ]
             ),
         )
-        expected_allowlist = {"worker_service": ["opencode.apply_executor"]}
+        expected_allowlist = {"worker_service": []}
 
         for allowlist in normal_allowlists:
             self.assertEqual(allowlist, expected_allowlist)
-            for retained_subject in ("data.workspace_probe", "opencode.proposer"):
+            for retained_subject in (
+                "data.workspace_probe",
+                "opencode.proposer",
+                "opencode.apply_executor",
+            ):
                 self.assertNotIn(retained_subject, allowlist["worker_service"])
 
     def test_registry_overlay_auto_syncs_before_manual_workload_activation(
