@@ -1575,8 +1575,7 @@ exit 64
         subjects = json.loads(
             values["env"]["AGENT_PLATFORM_WORKLOAD_IDENTITY_ALLOWED_SUBJECTS_JSON"]
         )
-        self.assertIn("opencode.proposer", subjects["worker_service"])
-        self.assertIn("opencode.apply_executor", subjects["worker_service"])
+        self.assertEqual(subjects, {"worker_service": ["opencode.apply_executor"]})
 
         env = values["env"]
         self.assertEqual(
