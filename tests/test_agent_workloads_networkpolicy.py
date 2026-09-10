@@ -82,6 +82,25 @@ def _release_pins_checksum(values: dict[str, Any]) -> str:
     return hashlib.sha256(serialized).hexdigest()
 
 
+def _release_service_account_name(
+    worker_id: str,
+    release: dict[str, str],
+    *,
+    prefix: str,
+) -> str:
+    payload = {
+        "schema_version": "workload_identity_bundle.v1",
+        "code_digest": release["codeDigest"],
+        "manifest_digest": release["manifestDigest"],
+        "image_digest": release["imageDigest"],
+    }
+    suffix = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()[:20]
+    normalized_worker = worker_id.replace(".", "-").replace("_", "-")
+    return f"{prefix}-{normalized_worker}-{suffix}"
+
+
 def _write_yaml(path: Path, value: dict[str, Any]) -> None:
     with path.open("w", encoding="utf-8") as file:
         YAML_PARSER.dump(value, file)
@@ -177,7 +196,7 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
         self.assertEqual(self.values["opencodeProposer"]["replicaCount"], 1)
         self.assertEqual(opencode_deployment["spec"]["replicas"], 1)
 
-    def test_worker_pods_roll_on_identity_secret_or_release_pin_change(self) -> None:
+    def test_worker_pods_roll_on_release_pin_change_not_identity_secret(self) -> None:
         deployments = {
             name: _find_doc(self.docs, kind="Deployment", name=name)
             for name in (
@@ -195,25 +214,14 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             "checksum.garz.ai/agent-workloads-token-secret",
             workspace_annotations,
         )
-        for name in (
-            "agent-workloads-opencode-proposer",
-            "agent-workloads-opencode-apply-executor",
-        ):
+        for name in deployments:
             annotations = deployments[name]["spec"]["template"]["metadata"][
                 "annotations"
             ]
-            if name == "agent-workloads-opencode-proposer":
-                self.assertNotIn(
-                    "checksum.garz.ai/agent-workloads-token-secret",
-                    annotations,
-                )
-            else:
-                self.assertEqual(
-                    annotations["checksum.garz.ai/agent-workloads-token-secret"],
-                    self.values["rolloutChecksums"][
-                        "workloadIdentityTokenSecret"
-                    ],
-                )
+            self.assertNotIn(
+                "checksum.garz.ai/agent-workloads-token-secret",
+                annotations,
+            )
         for deployment in deployments.values():
             annotations = deployment["spec"]["template"]["metadata"]["annotations"]
             self.assertEqual(
@@ -231,24 +239,19 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             changed_token_docs = _render_agent_workloads_prod(
                 values_path=temp_values_path,
             )
-            changed_token_deployment = _find_doc(
-                changed_token_docs,
-                kind="Deployment",
-                name="agent-workloads",
-            )
-            changed_token_annotations = changed_token_deployment["spec"]["template"][
-                "metadata"
-            ]["annotations"]
-            self.assertEqual(
-                changed_token_annotations,
-                workspace_annotations,
-            )
-            self.assertEqual(
-                changed_token_annotations[
-                    "checksum.garz.ai/agent-workloads-release-pins"
-                ],
-                expected_release_checksum,
-            )
+            for name, deployment in deployments.items():
+                changed_token_deployment = _find_doc(
+                    changed_token_docs,
+                    kind="Deployment",
+                    name=name,
+                )
+                changed_token_annotations = changed_token_deployment["spec"][
+                    "template"
+                ]["metadata"]["annotations"]
+                self.assertEqual(
+                    changed_token_annotations,
+                    deployment["spec"]["template"]["metadata"]["annotations"],
+                )
 
             changed_pins_values = copy.deepcopy(self.values)
             changed_pins_values["mandateReleasePins"]["data.workspace_probe"][
@@ -321,12 +324,10 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, apply_env)
 
+        self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN", apply_env)
         self.assertEqual(
-            apply_env["MANDATE_WORKLOAD_IDENTITY_TOKEN"]["valueFrom"]["secretKeyRef"],
-            {
-                "name": "agent-workloads-workload-identity-tokens",
-                "key": "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
-            },
+            apply_env["MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE"]["value"],
+            "/var/run/mandate/workload-identity/token",
         )
         self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN", proposer_env)
         self.assertEqual(
@@ -340,6 +341,36 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
         self.assertFalse(
             any("secret" in volume for volume in proposer_pod["volumes"])
         )
+        apply_volumes = {
+            volume["name"]: volume for volume in apply_pod["volumes"]
+        }
+        self.assertIs(apply_pod["automountServiceAccountToken"], False)
+        self.assertEqual(
+            apply_pod["serviceAccountName"],
+            _release_service_account_name(
+                "opencode.apply_executor",
+                self.values["mandateReleasePins"]["opencode.apply_executor"],
+                prefix=self.values["opencodeApplyExecutor"]["identity"][
+                    "serviceAccountNamePrefix"
+                ],
+            ),
+        )
+        self.assertEqual(
+            apply_volumes["projected-workload-identity-token"]["projected"],
+            {
+                "defaultMode": 0o440,
+                "sources": [
+                    {
+                        "serviceAccountToken": {
+                            "audience": "mandate-api",
+                            "expirationSeconds": 3600,
+                            "path": "token",
+                        }
+                    }
+                ],
+            },
+        )
+        self.assertFalse(any("secret" in volume for volume in apply_pod["volumes"]))
         self.assertEqual(
             apply_env["AGENT_WORKLOADS_WORKER_ID"]["value"],
             "opencode.apply_executor",

@@ -655,6 +655,7 @@ data:
         capacity_tier: 4
         concurrency: 1
         max_runtime_seconds: 300
+        service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-apply-executor-5a642e7d730f3045d941
       capabilities:
         agent_workloads.opencode_apply:
           description: Imported OpenCode apply executor for approved proposal diffs.

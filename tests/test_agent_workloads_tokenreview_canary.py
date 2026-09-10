@@ -201,15 +201,9 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
         self.assertEqual(values["opencodeProposer"]["secretEnv"], {})
         self.assertEqual(
             values["opencodeApplyExecutor"]["identity"]["mode"],
-            "hmac",
+            "projected",
         )
-        self.assertEqual(
-            values["opencodeApplyExecutor"]["secretEnv"],
-            {
-                "MANDATE_WORKLOAD_IDENTITY_TOKEN":
-                "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
-            },
-        )
+        self.assertEqual(values["opencodeApplyExecutor"]["secretEnv"], {})
 
     def test_projected_workers_hmac_is_rollback_only_in_every_normal_allowlist(
         self,

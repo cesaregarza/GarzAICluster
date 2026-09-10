@@ -161,9 +161,16 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
                 "key"
             ],
         }
+        values["opencodeApplyExecutor"]["identity"] = copy.deepcopy(
+            values["opencodeProposer"]["identity"]
+        )
+        values["opencodeApplyExecutor"]["identity"]["workerId"] = "opencode.apply_executor"
+        values["opencodeApplyExecutor"]["secretEnv"] = {
+            "MANDATE_WORKLOAD_IDENTITY_TOKEN": "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
+        }
         return values
 
-    def test_production_activates_governed_projected_proposer_and_hmac_apply(
+    def test_production_activates_governed_projected_workers(
         self,
     ) -> None:
         values = _load_values()
@@ -187,7 +194,7 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
         )
         self.assertEqual(
             values["opencodeApplyExecutor"]["identity"]["mode"],
-            "hmac",
+            "projected",
         )
         self.assertEqual(
             sorted(
@@ -255,18 +262,16 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
         apply_template = apply["spec"]["template"]
         apply_pod = apply_template["spec"]
         apply_env = _environment(_container(apply, "opencode-apply-executor"))
-        self.assertIn(
+        self.assertNotIn(
             "checksum.garz.ai/agent-workloads-token-secret",
             apply_template["metadata"]["annotations"],
         )
-        self.assertIn("MANDATE_WORKLOAD_IDENTITY_TOKEN", apply_env)
+        self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN", apply_env)
         self.assertEqual(
-            apply_env["MANDATE_WORKLOAD_IDENTITY_TOKEN"]["valueFrom"][
-                "secretKeyRef"
-            ]["key"],
-            "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
+            apply_env["MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE"]["value"],
+            "/var/run/mandate/workload-identity/token",
         )
-        self.assertNotIn(
+        self.assertIn(
             "projected-workload-identity-token",
             {volume["name"] for volume in apply_pod["volumes"]},
         )
@@ -526,6 +531,24 @@ class AgentWorkloadsOpenCodeGovernedHandoffTests(unittest.TestCase):
                 deployment["spec"]["template"]["spec"]["serviceAccountName"],
                 current_name,
             )
+
+    def test_hmac_rollback_workers_roll_when_token_checksum_changes(self) -> None:
+        values = self._reviewed_hmac_values()
+        original = _render(values)
+        values["rolloutChecksums"]["workloadIdentityTokenSecret"] = "sha256:" + "9" * 64
+        changed = _render(values)
+        for name in (
+            "agent-workloads-opencode-proposer",
+            "agent-workloads-opencode-apply-executor",
+        ):
+            before = _find(original, kind="Deployment", name=name)["spec"]["template"]
+            after = _find(changed, kind="Deployment", name=name)["spec"]["template"]
+            key = "checksum.garz.ai/agent-workloads-token-secret"
+            self.assertNotEqual(
+                before["metadata"]["annotations"][key],
+                after["metadata"]["annotations"][key],
+            )
+            self.assertEqual(before["spec"], after["spec"])
 
     def test_governed_mode_rejects_cross_worker_hmac_key_reuse(self) -> None:
         values = self._reviewed_hmac_values()
