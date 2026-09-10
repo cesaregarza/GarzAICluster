@@ -59,8 +59,8 @@ data:
           "consequence_class": "consequential"
         }
       },
-      "code_digest": "sha256:253e5c97a7f149587f2a23c5a74883bde0e2fd3321285c731a0740eff9d3908f",
-      "digest": "sha256:2d36cfef1ed45057f3e396039ec21450ac34f4da145eb40fc0ec4aa6f67fc479",
+      "code_digest": "sha256:ac201bfe895911a79d8adae580b5295a7ec7fd5ba27bf4bd80ab6b096dfbcf4a",
+      "digest": "sha256:783bf8d249e7161f469e756ce6648ce554f43d7392d067dd38be43e7eee300e7",
       "display_name": "OpenCode Apply Executor",
       "evals": {
         "optional": [],
@@ -68,7 +68,7 @@ data:
       },
       "id": "opencode.apply_executor",
       "image": {
-        "digest": "sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1",
+        "digest": "sha256:9fe82fa198394617c2a0a7d0e72f6c5e688b149a9319f0eb528aec532926af28",
         "repository": "registry.digitalocean.com/sendouq/opencode-apply-executor"
       },
       "loop": {
@@ -641,8 +641,8 @@ data:
           - Must not be used as a local fallback when no governed capability matches.
     - id: opencode.apply_executor
       manifest_path: registries/imports/agent-opencode.apply_executor.json
-      manifest_digest: sha256:2d36cfef1ed45057f3e396039ec21450ac34f4da145eb40fc0ec4aa6f67fc479
-      image_digest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
+      manifest_digest: sha256:783bf8d249e7161f469e756ce6648ce554f43d7392d067dd38be43e7eee300e7
+      image_digest: sha256:9fe82fa198394617c2a0a7d0e72f6c5e688b149a9319f0eb528aec532926af28
       expected_source:
         repo: agent-workloads
         repo_url: https://github.com/cesaregarza/agent-workloads
@@ -655,7 +655,12 @@ data:
         capacity_tier: 4
         concurrency: 1
         max_runtime_seconds: 300
-        service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-apply-executor-5a642e7d730f3045d941
+        service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-apply-executor-0df6f2b124cf5088d190
+        previous_release:
+          service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-apply-executor-5a642e7d730f3045d941
+          code_digest: sha256:253e5c97a7f149587f2a23c5a74883bde0e2fd3321285c731a0740eff9d3908f
+          manifest_digest: sha256:2d36cfef1ed45057f3e396039ec21450ac34f4da145eb40fc0ec4aa6f67fc479
+          image_digest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
       capabilities:
         agent_workloads.opencode_apply:
           description: Imported OpenCode apply executor for approved proposal diffs.

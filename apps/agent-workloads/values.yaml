@@ -212,8 +212,8 @@ opencodeApplyExecutor:
   enabled: true
   image:
     repository: registry.digitalocean.com/sendouq/opencode-apply-executor
-    tag: sha-b3b8459685f2
-    digest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
+    tag: sha-d886a52c174c
+    digest: sha256:9fe82fa198394617c2a0a7d0e72f6c5e688b149a9319f0eb528aec532926af28
     pullPolicy: IfNotPresent
   secretEnv: {}
   secretEnvSecretName: agent-workloads-workload-identity-tokens
@@ -229,7 +229,10 @@ opencodeApplyExecutor:
       expirationSeconds: 3600
       mountPath: /var/run/mandate/workload-identity
       fileName: token
-    previousRelease: null
+    previousRelease:
+      codeDigest: sha256:253e5c97a7f149587f2a23c5a74883bde0e2fd3321285c731a0740eff9d3908f
+      manifestDigest: sha256:2d36cfef1ed45057f3e396039ec21450ac34f4da145eb40fc0ec4aa6f67fc479
+      imageDigest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
@@ -306,9 +309,9 @@ mandateReleasePins:
     manifestDigest: sha256:21df383248a615db3af1ccff263dd49ea42f96f26784684fccfff12ece1e4728
     imageDigest: sha256:ae3c91372ff156bf131d0240cb2c39eb0e46ca935791b9df3bc74b80f31705f0
   opencode.apply_executor:
-    codeDigest: sha256:253e5c97a7f149587f2a23c5a74883bde0e2fd3321285c731a0740eff9d3908f
-    manifestDigest: sha256:2d36cfef1ed45057f3e396039ec21450ac34f4da145eb40fc0ec4aa6f67fc479
-    imageDigest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
+    codeDigest: sha256:ac201bfe895911a79d8adae580b5295a7ec7fd5ba27bf4bd80ab6b096dfbcf4a
+    manifestDigest: sha256:783bf8d249e7161f469e756ce6648ce554f43d7392d067dd38be43e7eee300e7
+    imageDigest: sha256:9fe82fa198394617c2a0a7d0e72f6c5e688b149a9319f0eb528aec532926af28
   opencode.proposer:
     codeDigest: sha256:be93ef1f2e0bc36c4ede6795a9423804e31e5b16e74a3afccb0f3ac7498fe6e3
     manifestDigest: sha256:9104b8dfc03590c48e7fb9183020f64e43dd0988c6e88777f515c8c542bb3633
