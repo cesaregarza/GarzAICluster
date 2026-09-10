@@ -4,9 +4,9 @@ This change canaries Kubernetes-native workload identity for
 `data.workspace_probe`. It removes the per-release HMAC/SOPS mint from that
 worker's normal re-pin path while preserving the existing HMAC credential,
 ciphertext, metadata, and rollout checksum as an unchanged rollback input.
-The normal API and postgres-sweep HMAC allowlists no longer accept
-`data.workspace_probe`; a retained `mwit_v1` credential is rollback-only.
-OpenCode proposer and apply remain distinct, accepted HMAC identities.
+After the accepted data and proposer projected rollouts, the normal API and
+postgres-sweep HMAC allowlists accept only `opencode.apply_executor`. Retained
+`mwit_v1` credentials for data and proposer are rollback-only.
 
 ## Security boundary
 
@@ -105,3 +105,28 @@ After its pods and controller references drain, remove that overlap from values
 and registry imports. Keep `hmacRollbackRelease` and the retained credential
 unchanged across subsequent projected rollouts. Missing or malformed rollback
 metadata fails the gate; HMAC mode still requires the current release tuple.
+
+## Proposer HMAC rollback-only follow-up (CES-655)
+
+The proposer passed projected proposal release, current/previous identity,
+fail-closed, and token-rotation acceptance in CES-998 and CES-1002. Removing
+`opencode.proposer` from both normal HMAC allowlists does not change its
+projected subjects, release tuple, or retained credential. Core stays in hybrid
+mode so the apply executor can continue using HMAC.
+
+After the reviewed allowlist change merges, reconcile `agent-control-plane`
+through the scoped deployment path and verify the API and postgres-sweep
+configuration accepts only apply HMAC. Confirm projected proposer claims still
+succeed and the standard postdeployment verification passes. A Git merge alone
+does not update the manually synchronized Core application.
+
+A proposer rollback requires a separate reviewed change: restore its retained
+HMAC release tuple and static credential configuration, remove its projected
+credential configuration, and re-add proposer to both HMAC allowlists before
+activating that credential. Keep the split proposer/apply topology and governed
+artifact handoff. Do not rotate or delete the retained secret.
+
+Proposer `previousRelease` remains in place during this allowlist-only change.
+Before retiring that overlap, record its retained HMAC tuple explicitly and
+update the identity gate, which currently infers proposer rollback claims from
+`previousRelease`. Never remint a credential to compensate for overlap cleanup.

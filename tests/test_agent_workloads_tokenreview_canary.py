@@ -211,7 +211,7 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
             },
         )
 
-    def test_workspace_hmac_is_rollback_only_in_every_normal_allowlist(
+    def test_projected_workers_hmac_is_rollback_only_in_every_normal_allowlist(
         self,
     ) -> None:
         control_plane_values = _load_yaml(
@@ -241,24 +241,12 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
                 ]
             ),
         )
-        expected_allowlist = {
-            "worker_service": [
-                "opencode.apply_executor",
-                "opencode.proposer",
-            ]
-        }
-        retained_data_mwit_v1_claims = {
-            "sub": "data.workspace_probe",
-            "scp": ["worker_service"],
-        }
+        expected_allowlist = {"worker_service": ["opencode.apply_executor"]}
 
         for allowlist in normal_allowlists:
             self.assertEqual(allowlist, expected_allowlist)
-            for scope in retained_data_mwit_v1_claims["scp"]:
-                self.assertNotIn(
-                    retained_data_mwit_v1_claims["sub"],
-                    allowlist[scope],
-                )
+            for retained_subject in ("data.workspace_probe", "opencode.proposer"):
+                self.assertNotIn(retained_subject, allowlist["worker_service"])
 
     def test_registry_overlay_auto_syncs_before_manual_workload_activation(
         self,
