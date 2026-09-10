@@ -215,13 +215,12 @@ opencodeApplyExecutor:
     tag: sha-b3b8459685f2
     digest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
     pullPolicy: IfNotPresent
-  secretEnv:
-    MANDATE_WORKLOAD_IDENTITY_TOKEN: OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN
+  secretEnv: {}
   secretEnvSecretName: agent-workloads-workload-identity-tokens
   identity:
     workerId: opencode.apply_executor
     serviceAccountNamePrefix: agent-workloads
-    mode: hmac
+    mode: projected
     serviceAccount:
       create: true
       annotations: {}
