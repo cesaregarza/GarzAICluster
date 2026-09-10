@@ -87,7 +87,7 @@ react:
   replicas: 1
   image:
     repository: registry.digitalocean.com/sendouq/react
-    tag: v2.0.38
+    tag: v2.0.41
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -194,7 +194,7 @@ redis:
     storageClassName: do-block-storage-retain
     size: 1Gi
     accessModes:
-      - ReadWriteOnce
+    - ReadWriteOnce
   image:
     repository: redis
     tag: "7.2.4"

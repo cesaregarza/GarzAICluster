@@ -7,7 +7,7 @@ global:
   environment: production
 
 # FastAPI backend configuration
-  appImageTag: v2.0.40
+  appImageTag: v2.0.41
 fastapi:
   replicas: 2
   # Reserve typical CPU use while allowing burst above it; no CPU limit.
@@ -64,7 +64,7 @@ react:
 
 # Celery worker configuration
   image:
-    tag: v2.0.38
+    tag: v2.0.41
 celeryWorker:
   # This node cannot reserve CPU for a second worker during a rolling update.
   # Drain the old consumer before sync; queued work resumes on its replacement.
