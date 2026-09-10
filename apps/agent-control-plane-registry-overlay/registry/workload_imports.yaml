@@ -2,8 +2,8 @@ schema_version: workload-imports.v1
 imports:
 - id: data.workspace_probe
   manifest_path: registries/imports/agent-data.workspace_probe.json
-  manifest_digest: sha256:c912934ba399dcd07086764c6971e8d525cc0f7af58273100a67e88061a875ae
-  image_digest: sha256:3c0765ba6c5a7475cda5dfa0fee1a4722069ace7d4798163c8a67a2ae39202f0
+  manifest_digest: sha256:21df383248a615db3af1ccff263dd49ea42f96f26784684fccfff12ece1e4728
+  image_digest: sha256:ae3c91372ff156bf131d0240cb2c39eb0e46ca935791b9df3bc74b80f31705f0
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -12,12 +12,17 @@ imports:
     execution_posture: capability_worker
     network_access: database_only
     service_account_ref: agent-workloads-worker
-    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-a766ecf5fcd6d109634c
+    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-f678cc2337ff1df8d22e
     capacity_tier: 4
     concurrency: 1
     max_runtime_seconds: 120
     model_call: true
     readonly_sql_broker: true
+    previous_release:
+      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-a766ecf5fcd6d109634c
+      code_digest: sha256:3dec93f02a82fd699556589e5fe7215244f672357801aefae606ad66383326f4
+      manifest_digest: sha256:c912934ba399dcd07086764c6971e8d525cc0f7af58273100a67e88061a875ae
+      image_digest: sha256:3c0765ba6c5a7475cda5dfa0fee1a4722069ace7d4798163c8a67a2ae39202f0
   capabilities:
     agent_workloads.db_probe:
       description: Imported reversible staging database workspace probe.
@@ -27,7 +32,7 @@ imports:
       output_schema: agent_workloads_readonly_query_result_v1
       output_gate:
         policy_id: deterministic-public-result-v1
-        projection_id: agent_workloads.readonly_query
+        projection_id: released_fields_v1
       skills:
       - xscraper-schema
       - xscraper-glossary
@@ -77,6 +82,12 @@ imports:
         max_concurrency: 1
         operation_max_influence:
           select_limited: external
+      result_contract:
+        output_schema: agent_workloads_readonly_query_result_v1
+        released_result_fields:
+        - output_text
+        - row_count
+        - rows_truncated
 - id: opencode.proposer
   manifest_path: registries/imports/agent-opencode.proposer.json
   manifest_digest: sha256:9104b8dfc03590c48e7fb9183020f64e43dd0988c6e88777f515c8c542bb3633

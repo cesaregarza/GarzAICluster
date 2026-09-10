@@ -88,6 +88,7 @@ control-plane restart and do not require re-minting.
 | `agent_workloads.readonly_query` | `model_bounds` | `deployment_overlay` | `control_plane_restart` |
 | `agent_workloads.readonly_query` | `output_gate` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.readonly_query` | `output_schema` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.readonly_query` | `result_contract` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.readonly_query` | `session_authority_budget` | `mixed` | `control_plane_restart` |
 | `agent_workloads.readonly_query` | `skills` | `workload_release` | `digest_moves_repin_remint` |
 

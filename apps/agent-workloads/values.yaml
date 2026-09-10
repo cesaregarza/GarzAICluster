@@ -7,8 +7,8 @@ fullnameOverride: agent-workloads
 replicaCount: 2
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-b3b8459685f2
-  digest: sha256:3c0765ba6c5a7475cda5dfa0fee1a4722069ace7d4798163c8a67a2ae39202f0
+  tag: sha-7c58c68999c1
+  digest: sha256:ae3c91372ff156bf131d0240cb2c39eb0e46ca935791b9df3bc74b80f31705f0
   pullPolicy: IfNotPresent
 projectedWorkloadIdentity:
   enabled: true
@@ -26,6 +26,10 @@ projectedWorkloadIdentity:
     codeDigest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
     manifestDigest: sha256:912222e0cf0adea2733166543213e6ff70aadff34f13815ca36038bdf30d123f
     imageDigest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
+  previousRelease:
+    codeDigest: sha256:3dec93f02a82fd699556589e5fe7215244f672357801aefae606ad66383326f4
+    manifestDigest: sha256:c912934ba399dcd07086764c6971e8d525cc0f7af58273100a67e88061a875ae
+    imageDigest: sha256:3c0765ba6c5a7475cda5dfa0fee1a4722069ace7d4798163c8a67a2ae39202f0
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
   AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
@@ -299,9 +303,9 @@ opencodeApplyExecutor:
           protocol: TCP
 mandateReleasePins:
   data.workspace_probe:
-    codeDigest: sha256:3dec93f02a82fd699556589e5fe7215244f672357801aefae606ad66383326f4
-    manifestDigest: sha256:c912934ba399dcd07086764c6971e8d525cc0f7af58273100a67e88061a875ae
-    imageDigest: sha256:3c0765ba6c5a7475cda5dfa0fee1a4722069ace7d4798163c8a67a2ae39202f0
+    codeDigest: sha256:c92818378dff1d477e7bd01da549601ff67b851aa5d0103fbf50288de09fc7d4
+    manifestDigest: sha256:21df383248a615db3af1ccff263dd49ea42f96f26784684fccfff12ece1e4728
+    imageDigest: sha256:ae3c91372ff156bf131d0240cb2c39eb0e46ca935791b9df3bc74b80f31705f0
   opencode.apply_executor:
     codeDigest: sha256:253e5c97a7f149587f2a23c5a74883bde0e2fd3321285c731a0740eff9d3908f
     manifestDigest: sha256:2d36cfef1ed45057f3e396039ec21450ac34f4da145eb40fc0ec4aa6f67fc479
