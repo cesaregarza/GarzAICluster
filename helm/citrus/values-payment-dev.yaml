@@ -5,7 +5,7 @@ paymentCredentials:
   enabled: true
   secretName: citrus-dev-payment-credentials
   owner: citrus-dev
-  rolloutRevision: ces-844-test-mode-v2
+  rolloutRevision: citrus-sandbox-credentials-2026-09-12
   webhookEnvironmentVariable: STRIPE_WEBHOOK_SECRET_DEV
   webhookSecretName: django-secrets
   webhookSecretKey: STRIPE_WEBHOOK_SECRET_DEV
