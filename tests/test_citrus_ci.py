@@ -110,7 +110,12 @@ class CitrusCiContractTests(unittest.TestCase):
         for expected in (
             (
                 'helm template citrus "$chart" --namespace default '
-                '-f "$chart/values.yaml" > rendered/citrus-prod.yaml'
+                '-f "$chart/values.yaml" > rendered/citrus-base-prod.yaml'
+            ),
+            (
+                'helm template citrus "$chart" --namespace default '
+                '-f "$chart/values.yaml" -f "$chart/values-payment-prod.yaml" '
+                '-f "$chart/values-payment-prod-legacy.yaml" > rendered/citrus-prod.yaml'
             ),
             (
                 'helm template citrus-dev "$chart" --namespace citrus-dev '
@@ -387,7 +392,9 @@ class CitrusCiContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, run)
         for expected in (
-            "Citrus production Argo render must keep CES-845 disabled",
+            "Citrus production base render must keep CES-845 disabled",
+            "Citrus production Argo render must activate production allow mode",
+            "Citrus production must omit generic and dev webhook environment roles",
             "Citrus dev Argo render must activate CES-845 deny mode",
             "ces-845-dev-v1",
             "citrus-payment-safety-dev.yaml",

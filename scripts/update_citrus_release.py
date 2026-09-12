@@ -41,7 +41,11 @@ EXPECTED_ENVIRONMENT_PATHS = {
         ),
     ),
     "prod": (
-        (Path("helm/citrus/values.yaml"),),
+        (
+            Path("helm/citrus/values.yaml"),
+            Path("helm/citrus/values-payment-prod.yaml"),
+            Path("helm/citrus/values-payment-prod-legacy.yaml"),
+        ),
         frozenset({Path("helm/citrus/values.yaml")}),
     ),
 }

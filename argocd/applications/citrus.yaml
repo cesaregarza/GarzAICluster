@@ -17,6 +17,8 @@ spec:
       releaseName: citrus
       valueFiles:
         - values.yaml
+        - values-payment-prod.yaml
+        - values-payment-prod-legacy.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: default

@@ -268,7 +268,10 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
         dev_application = (
             REPO_ROOT / "argocd" / "applications" / "citrus-dev.yaml"
         ).read_text(encoding="utf-8")
-        self.assertNotIn("values-payment-prod.yaml", prod_application)
+        self.assertEqual(
+            YAML_PARSER.load(prod_application)["spec"]["source"]["helm"]["valueFiles"],
+            ["values.yaml", "values-payment-prod.yaml", "values-payment-prod-legacy.yaml"],
+        )
         self.assertIn("values-payment-dev.yaml", dev_application)
 
     def test_prod_encrypted_source_contains_only_exact_payment_roles(self) -> None:

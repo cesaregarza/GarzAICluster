@@ -1,5 +1,5 @@
-# CES-844 activation overlay. This file is intentionally not referenced by the
-# production Argo Application. Adding it to valueFiles is a deployment mutation.
+# Active production credential and runtime ownership overlay.
+# The separately reconciled dedicated Secret must exist before activation.
 paymentCredentials:
   enabled: true
   secretName: citrus-prod-payment-credentials

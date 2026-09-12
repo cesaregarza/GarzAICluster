@@ -121,7 +121,7 @@ cloudflareAccess:
   verifiedImageTag: ""
 
 # Disabled-by-default CES-844 contract. The dev Application layers its explicit
-# test-mode overlay; production keeps this base disabled.
+# test-mode overlay; production layers its explicit live-mode overlay.
 paymentCredentials:
   enabled: false
   secretName: ""
@@ -136,8 +136,8 @@ paymentCredentials:
 
 # Disabled-by-default CES-845 contract. Enabling it injects explicit runtime
 # ownership into every Citrus process and renders same-release Cilium egress
-# policies before migrations or serving workloads. Base and production values
-# remain disabled; an environment overlay may activate the contract explicitly.
+# policies before migrations or serving workloads. The base stays disabled;
+# environment overlays activate the contract explicitly.
 paymentSafety:
   enabled: false
   environment: ""

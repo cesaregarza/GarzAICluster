@@ -51,6 +51,8 @@ class SyntheticRepository:
         self.dev_payment_values = self.chart / "values-payment-dev.yaml"
         self.dev_runtime_values = self.chart / "values-recurring-dev.yaml"
         self.prod_payment_values = self.chart / "values-payment-prod.yaml"
+        self.prod_legacy_values = self.chart / "values-payment-prod-legacy.yaml"
+        _write_yaml(self.prod_legacy_values, {})
         _write_yaml(self.dev_runtime_values, {})
         _write_yaml(self.chart / "values-stripe-smoke-dev.yaml", {})
         _write_yaml(
@@ -59,6 +61,10 @@ class SyntheticRepository:
                 "image": {
                     "repository": "registry.example/citrus",
                     "tag": OLD_PROD_REVISION,
+                },
+                "paymentCredentials": {
+                    "legacyProductionRuntime": False,
+                    "legacyProductionRuntimeVerifiedImageTag": "",
                 },
                 "stripeSmokePromotion": {
                     "enabled": True,
@@ -154,6 +160,7 @@ class SyntheticRepository:
             self.dev_payment_values,
             self.dev_runtime_values,
             self.prod_payment_values,
+            self.prod_legacy_values,
         )
 
     def bytes(self) -> dict[Path, bytes]:
@@ -314,6 +321,26 @@ class CitrusReleaseUpdaterTests(unittest.TestCase):
         self.assertEqual(self.repo.bytes(), before)
         self.assertFalse(output.exists())
 
+    def test_prod_bridge_requires_manual_attestation_before_any_write(self) -> None:
+        values = _load_yaml(self.repo.values)
+        values["stripeSmokePromotion"]["enabled"] = False
+        _write_yaml(self.repo.values, values)
+        _write_yaml(self.repo.prod_legacy_values, {
+            "paymentCredentials": {
+                "legacyProductionRuntime": True,
+                "legacyProductionRuntimeVerifiedImageTag": OLD_PROD_REVISION,
+            },
+        })
+        before = self.repo.bytes()
+        output = self.repo.root / "changed-paths"
+        with self.assertRaisesRegex(
+            CitrusReleaseContractError,
+            "legacy-production-runtime-image requires manual attestation",
+        ):
+            self.repo.update(environment="prod", capabilities=frozenset(), output=output)
+        self.assertEqual(self.repo.bytes(), before)
+        self.assertFalse(output.exists())
+
     def test_malformed_revision_fails_before_any_write(self) -> None:
         before = self.repo.bytes()
         output = self.repo.root / "changed-paths"
@@ -429,7 +456,8 @@ class CitrusReleaseUpdaterTests(unittest.TestCase):
         self,
     ) -> None:
         registry = json.loads(self.repo.registry.read_text(encoding="utf-8"))
-        sweep = registry["bindings"][-1]
+        sweep = next(binding for binding in registry["bindings"]
+                     if binding["name"] == "direct-order-payment-sweep-image")
         sweep["requiresCapabilty"] = sweep.pop("requiresCapability")
         self.repo.registry.write_text(json.dumps(registry), encoding="utf-8")
         with self.assertRaisesRegex(
@@ -439,7 +467,8 @@ class CitrusReleaseUpdaterTests(unittest.TestCase):
             load_registry(self.repo.registry)
 
         registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
-        registry["bindings"][-1].pop("requiresCapability")
+        next(binding for binding in registry["bindings"]
+             if binding["name"] == "direct-order-payment-sweep-image").pop("requiresCapability")
         self.repo.registry.write_text(json.dumps(registry), encoding="utf-8")
         with self.assertRaisesRegex(
             CitrusReleaseContractError,
