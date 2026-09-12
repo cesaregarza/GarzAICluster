@@ -58,6 +58,9 @@ Goal: rollback ≤ 5 minutes from revert merge to healthy status.
   check validates the PR's config against the `agent-platform` `targetRevision`
   selected by the same PR, so a registry shape that the deployed binary cannot
   boot is unmergeable.
+- The projection-contract reader accepts canonical-only Core after its temporary
+  aliases are removed. A present but malformed alias declaration still fails
+  closed; generic cards must name registered schemas and explicit released fields.
 - CODEOWNERS require platform review for `envs/staging/**` and `envs/prod/**`.
 - Bot PRs must label themselves (e.g., `automation:release-bump`) for auditability.
 

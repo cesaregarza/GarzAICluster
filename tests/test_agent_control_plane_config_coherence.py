@@ -139,6 +139,50 @@ class AgentControlPlaneConfigCoherenceTests(unittest.TestCase):
                 )
             )
 
+    def test_canonical_only_core_requires_explicit_registered_card_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            source = Path(raw_tmp) / "output_projection.py"
+            text = _modern_projection_source().split("COMPAT_CARD_PROJECTION_IDS =")[0]
+            _write_text(source, text)
+            contract = read_projection_contract(source, "canonical projection")
+            self.assertEqual(contract.card_projection_ids, frozenset({"released_fields_v1"}))
+            capability = {
+                "output_schema": "schema_one",
+                "result_contract": {"released_result_fields": ["first"]},
+            }
+            self.assertEqual(contract.result_fields(
+                capability_id="first", capability=capability, projection_id="released_fields_v1",
+            ), frozenset({"first"}))
+            for invalid in (
+                {"output_schema": "schema_one"},
+                {**capability, "output_schema": "unknown"},
+                {**capability, "result_contract": {"released_result_fields": ["unknown"]}},
+            ):
+                with self.subTest(capability=invalid), self.assertRaises(ValueError):
+                    contract.result_fields(
+                        capability_id="first", capability=invalid,
+                        projection_id="released_fields_v1",
+                    )
+
+    def test_present_invalid_alias_declaration_is_not_treated_as_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            source = Path(raw_tmp) / "output_projection.py"
+            for declaration in (
+                "COMPAT_CARD_PROJECTION_IDS = None",
+                "COMPAT_CARD_PROJECTION_IDS = frozenset({42})",
+                'COMPAT_CARD_PROJECTION_IDS = frozenset({""})',
+                "COMPAT_CARD_PROJECTION_IDS = dynamic_aliases()",
+                "COMPAT_CARD_PROJECTION_IDS: set[str]",
+            ):
+                for position, text in (
+                    ("last", _modern_projection_source() + declaration + "\n"),
+                    ("first", declaration + "\n" + _modern_projection_source()),
+                ):
+                    with self.subTest(declaration=declaration, position=position):
+                        _write_text(source, text)
+                        with self.assertRaisesRegex(ValueError, "COMPAT_CARD_PROJECTION_IDS"):
+                            read_projection_contract(source, "invalid alias declaration")
+
     def test_legacy_projection_map_remains_supported(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             source = Path(raw_tmp) / "output_projection.py"
