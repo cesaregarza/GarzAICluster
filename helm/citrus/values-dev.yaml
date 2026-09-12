@@ -1,5 +1,5 @@
 image:
-  tag: 10acd8ea9b1a82a48272a89d0798bf06d94feb13 # allow-latest
+  tag: a2002b0d8187476c7ec9f9f585fc4a83ec7fb2ef # allow-latest
 
 # One development web pod retains the existing per-pod CPU budget. Production
 # keeps two replicas; billing and media workers have independent replica counts.
@@ -108,7 +108,7 @@ billingWorker:
 
 recurringRuntime:
   enabled: false
-  expectedSourceRevision: 10acd8ea9b1a82a48272a89d0798bf06d94feb13
+  expectedSourceRevision: a2002b0d8187476c7ec9f9f585fc4a83ec7fb2ef
 
 # Dev has no approved least-privilege runtime Secret or compatible corrected
 # image. Keep every activation input empty until the prerequisite train lands.
