@@ -580,7 +580,7 @@ jobs:
           grep -F 'ALLOWED_HOSTS: "citrus-grace.com,www.citrus-grace.com"' rendered/citrus-prod.yaml >/dev/null
           grep -F 'SITE_NAME: "Citrus Grace Dev"' rendered/citrus-dev.yaml >/dev/null
           grep -F '    - host: dev.citrus-grace.com' rendered/citrus-dev.yaml >/dev/null
-          grep -F 'citrus.grace/payment-rollout-revision: "ces-844-test-mode-v2"' rendered/citrus-dev.yaml >/dev/null
+          grep -F 'citrus.grace/payment-rollout-revision: "citrus-sandbox-credentials-2026-09-12"' rendered/citrus-dev.yaml >/dev/null
           # Web, migration, media worker, both media CronJobs, and the suspended
           # payment sweep each receive the same two-key test-mode Secret plus
           # the exact dev webhook field.
