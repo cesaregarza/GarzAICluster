@@ -113,18 +113,12 @@ def read_projection_contract(path: Path, source_label: str) -> ProjectionContrac
         return ProjectionContract(source_label, result, None, frozenset(), {})
 
     generic = values.get("RELEASED_FIELDS_PROJECTION_ID")
-    compatibility = values.get("COMPAT_CARD_PROJECTION_IDS")
     if not isinstance(generic, str) or not generic:
         raise ProjectionContractError(
             f"{source_label} does not declare a legacy result-field map or "
             "RELEASED_FIELDS_PROJECTION_ID"
         )
-    if not isinstance(compatibility, (set, frozenset, tuple, list)) or not all(
-        isinstance(item, str) and item for item in compatibility
-    ):
-        raise ProjectionContractError(
-            f"{source_label} does not declare a valid COMPAT_CARD_PROJECTION_IDS set"
-        )
+    compatibility = _compatibility_projection_ids(tree, values, source_label)
     schemas = _registered_schema_fields(tree, source_label)
     if not schemas:
         raise ProjectionContractError(
@@ -133,6 +127,33 @@ def read_projection_contract(path: Path, source_label: str) -> ProjectionContrac
     return ProjectionContract(
         source_label, {}, generic, frozenset(compatibility), schemas
     )
+
+
+def _compatibility_projection_ids(
+    tree: ast.Module, values: Mapping[str, Any], source_label: str
+) -> frozenset[str]:
+    declarations = [
+        expression for statement in tree.body
+        for name, expression in [_assignment(statement)]
+        if name == "COMPAT_CARD_PROJECTION_IDS"
+    ]
+    # Canonical-only Core omits the aliases; an unreadable declaration is not absence.
+    if not declarations:
+        return frozenset()
+    for declaration in declarations:
+        try:
+            value = _literal_value(declaration, values=values, event_members={})
+        except (ValueError, TypeError) as exc:
+            raise ProjectionContractError(
+                f"{source_label} has an unreadable COMPAT_CARD_PROJECTION_IDS declaration"
+            ) from exc
+        if not isinstance(value, (set, frozenset, tuple, list)) or not all(
+            isinstance(item, str) and item for item in value
+        ):
+            raise ProjectionContractError(
+                f"{source_label} does not declare a valid COMPAT_CARD_PROJECTION_IDS set"
+            )
+    return frozenset(value)
 
 
 def _registered_schema_fields(
