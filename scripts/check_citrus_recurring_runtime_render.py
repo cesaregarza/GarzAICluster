@@ -82,7 +82,11 @@ def _payment_arguments(*, development: bool, runtime: bool) -> tuple[str, ...]:
 
 def _render_specs() -> tuple[RenderSpec, ...]:
     return (
-        RenderSpec("citrus-prod", "citrus", "default", ("values.yaml",)),
+        RenderSpec("citrus-base-prod", "citrus", "default", ("values.yaml",)),
+        RenderSpec(
+            "citrus-prod", "citrus", "default",
+            ("values.yaml", "values-payment-prod.yaml", "values-payment-prod-legacy.yaml"),
+        ),
         RenderSpec(
             "citrus-dev",
             "citrus-dev",
@@ -178,6 +182,7 @@ def _active_dev_revision(rendered_dev: str) -> str:
 
 def _verify_renders(rendered: dict[str, str], *, active_dev_revision: str) -> None:
     prod = rendered["citrus-prod"]
+    base_prod = rendered["citrus-base-prod"]
     dev = rendered["citrus-dev"]
     safe_dev = rendered["citrus-payment-safety-dev"]
     safe_prod = rendered["citrus-payment-safety-prod"]
@@ -219,10 +224,23 @@ def _verify_renders(rendered: dict[str, str], *, active_dev_revision: str) -> No
         "citrus.grace/payment-egress-boundary",
         "kind: CiliumNetworkPolicy",
     ):
-        if forbidden in prod:
+        if forbidden in base_prod:
             raise ContractError(
-                f"citrus-prod must keep payment safety marker absent: {forbidden}"
+                f"citrus-base-prod must keep payment safety marker absent: {forbidden}"
             )
+
+    for marker in (
+        "kind: CiliumNetworkPolicy",
+        "name: citrus-prod-payment-credentials",
+        "name: STRIPE_WEBHOOK_SECRET_PROD",
+        'value: "production"',
+        'value: "allow"',
+    ):
+        _require(prod, marker, render="citrus-prod")
+    if prod.count("name: PAYMENT_EGRESS_POLICY_REVISION") != 5:
+        raise ContractError("citrus-prod must attest exactly 5 active Citrus containers")
+    if re.search(r"name: STRIPE_WEBHOOK_SECRET(?:_DEV)?\s*$", prod, re.MULTILINE):
+        raise ContractError("citrus-prod must omit generic and dev webhook environment roles")
 
     for marker in (
         "kind: CiliumNetworkPolicy",

@@ -358,12 +358,18 @@ jobs:
           mkdir -p rendered
           chart=helm/citrus
 
-          # Preserve the production and base-dev safeguard matrix. The preceding
-          # checker also renders the actual Argo runtime overlay separately as
-          # citrus-runtime-dev.yaml for the same strict kubeconform pass.
+          # Preserve the inert base alongside the actual production overlays.
+          # The checker also renders the actual dev runtime overlay separately
+          # as citrus-runtime-dev.yaml for the same strict kubeconform pass.
           helm template citrus "$chart" \
             --namespace default \
             -f "$chart/values.yaml" \
+            > rendered/citrus-base-prod.yaml
+          helm template citrus "$chart" \
+            --namespace default \
+            -f "$chart/values.yaml" \
+            -f "$chart/values-payment-prod.yaml" \
+            -f "$chart/values-payment-prod-legacy.yaml" \
             > rendered/citrus-prod.yaml
           helm template citrus-dev "$chart" \
             --namespace citrus-dev \
@@ -655,8 +661,19 @@ jobs:
           grep -F 'name: citrus-ci-direct-order-runtime' "$schedulers" >/dev/null
 
           if grep -E '^kind:[[:space:]]+CiliumNetworkPolicy$|PAYMENT_NETWORK_MODE|payment-egress-boundary' \
-            rendered/citrus-prod.yaml >/dev/null; then
-            echo "Citrus production Argo render must keep CES-845 disabled" >&2
+            rendered/citrus-base-prod.yaml >/dev/null; then
+            echo "Citrus production base render must keep CES-845 disabled" >&2
+            exit 1
+          fi
+          active_prod=rendered/citrus-prod.yaml
+          # Citrus production Argo render must activate production allow mode.
+          grep -F 'name: citrus-prod-payment-credentials' "$active_prod" >/dev/null
+          grep -F 'value: "production"' "$active_prod" >/dev/null
+          grep -F 'value: "allow"' "$active_prod" >/dev/null
+          test "$(grep -Fc 'name: STRIPE_WEBHOOK_SECRET_PROD' "$active_prod")" -eq 5
+          test "$(grep -Fc 'name: PAYMENT_EGRESS_POLICY_REVISION' "$active_prod")" -eq 5
+          if grep -E 'name: STRIPE_WEBHOOK_SECRET(_DEV)?[[:space:]]*$' "$active_prod" >/dev/null; then
+            echo "Citrus production must omit generic and dev webhook environment roles" >&2
             exit 1
           fi
 

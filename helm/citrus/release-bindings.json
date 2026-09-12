@@ -16,7 +16,9 @@
     },
     "prod": {
       "appliedValues": [
-        "helm/citrus/values.yaml"
+        "helm/citrus/values.yaml",
+        "helm/citrus/values-payment-prod.yaml",
+        "helm/citrus/values-payment-prod-legacy.yaml"
       ],
       "operationalValues": [
         "helm/citrus/values.yaml"
@@ -58,6 +60,12 @@
       "valuePath": "directOrderPaymentSweep.verifiedImageTag",
       "policy": "auto-roll",
       "requiresCapability": "direct-order-payment-sweep"
+    },
+    {
+      "name": "legacy-production-runtime-image",
+      "enabledPath": "paymentCredentials.legacyProductionRuntime",
+      "valuePath": "paymentCredentials.legacyProductionRuntimeVerifiedImageTag",
+      "policy": "manual-attestation"
     }
   ]
 }

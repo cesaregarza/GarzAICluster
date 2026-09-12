@@ -277,7 +277,9 @@ new image permits absent payment settings: remove the overlay only when full
 startup validation proves the narrower projection works. The normal production
 projection remains tested for its intended future contract.
 
-This staging change leaves both production overlays inactive. Activation must
-follow the dedicated Secret becoming healthy. A configuration rollback removes
+The production Application now layers both overlays after the dedicated Secret
+was staged and verified. The application image and database schema are unchanged.
+The earlier preparation sections describe the pre-activation state.
+A configuration rollback removes
 both production overlay references together, restoring the unchanged legacy
 Secret import; retain the dedicated Secret until the rollback window closes.
