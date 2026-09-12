@@ -113,7 +113,7 @@ def _plain_env(container: dict[str, Any]) -> dict[str, str]:
 
 
 class CitrusStripeSmokeRunnerTests(unittest.TestCase):
-    def test_active_dev_overlay_enables_only_suspended_manual_runner(self) -> None:
+    def test_active_dev_overlay_enables_automated_gate_with_normal_dev_denied(self) -> None:
         app = YAML_PARSER.load(
             (REPO_ROOT / "argocd/applications/citrus-dev.yaml").read_text()
         )
@@ -122,14 +122,26 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
         for filename in app["spec"]["source"]["helm"]["valueFiles"]:
             command.extend(["-f", str(CHART_PATH / filename)])
         documents = _documents(command)
-        runner = _named(documents, "CronJob", "citrus-dev-stripe-smoke-runner")
-        self.assertIs(runner["spec"]["suspend"], True)
-        self.assertEqual(runner["spec"]["jobTemplate"]["spec"]["backoffLimit"], 0)
+        runners = [item for item in documents if item["kind"] == "Job"
+                   and item["metadata"]["name"].startswith("citrus-smoke-")]
+        self.assertEqual(len(runners), 1)
+        runner = runners[0]
+        self.assertEqual(runner["spec"]["backoffLimit"], 0)
+        self.assertEqual(runner["metadata"]["annotations"]["argocd.argoproj.io/hook"],
+                         "PostSync")
+        self.assertEqual(runner["metadata"]["annotations"]
+                         ["argocd.argoproj.io/hook-delete-policy"], "HookSucceeded")
+        self.assertFalse(any(item["kind"] == "ConfigMap" and item["metadata"]["name"]
+                             == "citrus-dev-stripe-smoke-receipts" for item in documents))
         policy = _named(documents, "CiliumNetworkPolicy",
                         "citrus-dev-stripe-smoke-runner-egress")
         self.assertEqual(policy["spec"]["endpointSelector"]["matchLabels"]
                          ["app.kubernetes.io/component"], "stripe-smoke-runner")
-        self.assertFalse(any("toEntities" in rule for rule in policy["spec"]["egress"]))
+        api_rules = [rule for rule in policy["spec"]["egress"] if "toEntities" in rule]
+        self.assertEqual(len(api_rules), 1)
+        self.assertEqual(api_rules[0]["toEntities"], ["kube-apiserver"])
+        self.assertEqual(api_rules[0]["toPorts"],
+                         [{"ports": [{"port": "443", "protocol": "TCP"}]}])
         for document in documents:
             if document["kind"] == "Deployment":
                 for container in document["spec"]["template"]["spec"]["containers"]:
@@ -599,7 +611,7 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
         )
         self.assertEqual(
             service_rule["toPorts"],
-            [{"ports": [{"port": "80", "protocol": "TCP"}]}],
+            [{"ports": [{"port": "8000", "protocol": "TCP"}]}],
         )
         self.assertFalse(
             any("toEntities" in rule for rule in policy["spec"]["egress"])

@@ -344,7 +344,8 @@ spec:
             namespace: {{ .Release.Namespace | quote }}
       toPorts:
         - ports:
-            - port: {{ .Values.service.port | quote }}
+            # Cilium enforces L4 ports after Service destination translation.
+            - port: {{ .Values.service.targetPort | quote }}
               protocol: TCP
     - toFQDNs:
         - matchName: "api.stripe.com"
