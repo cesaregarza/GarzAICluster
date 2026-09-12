@@ -98,7 +98,12 @@ def _render_specs() -> tuple[RenderSpec, ...]:
                 "values-dev.yaml",
                 "values-payment-dev.yaml",
                 "values-recurring-dev.yaml",
+                "values-stripe-smoke-dev.yaml",
             ),
+            # This matrix checks normal recurring workloads under deny.
+            # The active suspended runner and its isolated policy have their
+            # own actual-Argo-overlay contract in test_citrus_stripe_smoke_runner.
+            ("--set", "stripeSmokeRunner.enabled=false"),
         ),
         RenderSpec(
             "citrus-payment-prod",

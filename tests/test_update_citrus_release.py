@@ -52,6 +52,7 @@ class SyntheticRepository:
         self.dev_runtime_values = self.chart / "values-recurring-dev.yaml"
         self.prod_payment_values = self.chart / "values-payment-prod.yaml"
         _write_yaml(self.dev_runtime_values, {})
+        _write_yaml(self.chart / "values-stripe-smoke-dev.yaml", {})
         _write_yaml(
             self.values,
             {
@@ -527,6 +528,7 @@ class CitrusReleaseRepositoryContractTests(unittest.TestCase):
                 "values-dev.yaml",
                 "values-payment-dev.yaml",
                 "values-recurring-dev.yaml",
+                "values-stripe-smoke-dev.yaml",
                 "values-payment-prod.yaml",
             ):
                 shutil.copyfile(REPO_ROOT / "helm" / "citrus" / name, chart / name)
@@ -537,6 +539,7 @@ class CitrusReleaseRepositoryContractTests(unittest.TestCase):
                     "values-dev.yaml",
                     "values-payment-dev.yaml",
                     "values-recurring-dev.yaml",
+                    "values-stripe-smoke-dev.yaml",
                     "values-payment-prod.yaml",
                 )
             }

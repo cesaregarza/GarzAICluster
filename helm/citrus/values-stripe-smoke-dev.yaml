@@ -1,0 +1,8 @@
+# Operator-attested test-mode identity; credentials stay in dev SOPS sources.
+# Stage 1 creates only a suspended template for an explicit one-shot campaign.
+stripeSmokeRunner:
+  enabled: true
+  suspend: true
+  expectedAccountId: acct_1TWnMyCn9HWrOqJv
+  automation:
+    enabled: false

@@ -31,6 +31,7 @@ EXPECTED_ENVIRONMENT_PATHS = {
             Path("helm/citrus/values-dev.yaml"),
             Path("helm/citrus/values-payment-dev.yaml"),
             Path("helm/citrus/values-recurring-dev.yaml"),
+            Path("helm/citrus/values-stripe-smoke-dev.yaml"),
         ),
         frozenset(
             {

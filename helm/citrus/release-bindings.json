@@ -6,7 +6,8 @@
         "helm/citrus/values.yaml",
         "helm/citrus/values-dev.yaml",
         "helm/citrus/values-payment-dev.yaml",
-        "helm/citrus/values-recurring-dev.yaml"
+        "helm/citrus/values-recurring-dev.yaml",
+        "helm/citrus/values-stripe-smoke-dev.yaml"
       ],
       "operationalValues": [
         "helm/citrus/values-dev.yaml",
