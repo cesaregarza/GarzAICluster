@@ -49,6 +49,7 @@ def _render(
     dev: bool,
     payment: bool,
     activate_background_consumers: bool = False,
+    legacy_production: bool = False,
 ) -> list[dict[str, Any]]:
     if shutil.which("helm") is None:
         raise unittest.SkipTest("helm is required for chart render tests")
@@ -125,6 +126,9 @@ def _render(
                 "recurringRuntime.health.topologyRevision=ces-850-test",
             ]
         )
+
+    if legacy_production:
+        command.extend(["-f", str(CHART_PATH / "values-payment-prod-legacy.yaml")])
 
     result = subprocess.run(
         command,
@@ -267,6 +271,88 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
         self.assertNotIn("values-payment-prod.yaml", prod_application)
         self.assertIn("values-payment-dev.yaml", dev_application)
 
+    def test_prod_encrypted_source_contains_only_exact_payment_roles(self) -> None:
+        filename = "citrus-prod-payment-credentials.enc.yaml"
+        directory = REPO_ROOT / "secrets" / "citrus"
+        document = YAML_PARSER.load((directory / filename).read_text())
+        self.assertEqual(document["kind"], "Secret")
+        self.assertEqual(document["metadata"]["namespace"], "default")
+        self.assertEqual(document["metadata"]["name"], "citrus-prod-payment-credentials")
+        self.assertEqual(set(document["data"]), {
+            "STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY", "STRIPE_WEBHOOK_SECRET",
+        })
+        self.assertTrue(all(value.startswith("ENC[AES256_GCM,") for value in document["data"].values()))
+        self.assertIn("sops", document)
+        self.assertIn(filename, YAML_PARSER.load((directory / "ksops.yaml").read_text())["files"])
+
+    def test_old_production_boot_bridge_projects_only_required_live_roles(self) -> None:
+        documents = _render(
+            dev=False, payment=True, legacy_production=True,
+            activate_background_consumers=True,
+        )
+        expected_runtimes = {
+            ("citrus", "django"),
+            ("citrus-migrate-1", "migrate"),
+            ("citrus-media-worker", "media-worker"),
+            ("citrus-media-requeue", "media-requeue"),
+            ("citrus-media-gc", "media-gc"),
+            ("citrus-billing-worker", "billing-worker"),
+            ("citrus-billing-worker", "recurring-metrics"),
+            ("citrus-recurring-preflight", "recurring-preflight"),
+            ("citrus-recurring-tick", "recurring-tick"),
+            ("citrus-recurring-health", "recurring-health"),
+        }
+        observed = set()
+        for document in documents:
+            if document.get("kind") not in {"Deployment", "Job", "CronJob"}:
+                continue
+            for container in _pod_spec(document).get("containers", []):
+                if not any(source.get("configMapRef", {}).get("name") == "django-config"
+                           for source in container.get("envFrom", [])):
+                    continue
+                runtime = (document["metadata"]["name"], container["name"])
+                observed.add(runtime)
+                expected = {
+                    "STRIPE_SECRET_KEY": "STRIPE_SECRET_KEY",
+                    "STRIPE_WEBHOOK_SECRET_PROD": "STRIPE_WEBHOOK_SECRET",
+                }
+                if runtime == ("citrus", "django"):
+                    expected["STRIPE_PUBLISHABLE_KEY"] = "STRIPE_PUBLISHABLE_KEY"
+                self.assertEqual(_payment_refs(container, "citrus-prod-payment-credentials"), expected)
+                self.assertEqual(_plain_env(container, "STRIPE_WEBHOOK_SECRET_OWNER"), "citrus")
+                names = [item["name"] for item in container["env"]]
+                self.assertEqual(len(names), len(set(names)))
+                self.assertNotIn("STRIPE_WEBHOOK_SECRET", names)
+                self.assertNotIn("STRIPE_WEBHOOK_SECRET_DEV", names)
+                self.assertEqual(_payment_refs(container, "django-secrets"), {
+                    key: key for key in ("DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD")
+                })
+                for source in container.get("envFrom", []):
+                    self.assertNotIn(source.get("secretRef", {}).get("name"), {
+                        "django-secrets", "citrus-prod-payment-credentials",
+                    })
+        self.assertEqual(observed, expected_runtimes)
+
+    def test_old_production_bridge_rejects_other_images_and_environments(self) -> None:
+        for namespace, overrides, expected_error in (
+            ("default", ["--set-string", "image.tag=" + "a" * 40], "legacyProductionRuntimeVerifiedImageTag"),
+            ("default", ["--set-string", "image.repository=registry.example/citrus"], "legacyProductionRuntimeVerifiedImageTag"),
+            ("citrus-dev", [], "production payment safety requires"),
+            ("default", ["--set", "paymentCredentials.enabled=false"], "legacyProductionRuntime requires enabled production credentials"),
+            ("default", ["--set-string", "paymentCredentials.legacyProductionRuntimeVerifiedImageTag="], "legacyProductionRuntimeVerifiedImageTag"),
+            ("default", ["--set-string", "paymentCredentials.legacyProductionRuntimeVerifiedImageTag=latest"], "legacyProductionRuntimeVerifiedImageTag"),
+            ("default", ["--set", "paymentSafety.enabled=false"], "legacyProductionRuntime requires paymentSafety.enabled=true"),
+        ):
+            with self.subTest(namespace=namespace, overrides=overrides):
+                result = subprocess.run([
+                    "helm", "template", "citrus", str(CHART_PATH), "--namespace", namespace,
+                    "-f", str(PROD_PAYMENT_VALUES),
+                    "-f", str(CHART_PATH / "values-payment-prod-legacy.yaml"),
+                    "--set", "stripeSmokePromotion.enabled=false", *overrides,
+                ], cwd=REPO_ROOT, capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected_error, result.stderr)
+
     def test_dev_encrypted_source_contains_only_test_api_roles(self) -> None:
         document = YAML_PARSER.load(
             DEV_PAYMENT_SECRET_PATH.read_text(encoding="utf-8")
@@ -325,7 +411,7 @@ class CitrusPaymentSecretProjectionTests(unittest.TestCase):
         )
         self.assertEqual(
             _pod_annotations(web)["citrus.grace/payment-rollout-revision"],
-            "ces-844-prepared",
+            "citrus-prod-isolation-20260912",
         )
 
         billing = _named(

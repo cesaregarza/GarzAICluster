@@ -130,6 +130,9 @@ paymentCredentials:
   webhookEnvironmentVariable: ""
   webhookSecretName: ""
   webhookSecretKey: ""
+  # Legacy Django boot requirement; retain until full startup permits absence.
+  legacyProductionRuntime: false
+  legacyProductionRuntimeVerifiedImageTag: ""
 
 # Disabled-by-default CES-845 contract. Enabling it injects explicit runtime
 # ownership into every Citrus process and renders same-release Cilium egress

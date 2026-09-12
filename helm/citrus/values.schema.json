@@ -394,9 +394,18 @@
         "rolloutRevision",
         "webhookEnvironmentVariable",
         "webhookSecretName",
-        "webhookSecretKey"
+        "webhookSecretKey",
+        "legacyProductionRuntime",
+        "legacyProductionRuntimeVerifiedImageTag"
       ],
       "properties": {
+        "legacyProductionRuntime": {
+          "type": "boolean"
+        },
+        "legacyProductionRuntimeVerifiedImageTag": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-f]{40}$"
+        },
         "enabled": {
           "type": "boolean"
         },

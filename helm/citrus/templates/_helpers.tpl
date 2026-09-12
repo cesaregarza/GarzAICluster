@@ -96,6 +96,19 @@ and an immutable source-image receipt.
 Validate the disabled-by-default CES-844 payment credential projection.
 */}}
 {{- define "citrus.paymentCredentials.validate" -}}
+{{- if .Values.paymentCredentials.legacyProductionRuntime -}}
+{{- if not .Values.paymentSafety.enabled -}}
+{{- fail "paymentCredentials.legacyProductionRuntime requires paymentSafety.enabled=true" -}}
+{{- end -}}
+{{- include "citrus.paymentSafety.validate" . -}}
+{{- if or (not .Values.paymentCredentials.enabled) (ne .Values.paymentCredentials.owner "citrus") (ne .Release.Name "citrus") (ne .Release.Namespace "default") -}}
+{{- fail "paymentCredentials.legacyProductionRuntime requires enabled production credentials in release citrus/default" -}}
+{{- end -}}
+{{- $verifiedImage := required "paymentCredentials.legacyProductionRuntimeVerifiedImageTag is required for the legacy production bridge" .Values.paymentCredentials.legacyProductionRuntimeVerifiedImageTag -}}
+{{- if or (ne .Values.image.repository "registry.digitalocean.com/sendouq/citrus") (not (regexMatch "^[0-9a-f]{40}$" $verifiedImage)) (ne (toString .Values.image.tag) $verifiedImage) -}}
+{{- fail "paymentCredentials.legacyProductionRuntimeVerifiedImageTag must exactly match image.tag in the production Citrus repository" -}}
+{{- end -}}
+{{- end -}}
 {{- if .Values.paymentCredentials.enabled -}}
 {{- $secretName := required "paymentCredentials.secretName is required when paymentCredentials.enabled=true" .Values.paymentCredentials.secretName -}}
 {{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $secretName) -}}
@@ -197,6 +210,13 @@ Project only API authority into non-web payment consumers.
       name: {{ .Values.paymentCredentials.secretName }}
       key: STRIPE_PUBLISHABLE_KEY
       optional: false
+{{ include "citrus.paymentCredentials.webhookEnv" . }}
+{{- end }}
+{{- end }}
+
+{{/* One environment-specific signing role, shared by web and legacy boot. */}}
+{{- define "citrus.paymentCredentials.webhookEnv" -}}
+{{- if .Values.paymentCredentials.enabled }}
 - name: {{ .Values.paymentCredentials.webhookEnvironmentVariable }}
   valueFrom:
     secretKeyRef:
@@ -208,15 +228,25 @@ Project only API authority into non-web payment consumers.
 {{- end }}
 {{- end }}
 
+{{/* Old production validates payment settings in every Django process. */}}
+{{- define "citrus.paymentCredentials.legacyRuntimeEnv" -}}
+{{ include "citrus.paymentCredentials.apiEnv" . }}
+{{ include "citrus.paymentCredentials.webhookEnv" . }}
+{{- end }}
+
 {{/*
 The dev threat model isolates dev from production, not one trusted dev process
 from another. Every dev Django runtime therefore receives the same dedicated
 test-mode API/publishable pair and exact dev webhook projection. Production
-keeps the narrower prepared projection from PR #576.
+keeps the narrower prepared projection except for the exact old-image boot bridge.
 */}}
 {{- define "citrus.paymentCredentials.devRuntimeEnv" -}}
-{{- if and .Values.paymentCredentials.enabled (eq .Values.paymentCredentials.owner "citrus-dev") }}
+{{- if .Values.paymentCredentials.enabled }}
+{{- if eq .Values.paymentCredentials.owner "citrus-dev" }}
 {{ include "citrus.paymentCredentials.webEnv" . }}
+{{- else if .Values.paymentCredentials.legacyProductionRuntime }}
+{{ include "citrus.paymentCredentials.legacyRuntimeEnv" . }}
+{{- end }}
 {{- end }}
 {{- end }}
 
@@ -225,6 +255,8 @@ keeps the narrower prepared projection from PR #576.
 {{- if .Values.paymentCredentials.enabled }}
 {{- if eq .Values.paymentCredentials.owner "citrus-dev" }}
 {{ include "citrus.paymentCredentials.webEnv" . }}
+{{- else if .Values.paymentCredentials.legacyProductionRuntime }}
+{{ include "citrus.paymentCredentials.legacyRuntimeEnv" . }}
 {{- else }}
 {{ include "citrus.paymentCredentials.apiEnv" . }}
 {{- end }}

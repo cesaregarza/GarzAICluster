@@ -176,6 +176,9 @@ def _materialized_command(
         )
     if include_payment_safety:
         command.extend(_payment_safety_args(dev=dev))
+    else:
+        # The production overlay supplies safety; explicitly exercise its absence.
+        command.extend(["--set", "paymentSafety.enabled=false"])
     return command
 
 
