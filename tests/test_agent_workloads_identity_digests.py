@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import shutil
 import unittest
 from pathlib import Path
 from typing import Any
@@ -171,6 +172,20 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         result = _check(root)
 
         self.assertIn("match release pins", result)
+
+    def test_gate_rejects_missing_sdk_receipt_when_release_pins_are_present(self) -> None:
+        root = _fixture_repo()
+        (root / "contracts/mandate-worker/receipt.json").unlink()
+
+        with self.assertRaisesRegex(DriftGateError, "SDK receipt"):
+            _check(root)
+
+    def test_gate_rejects_malformed_sdk_receipt_when_release_pins_are_present(self) -> None:
+        root = _fixture_repo()
+        (root / "contracts/mandate-worker/receipt.json").write_text("{}\n")
+
+        with self.assertRaisesRegex(DriftGateError, "SDK receipt"):
+            _check(root)
 
     def test_gate_accepts_distinct_governed_release_subject_bindings(self) -> None:
         root = _fixture_repo()
@@ -684,6 +699,9 @@ def _fixture_repo(
     }
     if include_pins:
         values["mandateReleasePins"] = DIGESTS
+        receipt_path = root / "contracts/mandate-worker/receipt.json"
+        receipt_path.parent.mkdir(parents=True)
+        shutil.copyfile(REPO_ROOT / "contracts/mandate-worker/receipt.json", receipt_path)
 
     configmap_path = root / "apps" / "agent-control-plane-registry-overlay" / (
         "configmap.yaml"
