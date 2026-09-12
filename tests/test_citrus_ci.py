@@ -355,7 +355,7 @@ class CitrusCiContractTests(unittest.TestCase):
         self.assertIn("suspend: true", run)
         self.assertIn("citrus.grace/verified-image-tag", run)
         self.assertIn("citrus-ci-direct-order-runtime", run)
-        self.assertIn("ces-844-test-mode-v2", run)
+        self.assertIn("citrus-sandbox-credentials-2026-09-12", run)
         self.assertIn("citrus-dev-payment-credentials", run)
         self.assertIn("STRIPE_WEBHOOK_SECRET_DEV", run)
         self.assertIn("must never project the production webhook field", run)
