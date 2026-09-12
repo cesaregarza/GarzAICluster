@@ -53,6 +53,11 @@ Goal: rollback ≤ 5 minutes from revert merge to healthy status.
 - No post-merge mutations in app repo (`main` must match built images; i18n copies happen pre-build or in Dockerfile).
 - Config repo merges only via reviewed PRs (no direct push to `main`).
 - CI enforces digest-only manifests (`conftest` / Kyverno tests output error on mutable tags).
+- When `apps/agent-workloads/values.yaml` contains `mandateReleasePins`, the
+  offline identity digest gate also requires the reviewed
+  `contracts/mandate-worker/receipt.json`. It validates the receipt identity and
+  uses its SDK-owned digest specification version when checking token metadata;
+  the gate does not import or download the SDK.
 - CI must require `agent-control-plane-deployed-registry-compat` for PRs that
   can affect Mandate registry overlay, policy, or control-plane values. The
   check validates the PR's config against the `agent-platform` `targetRevision`
