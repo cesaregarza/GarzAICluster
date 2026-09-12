@@ -113,6 +113,31 @@ def _plain_env(container: dict[str, Any]) -> dict[str, str]:
 
 
 class CitrusStripeSmokeRunnerTests(unittest.TestCase):
+    def test_active_dev_overlay_enables_only_suspended_manual_runner(self) -> None:
+        app = YAML_PARSER.load(
+            (REPO_ROOT / "argocd/applications/citrus-dev.yaml").read_text()
+        )
+        command = ["helm", "template", "citrus-dev", str(CHART_PATH),
+                   "--namespace", "citrus-dev"]
+        for filename in app["spec"]["source"]["helm"]["valueFiles"]:
+            command.extend(["-f", str(CHART_PATH / filename)])
+        documents = _documents(command)
+        runner = _named(documents, "CronJob", "citrus-dev-stripe-smoke-runner")
+        self.assertIs(runner["spec"]["suspend"], True)
+        self.assertEqual(runner["spec"]["jobTemplate"]["spec"]["backoffLimit"], 0)
+        policy = _named(documents, "CiliumNetworkPolicy",
+                        "citrus-dev-stripe-smoke-runner-egress")
+        self.assertEqual(policy["spec"]["endpointSelector"]["matchLabels"]
+                         ["app.kubernetes.io/component"], "stripe-smoke-runner")
+        self.assertFalse(any("toEntities" in rule for rule in policy["spec"]["egress"]))
+        for document in documents:
+            if document["kind"] == "Deployment":
+                for container in document["spec"]["template"]["spec"]["containers"]:
+                    env = _plain_env(container)
+                    if "PAYMENT_NETWORK_MODE" in env:
+                        self.assertEqual(env["PAYMENT_NETWORK_MODE"], "deny")
+                        self.assertNotIn("CITRUS_STRIPE_SMOKE_RUNNER", env)
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.prod_off = _documents(_command(enabled=False, dev=False))
