@@ -1,0 +1,6 @@
+# Current Django startup requires API + production webhook settings in all roles.
+# A fresh full startup receipt is required before updating this image attestation.
+# Remove this overlay only after the new image can start with the narrower roles.
+paymentCredentials:
+  legacyProductionRuntime: true
+  legacyProductionRuntimeVerifiedImageTag: 3f68967f777b2665fccb4f0ab423f339b8ea1357

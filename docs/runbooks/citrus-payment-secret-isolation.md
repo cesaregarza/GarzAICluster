@@ -255,3 +255,29 @@ produced.
   configuration to dev to recover service.
 - Do not patch Argo state, force a sync, restart workloads, merge another PR, or
   change a live Secret without its matching explicit authorization.
+
+## Production configuration staging (2026-09-12)
+
+The dedicated `default/citrus-prod-payment-credentials` encrypted Secret contains
+only the existing live API key, publishable key, and production signing secret.
+Reconcile `citrus-secrets` and verify those roles before adding
+`values-payment-prod.yaml` to the production Application. The overlay sets
+production ownership and a matching Cilium `allow` policy; database references,
+non-payment Secret imports, application image, and feature activation stay intact.
+
+While source `3f68967f777b2665fccb4f0ab423f339b8ea1357` is deployed, also layer
+`values-payment-prod-legacy.yaml`. That source requires API and production
+webhook settings at startup even for migration and media processes. The temporary
+bridge gives those processes these two dedicated production roles, without a
+publishable key or generic/dev webhook variable. Helm rejects a different
+repository/environment or a source that differs from
+`legacyProductionRuntimeVerifiedImageTag`. Update that image attestation only
+with a fresh full startup receipt for every production role. Do not infer that a
+new image permits absent payment settings: remove the overlay only when full
+startup validation proves the narrower projection works. The normal production
+projection remains tested for its intended future contract.
+
+This staging change leaves both production overlays inactive. Activation must
+follow the dedicated Secret becoming healthy. A configuration rollback removes
+both production overlay references together, restoring the unchanged legacy
+Secret import; retain the dedicated Secret until the rollback window closes.

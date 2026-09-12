@@ -4,7 +4,22 @@ paymentCredentials:
   enabled: true
   secretName: citrus-prod-payment-credentials
   owner: citrus
-  rolloutRevision: ces-844-prepared
+  rolloutRevision: citrus-prod-isolation-20260912
   webhookEnvironmentVariable: STRIPE_WEBHOOK_SECRET_PROD
   webhookSecretName: citrus-prod-payment-credentials
   webhookSecretKey: STRIPE_WEBHOOK_SECRET
+
+# Pair the dedicated credential projection with the named production runtime.
+# This preserves existing production connectivity while recording the same
+# policy revision in the Cilium resources and every application workload.
+paymentSafety:
+  enabled: true
+  environment: production
+  owner: citrus
+  networkMode: allow
+  policy:
+    required: true
+    provider: cilium
+    revision: citrus-prod-isolation-20260912
+  networkPolicy:
+    enabled: true
