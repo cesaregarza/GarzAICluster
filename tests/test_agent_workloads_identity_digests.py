@@ -402,6 +402,71 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
                 self.assertIn("retained rollback tuples", result)
 
+    def test_opencode_explicit_rollback_survives_retirement_and_next_overlap(self) -> None:
+        rollback = {key: "sha256:" + digit * 64 for key, digit in
+                    zip(("codeDigest", "manifestDigest", "imageDigest"), "456")}
+        next_previous = {key: "sha256:" + digit * 64 for key, digit in
+                         zip(("codeDigest", "manifestDigest", "imageDigest"), "789")}
+        for agent_id, values_key in (("opencode.proposer", "opencodeProposer"),
+                                     ("opencode.apply_executor", "opencodeApplyExecutor")):
+            for previous in (None, next_previous):
+                with self.subTest(agent_id=agent_id, previous=previous):
+                    root = _fixture_repo()
+                    _configure_governed_release_subjects(
+                        root, previous_by_agent={agent_id: previous} if previous else None
+                    )
+                    _configure_retained_hmac_token(root, agent_id=agent_id, release=rollback)
+                    path = root / "apps/agent-workloads/values.yaml"
+                    values = YAML_PARSER.load(path.read_text())
+                    values[values_key]["identity"]["hmacRollbackRelease"] = rollback
+                    _write_yaml(path, values)
+                    self.assertIn("retained rollback tuples", _check(root))
+
+    def test_opencode_explicit_rollback_rejects_invalid_shape_and_claim_drift(self) -> None:
+        keys = ("codeDigest", "manifestDigest", "imageDigest")
+        for agent_id, values_key in (("opencode.proposer", "opencodeProposer"),
+                                     ("opencode.apply_executor", "opencodeApplyExecutor")):
+            invalid = (None, {}, "invalid", {**DIGESTS[agent_id], "imageDigest": "bad"},
+                       {**DIGESTS[agent_id], "extra": "bad"})
+            for rollback in invalid:
+                with self.subTest(agent_id=agent_id, rollback=rollback):
+                    root = _fixture_repo()
+                    _configure_governed_release_subjects(root)
+                    path = root / "apps/agent-workloads/values.yaml"
+                    values = YAML_PARSER.load(path.read_text())
+                    values[values_key]["identity"]["hmacRollbackRelease"] = rollback
+                    _write_yaml(path, values)
+                    with self.assertRaisesRegex(DriftGateError, "hmacRollbackRelease"):
+                        _check(root)
+            for key in keys:
+                with self.subTest(agent_id=agent_id, drift=key):
+                    root = _fixture_repo()
+                    _configure_governed_release_subjects(root)
+                    path = root / "apps/agent-workloads/values.yaml"
+                    values = YAML_PARSER.load(path.read_text())
+                    values[values_key]["identity"]["hmacRollbackRelease"] = {
+                        **DIGESTS[agent_id], key: "sha256:" + "9" * 64
+                    }
+                    _write_yaml(path, values)
+                    with self.assertRaisesRegex(DriftGateError, "mismatch"):
+                        _check(root)
+
+    def test_opencode_hmac_mode_cannot_override_current_claims_with_rollback(self) -> None:
+        rollback = {key: "sha256:" + digit * 64 for key, digit in
+                    zip(("codeDigest", "manifestDigest", "imageDigest"), "456")}
+        for agent_id, values_key in (("opencode.proposer", "opencodeProposer"),
+                                     ("opencode.apply_executor", "opencodeApplyExecutor")):
+            with self.subTest(agent_id=agent_id):
+                root = _fixture_repo()
+                _configure_governed_hmac_identities(root)
+                _configure_retained_hmac_token(root, agent_id=agent_id, release=rollback)
+                path = root / "apps/agent-workloads/values.yaml"
+                values = YAML_PARSER.load(path.read_text())
+                values[values_key]["identity"]["hmacRollbackRelease"] = rollback
+                _write_yaml(path, values)
+                with self.assertRaisesRegex(DriftGateError, "code_digest mismatch"):
+                    _check(root)
+
     def test_gate_rejects_current_hmac_token_during_previous_tuple_overlap(
         self,
     ) -> None:

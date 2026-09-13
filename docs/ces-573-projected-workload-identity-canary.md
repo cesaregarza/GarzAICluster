@@ -107,6 +107,15 @@ and registry imports. Keep `hmacRollbackRelease` and the retained credential
 unchanged across subsequent projected rollouts. Missing or malformed rollback
 metadata fails the gate; HMAC mode still requires the current release tuple.
 
+The apply executor records the same independent tuple under
+`opencodeApplyExecutor.identity.hmacRollbackRelease`. An explicit OpenCode
+rollback tuple must have exactly three valid digests and match the retained
+credential and metadata, even after overlap retirement or a later rollout.
+Malformed explicit values fail closed. OpenCode configurations without this
+field keep their existing previous/current inference until their reviewed
+cleanup adds the explicit tuple; the proposer overlap is unchanged for now.
+In HMAC mode the current release still governs token validation.
+
 ## Proposer HMAC rollback-only follow-up (CES-655)
 
 The proposer passed projected proposal release, current/previous identity,
