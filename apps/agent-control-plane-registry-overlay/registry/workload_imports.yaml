@@ -100,11 +100,6 @@ imports:
     max_runtime_seconds: 900
     model_gateway_token: true
     service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-f194a7d61ab07eeba167
-    previous_release:
-      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-f84256315d07ba69d595
-      code_digest: sha256:02f824315c53d671a40c4357e8868e6950eb330a6e495c6b21b3e8f71b095db7
-      manifest_digest: sha256:d69820fe79941fa9dab307f33097d35c0703b11d5f66e9f4e7754d2468753906
-      image_digest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
   capabilities:
     agent_workloads.opencode_propose:
       description: Imported OpenCode proposer that writes requested edits as isolated

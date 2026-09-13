@@ -107,13 +107,14 @@ and registry imports. Keep `hmacRollbackRelease` and the retained credential
 unchanged across subsequent projected rollouts. Missing or malformed rollback
 metadata fails the gate; HMAC mode still requires the current release tuple.
 
-The apply executor records the same independent tuple under
+Both OpenCode workers record independent tuples under
+`opencodeProposer.identity.hmacRollbackRelease` and
 `opencodeApplyExecutor.identity.hmacRollbackRelease`. An explicit OpenCode
 rollback tuple must have exactly three valid digests and match the retained
 credential and metadata, even after overlap retirement or a later rollout.
 Malformed explicit values fail closed. OpenCode configurations without this
 field keep their existing previous/current inference until their reviewed
-cleanup adds the explicit tuple; the proposer overlap is unchanged for now.
+cleanup adds the explicit tuple; both deployed OpenCode workers now have one.
 In HMAC mode the current release still governs token validation.
 
 ## Proposer HMAC rollback-only follow-up (CES-655)
@@ -136,10 +137,11 @@ credential configuration, and re-add proposer to both HMAC allowlists before
 activating that credential. Keep the split proposer/apply topology and governed
 artifact handoff. Do not rotate or delete the retained secret.
 
-Proposer `previousRelease` remains in place during this allowlist-only change.
-Before retiring that overlap, record its retained HMAC tuple explicitly and
-update the identity gate, which currently infers proposer rollback claims from
-`previousRelease`. Never remint a credential to compensate for overlap cleanup.
+The subsequent CES-1010 proposer cleanup preserves its retained HMAC tuple
+byte-identically under `identity.hmacRollbackRelease` and sets
+`previousRelease: null`. The identity gate validates that explicit tuple
+independently of projected rollout overlap. Never remint a credential to
+compensate for overlap cleanup.
 
 ## Apply executor HMAC rollback-only follow-up (CES-1008; live CES-656)
 
