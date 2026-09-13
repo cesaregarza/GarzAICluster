@@ -7,8 +7,8 @@ fullnameOverride: agent-workloads
 replicaCount: 2
 image:
   repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-7c58c68999c1
-  digest: sha256:ae3c91372ff156bf131d0240cb2c39eb0e46ca935791b9df3bc74b80f31705f0
+  tag: sha-372af45558df
+  digest: sha256:752ac6e502491df926c62b1a3aa13ffc477c03a173ce2e2f8e3b0700d09b4073
   pullPolicy: IfNotPresent
 projectedWorkloadIdentity:
   enabled: true
@@ -26,7 +26,10 @@ projectedWorkloadIdentity:
     codeDigest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
     manifestDigest: sha256:912222e0cf0adea2733166543213e6ff70aadff34f13815ca36038bdf30d123f
     imageDigest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
-  previousRelease: null
+  previousRelease:
+    codeDigest: sha256:c92818378dff1d477e7bd01da549601ff67b851aa5d0103fbf50288de09fc7d4
+    manifestDigest: sha256:21df383248a615db3af1ccff263dd49ea42f96f26784684fccfff12ece1e4728
+    imageDigest: sha256:ae3c91372ff156bf131d0240cb2c39eb0e46ca935791b9df3bc74b80f31705f0
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
   AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
@@ -304,9 +307,9 @@ opencodeApplyExecutor:
           protocol: TCP
 mandateReleasePins:
   data.workspace_probe:
-    codeDigest: sha256:c92818378dff1d477e7bd01da549601ff67b851aa5d0103fbf50288de09fc7d4
-    manifestDigest: sha256:21df383248a615db3af1ccff263dd49ea42f96f26784684fccfff12ece1e4728
-    imageDigest: sha256:ae3c91372ff156bf131d0240cb2c39eb0e46ca935791b9df3bc74b80f31705f0
+    codeDigest: sha256:c97cb53d1dc4b8d63365a6c89e1f3c75148eeeb17c81d0a3e17b11e881dce10c
+    manifestDigest: sha256:81e539e42ec8fdad8881fdc249badafb1cfceb3a6db7491b4ebb8bda29c606d3
+    imageDigest: sha256:752ac6e502491df926c62b1a3aa13ffc477c03a173ce2e2f8e3b0700d09b4073
   opencode.apply_executor:
     codeDigest: sha256:ac201bfe895911a79d8adae580b5295a7ec7fd5ba27bf4bd80ab6b096dfbcf4a
     manifestDigest: sha256:783bf8d249e7161f469e756ce6648ce554f43d7392d067dd38be43e7eee300e7
