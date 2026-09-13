@@ -537,17 +537,9 @@ def _retained_hmac_release_pins(
     ):
         # Retained HMAC credentials outlive a projected rollout overlap. Never
         # infer their claims from the current or previous projected release.
-        label = "projectedWorkloadIdentity.hmacRollbackRelease"
-        rollback = _required_mapping(
-            workspace_identity, "hmacRollbackRelease", "projectedWorkloadIdentity"
+        retained_pins["data.workspace_probe"] = _explicit_hmac_rollback_release(
+            workspace_identity, "projectedWorkloadIdentity"
         )
-        if set(rollback) != {"codeDigest", "manifestDigest", "imageDigest"}:
-            raise DriftGateError(f"{label} must contain exactly the three release digests")
-        retained_pins["data.workspace_probe"] = {}
-        for key in ("codeDigest", "manifestDigest", "imageDigest"):
-            digest = _required_str(rollback, key, label)
-            _validate_digest(digest, f"{label}.{key}")
-            retained_pins["data.workspace_probe"][key] = digest
     handoff = values.get("opencodeArtifactHandoff")
     if not isinstance(handoff, dict) or handoff.get("mode") != "governedCore":
         return retained_pins
@@ -561,6 +553,13 @@ def _retained_hmac_release_pins(
         identity = _required_mapping(worker_values, "identity", values_key)
         if identity.get("mode") != "projected":
             continue
+        if "hmacRollbackRelease" in identity:
+            retained_pins[agent_id] = _explicit_hmac_rollback_release(
+                identity, f"{values_key}.identity"
+            )
+            continue
+        # Preserve existing configurations until their reviewed overlap cleanup
+        # records the retained credential tuple independently.
         previous_release = identity.get("previousRelease")
         if previous_release is None:
             continue
@@ -586,6 +585,22 @@ def _retained_hmac_release_pins(
             ),
         }
     return retained_pins
+
+
+def _explicit_hmac_rollback_release(
+    identity: dict[str, Any], label: str,
+) -> dict[str, str]:
+    rollback = _required_mapping(identity, "hmacRollbackRelease", label)
+    label = f"{label}.hmacRollbackRelease"
+    keys = ("codeDigest", "manifestDigest", "imageDigest")
+    if set(rollback) != set(keys):
+        raise DriftGateError(f"{label} must contain exactly the three release digests")
+    result = {}
+    for key in keys:
+        digest = _required_str(rollback, key, label)
+        _validate_digest(digest, f"{label}.{key}")
+        result[key] = digest
+    return result
 
 
 def _release_service_account_subject(

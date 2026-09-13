@@ -235,6 +235,9 @@
           },
           "additionalProperties": false
         },
+        "hmacRollbackRelease": {
+          "$ref": "#/definitions/releaseTuple"
+        },
         "previousRelease": {
           "anyOf": [
             {
