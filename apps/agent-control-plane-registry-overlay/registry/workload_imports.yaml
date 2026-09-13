@@ -90,8 +90,8 @@ imports:
         - rows_truncated
 - id: opencode.proposer
   manifest_path: registries/imports/agent-opencode.proposer.json
-  manifest_digest: sha256:9104b8dfc03590c48e7fb9183020f64e43dd0988c6e88777f515c8c542bb3633
-  image_digest: sha256:89adae8acc9a65139fa7d17e66ae175a9eb4e404b018f9e7529d25575c2fac63
+  manifest_digest: sha256:c7c82596f19f5fb0afc390471ac6e346b069312da3cad43975074a7a9c8b9dd1
+  image_digest: sha256:2a334d3aec79922903fed6b30360a4a0989868f8bdb9e2fdb82f3c42ea0d18ca
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -104,7 +104,12 @@ imports:
     concurrency: 1
     max_runtime_seconds: 900
     model_gateway_token: true
-    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-f194a7d61ab07eeba167
+    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-d52435fdf1b5fb40e6e1
+    previous_release:
+      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-f194a7d61ab07eeba167
+      code_digest: sha256:be93ef1f2e0bc36c4ede6795a9423804e31e5b16e74a3afccb0f3ac7498fe6e3
+      manifest_digest: sha256:9104b8dfc03590c48e7fb9183020f64e43dd0988c6e88777f515c8c542bb3633
+      image_digest: sha256:89adae8acc9a65139fa7d17e66ae175a9eb4e404b018f9e7529d25575c2fac63
   capabilities:
     agent_workloads.opencode_propose:
       description: Imported OpenCode proposer that writes requested edits as isolated
