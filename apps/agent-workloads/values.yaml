@@ -26,10 +26,7 @@ projectedWorkloadIdentity:
     codeDigest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
     manifestDigest: sha256:912222e0cf0adea2733166543213e6ff70aadff34f13815ca36038bdf30d123f
     imageDigest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
-  previousRelease:
-    codeDigest: sha256:3dec93f02a82fd699556589e5fe7215244f672357801aefae606ad66383326f4
-    manifestDigest: sha256:c912934ba399dcd07086764c6971e8d525cc0f7af58273100a67e88061a875ae
-    imageDigest: sha256:3c0765ba6c5a7475cda5dfa0fee1a4722069ace7d4798163c8a67a2ae39202f0
+  previousRelease: null
 env:
   MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
   AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
