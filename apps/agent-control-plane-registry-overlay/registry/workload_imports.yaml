@@ -314,8 +314,8 @@ imports:
       - Must not be used as a local fallback when no governed capability matches.
 - id: opencode.apply_executor
   manifest_path: registries/imports/agent-opencode.apply_executor.json
-  manifest_digest: sha256:783bf8d249e7161f469e756ce6648ce554f43d7392d067dd38be43e7eee300e7
-  image_digest: sha256:9fe82fa198394617c2a0a7d0e72f6c5e688b149a9319f0eb528aec532926af28
+  manifest_digest: sha256:1d5b468ca29df08fe21fa2310bd7489e29de62cdcd1ec5ddeea591653db62c09
+  image_digest: sha256:eade124f98fcd0bb49a39d3aa339420c37c3d9a7df4b740a8b9ffd697cc5c872
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -328,7 +328,12 @@ imports:
     capacity_tier: 4
     concurrency: 1
     max_runtime_seconds: 300
-    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-apply-executor-0df6f2b124cf5088d190
+    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-apply-executor-7e56d4b27c2002b0859f
+    previous_release:
+      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-apply-executor-0df6f2b124cf5088d190
+      code_digest: sha256:ac201bfe895911a79d8adae580b5295a7ec7fd5ba27bf4bd80ab6b096dfbcf4a
+      manifest_digest: sha256:783bf8d249e7161f469e756ce6648ce554f43d7392d067dd38be43e7eee300e7
+      image_digest: sha256:9fe82fa198394617c2a0a7d0e72f6c5e688b149a9319f0eb528aec532926af28
   capabilities:
     agent_workloads.opencode_apply:
       description: Imported OpenCode apply executor for approved proposal diffs.
