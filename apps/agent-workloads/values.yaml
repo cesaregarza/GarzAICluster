@@ -118,10 +118,11 @@ opencodeProposer:
       expirationSeconds: 3600
       mountPath: /var/run/mandate/workload-identity
       fileName: token
-    previousRelease:
+    hmacRollbackRelease:
       codeDigest: sha256:02f824315c53d671a40c4357e8868e6950eb330a6e495c6b21b3e8f71b095db7
       manifestDigest: sha256:d69820fe79941fa9dab307f33097d35c0703b11d5f66e9f4e7754d2468753906
       imageDigest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
+    previousRelease: null
   env:
     MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
     MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
