@@ -39,6 +39,10 @@ def selected_applications(names: list[str]) -> tuple[str, ...]:
         raise argo.ArgoCoreError(
             "application scope is forbidden or outside canonical order"
         )
+    if train.OVERLAY_APPLICATION in selected and "agent-workloads" not in selected:
+        raise argo.ArgoCoreError(
+            "registry overlay scope requires agent-workloads in the same invocation"
+        )
     return selected
 
 

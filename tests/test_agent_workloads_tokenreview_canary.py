@@ -246,7 +246,7 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
             ):
                 self.assertNotIn(retained_subject, allowlist["worker_service"])
 
-    def test_registry_overlay_auto_syncs_before_manual_workload_activation(
+    def test_registry_and_workers_wait_for_one_manual_activation(
         self,
     ) -> None:
         for application_name in ("agent-control-plane", "agent-workloads"):
@@ -264,10 +264,7 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
             / "applications"
             / "agent-control-plane-registry-overlay.yaml"
         )
-        self.assertEqual(
-            overlay["spec"]["syncPolicy"]["automated"],
-            {"prune": True, "selfHeal": True},
-        )
+        self.assertNotIn("automated", overlay["spec"]["syncPolicy"])
         self.assertNotIn(
             "ApplyOutOfSyncOnly=true",
             overlay["spec"]["syncPolicy"]["syncOptions"],

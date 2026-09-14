@@ -15,7 +15,6 @@ CITRUS_DEV_APPLICATION_PATH = APPLICATIONS_DIR / "citrus-dev.yaml"
 YAML_PARSER = YAML(typ="safe")
 
 EXPECTED_AUTOMATED_APPLICATIONS = {
-    "agent-control-plane-registry-overlay",
     "agent-control-plane-secrets",
     "agent-control-plane-skills",
     "argocd-repositories",
@@ -34,6 +33,7 @@ EXPECTED_AUTOMATED_APPLICATIONS = {
     "vanity-hosts",
 }
 EXPECTED_MANUAL_APPLICATIONS = {
+    "agent-control-plane-registry-overlay",
     "agent-control-plane",
     "agent-workloads",
     "agent-workloads-secrets",

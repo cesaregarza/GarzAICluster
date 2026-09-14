@@ -25,9 +25,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: agent-control-plane
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+    # Activate registry tuples and workers in one scoped deploy invocation.
+    # Independent auto-sync would bind new jobs before their workers exist.
     syncOptions:
       - CreateNamespace=true
       # Do not add ApplyOutOfSyncOnly=true here. Argo CD selective syncs skip

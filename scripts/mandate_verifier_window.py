@@ -9,6 +9,7 @@ import time
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import quote
 
 import mandate_deploy_train as train
 
@@ -18,6 +19,7 @@ OWNER_PATH = "/metadata/annotations/mandate.garz.ai~1verifier-window"
 EXPIRES = OWNER + "-expires-at"
 UID = OWNER + "-uid"
 WINDOW_SECONDS = 1800
+DELETE_TIMEOUT_SECONDS = train.VERIFY_SETTLEMENT_GRACE_SECONDS
 
 
 class VerifierWindow:
@@ -26,7 +28,7 @@ class VerifierWindow:
         self.receipt, self.save = receipt, save
         self.uid = ""
 
-    def command(self, *args: str) -> str:
+    def command(self, *args: str, input_text: str | None = None) -> str:
         result = subprocess.run(
             [
                 self.args.kubectl,
@@ -38,6 +40,7 @@ class VerifierWindow:
             ],
             capture_output=True,
             text=True,
+            input=input_text,
             timeout=30,
             check=False,
         )
@@ -162,24 +165,111 @@ class VerifierWindow:
         )
         self.record("resumed")
 
-    def drain(self) -> None:
-        deadline = time.monotonic() + train.VERIFY_DEADLINE_SECONDS + 30
-        while True:
-            try:
-                train.ensure_no_active_verify_job(
-                    kubeconfig=self.kubeconfig, kubectl=self.args.kubectl
-                )
+    def list_jobs(self) -> list[dict[str, Any]]:
+        payload = json.loads(self.command("get", "jobs", "-o", "json"))
+        items = payload.get("items")
+        if not isinstance(items, list):
+            raise argo.ArgoCoreError("synthetic live-verify Job list items must be a list")
+        return [item for item in items if isinstance(item, dict)]
+
+    @staticmethod
+    def _terminal(job: dict[str, Any]) -> bool:
+        status = job.get("status") or {}
+        if not isinstance(status, dict):
+            return False
+        conditions = status.get("conditions") or []
+        return isinstance(conditions, list) and any(
+            isinstance(condition, dict)
+            and condition.get("type") in {"Complete", "Failed"}
+            and condition.get("status") == "True"
+            for condition in conditions
+        )
+
+    def _owned_job(self, job: dict[str, Any]) -> tuple[str, str, str] | None:
+        metadata = job.get("metadata")
+        if not isinstance(metadata, dict):
+            return None
+        name, uid, version = (metadata.get(key) for key in ("name", "uid", "resourceVersion"))
+        if not all(isinstance(value, str) and value for value in (name, uid, version)):
+            return None
+        references = metadata.get("ownerReferences") or []
+        if not isinstance(references, list):
+            return None
+        if not any(
+            isinstance(reference, dict)
+            and reference.get("kind") == "CronJob"
+            and reference.get("name") == train.VERIFY_CRONJOB
+            and reference.get("uid") == self.uid
+            and reference.get("controller") is True
+            for reference in references
+        ):
+            return None
+        return name, uid, version
+
+    def _assert_owned_paused(self, current: dict[str, Any]) -> None:
+        metadata = current.get("metadata") or {}
+        annotations = metadata.get("annotations") or {}
+        if (
+            metadata.get("uid") != self.uid
+            or annotations.get(OWNER) != self.receipt["run_id"]
+            or annotations.get(UID) != self.uid
+            or current.get("spec", {}).get("suspend") is not True
+        ):
+            raise argo.ArgoCoreError(
+                "verifier ownership changed; refusing to cancel scheduled verification"
+            )
+
+    def _delete_job(self, name: str, uid: str, version: str) -> None:
+        namespace = quote(train.VERIFY_NAMESPACE, safe="")
+        encoded_name = quote(name, safe="")
+        self.command(
+            "delete",
+            "--raw",
+            f"/apis/batch/v1/namespaces/{namespace}/jobs/{encoded_name}",
+            "-f",
+            "-",
+            input_text=json.dumps(
+                {
+                    "apiVersion": "v1",
+                    "kind": "DeleteOptions",
+                    "propagationPolicy": "Foreground",
+                    "preconditions": {"uid": uid, "resourceVersion": version},
+                }
+            ),
+        )
+
+    def wait_cancelled(self, uids: set[str]) -> None:
+        deadline = time.monotonic() + DELETE_TIMEOUT_SECONDS
+        while uids:
+            remaining = {
+                job.get("metadata", {}).get("uid") for job in self.list_jobs()
+            }
+            if not uids.intersection(remaining):
                 return
-            except argo.ArgoCoreError as error:
-                if not str(error).startswith(
-                    "stage=mandate-verify reason=nonterminal-job-overlap "
-                ):
-                    raise
-                if time.monotonic() >= deadline:
-                    raise argo.ArgoCoreError(
-                        "verifier drain deadline exceeded"
-                    ) from error
-                time.sleep(self.args.poll_interval)
+            seconds_left = deadline - time.monotonic()
+            if seconds_left <= 0:
+                raise argo.ArgoCoreError("scheduled verifier cancellation deadline exceeded")
+            time.sleep(min(self.args.poll_interval, seconds_left))
+
+    def cancel_scheduled(self) -> None:
+        active = [
+            owned
+            for job in self.list_jobs()
+            if not self._terminal(job)
+            for owned in [self._owned_job(job)]
+            if owned is not None
+        ]
+        for name, uid, version in active:
+            self._assert_owned_paused(self.read())
+            self._delete_job(name, uid, version)
+        # Foreground deletion must finish even if a Job becomes terminal while
+        # its dependent pods are still being removed.
+        self.wait_cancelled({uid for _, uid, _ in active})
+        self._assert_owned_paused(self.read())
+        # Manual or ambiguously owned verification must block, never be deleted.
+        train.ensure_no_active_verify_job(
+            kubeconfig=self.kubeconfig, kubectl=self.args.kubectl
+        )
 
 
 def recover_expired_window(
@@ -214,7 +304,7 @@ def verifier_window(args: Any, kubeconfig: Any, receipt: dict, save: Any):
             old_handlers[signum] = signal.signal(signum, interrupted)
         signal.alarm(WINDOW_SECONDS)
         window.acquire()
-        window.drain()
+        window.cancel_scheduled()
         yield
     finally:
         signal.alarm(0)

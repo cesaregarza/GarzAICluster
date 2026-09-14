@@ -86,7 +86,9 @@ Utilities that were previously bundled with the app repo move here when they are
   apply workload resources. Each dry run is tagged with the invocation owner;
   only its successful, exact-revision full-hook receipt becomes the baseline for
   the subsequent real sync. Unrelated operations still stop the train.
-  Add `--apply` for the authorized rollout;
+  Registry-overlay and worker activation must share this invocation; an overlay-only
+  scope is rejected. Both Applications are manual, so merge alone leaves the
+  existing release serving. Add `--apply` for the authorized rollout;
   successful apply always creates a fresh governed verification Job and records
   its name, exact revisions and application health in `scoped-deploy.json`.
   A failed stage preserves completed-stage evidence and stops. This scope does
@@ -95,8 +97,9 @@ Utilities that were previously bundled with the app repo move here when they are
 
   For worker-only deployment when scheduled verification leaves no idle window,
   add `--apply --pause-verifier`. The helper first validates application readiness,
-  then owns a temporary CronJob pause, lets existing verification finish within
-  510 seconds, and runs the same dry runs, rollout and fresh verification. It
+  then owns a temporary CronJob pause and cancels nonterminal scheduled Jobs
+  owned by that exact CronJob UID. Unrelated or manual verification still blocks
+  deployment. It runs the same dry runs, rollout and fresh verification, and
   restores the schedule on success, failure, SIGINT or SIGTERM. The whole window
   has a 30-minute deadline. Expiry and original UID annotations let a later
   invocation reclaim an expired pause only when UID, owner and expiry still

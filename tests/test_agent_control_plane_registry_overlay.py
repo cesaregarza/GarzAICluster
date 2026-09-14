@@ -418,10 +418,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
             },
         )
 
-        self.assertEqual(
-            self.registry_overlay_application["spec"]["syncPolicy"]["automated"],
-            {"prune": True, "selfHeal": True},
-        )
+        self.assertNotIn("automated", self.registry_overlay_application["spec"]["syncPolicy"])
         sync_options = set(
             self.registry_overlay_application["spec"]["syncPolicy"].get(
                 "syncOptions", []

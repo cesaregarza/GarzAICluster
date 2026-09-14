@@ -16,8 +16,8 @@ fail closed until a reviewed rollback restores an explicitly selected worker.
 - The reviewed registry maps that subject to one immutable
   code/manifest/image release tuple; worker-requested names or digests do not
   authorize a release.
-- The reviewed GitOps merge, automated registry-overlay sync, and subsequent
-  manual workload sync remain the operator authorization events.
+- A reviewed GitOps merge authorizes the configuration. One manual scoped
+  deployment activates the overlay and workers at that same immutable SHA.
 - This phase does not recompute runtime workflow digests or attest
   source-to-image integrity. That remains CES-576.
 
@@ -36,27 +36,24 @@ The immutable inputs for this canary are:
 
 ## Operator sequence
 
-The original canary used manual sync for every affected app. With CES-668, the
-registry overlay now reconciles automatically after a reviewed merge; the
-control-plane and workload applications remain manual. After review and merge:
+The original immutable canary inputs above are historical. Normal releases use
+one confirmed GitOps SHA and the scoped deployment command in `scripts/README.md`.
+Both the registry overlay and workers are manual-sync; merging a re-pin alone
+leaves the running release serving.
 
-1. Sync `agent-control-plane` first. Confirm the dedicated
-   `agent-control-plane-tokenreview` ServiceAccount has only
-   `authentication.k8s.io/tokenreviews/create`, the API becomes healthy, and
-   non-API control-plane pods do not receive the reviewer token.
-2. Wait for `agent-control-plane-registry-overlay` to auto-sync. Confirm its
-   rollout-strategy Sync hook and restart PostSync hook complete and Core has
-   loaded the exact ServiceAccount subject and release tuple above. A successful
-   generated hook self-deletes, so use the Application operation plus
-   `SuccessfulCreate`/`Completed` events rather than expecting a surviving Job.
-3. Sync `agent-workloads`. Confirm the workspace-probe Deployment uses the
-   release-scoped ServiceAccount, has no legacy token Secret volume, and
-   projects only the `mandate-api` token.
-4. Start a fresh `agent-control-plane-synthetic-live-verify` Job and require the
-   `readonly-query-skill-digests` journey to complete with a
-   `model_call.finished` audit event. Confirm the workload-identity metric
-   records `mode=kubernetes,outcome=accepted` and that no HMAC mint command or
-   SOPS edit occurred.
+1. If a release needs new Core functionality or TokenReview RBAC, deploy and
+   verify that prerequisite through the complete train before worker activation.
+2. Run `mandate_scoped_deploy.py` selecting `agent-control-plane-registry-overlay`
+   and `agent-workloads` in that order, with `--apply --pause-verifier`. Include
+   `agent-workloads-secrets` first only when it is part of the reviewed change.
+   The helper waits for overlay strategy/restart hooks and health before starting
+   workers, then verifies the result without another operator step. Do not sync
+   either half independently for a re-pin.
+3. Confirm the worker uses the release-scoped ServiceAccount, has no legacy
+   token Secret volume, and projects only the `mandate-api` token.
+4. Require the fresh governed verification launched by the helper to succeed.
+   For identity acceptance, also confirm `mode=kubernetes,outcome=accepted` and
+   that no HMAC mint command or SOPS edit occurred.
 5. Replace the projected token file atomically while the worker remains
    running, then prove a later request succeeds with the rotated token.
 6. Exercise wrong subject, wrong worker, wrong audience, expired token,
