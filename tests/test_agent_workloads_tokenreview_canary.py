@@ -148,9 +148,9 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
             for entry in imports["imports"]
             if entry["id"] == "data.workspace_probe"
         )
-        projected = values["projectedWorkloadIdentity"]
+        projected = values["workers"]["data.workspace_probe"]["identity"]
 
-        self.assertIs(projected["enabled"], True)
+        self.assertEqual(projected["mode"], "projected")
         self.assertEqual(projected["workerId"], "data.workspace_probe")
         self.assertEqual(projected["token"]["audience"], "mandate-api")
         self.assertEqual(
@@ -185,7 +185,7 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
                 workspace["agent"]["previous_release"]["service_account_subject"],
             )
 
-        self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE", values["env"])
+        self.assertNotIn("MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE", values["workers"]["data.workspace_probe"]["env"])
         self.assertNotIn("extraVolumes", values)
         self.assertNotIn("extraVolumeMounts", values)
         self.assertTrue(
@@ -195,15 +195,15 @@ class AgentWorkloadsTokenReviewCanaryTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            values["opencodeProposer"]["identity"]["mode"],
+            values["workers"]["opencode.proposer"]["identity"]["mode"],
             "projected",
         )
-        self.assertEqual(values["opencodeProposer"]["secretEnv"], {})
+        self.assertEqual(values["workers"]["opencode.proposer"]["secretEnv"], {})
         self.assertEqual(
-            values["opencodeApplyExecutor"]["identity"]["mode"],
+            values["workers"]["opencode.apply_executor"]["identity"]["mode"],
             "projected",
         )
-        self.assertEqual(values["opencodeApplyExecutor"]["secretEnv"], {})
+        self.assertEqual(values["workers"]["opencode.apply_executor"]["secretEnv"], {})
 
     def test_projected_workers_hmac_is_rollback_only_in_every_normal_allowlist(
         self,

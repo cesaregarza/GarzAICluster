@@ -14,7 +14,6 @@ from scripts.grant_ownership import (
     write_registry_overlay_values,
 )
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AGENT_WORKLOADS_VALUES_PATH = Path("apps/agent-workloads/values.yaml")
 AGENT_WORKLOADS_RUNTIME_SECRET_PATH = Path(
@@ -45,20 +44,6 @@ ALLOWED_MODEL_BOUNDS_KEYS = {"allowed_profile"}
 ALLOWED_WORKER_KEYS = {"claims"}
 ALLOWED_SECRET_KEYS = {"key"}
 ALLOWED_NETWORK_KEYS = {"to"}
-
-WORKER_CAPABILITY_ENV_PATHS = {
-    "data.workspace_probe": ("env", "AGENT_WORKLOADS_WORKER_CAPABILITIES"),
-    "opencode.proposer": (
-        "opencodeProposer",
-        "env",
-        "AGENT_WORKLOADS_WORKER_CAPABILITIES",
-    ),
-    "opencode.apply_executor": (
-        "opencodeApplyExecutor",
-        "env",
-        "AGENT_WORKLOADS_WORKER_CAPABILITIES",
-    ),
-}
 
 
 class WorkloadEnablementError(RuntimeError):
@@ -142,7 +127,9 @@ def apply_workload_enablement(
         actions=actions,
     )
     if policy_changed:
-        changed_files.add(str(registry_overlay_value_path(repo_root, "policy.prod.yaml")))
+        changed_files.add(
+            str(registry_overlay_value_path(repo_root, "policy.prod.yaml"))
+        )
 
     model_bounds_changed = _plan_model_bounds(
         document=document,
@@ -151,7 +138,9 @@ def apply_workload_enablement(
         actions=actions,
     )
     if model_bounds_changed:
-        changed_files.add(str(registry_overlay_value_path(repo_root, "workload_imports.yaml")))
+        changed_files.add(
+            str(registry_overlay_value_path(repo_root, "workload_imports.yaml"))
+        )
 
     worker_claims_changed = _plan_worker_claims(
         document=document,
@@ -166,6 +155,7 @@ def apply_workload_enablement(
     _plan_secret_references(
         repo_root=repo_root,
         document=document,
+        workload_id=workload_id,
         values=values,
         actions=actions,
         gaps=gaps,
@@ -192,7 +182,9 @@ def apply_workload_enablement(
     )
     if pr_body_path is not None:
         pr_body_path.parent.mkdir(parents=True, exist_ok=True)
-        pr_body_path.write_text(render_workload_enablement_pr_body(result), encoding="utf-8")
+        pr_body_path.write_text(
+            render_workload_enablement_pr_body(result), encoding="utf-8"
+        )
     return result
 
 
@@ -205,7 +197,9 @@ def render_workload_enablement_pr_body(result: WorkloadEnablementResult) -> str:
         "## Automatic edits",
     ]
     if result.actions:
-        lines.extend(f"- `{action.code}`: {action.message}" for action in result.actions)
+        lines.extend(
+            f"- `{action.code}`: {action.message}" for action in result.actions
+        )
     else:
         lines.append("- none")
     lines.extend(["", "## Operator gaps"])
@@ -234,9 +228,7 @@ def _load_document(path: Path) -> dict[str, Any]:
     document = _load_yaml(path)
     _reject_unknown_keys(document, ALLOWED_TOP_LEVEL_KEYS, "enablement document")
     if document.get("schema_version") != SCHEMA_VERSION:
-        raise WorkloadEnablementError(
-            f"schema_version must be {SCHEMA_VERSION!r}"
-        )
+        raise WorkloadEnablementError(f"schema_version must be {SCHEMA_VERSION!r}")
     if document.get("kind") != KIND:
         raise WorkloadEnablementError(f"kind must be {KIND!r}")
     _validate_grant(document.get("grant"))
@@ -308,7 +300,9 @@ def _plan_policy_grant(
         return False
     binding_id = _required_str(grant.get("binding"), "grant.binding")
     binding = _find_policy_binding(policy, binding_id)
-    capabilities = _required_mapping(binding.get("capabilities"), "binding.capabilities")
+    capabilities = _required_mapping(
+        binding.get("capabilities"), "binding.capabilities"
+    )
     allowed = _required_list(capabilities.get("allow"), "binding.capabilities.allow")
     if capability_id in allowed:
         actions.append(
@@ -340,7 +334,9 @@ def _plan_model_bounds(
     requested = document.get("model_bounds")
     if requested is None:
         return False
-    profile = _required_str(requested.get("allowed_profile"), "model_bounds.allowed_profile")
+    profile = _required_str(
+        requested.get("allowed_profile"), "model_bounds.allowed_profile"
+    )
     lease = _required_mapping(
         capability.get("model_bounds"),
         f"{capability_id}.model_bounds",
@@ -377,11 +373,12 @@ def _plan_worker_claims(
     worker = document.get("worker")
     if worker is None or worker.get("claims") is not True:
         return False
-    env_path = WORKER_CAPABILITY_ENV_PATHS.get(workload_id)
-    if env_path is None:
+    workers = values.get("workers")
+    if not isinstance(workers, dict) or workload_id not in workers:
         raise WorkloadEnablementError(
             f"worker claim-list path is unknown for workload {workload_id!r}"
         )
+    env_path = ("workers", workload_id, "env", "AGENT_WORKLOADS_WORKER_CAPABILITIES")
     current = _get_nested(values, list(env_path))
     if not isinstance(current, str):
         raise WorkloadEnablementError(
@@ -411,6 +408,7 @@ def _plan_worker_claims(
 
 def _plan_secret_references(
     *,
+    workload_id: str,
     repo_root: Path,
     document: dict[str, Any],
     values: dict[str, Any],
@@ -420,7 +418,10 @@ def _plan_secret_references(
     secret_items = document.get("secrets") or []
     if not secret_items:
         return
-    known_key_refs = set(str(key) for key in values.get("secretKeys") or [])
+    workers = values.get("workers") or {}
+    worker = workers.get(workload_id) or {}
+    known_key_refs = set(str(key) for key in worker.get("secretKeys") or [])
+    known_key_refs.update(str(key) for key in (worker.get("secretEnv") or {}).values())
     runtime_secret_path = repo_root / AGENT_WORKLOADS_RUNTIME_SECRET_PATH
     runtime_secret_text = runtime_secret_path.read_text(encoding="utf-8")
     for item in secret_items:

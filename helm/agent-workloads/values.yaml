@@ -2,267 +2,116 @@ global:
   imagePullSecrets: []
   runtimeSecretName: agent-workloads-secrets
 
-replicaCount: 1
-
-image:
-  repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: dev
-  digest: ""
-  pullPolicy: IfNotPresent
-
 nameOverride: ""
 fullnameOverride: ""
 
 serviceAccount:
   create: true
+  name: ""
   automountServiceAccountToken: false
   annotations: {}
-
-# Release-scoped projected ServiceAccount identity. Keep disabled in generic
-# installs and enable a worker explicitly during its identity migration. The
-# ServiceAccount name binds the worker id to the immutable full release tuple.
-projectedWorkloadIdentity:
-  enabled: false
-  workerId: data.workspace_probe
-  serviceAccountNamePrefix: agent-workloads
-  serviceAccount:
-    create: true
-    annotations: {}
-  token:
-    audience: mandate-api
-    expirationSeconds: 3600
-    mountPath: /var/run/mandate/workload-identity
-    fileName: token
-  # During a re-pin, retain the prior immutable tuple until old pods drain.
-  previousRelease: null
-  # Static rollback credential tuple; independent of projected rollout overlap.
-  hmacRollbackRelease: null
-
-podAnnotations: {}
-podLabels: {}
-extraVolumes: []
-extraVolumeMounts: []
 
 rolloutChecksums:
   workloadIdentityTokenSecret: ""
 
-podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 65532
-  runAsGroup: 65532
-  fsGroup: 65532
-  seccompProfile:
-    type: RuntimeDefault
-
-securityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
-  runAsNonRoot: true
-  capabilities:
-    drop:
-      - ALL
-
-command:
-  - agent-workloads-worker
-args: []
-
-secretKeys:
-  - MANDATE_WORKER_TOKEN
-  - AGENT_WORKLOADS_DATABASE_URL
-  - OPENAI_CODEX_AUTH_JSON
-
-secretEnv: {}
-
-env:
-  MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
-  AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
-  AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe,agent_workloads.readonly_query
-  AGENT_WORKLOADS_SCHEMA: agent_workloads
-  AGENT_WORKLOADS_POLL_SECONDS: "2"
-  AGENT_WORKLOADS_READONLY_QUERY_MAX_PASSES: "3"
-  AGENT_WORKLOADS_READONLY_QUERY_MAX_ROWS: "50"
-  AGENT_WORKLOADS_READONLY_QUERY_CONNECT_TIMEOUT_SECONDS: "5"
-  OPENAI_SQL_BROKER_MODEL: gpt-5.3-codex-spark
-  OPENAI_SQL_BROKER_REASONING_EFFORT: low
-  OPENAI_SQL_BROKER_TIMEOUT_SECONDS: "45"
-
-resources:
-  requests:
-    cpu: 25m
-    memory: 96Mi
-  limits:
-    cpu: 250m
-    memory: 256Mi
-
-networkPolicy:
-  enabled: false
-  egress:
-    dns:
-      enabled: false
-      destinations: []
-      ports:
-        - port: 53
-          protocol: UDP
-        - port: 53
-          protocol: TCP
-    destinations: []
-
-# Optional git bundle (base64) materializing the opencode workspace seed; when
-# set, init containers clone the pinned base commit from it offline — no
-# network egress and no credential in the pod (ADR 0012 rule 1).
 workspaceSeedBundle:
   base64: ""
+  name: agent-workloads-seed-bundle
+  appName: agent-workloads
+  labels: {}
 
-# legacySharedVolume preserves the pre-CES-577 co-located rollback path.
-# governedCore renders two pods and carries exact proposal bytes through Core.
-opencodeArtifactHandoff:
-  mode: legacySharedVolume
-
-opencodeProposer:
-  enabled: false
-  replicaCount: 1
-  image:
-    repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: dev
-    digest: ""
-    pullPolicy: IfNotPresent
-  podAnnotations: {}
-  podLabels:
-    mandate.cesaregarza.io/egress-profile: broker-jailed
-  command:
-    - agent-workloads-worker
-  args: []
-  secretKeys: []
-  secretEnv: {}
-  identity:
-    workerId: opencode.proposer
-    serviceAccountNamePrefix: agent-workloads
-    mode: hmac
-    serviceAccount:
-      create: true
-      annotations: {}
-    token:
-      audience: mandate-api
-      expirationSeconds: 3600
-      mountPath: /var/run/mandate/workload-identity
-      fileName: token
-    previousRelease: null
-  env:
-    MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
-    MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
-    AGENT_WORKLOADS_WORKER_ID: opencode.proposer
-    AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_propose
-    AGENT_WORKLOADS_OPENCODE_WORKSPACE_DIR: /workspace/job
-    AGENT_WORKLOADS_OPENCODE_PROPOSALS_DIR: /workspace/proposals
-    AGENT_WORKLOADS_OPENCODE_TIMEOUT_SECONDS: "600"
-    HOME: /tmp
-    TMPDIR: /tmp
-  initWorkspace:
-    enabled: true
-    command:
-      - /bin/sh
-      - -c
-    script: |
-      set -eu
-      mkdir -p /workspace/job /workspace/proposals
-      cd /workspace/job
-      git init -q
-      git config --global --add safe.directory /workspace/job
-      git config --local user.email mandate-opencode@garz.ai
-      git config --local user.name "Mandate OpenCode"
-      printf '# Mandate OpenCode Workspace\n\n' > README.md
-      git add README.md
-      git commit -q -m 'Initialize workspace'
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: "1"
-      memory: 1Gi
-  networkPolicy:
+# Every enabled worker is projected and is keyed by its canonical worker id.
+# Production overlays provide the complete worker map and immutable release
+# pins; this disabled example keeps a bare chart install renderable.
+workers:
+  data.workspace_probe:
     enabled: false
-    egress:
-      dns:
-        enabled: false
-        destinations: []
-        ports:
-          - port: 53
-            protocol: UDP
-          - port: 53
-            protocol: TCP
-      destinations: []
-
-opencodeApplyExecutor:
-  enabled: false
-  replicaCount: 1
-  image:
-    repository: registry.digitalocean.com/sendouq/opencode-apply-executor
-    tag: dev
-    digest: ""
-    pullPolicy: IfNotPresent
-  podAnnotations: {}
-  podLabels:
-    mandate.cesaregarza.io/egress-profile: control-plane-only
-  command:
-    - agent-workloads-worker
-  args: []
-  secretKeys: []
-  secretEnv: {}
-  identity:
-    workerId: opencode.apply_executor
-    serviceAccountNamePrefix: agent-workloads
-    mode: hmac
-    serviceAccount:
-      create: true
-      annotations: {}
-    token:
-      audience: mandate-api
-      expirationSeconds: 3600
-      mountPath: /var/run/mandate/workload-identity
-      fileName: token
-    previousRelease: null
-  env:
-    MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
-    AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
-    AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_apply
-    AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_DIR: /workspace/job
-    AGENT_WORKLOADS_OPENCODE_APPLY_PROPOSALS_DIR: /workspace/proposals
-    AGENT_WORKLOADS_OPENCODE_APPLY_DEFAULT_BRANCH: main
-    HOME: /tmp
-    TMPDIR: /tmp
-  initWorkspace:
-    enabled: true
+    replicaCount: 1
+    metadataName: agent-workloads
+    labels: {}
+    selectorLabels:
+      app.kubernetes.io/name: agent-workloads
+      app.kubernetes.io/instance: agent-workloads
+    podAnnotations: {}
+    podLabels: {}
+    enableServiceLinks: false
+    containerName: worker
+    image:
+      repository: registry.digitalocean.com/sendouq/agent-workloads-worker
+      tag: dev
+      digest: ""
+      pullPolicy: IfNotPresent
+    identity:
+      workerId: data.workspace_probe
+      mode: projected
+      serviceAccountNamePrefix: agent-workloads
+      serviceAccount:
+        create: true
+        component: projected-workload-identity
+        previousComponent: projected-workload-identity-previous
+        annotations: {}
+      token:
+        audience: mandate-api
+        expirationSeconds: 3600
+        mountPath: /var/run/mandate/workload-identity
+        fileName: token
+      previousRelease: null
     command:
-      - /bin/sh
-      - -c
-    script: |
-      set -eu
-      mkdir -p /workspace/job
-      cd /workspace/job
-      git init -q
-      git config --global --add safe.directory /workspace/job
-      git config --local user.email mandate-opencode@garz.ai
-      git config --local user.name "Mandate OpenCode"
-      printf '# Mandate OpenCode Workspace\n\n' > README.md
-      git add README.md
-      git commit -q -m 'Initialize workspace'
-  resources:
-    requests:
-      cpu: 50m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
-  networkPolicy:
-    enabled: false
-    egress:
-      dns:
-        enabled: false
+      - agent-workloads-worker
+    args: []
+    secretKeys: []
+    secretEnv: {}
+    env: {}
+    handoffMode: ""
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      fsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      capabilities:
+        drop:
+          - ALL
+    resources:
+      requests:
+        cpu: 25m
+        memory: 96Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    initWorkspace:
+      enabled: false
+      name: init-workspace
+      command: []
+      script: ""
+      args: []
+      env: []
+      volumeMounts: []
+    volumes:
+      - name: tmp
+        emptyDir: {}
+    volumeMounts:
+      - name: tmp
+        mountPath: /tmp
+    networkPolicy:
+      enabled: false
+      egress:
+        dns:
+          enabled: false
+          destinations: []
+          ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP
         destinations: []
-        ports:
-          - port: 53
-            protocol: UDP
-          - port: 53
-            protocol: TCP
-      destinations: []
+    workspace:
+      seedBundle: false
+      seedConfigMapName: ""
+
+mandateReleasePins: {}
