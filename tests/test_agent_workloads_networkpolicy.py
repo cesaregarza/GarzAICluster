@@ -191,9 +191,9 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             name="agent-workloads-opencode-proposer",
         )
 
-        self.assertEqual(self.values["replicaCount"], 2)
+        self.assertEqual(self.values["workers"]["data.workspace_probe"]["replicaCount"], 2)
         self.assertEqual(deployment["spec"]["replicas"], 2)
-        self.assertEqual(self.values["opencodeProposer"]["replicaCount"], 1)
+        self.assertEqual(self.values["workers"]["opencode.proposer"]["replicaCount"], 1)
         self.assertEqual(opencode_deployment["spec"]["replicas"], 1)
 
     def test_worker_pods_roll_on_release_pin_change_not_identity_secret(self) -> None:
@@ -350,7 +350,7 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             _release_service_account_name(
                 "opencode.apply_executor",
                 self.values["mandateReleasePins"]["opencode.apply_executor"],
-                prefix=self.values["opencodeApplyExecutor"]["identity"][
+                prefix=self.values["workers"]["opencode.apply_executor"]["identity"][
                     "serviceAccountNamePrefix"
                 ],
             ),
@@ -379,7 +379,7 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             apply_env["AGENT_WORKLOADS_WORKER_CAPABILITIES"]["value"],
             "agent_workloads.opencode_apply",
         )
-        apply_image = self.values["opencodeApplyExecutor"]["image"]
+        apply_image = self.values["workers"]["opencode.apply_executor"]["image"]
         self.assertEqual(
             apply_executor["image"],
             f"{apply_image['repository']}@{apply_image['digest']}",

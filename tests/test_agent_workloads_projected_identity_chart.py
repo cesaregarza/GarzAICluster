@@ -121,7 +121,7 @@ def _opencode_service_account_name(
     return _release_service_account_name(
         worker_id,
         values["mandateReleasePins"][worker_id],
-        prefix=values[worker_key]["identity"]["serviceAccountNamePrefix"],
+        prefix=values["workers"][worker_key]["identity"]["serviceAccountNamePrefix"],
     )
 
 
@@ -131,11 +131,7 @@ def _opencode_previous_service_account_name(
     worker_id: str,
     worker_key: str,
 ) -> str | None:
-    identity = (
-        values[worker_key]
-        if worker_key == "projectedWorkloadIdentity"
-        else values[worker_key]["identity"]
-    )
+    identity = values["workers"][worker_id]["identity"]
     previous_release = identity.get("previousRelease")
     if previous_release is None:
         return None
@@ -172,7 +168,7 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
 
     def test_retained_hmac_tuple_does_not_render_identity_resources(self) -> None:
         values = copy.deepcopy(self.production_values)
-        values["projectedWorkloadIdentity"]["hmacRollbackRelease"] = {
+        values["workers"]["data.workspace_probe"]["identity"]["hmacRollbackRelease"] = {
             "codeDigest": "sha256:" + "7" * 64,
             "manifestDigest": "sha256:" + "8" * 64,
             "imageDigest": "sha256:" + "9" * 64,
@@ -181,8 +177,8 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
 
     def _projected_values(self) -> dict[str, Any]:
         values = copy.deepcopy(self.production_values)
-        values["projectedWorkloadIdentity"] = {
-            "enabled": True,
+        values["workers"]["data.workspace_probe"]["identity"].update({
+            "mode": "projected",
             "workerId": "data.workspace_probe",
             "serviceAccountNamePrefix": "agent-workloads",
             "serviceAccount": {
@@ -196,14 +192,12 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
                 "fileName": "token",
             },
             "previousRelease": copy.deepcopy(PREVIOUS_RELEASE),
-        }
+        })
         values["mandateReleasePins"]["data.workspace_probe"] = copy.deepcopy(
             CURRENT_RELEASE
         )
-        values["image"]["digest"] = CURRENT_RELEASE["imageDigest"]
-        values["env"].pop("MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE", None)
-        values["extraVolumes"] = []
-        values["extraVolumeMounts"] = []
+        values["workers"]["data.workspace_probe"]["image"]["digest"] = CURRENT_RELEASE["imageDigest"]
+        values["workers"]["data.workspace_probe"]["env"].pop("MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE", None)
         return values
 
     def test_production_values_render_all_workers_projected(
@@ -220,7 +214,7 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
         workspace_account = _release_service_account_name(
             "data.workspace_probe",
             self.production_values["mandateReleasePins"]["data.workspace_probe"],
-            prefix=self.production_values["projectedWorkloadIdentity"][
+            prefix=self.production_values["workers"]["data.workspace_probe"]["identity"][
                 "serviceAccountNamePrefix"
             ],
         )
@@ -266,8 +260,8 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
                 worker_key=worker_key,
             )
             for worker_id, worker_key in (
-                ("opencode.proposer", "opencodeProposer"),
-                ("opencode.apply_executor", "opencodeApplyExecutor"),
+                ("opencode.proposer", "opencode.proposer"),
+                ("opencode.apply_executor", "opencode.apply_executor"),
             )
         }
         expected_service_accounts = {
@@ -276,9 +270,9 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             *opencode_accounts.values(),
         }
         for worker_id, worker_key in (
-            ("data.workspace_probe", "projectedWorkloadIdentity"),
-            ("opencode.proposer", "opencodeProposer"),
-            ("opencode.apply_executor", "opencodeApplyExecutor"),
+            ("data.workspace_probe", "data.workspace_probe"),
+            ("opencode.proposer", "opencode.proposer"),
+            ("opencode.apply_executor", "opencode.apply_executor"),
         ):
             previous_service_account = _opencode_previous_service_account_name(
                 self.production_values,
@@ -363,15 +357,15 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
                 worker_key=worker_key,
             )
             for worker_id, worker_key in (
-                ("opencode.proposer", "opencodeProposer"),
-                ("opencode.apply_executor", "opencodeApplyExecutor"),
+                ("opencode.proposer", "opencode.proposer"),
+                ("opencode.apply_executor", "opencode.apply_executor"),
             )
         }
         expected_opencode_previous_accounts = {
             previous_service_account
             for worker_id, worker_key in (
-                ("opencode.proposer", "opencodeProposer"),
-                ("opencode.apply_executor", "opencodeApplyExecutor"),
+                ("opencode.proposer", "opencode.proposer"),
+                ("opencode.apply_executor", "opencode.apply_executor"),
             )
             if (
                 previous_service_account := _opencode_previous_service_account_name(
@@ -511,19 +505,19 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
 
     def test_projected_identity_rejects_static_identity_injection(self) -> None:
         def add_static_secret_key(values: dict[str, Any]) -> None:
-            values["secretKeys"].append("MANDATE_WORKLOAD_IDENTITY_TOKEN")
+            values["workers"]["data.workspace_probe"]["secretKeys"].append("MANDATE_WORKLOAD_IDENTITY_TOKEN")
 
         def add_static_secret_env(values: dict[str, Any]) -> None:
-            values["secretEnv"]["MANDATE_WORKLOAD_IDENTITY_TOKEN"] = "TOKEN"
+            values["workers"]["data.workspace_probe"]["secretEnv"]["MANDATE_WORKLOAD_IDENTITY_TOKEN"] = "TOKEN"
 
         def add_static_env(values: dict[str, Any]) -> None:
-            values["env"]["MANDATE_WORKLOAD_IDENTITY_TOKEN"] = "static"
+            values["workers"]["data.workspace_probe"]["env"]["MANDATE_WORKLOAD_IDENTITY_TOKEN"] = "static"
 
         def add_token_file_env(values: dict[str, Any]) -> None:
-            values["env"]["MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE"] = "/tmp/token"
+            values["workers"]["data.workspace_probe"]["env"]["MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE"] = "/tmp/token"
 
         def add_legacy_secret_volume(values: dict[str, Any]) -> None:
-            values["extraVolumes"] = [
+            values["workers"]["data.workspace_probe"]["volumes"] = [
                 {
                     "name": "legacy-token",
                     "secret": {
@@ -533,7 +527,7 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             ]
 
         def claim_projected_mount_path(values: dict[str, Any]) -> None:
-            values["extraVolumeMounts"] = [
+            values["workers"]["data.workspace_probe"]["volumeMounts"] = [
                 {
                     "name": "other-token",
                     "mountPath": "/var/run/mandate/workload-identity",
@@ -541,13 +535,13 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             ]
 
         def shadow_projected_token_file(values: dict[str, Any]) -> None:
-            values["extraVolumes"] = [
+            values["workers"]["data.workspace_probe"]["volumes"] = [
                 {
                     "name": "shadow-token",
                     "secret": {"secretName": "unrelated-secret"},
                 }
             ]
-            values["extraVolumeMounts"] = [
+            values["workers"]["data.workspace_probe"]["volumeMounts"] = [
                 {
                     "name": "shadow-token",
                     "mountPath": "/var/run/mandate/workload-identity/token",
@@ -560,22 +554,22 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             (
                 "secret key",
                 add_static_secret_key,
-                "must not inject a static workload identity token",
+                "MANDATE_WORKLOAD_IDENTITY_TOKEN",
             ),
             (
                 "secret env",
                 add_static_secret_env,
-                "must not inject a static workload identity token",
+                "MANDATE_WORKLOAD_IDENTITY_TOKEN",
             ),
             (
                 "plain env",
                 add_static_env,
-                "must not inject a static workload identity token",
+                "MANDATE_WORKLOAD_IDENTITY_TOKEN",
             ),
             (
                 "token file env",
                 add_token_file_env,
-                "token file env is chart-owned",
+                "MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE",
             ),
             (
                 "legacy secret volume",
@@ -604,7 +598,7 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
 
     def test_projected_identity_requires_a_nonempty_audience(self) -> None:
         values = self._projected_values()
-        values["projectedWorkloadIdentity"]["token"]["audience"] = ""
+        values["workers"]["data.workspace_probe"]["identity"]["token"]["audience"] = ""
         result = _render_process(values)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
@@ -617,7 +611,7 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             (
                 "missing runtime digest",
                 "",
-                "projected identity requires immutable image.digest",
+                "image.digest is required",
             ),
             (
                 "mutable-looking digest",
@@ -627,14 +621,14 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             (
                 "different immutable digest",
                 "sha256:" + "9" * 64,
-                "image.digest must equal current release imageDigest",
+                "image.digest must equal mandateReleasePins",
             ),
         )
 
         for label, digest, expected_error in cases:
             with self.subTest(label=label):
                 values = self._projected_values()
-                values["image"]["digest"] = digest
+                values["workers"]["data.workspace_probe"]["image"]["digest"] = digest
                 result = _render_process(values)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(expected_error, result.stderr)
@@ -643,35 +637,35 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
         cases: tuple[tuple[str, Callable[[dict[str, Any]], None], str], ...] = (
             (
                 "short expiration",
-                lambda values: values["projectedWorkloadIdentity"]["token"].update(
+                lambda values: values["workers"]["data.workspace_probe"]["identity"]["token"].update(
                     {"expirationSeconds": 0}
                 ),
                 "expirationSeconds",
             ),
             (
                 "long expiration",
-                lambda values: values["projectedWorkloadIdentity"]["token"].update(
+                lambda values: values["workers"]["data.workspace_probe"]["identity"]["token"].update(
                     {"expirationSeconds": 3601}
                 ),
                 "expirationSeconds",
             ),
             (
                 "whitespace audience",
-                lambda values: values["projectedWorkloadIdentity"]["token"].update(
+                lambda values: values["workers"]["data.workspace_probe"]["identity"]["token"].update(
                     {"audience": " mandate-api"}
                 ),
                 "audience must not have surrounding whitespace",
             ),
             (
                 "non-normalized mount path",
-                lambda values: values["projectedWorkloadIdentity"]["token"].update(
+                lambda values: values["workers"]["data.workspace_probe"]["identity"]["token"].update(
                     {"mountPath": "/var/run/../workload-identity"}
                 ),
                 "mountPath must be a normalized absolute path",
             ),
             (
                 "nested file name",
-                lambda values: values["projectedWorkloadIdentity"]["token"].update(
+                lambda values: values["workers"]["data.workspace_probe"]["identity"]["token"].update(
                     {"fileName": "nested/token"}
                 ),
                 "fileName must be a normalized basename",
@@ -690,11 +684,11 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
         cases: tuple[tuple[str, Callable[[dict[str, Any]], None], str], ...] = (
             (
                 "current equals previous",
-                lambda values: values["projectedWorkloadIdentity"].__setitem__(
+                lambda values: values["workers"]["data.workspace_probe"]["identity"].__setitem__(
                     "previousRelease",
                     copy.deepcopy(CURRENT_RELEASE),
                 ),
-                "projected previous and current release ServiceAccounts must differ",
+                "previous and current release ServiceAccounts must differ",
             ),
             (
                 "current equals shared",
@@ -702,8 +696,8 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
                     {"create": False, "name": CURRENT_SERVICE_ACCOUNT}
                 ),
                 (
-                    "projected current release ServiceAccount must differ from the "
-                    "shared legacy ServiceAccount"
+                    "current release ServiceAccount must differ from the "
+                    "shared ServiceAccount"
                 ),
             ),
             (
@@ -712,8 +706,8 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
                     {"create": False, "name": PREVIOUS_SERVICE_ACCOUNT}
                 ),
                 (
-                    "projected previous release ServiceAccount must differ from the "
-                    "shared legacy ServiceAccount"
+                    "previous release ServiceAccount must differ from the "
+                    "shared ServiceAccount"
                 ),
             ),
         )

@@ -1,0 +1,36 @@
+{{- $workers := required "workers map is required" .Values.workers -}}
+{{- $sharedServiceAccount := include "agent-workloads.serviceAccountName" . -}}
+{{- $serviceAccounts := dict -}}
+{{- $resourceNames := dict -}}
+{{- range $workerId, $worker := $workers }}
+{{- if $worker.enabled }}
+{{- $ctx := dict "root" $ "worker" $worker "workerId" $workerId }}
+{{- include "agent-workloads.validateWorker" $ctx -}}
+{{- $name := include "agent-workloads.workerMetadataName" $ctx -}}
+{{- if hasKey $resourceNames $name -}}
+{{- fail (printf "workers[%s] duplicates another worker resource name" $workerId) -}}
+{{- end -}}
+{{- $_ := set $resourceNames $name true -}}
+{{- $currentServiceAccount := include "agent-workloads.workerCurrentServiceAccountName" $ctx -}}
+{{- if eq $currentServiceAccount $sharedServiceAccount -}}
+{{- fail (printf "workers[%s] current release ServiceAccount must differ from the shared ServiceAccount" $workerId) -}}
+{{- end -}}
+{{- if hasKey $serviceAccounts $currentServiceAccount -}}
+{{- fail (printf "workers[%s] collides with another worker ServiceAccount" $workerId) -}}
+{{- end -}}
+{{- $_ := set $serviceAccounts $currentServiceAccount true -}}
+{{- with $worker.identity.previousRelease }}
+{{- $previousServiceAccount := include "agent-workloads.workerPreviousServiceAccountName" $ctx -}}
+{{- if eq $previousServiceAccount $currentServiceAccount -}}
+{{- fail (printf "workers[%s] previous and current release ServiceAccounts must differ" $workerId) -}}
+{{- end -}}
+{{- if eq $previousServiceAccount $sharedServiceAccount -}}
+{{- fail (printf "workers[%s] previous release ServiceAccount must differ from the shared ServiceAccount" $workerId) -}}
+{{- end -}}
+{{- if hasKey $serviceAccounts $previousServiceAccount -}}
+{{- fail (printf "workers[%s] previous release ServiceAccount collides with another worker" $workerId) -}}
+{{- end -}}
+{{- $_ := set $serviceAccounts $previousServiceAccount true -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

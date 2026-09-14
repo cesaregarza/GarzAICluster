@@ -4,313 +4,508 @@ global:
   runtimeSecretName: agent-workloads-secrets
 nameOverride: agent-workloads
 fullnameOverride: agent-workloads
-replicaCount: 2
-image:
-  repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-  tag: sha-372af45558df
-  digest: sha256:752ac6e502491df926c62b1a3aa13ffc477c03a173ce2e2f8e3b0700d09b4073
-  pullPolicy: IfNotPresent
-projectedWorkloadIdentity:
-  enabled: true
-  workerId: data.workspace_probe
-  serviceAccountNamePrefix: agent-workloads
-  serviceAccount:
-    create: true
-    annotations: {}
-  token:
-    audience: mandate-api
-    expirationSeconds: 3600
-    mountPath: /var/run/mandate/workload-identity
-    fileName: token
-  hmacRollbackRelease:
-    codeDigest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
-    manifestDigest: sha256:912222e0cf0adea2733166543213e6ff70aadff34f13815ca36038bdf30d123f
-    imageDigest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
-  previousRelease:
-    codeDigest: sha256:c92818378dff1d477e7bd01da549601ff67b851aa5d0103fbf50288de09fc7d4
-    manifestDigest: sha256:21df383248a615db3af1ccff263dd49ea42f96f26784684fccfff12ece1e4728
-    imageDigest: sha256:ae3c91372ff156bf131d0240cb2c39eb0e46ca935791b9df3bc74b80f31705f0
-env:
-  MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
-  AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
-  AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe,agent_workloads.readonly_query
-  AGENT_WORKLOADS_ENVIRONMENT: production
-  AGENT_WORKLOADS_SCHEMA: agent_workloads
-  AGENT_WORKLOADS_POLL_SECONDS: '2'
-  AGENT_WORKLOADS_READONLY_QUERY_MAX_PASSES: '3'
-  AGENT_WORKLOADS_READONLY_QUERY_MAX_ROWS: '50'
-  OPENAI_SQL_BROKER_MODEL: gpt-5.6-luna
-  OPENAI_SQL_BROKER_REASONING_EFFORT: low
-  OPENAI_SQL_BROKER_TIMEOUT_SECONDS: '45'
-secretKeys:
-- AGENT_WORKLOADS_DATABASE_URL
-secretEnv: {}
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+  annotations: {}
 rolloutChecksums:
   workloadIdentityTokenSecret: sha256:4545195a571ef733b308565b6ea8f9d8ecc7f603db9602d5fdea56609530a309
-resources:
-  requests:
-    cpu: 25m
-    memory: 96Mi
-  limits:
-    cpu: 250m
-    memory: 256Mi
-networkPolicy:
-  enabled: true
-  egress:
-    dns:
-      enabled: true
-      destinations:
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: kube-system
-        podSelector:
-          matchLabels:
-            k8s-app: kube-dns
-      ports:
-      - port: 53
-        protocol: UDP
-      - port: 53
-        protocol: TCP
-    destinations:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: agent-control-plane
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/name: agent-control-plane
-          app.kubernetes.io/instance: agent-control-plane
-          app.kubernetes.io/component: api
-      ports:
-      - port: 80
-        protocol: TCP
-      - port: 8000
-        protocol: TCP
-    - ipBlock:
-        cidr: 10.108.0.0/20
-      ports:
-      - port: 25060
-        protocol: TCP
-    - ipBlock:
-        cidr: 159.203.109.0/32
-      ports:
-      - port: 25060
-        protocol: TCP
-opencodeArtifactHandoff:
-  mode: governedCore
 workspaceSeedBundle:
   base64: IyB2MiBnaXQgYnVuZGxlCmQyZTJjYmVmM2EzMTMwYTZhY2FmN2U3OTRhNjNkNTA3OTMxNjc3NzcgcmVmcy9oZWFkcy9tYWluCgpQQUNLAAAAAgAAAAORQHicfZPJrqtGFEXnfEXNrVzTN9JL9Mpg+guUwdh4hoGiB5vGGL4+Tl4GGUTZwyVt6ehor2nIMiDxNGZIhhYSEnMiJ5JZeqcY/CFkiu8pL7JkFmMxIeJ5KvoBJNkYD1keD1sMfrAkTXMkSe3+RX/OYzaMX10/ZI9m/crLqZjvX0nf/gEoQaQoTmBZHuxIiiSJD23LacoGoJWTPt/Bj39qP/+3lj/ysczBb3/lcNQMB3iaB3xDc2BwPh3/5gQgwDKqyQHCgwwhOiDzadWcJp9kKkbCPHPnooEQDpuBoK0z/qJ3vFdR77pO8tOV/U5VkwA3B/Fi10F8eKJeX59YLRULspGvKVvefD/Hm5tcRkvRFScSknKN48sYodt9xEdeenKIAL4th0cDditjl9P7aiWhxFmajTTJVlkl0059LGf366am++dbFi5Fpe3CZDqm1DL4jwtJANv1MPT42Eaww+ID5WTbxE2bvrbU/8ZasxWpmiTzLEzrWHRFy5SQxraedq3n6dUtJ8AgRkxXC+GyJub1agmkR/Lm07FrHyXFcy7omnMnh0O0EdSJLF05NuQs9nBlhrY6hx77+eQ+oOlqerkT7yksZY7n98E5lZav77qcl0a5HtsKarB5NciaZPehQ1wo97LbTt59ZCQCINFhwmBsmKuOyLM9bY0ivNuLqtJCk1FKPfWmg/CqMOXrttom3fvZ5NWme0acUM+3PQF0KjWC4HLJl5fpW5GxD4X8hL5P7LPvpqauX72uNa7Tqmxnj2FLrxncnGvx1sVTLqsXmgAeTgzVLlU5wvTIz91he++8W9IO6qFmhZkWuSndpG3oi620305VhUvkp7CxKjsNXvvPDcpNLBrWnKrOC4OaK3EHRUPyhmO47o/J+96mVyflthL7Uk+/dpykXs6X/bJFYp1Yiu8SYFaESpNJXlwWXXIHXAjzFrkaVQvzk53rKN9rXBUw8vh47QPdD7rFdlXjPLyRlvZ2QhFgdT7WzadOw1nl0SGS81gnwO+fOYXELyeOjvLfRhBGV05l3IBf4v0JzgJGGqUCeJwzNDAwMzFRCHJ1dPF11ctNYUj9dWGi3szc46/3vV1yZO1Z7rQdT5QB+BsQYL4FeJxTVshNzEtJLEnVLQbSSfkVXL4QvkJ+QWpecn5KqgJUQkFXIT2/LLUoLzVFoaAovyC/ODFHP7GgIKdSoSSxKD21REHD2TVY19DAVB9MG5lrcgEAQHsftwQVocG6EFZbspuJ7gS5xCZ+WWpK
-opencodeProposer:
-  enabled: true
-  replicaCount: 1
-  image:
-    repository: registry.digitalocean.com/sendouq/opencode-proposer
-    tag: sha-372af45558df
-    digest: sha256:2a334d3aec79922903fed6b30360a4a0989868f8bdb9e2fdb82f3c42ea0d18ca
-    pullPolicy: IfNotPresent
-  secretEnv: {}
-  secretEnvSecretName: agent-workloads-workload-identity-tokens
-  identity:
-    workerId: opencode.proposer
-    serviceAccountNamePrefix: agent-workloads
-    mode: projected
-    serviceAccount:
-      create: true
-      annotations: {}
-    token:
-      audience: mandate-api
-      expirationSeconds: 3600
-      mountPath: /var/run/mandate/workload-identity
-      fileName: token
-    hmacRollbackRelease:
-      codeDigest: sha256:02f824315c53d671a40c4357e8868e6950eb330a6e495c6b21b3e8f71b095db7
-      manifestDigest: sha256:d69820fe79941fa9dab307f33097d35c0703b11d5f66e9f4e7754d2468753906
-      imageDigest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
-    previousRelease:
-      codeDigest: sha256:be93ef1f2e0bc36c4ede6795a9423804e31e5b16e74a3afccb0f3ac7498fe6e3
-      manifestDigest: sha256:9104b8dfc03590c48e7fb9183020f64e43dd0988c6e88777f515c8c542bb3633
-      imageDigest: sha256:89adae8acc9a65139fa7d17e66ae175a9eb4e404b018f9e7529d25575c2fac63
-  env:
-    MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
-    MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
-    AGENT_WORKLOADS_WORKER_ID: opencode.proposer
-    AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_propose,agent_workloads.opencode_task,agent_workloads.opencode_orchestrate
-    AGENT_WORKLOADS_POLL_SECONDS: '2'
-    AGENT_WORKLOADS_ENVIRONMENT: production
-    AGENT_WORKLOADS_OPENCODE_WORKSPACE_DIR: /workspace/job
-    AGENT_WORKLOADS_OPENCODE_PROPOSALS_DIR: /workspace/proposals
-    AGENT_WORKLOADS_OPENCODE_WORKSPACE_SEED_PATH: /workspace/seed/workspace-seed.json
-    AGENT_WORKLOADS_OPENCODE_TIMEOUT_SECONDS: '600'
-  initWorkspace:
+  name: agent-workloads-opencode-proposer-seed-bundle
+  appName: opencode-proposer
+
+workers:
+  data.workspace_probe:
     enabled: true
+    replicaCount: 2
+    metadataName: agent-workloads
+    labels: {}
+    selectorLabels:
+      app.kubernetes.io/name: agent-workloads
+      app.kubernetes.io/instance: agent-workloads
+    podAnnotations: {}
+    podLabels: {}
+    enableServiceLinksField: false
+    enableServiceLinks: false
+    containerName: worker
+    image:
+      repository: registry.digitalocean.com/sendouq/agent-workloads-worker
+      tag: sha-372af45558df
+      digest: sha256:752ac6e502491df926c62b1a3aa13ffc477c03a173ce2e2f8e3b0700d09b4073
+      pullPolicy: IfNotPresent
+    identity:
+      workerId: data.workspace_probe
+      mode: projected
+      serviceAccountNamePrefix: agent-workloads
+      serviceAccount:
+        create: true
+        component: projected-workload-identity
+        previousComponent: projected-workload-identity-previous
+        annotations: {}
+      token:
+        audience: mandate-api
+        expirationSeconds: 3600
+        mountPath: /var/run/mandate/workload-identity
+        fileName: token
+      hmacRollbackTokenKey: MANDATE_WORKLOAD_IDENTITY_TOKEN
+      hmacRollbackRelease:
+        codeDigest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
+        manifestDigest: sha256:912222e0cf0adea2733166543213e6ff70aadff34f13815ca36038bdf30d123f
+        imageDigest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
+      previousRelease:
+        codeDigest: sha256:c92818378dff1d477e7bd01da549601ff67b851aa5d0103fbf50288de09fc7d4
+        manifestDigest: sha256:21df383248a615db3af1ccff263dd49ea42f96f26784684fccfff12ece1e4728
+        imageDigest: sha256:ae3c91372ff156bf131d0240cb2c39eb0e46ca935791b9df3bc74b80f31705f0
     command:
-    - /bin/sh
-    - -c
-    script: |
-      set -eu
-      pin="d2e2cbef3a3130a6acaf7e794a63d50793167777"
-      find /workspace/job -mindepth 1 -delete
-      git clone /seed-bundle/sandbox.bundle /workspace/job
-      cd /workspace/job
-      git config --global --add safe.directory /workspace/job
-      git checkout -B main "$pin"
-      git remote remove origin
-      git config --local user.email mandate-opencode@garz.ai
-      git config --local user.name "Mandate OpenCode"
-      head="$(git rev-parse --verify HEAD)"
-      test "$head" = "$pin"
-      tree="$(git rev-parse --verify 'HEAD^{tree}')"
-      mkdir -p /workspace/proposals
-      printf '{"schema_version":"agent_workloads_opencode_workspace_seed_v1","base_repo":"https://github.com/cesaregarza/mandate-sandbox","base_ref_name":"main","base_commit_sha":"%s","base_tree_sha":"%s"}\n' "$head" "$tree" > /workspace/seed/workspace-seed.json
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: '1'
-      memory: 1Gi
-  networkPolicy:
-    enabled: true
-    egress:
-      dns:
-        enabled: true
+      - agent-workloads-worker
+    args: []
+    secretKeys:
+      - AGENT_WORKLOADS_DATABASE_URL
+    secretEnv: {}
+    env:
+      MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
+      AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
+      AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe,agent_workloads.readonly_query
+      AGENT_WORKLOADS_ENVIRONMENT: production
+      AGENT_WORKLOADS_SCHEMA: agent_workloads
+      AGENT_WORKLOADS_POLL_SECONDS: '2'
+      AGENT_WORKLOADS_READONLY_QUERY_MAX_PASSES: '3'
+      AGENT_WORKLOADS_READONLY_QUERY_MAX_ROWS: '50'
+      AGENT_WORKLOADS_READONLY_QUERY_CONNECT_TIMEOUT_SECONDS: '5'
+    handoffMode: ""
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      fsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+    resources:
+      requests:
+        cpu: 25m
+        memory: 96Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    initWorkspace:
+      enabled: false
+      name: init-workspace
+      command: []
+      script: ""
+      args: []
+      env: []
+      volumeMounts: []
+    volumes:
+      - name: tmp
+        emptyDir: {}
+    volumeMounts:
+      - name: tmp
+        mountPath: /tmp
+    networkPolicy:
+      enabled: true
+      egress:
+        dns:
+          enabled: true
+          destinations:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: kube-system
+              podSelector:
+                matchLabels:
+                  k8s-app: kube-dns
+          ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP
         destinations:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-        ports:
-        - port: 53
-          protocol: UDP
-        - port: 53
-          protocol: TCP
-      destinations:
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: agent-control-plane
-        podSelector:
-          matchLabels:
-            app.kubernetes.io/name: agent-control-plane
-            app.kubernetes.io/instance: agent-control-plane
-            app.kubernetes.io/component: api
-        ports:
-        - port: 80
-          protocol: TCP
-        - port: 8000
-          protocol: TCP
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: agent-control-plane
-        podSelector:
-          matchLabels:
-            app.kubernetes.io/name: agent-control-plane
-            app.kubernetes.io/instance: agent-control-plane
-            app.kubernetes.io/component: model-gateway
-        ports:
-        - port: 80
-          protocol: TCP
-        - port: 8000
-          protocol: TCP
-opencodeApplyExecutor:
-  enabled: true
-  image:
-    repository: registry.digitalocean.com/sendouq/opencode-apply-executor
-    tag: sha-372af45558df
-    digest: sha256:eade124f98fcd0bb49a39d3aa339420c37c3d9a7df4b740a8b9ffd697cc5c872
-    pullPolicy: IfNotPresent
-  secretEnv: {}
-  secretEnvSecretName: agent-workloads-workload-identity-tokens
-  identity:
-    workerId: opencode.apply_executor
-    serviceAccountNamePrefix: agent-workloads
-    mode: projected
-    serviceAccount:
-      create: true
-      annotations: {}
-    token:
-      audience: mandate-api
-      expirationSeconds: 3600
-      mountPath: /var/run/mandate/workload-identity
-      fileName: token
-    hmacRollbackRelease:
-      codeDigest: sha256:253e5c97a7f149587f2a23c5a74883bde0e2fd3321285c731a0740eff9d3908f
-      manifestDigest: sha256:2d36cfef1ed45057f3e396039ec21450ac34f4da145eb40fc0ec4aa6f67fc479
-      imageDigest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
-    previousRelease:
-      codeDigest: sha256:ac201bfe895911a79d8adae580b5295a7ec7fd5ba27bf4bd80ab6b096dfbcf4a
-      manifestDigest: sha256:783bf8d249e7161f469e756ce6648ce554f43d7392d067dd38be43e7eee300e7
-      imageDigest: sha256:9fe82fa198394617c2a0a7d0e72f6c5e688b149a9319f0eb528aec532926af28
-  env:
-    MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
-    AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
-    AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_apply
-    AGENT_WORKLOADS_POLL_SECONDS: '2'
-    AGENT_WORKLOADS_ENVIRONMENT: production
-    AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_DIR: /workspace/job
-    AGENT_WORKLOADS_OPENCODE_APPLY_PROPOSALS_DIR: /workspace/proposals
-    AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_SEED_PATH: /workspace/seed/apply-workspace-seed.json
-    AGENT_WORKLOADS_OPENCODE_APPLY_DEFAULT_BRANCH: main
-    HOME: /tmp
-    TMPDIR: /tmp
-  initWorkspace:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: agent-control-plane
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: agent-control-plane
+                app.kubernetes.io/instance: agent-control-plane
+                app.kubernetes.io/component: api
+            ports:
+              - port: 80
+                protocol: TCP
+              - port: 8000
+                protocol: TCP
+          - ipBlock:
+              cidr: 10.108.0.0/20
+            ports:
+              - port: 25060
+                protocol: TCP
+          - ipBlock:
+              cidr: 159.203.109.0/32
+            ports:
+              - port: 25060
+                protocol: TCP
+    workspace:
+      seedBundle: false
+      seedConfigMapName: ""
+
+  opencode.apply_executor:
     enabled: true
+    replicaCount: 1
+    metadataName: agent-workloads-opencode-apply-executor
+    labels:
+      app.kubernetes.io/part-of: agent-workloads
+      app.kubernetes.io/component: opencode-apply-executor
+    selectorLabels:
+      app.kubernetes.io/name: opencode-apply-executor
+      app.kubernetes.io/instance: agent-workloads
+    podAnnotations: {}
+    podLabels:
+      app.kubernetes.io/component: opencode-apply-executor
+      mandate.cesaregarza.io/egress-profile: control-plane-only
+    enableServiceLinks: false
+    enableServiceLinksField: true
+    containerName: opencode-apply-executor
+    image:
+      repository: registry.digitalocean.com/sendouq/opencode-apply-executor
+      tag: sha-372af45558df
+      digest: sha256:eade124f98fcd0bb49a39d3aa339420c37c3d9a7df4b740a8b9ffd697cc5c872
+      pullPolicy: IfNotPresent
+    identity:
+      workerId: opencode.apply_executor
+      mode: projected
+      serviceAccountNamePrefix: agent-workloads
+      serviceAccount:
+        create: true
+        component: opencode-release-identity
+        previousComponent: opencode-release-identity-previous
+        annotations: {}
+      token:
+        audience: mandate-api
+        expirationSeconds: 3600
+        mountPath: /var/run/mandate/workload-identity
+        fileName: token
+      hmacRollbackTokenKey: OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN
+      hmacRollbackRelease:
+        codeDigest: sha256:253e5c97a7f149587f2a23c5a74883bde0e2fd3321285c731a0740eff9d3908f
+        manifestDigest: sha256:2d36cfef1ed45057f3e396039ec21450ac34f4da145eb40fc0ec4aa6f67fc479
+        imageDigest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
+      previousRelease:
+        codeDigest: sha256:ac201bfe895911a79d8adae580b5295a7ec7fd5ba27bf4bd80ab6b096dfbcf4a
+        manifestDigest: sha256:783bf8d249e7161f469e756ce6648ce554f43d7392d067dd38be43e7eee300e7
+        imageDigest: sha256:9fe82fa198394617c2a0a7d0e72f6c5e688b149a9319f0eb528aec532926af28
     command:
-    - /bin/sh
-    - -c
-    script: |
-      set -eu
-      pin="d2e2cbef3a3130a6acaf7e794a63d50793167777"
-      find /workspace/job -mindepth 1 -delete
-      git clone /seed-bundle/sandbox.bundle /workspace/job
-      cd /workspace/job
-      git config --global --add safe.directory /workspace/job
-      git checkout -B main "$pin"
-      git remote remove origin
-      git config --local user.email mandate-opencode@garz.ai
-      git config --local user.name "Mandate OpenCode"
-      head="$(git rev-parse --verify HEAD)"
-      test "$head" = "$pin"
-      tree="$(git rev-parse --verify 'HEAD^{tree}')"
-      printf '{"schema_version":"agent_workloads_opencode_workspace_seed_v1","base_repo":"https://github.com/cesaregarza/mandate-sandbox","base_ref_name":"main","base_commit_sha":"%s","base_tree_sha":"%s"}\n' "$head" "$tree" > /workspace/seed/apply-workspace-seed.json
-  resources:
-    requests:
-      cpu: 50m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
-  networkPolicy:
-    enabled: true
-    egress:
-      dns:
-        enabled: true
+      - agent-workloads-worker
+    args: []
+    secretKeys: []
+    secretEnv: {}
+    env:
+      MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
+      AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
+      AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_apply
+      AGENT_WORKLOADS_POLL_SECONDS: '2'
+      AGENT_WORKLOADS_ENVIRONMENT: production
+      AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_DIR: /workspace/job
+      AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_SEED_PATH: /workspace/seed/apply-workspace-seed.json
+      AGENT_WORKLOADS_OPENCODE_APPLY_DEFAULT_BRANCH: main
+      HOME: /tmp
+      TMPDIR: /tmp
+    handoffMode: governed_core
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      fsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    initWorkspace:
+      enabled: true
+      name: init-apply-workspace
+      command: [/bin/sh, -c]
+      script: |
+        set -eu
+        pin="d2e2cbef3a3130a6acaf7e794a63d50793167777"
+        find /workspace/job -mindepth 1 -delete
+        git clone /seed-bundle/sandbox.bundle /workspace/job
+        cd /workspace/job
+        git config --global --add safe.directory /workspace/job
+        git checkout -B main "$pin"
+        git remote remove origin
+        git config --local user.email mandate-opencode@garz.ai
+        git config --local user.name "Mandate OpenCode"
+        head="$(git rev-parse --verify HEAD)"
+        test "$head" = "$pin"
+        tree="$(git rev-parse --verify 'HEAD^{tree}')"
+        printf '{"schema_version":"agent_workloads_opencode_workspace_seed_v1","base_repo":"https://github.com/cesaregarza/mandate-sandbox","base_ref_name":"main","base_commit_sha":"%s","base_tree_sha":"%s"}\n' "$head" "$tree" > /workspace/seed/apply-workspace-seed.json
+      args: []
+      env:
+        - name: HOME
+          value: /tmp
+        - name: TMPDIR
+          value: /tmp
+      volumeMounts:
+        - name: apply-tmp
+          mountPath: /tmp
+        - name: apply-workspace
+          mountPath: /workspace/job
+        - name: apply-workspace-seed
+          mountPath: /workspace/seed
+    volumes:
+      - name: apply-tmp
+        emptyDir: {}
+      - name: apply-workspace
+        emptyDir: {}
+      - name: apply-workspace-seed
+        emptyDir:
+          sizeLimit: 8Mi
+    volumeMounts:
+      - name: apply-tmp
+        mountPath: /tmp
+      - name: apply-workspace
+        mountPath: /workspace/job
+      - name: apply-workspace-seed
+        mountPath: /workspace/seed
+        readOnly: true
+    networkPolicy:
+      enabled: true
+      egress:
+        dns:
+          enabled: true
+          destinations:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: kube-system
+              podSelector:
+                matchLabels:
+                  k8s-app: kube-dns
+          ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP
         destinations:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-        ports:
-        - port: 53
-          protocol: UDP
-        - port: 53
-          protocol: TCP
-      destinations:
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: agent-control-plane
-        podSelector:
-          matchLabels:
-            app.kubernetes.io/name: agent-control-plane
-            app.kubernetes.io/instance: agent-control-plane
-            app.kubernetes.io/component: api
-        ports:
-        - port: 80
-          protocol: TCP
-        - port: 8000
-          protocol: TCP
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: agent-control-plane
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: agent-control-plane
+                app.kubernetes.io/instance: agent-control-plane
+                app.kubernetes.io/component: api
+            ports:
+              - port: 80
+                protocol: TCP
+              - port: 8000
+                protocol: TCP
+    workspace:
+      seedBundle: true
+      seedConfigMapName: agent-workloads-opencode-proposer-seed-bundle
+
+  opencode.proposer:
+    enabled: true
+    replicaCount: 1
+    metadataName: agent-workloads-opencode-proposer
+    labels:
+      app.kubernetes.io/part-of: agent-workloads
+      app.kubernetes.io/component: opencode-proposer
+    selectorLabels:
+      app.kubernetes.io/name: opencode-proposer
+      app.kubernetes.io/instance: agent-workloads
+    podAnnotations: {}
+    podLabels:
+      app.kubernetes.io/component: opencode-proposer
+      mandate.cesaregarza.io/egress-profile: broker-jailed
+    enableServiceLinks: false
+    enableServiceLinksField: true
+    containerName: opencode-proposer
+    image:
+      repository: registry.digitalocean.com/sendouq/opencode-proposer
+      tag: sha-372af45558df
+      digest: sha256:2a334d3aec79922903fed6b30360a4a0989868f8bdb9e2fdb82f3c42ea0d18ca
+      pullPolicy: IfNotPresent
+    identity:
+      workerId: opencode.proposer
+      mode: projected
+      serviceAccountNamePrefix: agent-workloads
+      serviceAccount:
+        create: true
+        component: opencode-release-identity
+        previousComponent: opencode-release-identity-previous
+        annotations: {}
+      token:
+        audience: mandate-api
+        expirationSeconds: 3600
+        mountPath: /var/run/mandate/workload-identity
+        fileName: token
+      hmacRollbackTokenKey: OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN
+      hmacRollbackRelease:
+        codeDigest: sha256:02f824315c53d671a40c4357e8868e6950eb330a6e495c6b21b3e8f71b095db7
+        manifestDigest: sha256:d69820fe79941fa9dab307f33097d35c0703b11d5f66e9f4e7754d2468753906
+        imageDigest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
+      previousRelease:
+        codeDigest: sha256:be93ef1f2e0bc36c4ede6795a9423804e31e5b16e74a3afccb0f3ac7498fe6e3
+        manifestDigest: sha256:9104b8dfc03590c48e7fb9183020f64e43dd0988c6e88777f515c8c542bb3633
+        imageDigest: sha256:89adae8acc9a65139fa7d17e66ae175a9eb4e404b018f9e7529d25575c2fac63
+    command:
+      - agent-workloads-worker
+    args: []
+    secretKeys: []
+    secretEnv: {}
+    env:
+      MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
+      MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
+      AGENT_WORKLOADS_WORKER_ID: opencode.proposer
+      AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_propose,agent_workloads.opencode_task,agent_workloads.opencode_orchestrate
+      AGENT_WORKLOADS_POLL_SECONDS: '2'
+      AGENT_WORKLOADS_ENVIRONMENT: production
+      AGENT_WORKLOADS_OPENCODE_WORKSPACE_DIR: /workspace/job
+      AGENT_WORKLOADS_OPENCODE_PROPOSALS_DIR: /workspace/proposals
+      AGENT_WORKLOADS_OPENCODE_WORKSPACE_SEED_PATH: /workspace/seed/workspace-seed.json
+      AGENT_WORKLOADS_OPENCODE_TIMEOUT_SECONDS: '600'
+      HOME: /tmp
+      TMPDIR: /tmp
+    handoffMode: governed_core
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      fsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: '1'
+        memory: 1Gi
+    initWorkspace:
+      enabled: true
+      name: init-workspace
+      command: [/bin/sh, -c]
+      script: |
+        set -eu
+        pin="d2e2cbef3a3130a6acaf7e794a63d50793167777"
+        find /workspace/job -mindepth 1 -delete
+        git clone /seed-bundle/sandbox.bundle /workspace/job
+        cd /workspace/job
+        git config --global --add safe.directory /workspace/job
+        git checkout -B main "$pin"
+        git remote remove origin
+        git config --local user.email mandate-opencode@garz.ai
+        git config --local user.name "Mandate OpenCode"
+        head="$(git rev-parse --verify HEAD)"
+        test "$head" = "$pin"
+        tree="$(git rev-parse --verify 'HEAD^{tree}')"
+        mkdir -p /workspace/proposals
+        printf '{"schema_version":"agent_workloads_opencode_workspace_seed_v1","base_repo":"https://github.com/cesaregarza/mandate-sandbox","base_ref_name":"main","base_commit_sha":"%s","base_tree_sha":"%s"}\n' "$head" "$tree" > /workspace/seed/workspace-seed.json
+      args: []
+      env:
+        - name: HOME
+          value: /tmp
+        - name: TMPDIR
+          value: /tmp
+      volumeMounts:
+        - name: proposer-tmp
+          mountPath: /tmp
+        - name: proposer-workspace
+          mountPath: /workspace/job
+        - name: proposer-artifacts
+          mountPath: /workspace/proposals
+        - name: proposer-workspace-seed
+          mountPath: /workspace/seed
+    volumes:
+      - name: proposer-tmp
+        emptyDir: {}
+      - name: proposer-workspace
+        emptyDir: {}
+      - name: proposer-artifacts
+        emptyDir:
+          sizeLimit: 4Mi
+      - name: proposer-workspace-seed
+        emptyDir:
+          sizeLimit: 8Mi
+    volumeMounts:
+      - name: proposer-tmp
+        mountPath: /tmp
+      - name: proposer-workspace
+        mountPath: /workspace/job
+      - name: proposer-artifacts
+        mountPath: /workspace/proposals
+      - name: proposer-workspace-seed
+        mountPath: /workspace/seed
+        readOnly: true
+    networkPolicy:
+      enabled: true
+      egress:
+        dns:
+          enabled: true
+          destinations:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: kube-system
+              podSelector:
+                matchLabels:
+                  k8s-app: kube-dns
+          ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP
+        destinations:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: agent-control-plane
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: agent-control-plane
+                app.kubernetes.io/instance: agent-control-plane
+                app.kubernetes.io/component: api
+            ports:
+              - port: 80
+                protocol: TCP
+              - port: 8000
+                protocol: TCP
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: agent-control-plane
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: agent-control-plane
+                app.kubernetes.io/instance: agent-control-plane
+                app.kubernetes.io/component: model-gateway
+            ports:
+              - port: 80
+                protocol: TCP
+              - port: 8000
+                protocol: TCP
+    workspace:
+      seedBundle: true
+      seedConfigMapName: agent-workloads-opencode-proposer-seed-bundle
+
 mandateReleasePins:
   data.workspace_probe:
     codeDigest: sha256:c97cb53d1dc4b8d63365a6c89e1f3c75148eeeb17c81d0a3e17b11e881dce10c

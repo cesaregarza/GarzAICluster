@@ -32,6 +32,50 @@ YAML_WRITER = YAML()
 
 
 class WorkloadEnablementTests(unittest.TestCase):
+    def test_claim_planner_uses_a_new_worker_entry_and_preserves_other_claims(
+        self,
+    ) -> None:
+        from scripts.workload_enablement import _plan_worker_claims
+
+        values = {
+            "workers": {
+                "example.fourth": {
+                    "env": {"AGENT_WORKLOADS_WORKER_CAPABILITIES": "example.old"}
+                },
+                "example.other": {
+                    "env": {"AGENT_WORKLOADS_WORKER_CAPABILITIES": "example.keep"}
+                },
+            }
+        }
+        actions = []
+        self.assertTrue(
+            _plan_worker_claims(
+                document={"worker": {"claims": True}},
+                workload_id="example.fourth",
+                capability_id="example.new",
+                values=values,
+                actions=actions,
+            )
+        )
+        self.assertEqual(
+            _worker_env(values, "example.fourth")[
+                "AGENT_WORKLOADS_WORKER_CAPABILITIES"
+            ],
+            "example.new,example.old",
+        )
+        self.assertEqual(
+            _worker_env(values, "example.other")["AGENT_WORKLOADS_WORKER_CAPABILITIES"],
+            "example.keep",
+        )
+        with self.assertRaisesRegex(WorkloadEnablementError, "unknown"):
+            _plan_worker_claims(
+                document={"worker": {"claims": True}},
+                workload_id="missing",
+                capability_id="example.new",
+                values=values,
+                actions=[],
+            )
+
     def test_existing_readonly_query_enablement_plans_no_changes(self) -> None:
         root = _fixture_repo()
         document = _write_enablement(
@@ -60,7 +104,9 @@ class WorkloadEnablementTests(unittest.TestCase):
     def test_write_adds_policy_grant_and_worker_claim_only(self) -> None:
         root = _fixture_repo()
         _remove_policy_grant(root, "agent_workloads.readonly_query")
-        _set_worker_capabilities(root, "data.workspace_probe", ["agent_workloads.db_probe"])
+        _set_worker_capabilities(
+            root, "data.workspace_probe", ["agent_workloads.db_probe"]
+        )
         document = _write_enablement(
             root,
             {
@@ -100,7 +146,9 @@ class WorkloadEnablementTests(unittest.TestCase):
         secret_text = (root / AGENT_WORKLOADS_RUNTIME_SECRET_PATH).read_text()
         self.assertIn("ENC[AES256_GCM", secret_text)
         body = (root / "mandate-apply-pr.md").read_text()
-        self.assertIn("No live ConfigMap, Secret, or Kubernetes object is mutated.", body)
+        self.assertIn(
+            "No live ConfigMap, Secret, or Kubernetes object is mutated.", body
+        )
         self.assertIn("Secret values are never read or written", body)
 
     def test_missing_secret_is_named_as_operator_sops_gap(self) -> None:
@@ -236,13 +284,7 @@ def _worker_capabilities(root: Path, workload_id: str) -> list[str]:
 
 
 def _worker_env(values: dict[str, Any], workload_id: str) -> dict[str, Any]:
-    if workload_id == "data.workspace_probe":
-        return values["env"]
-    if workload_id == "opencode.proposer":
-        return values["opencodeProposer"]["env"]
-    if workload_id == "opencode.apply_executor":
-        return values["opencodeApplyExecutor"]["env"]
-    raise AssertionError(f"unknown worker fixture: {workload_id}")
+    return values["workers"][workload_id]["env"]
 
 
 def _load_values(root: Path) -> dict[str, Any]:

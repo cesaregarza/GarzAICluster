@@ -1,29 +1,33 @@
-{{- if .Values.networkPolicy.enabled }}
+{{- range $workerId, $worker := .Values.workers }}
+{{- if and $worker.enabled $worker.networkPolicy.enabled }}
+{{- $ctx := dict "root" $ "worker" $worker "workerId" $workerId }}
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "agent-workloads.fullname" . }}
+  name: {{ include "agent-workloads.workerMetadataName" $ctx }}
   labels:
-    {{- include "agent-workloads.labels" . | nindent 4 }}
+    {{- include "agent-workloads.workerLabels" $ctx | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "agent-workloads.selectorLabels" . | nindent 6 }}
+      {{- include "agent-workloads.workerSelectorLabels" $ctx | nindent 6 }}
   policyTypes:
     - Egress
   egress:
-    {{- if .Values.networkPolicy.egress.dns.enabled }}
+    {{- if $worker.networkPolicy.egress.dns.enabled }}
     - to:
-        {{- toYaml .Values.networkPolicy.egress.dns.destinations | nindent 8 }}
+        {{- toYaml $worker.networkPolicy.egress.dns.destinations | nindent 8 }}
       ports:
-        {{- toYaml .Values.networkPolicy.egress.dns.ports | nindent 8 }}
+        {{- toYaml $worker.networkPolicy.egress.dns.ports | nindent 8 }}
     {{- end }}
-    {{- range .Values.networkPolicy.egress.destinations }}
+    {{- range $destination := $worker.networkPolicy.egress.destinations }}
     - to:
-        {{- list (omit . "ports") | toYaml | nindent 8 }}
-      {{- with .ports }}
+        {{- list (omit $destination "ports") | toYaml | nindent 8 }}
+      {{- with $destination.ports }}
       ports:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     {{- end }}
+{{- end }}
 {{- end }}

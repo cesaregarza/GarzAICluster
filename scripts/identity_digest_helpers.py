@@ -11,26 +11,10 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
-
 SHA256_DIGEST_RE = re.compile(r"^sha256:[a-fA-F0-9]{64}$")
 TOKEN_PREFIX = "mwit_v1"
 TOKEN_METADATA_SCHEMA_VERSION = "agent-workloads-workload-identity-tokens.metadata.v1"
 WORKLOAD_IDENTITY_BUNDLE_VERSION = "workload_identity_bundle.v1"
-TOKEN_KEYS_BY_AGENT_ID = {
-    "data.workspace_probe": "MANDATE_WORKLOAD_IDENTITY_TOKEN",
-    "opencode.proposer": "OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN",
-    "opencode.apply_executor": "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
-}
-IMAGE_PATHS_BY_AGENT_ID = {
-    "data.workspace_probe": ("image",),
-    "opencode.proposer": ("opencodeProposer", "image"),
-    "opencode.apply_executor": ("opencodeApplyExecutor", "image"),
-}
-OPENCODE_VALUES_KEYS_BY_AGENT_ID = {
-    "opencode.proposer": "opencodeProposer",
-    "opencode.apply_executor": "opencodeApplyExecutor",
-}
-
 YAML_PARSER = YAML(typ="safe")
 
 
@@ -143,6 +127,7 @@ def _assert_token_metadata_matches(
     token_release_pins: dict[str, dict[str, str]],
     token_claims_by_agent: dict[str, dict[str, Any]],
     digest_spec_version: str,
+    token_keys: dict[str, str],
 ) -> None:
     metadata = _load_yaml(metadata_path)
     if metadata.get("schema_version") != TOKEN_METADATA_SCHEMA_VERSION:
@@ -150,18 +135,24 @@ def _assert_token_metadata_matches(
             "workload identity token metadata has unexpected schema_version"
         )
     if metadata.get("token_secret_path") != configured_token_secret_path.as_posix():
-        raise DriftGateError("workload identity token metadata token_secret_path mismatch")
+        raise DriftGateError(
+            "workload identity token metadata token_secret_path mismatch"
+        )
     tokens = metadata.get("tokens")
     if not isinstance(tokens, dict):
-        raise DriftGateError("workload identity token metadata tokens must be a mapping")
-    expected_agents = set(TOKEN_KEYS_BY_AGENT_ID)
+        raise DriftGateError(
+            "workload identity token metadata tokens must be a mapping"
+        )
+    expected_agents = set(token_keys)
     if set(tokens) != expected_agents:
         raise DriftGateError(
             "workload identity token metadata must cover exactly "
             f"{', '.join(sorted(expected_agents))}; got {', '.join(sorted(tokens))}"
         )
 
-    ciphertext_sha256 = "sha256:" + hashlib.sha256(token_secret_path.read_bytes()).hexdigest()
+    ciphertext_sha256 = (
+        "sha256:" + hashlib.sha256(token_secret_path.read_bytes()).hexdigest()
+    )
     for agent_id in sorted(expected_agents):
         entry = tokens[agent_id]
         if not isinstance(entry, dict):
@@ -170,7 +161,7 @@ def _assert_token_metadata_matches(
         token_release = token_release_pins[agent_id]
         expected = {
             "agent_id": agent_id,
-            "token_key": TOKEN_KEYS_BY_AGENT_ID[agent_id],
+            "token_key": token_keys[agent_id],
             "code_digest": token_release["codeDigest"],
             "manifest_digest": token_release["manifestDigest"],
             "image_digest": token_release["imageDigest"],

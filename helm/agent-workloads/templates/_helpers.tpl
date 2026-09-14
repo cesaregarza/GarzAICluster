@@ -1,53 +1,30 @@
 {{/*
-Expand the name of the chart.
+Common chart naming and worker rendering helpers.  The workers map is the
+only per-worker source of truth; helpers receive a worker explicitly so no
+canonical worker id is encoded in chart logic.
 */}}
 {{- define "agent-workloads.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{/*
-Create a default fully qualified app name.
-*/}}
 {{- define "agent-workloads.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
+{{- if .Values.fullnameOverride -}}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default .Chart.Name .Values.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
 {{- end }}
 
-{{/*
-Create chart name and version as used by the chart label.
-*/}}
 {{- define "agent-workloads.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{/*
-Common labels.
-*/}}
-{{- define "agent-workloads.labels" -}}
-helm.sh/chart: {{ include "agent-workloads.chart" . }}
-{{ include "agent-workloads.selectorLabels" . }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- end }}
-
-{{/*
-Selector labels.
-*/}}
-{{- define "agent-workloads.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "agent-workloads.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-Image reference for a values image subtree.
-*/}}
+{{/* Return the image reference for an image values subtree. */}}
 {{- define "agent-workloads.imageRef" -}}
 {{- if .digest -}}
 {{- printf "%s@%s" .repository .digest -}}
@@ -56,9 +33,7 @@ Image reference for a values image subtree.
 {{- end -}}
 {{- end }}
 
-{{/*
-Checksum of release pins that should roll worker pods when registry pins move.
-*/}}
+{{/* Checksum the complete release pin map, including every worker. */}}
 {{- define "agent-workloads.releasePinsChecksum" -}}
 {{- if .Values.mandateReleasePins -}}
 {{- toJson .Values.mandateReleasePins | sha256sum -}}
@@ -67,16 +42,10 @@ absent
 {{- end -}}
 {{- end }}
 
-{{/*
-Checksum of the SOPS workload-identity-token Secret ciphertext.
-*/}}
 {{- define "agent-workloads.workloadIdentityTokenSecretChecksum" -}}
 {{- default "absent" .Values.rolloutChecksums.workloadIdentityTokenSecret -}}
 {{- end }}
 
-{{/*
-Image pull secrets.
-*/}}
 {{- define "agent-workloads.imagePullSecrets" -}}
 {{- if .Values.global.imagePullSecrets }}
 imagePullSecrets:
@@ -86,39 +55,23 @@ imagePullSecrets:
 {{- end }}
 {{- end }}
 
-{{/*
-Service account name.
-*/}}
 {{- define "agent-workloads.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- include "agent-workloads.fullname" . }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
+{{- if .Values.serviceAccount.create -}}
+{{- include "agent-workloads.fullname" . -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
 {{- end }}
 
-{{/*
-Normalize a worker id for a DNS-label ServiceAccount name.
-*/}}
 {{- define "agent-workloads.workerIdentityName" -}}
 {{- regexReplaceAll "[^a-z0-9]+" (lower .workerId) "-" | trimAll "-" -}}
 {{- end }}
 
-{{- define "agent-workloads.projectedIdentityWorkerName" -}}
-{{- include "agent-workloads.workerIdentityName" (dict "workerId" .Values.projectedWorkloadIdentity.workerId) -}}
-{{- end }}
-
-{{/*
-Build a release-scoped ServiceAccount name from the trusted immutable release
-tuple. The 20-hex (80-bit) suffix is part of the verifier binding, so fail
-rather than truncating it.
-*/}}
+{{/* Build a release-scoped ServiceAccount name from the immutable tuple. */}}
 {{- define "agent-workloads.releaseScopedServiceAccountName" -}}
-{{- $root := .root -}}
 {{- $release := required "release-scoped ServiceAccount requires an immutable release tuple" .release -}}
-{{- $workerId := default $root.Values.projectedWorkloadIdentity.workerId .workerId -}}
-{{- $serviceAccountNamePrefix := default $root.Values.projectedWorkloadIdentity.serviceAccountNamePrefix .serviceAccountNamePrefix -}}
-{{- $identityLabel := default "projectedWorkloadIdentity" .identityLabel -}}
+{{- $workerId := required "release-scoped ServiceAccount requires workerId" .workerId -}}
+{{- $prefix := required "release-scoped ServiceAccount requires serviceAccountNamePrefix" .serviceAccountNamePrefix -}}
 {{- $codeDigest := required "release-scoped ServiceAccount requires codeDigest" $release.codeDigest -}}
 {{- $manifestDigest := required "release-scoped ServiceAccount requires manifestDigest" $release.manifestDigest -}}
 {{- $imageDigest := required "release-scoped ServiceAccount requires imageDigest" $release.imageDigest -}}
@@ -129,11 +82,11 @@ rather than truncating it.
 {{- end -}}
 {{- $workerName := include "agent-workloads.workerIdentityName" (dict "workerId" $workerId) -}}
 {{- if not (regexMatch "^[a-z0-9]+(-[a-z0-9]+)*$" $workerName) -}}
-{{- fail (printf "%s.workerId must normalize to a DNS label" $identityLabel) -}}
+{{- fail "identity.workerId must normalize to a DNS label" -}}
 {{- end -}}
 {{- $bundlePayload := printf "{\"code_digest\":\"%s\",\"image_digest\":\"%s\",\"manifest_digest\":\"%s\",\"schema_version\":\"workload_identity_bundle.v1\"}" $codeDigest $imageDigest $manifestDigest -}}
 {{- $digestSuffix := trunc 20 (sha256sum $bundlePayload) -}}
-{{- $name := printf "%s-%s-%s" $serviceAccountNamePrefix $workerName $digestSuffix -}}
+{{- $name := printf "%s-%s-%s" $prefix $workerName $digestSuffix -}}
 {{- if gt (len $name) 63 -}}
 {{- fail "release-scoped ServiceAccount name exceeds 63 characters" -}}
 {{- end -}}
@@ -143,178 +96,153 @@ rather than truncating it.
 {{- $name -}}
 {{- end }}
 
-{{/* Current projected-identity ServiceAccount. */}}
-{{- define "agent-workloads.projectedIdentityServiceAccountName" -}}
-{{- $workerId := .Values.projectedWorkloadIdentity.workerId -}}
-{{- $releasePins := required "projected identity requires mandateReleasePins" .Values.mandateReleasePins -}}
-{{- $workerPins := required (printf "projected identity requires mandateReleasePins[%s]" $workerId) (index $releasePins $workerId) -}}
-{{- include "agent-workloads.releaseScopedServiceAccountName" (dict "root" . "release" $workerPins) -}}
+{{- define "agent-workloads.workerCurrentServiceAccountName" -}}
+{{- $worker := .worker -}}
+{{- $workerId := required "identity.workerId is required" $worker.identity.workerId -}}
+{{- $pins := required "projected identity requires mandateReleasePins" .root.Values.mandateReleasePins -}}
+{{- $release := required (printf "projected identity requires mandateReleasePins[%s]" $workerId) (index $pins $workerId) -}}
+{{- include "agent-workloads.releaseScopedServiceAccountName" (dict "release" $release "workerId" $workerId "serviceAccountNamePrefix" $worker.identity.serviceAccountNamePrefix) -}}
 {{- end }}
 
-{{/* Previous projected-identity ServiceAccount retained during rollout overlap. */}}
-{{- define "agent-workloads.previousProjectedIdentityServiceAccountName" -}}
-{{- include "agent-workloads.releaseScopedServiceAccountName" (dict "root" . "release" .Values.projectedWorkloadIdentity.previousRelease) -}}
+{{- define "agent-workloads.workerPreviousServiceAccountName" -}}
+{{- include "agent-workloads.releaseScopedServiceAccountName" (dict "release" .worker.identity.previousRelease "workerId" .worker.identity.workerId "serviceAccountNamePrefix" .worker.identity.serviceAccountNamePrefix) -}}
 {{- end }}
 
-{{/* Full projected worker token path. */}}
-{{- define "agent-workloads.projectedIdentityTokenPath" -}}
-{{- printf "%s/%s" (trimSuffix "/" .Values.projectedWorkloadIdentity.token.mountPath) .Values.projectedWorkloadIdentity.token.fileName -}}
+{{- define "agent-workloads.workerTokenPath" -}}
+{{- printf "%s/%s" (trimSuffix "/" .worker.identity.token.mountPath) .worker.identity.token.fileName -}}
 {{- end }}
 
-{{/*
-Runtime environment.
-*/}}
-{{- define "agent-workloads.runtimeEnv" -}}
-{{- include "agent-workloads.envFromValues" (dict "root" . "values" .Values) }}
+{{- define "agent-workloads.workerMetadataName" -}}
+{{- if .worker.metadataName -}}
+{{- .worker.metadataName | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" (include "agent-workloads.fullname" .root) (include "agent-workloads.workerIdentityName" (dict "workerId" .workerId)) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
 {{- end }}
 
-{{/*
-Runtime environment for a values subtree.
-*/}}
-{{- define "agent-workloads.envFromValues" -}}
-{{- $root := .root }}
-{{- $values := .values }}
-{{- $secretEnvSecretName := default $root.Values.global.runtimeSecretName $values.secretEnvSecretName }}
-{{- range $key := $values.secretKeys }}
+{{- define "agent-workloads.workerSelectorLabels" -}}
+{{- $workerName := include "agent-workloads.workerMetadataName" . -}}
+{{- toYaml (default (dict "app.kubernetes.io/name" $workerName "app.kubernetes.io/instance" .root.Release.Name) .worker.selectorLabels) -}}
+{{- end }}
+
+{{/* Standard labels composed with explicit per-worker labels. */}}
+{{- define "agent-workloads.workerLabels" -}}
+helm.sh/chart: {{ include "agent-workloads.chart" .root }}
+{{ include "agent-workloads.workerSelectorLabels" . }}
+app.kubernetes.io/managed-by: {{ .root.Release.Service }}
+{{ with .worker.labels }}
+{{- toYaml . }}
+{{- end }}
+{{- end }}
+
+{{- define "agent-workloads.envFromWorker" -}}
+{{- $root := .root -}}
+{{- $worker := .worker -}}
+{{- $secretName := default $root.Values.global.runtimeSecretName $worker.secretEnvSecretName -}}
+{{- range $key := $worker.secretKeys }}
 - name: {{ $key }}
   valueFrom:
     secretKeyRef:
       name: {{ $root.Values.global.runtimeSecretName }}
       key: {{ $key }}
 {{- end }}
-{{- range $envName, $secretKey := $values.secretEnv }}
+{{- range $envName, $secretKey := $worker.secretEnv }}
 - name: {{ $envName }}
   valueFrom:
     secretKeyRef:
-      name: {{ $secretEnvSecretName }}
+      name: {{ $secretName }}
       key: {{ $secretKey }}
 {{- end }}
-{{- range $key, $value := $values.env }}
+{{- range $key, $value := $worker.env }}
 - name: {{ $key }}
   value: {{ $value | quote }}
 {{- end }}
 {{- end }}
 
-{{/*
-OpenCode proposer object name.
-*/}}
-{{- define "agent-workloads.opencodeProposerName" -}}
-{{- printf "%s-opencode-proposer" (include "agent-workloads.fullname" .) | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
-{{/*
-OpenCode proposer selector labels.
-*/}}
-{{- define "agent-workloads.opencodeProposerSelectorLabels" -}}
-app.kubernetes.io/name: opencode-proposer
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-OpenCode proposer labels.
-*/}}
-{{- define "agent-workloads.opencodeProposerLabels" -}}
-helm.sh/chart: {{ include "agent-workloads.chart" . }}
-{{ include "agent-workloads.opencodeProposerSelectorLabels" . }}
-app.kubernetes.io/part-of: {{ include "agent-workloads.name" . }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/component: opencode-proposer
-{{- end }}
-
-{{/*
-OpenCode apply executor object name and labels.
-*/}}
-{{- define "agent-workloads.opencodeApplyExecutorName" -}}
-{{- printf "%s-opencode-apply-executor" (include "agent-workloads.fullname" .) | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
-{{- define "agent-workloads.opencodeApplyExecutorSelectorLabels" -}}
-app.kubernetes.io/name: opencode-apply-executor
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{- define "agent-workloads.opencodeApplyExecutorLabels" -}}
-helm.sh/chart: {{ include "agent-workloads.chart" . }}
-{{ include "agent-workloads.opencodeApplyExecutorSelectorLabels" . }}
-app.kubernetes.io/part-of: {{ include "agent-workloads.name" . }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/component: opencode-apply-executor
-{{- end }}
-
-{{/*
-Release-scoped identity helpers for one split OpenCode worker.
-*/}}
-{{- define "agent-workloads.opencodeIdentityServiceAccountName" -}}
+{{/* Fail closed before rendering a worker with a mismatched release or
+credential identity. */}}
+{{- define "agent-workloads.validateWorker" -}}
 {{- $root := .root -}}
-{{- $identity := .identity -}}
-{{- $workerId := required "OpenCode identity requires workerId" $identity.workerId -}}
-{{- $releasePins := required "OpenCode identity requires mandateReleasePins" $root.Values.mandateReleasePins -}}
-{{- $workerPins := required (printf "OpenCode identity requires mandateReleasePins[%s]" $workerId) (index $releasePins $workerId) -}}
-{{- include "agent-workloads.releaseScopedServiceAccountName" (dict "root" $root "release" $workerPins "workerId" $workerId "serviceAccountNamePrefix" $identity.serviceAccountNamePrefix "identityLabel" .identityLabel) -}}
-{{- end }}
-
-{{- define "agent-workloads.previousOpencodeIdentityServiceAccountName" -}}
-{{- include "agent-workloads.releaseScopedServiceAccountName" (dict "root" .root "release" .identity.previousRelease "workerId" .identity.workerId "serviceAccountNamePrefix" .identity.serviceAccountNamePrefix "identityLabel" .identityLabel) -}}
-{{- end }}
-
-{{- define "agent-workloads.opencodeIdentityTokenPath" -}}
-{{- printf "%s/%s" (trimSuffix "/" .identity.token.mountPath) .identity.token.fileName -}}
-{{- end }}
-
-{{/*
-Fail closed when a split OpenCode worker could collapse release or credential
-identity. This helper emits no manifest content.
-*/}}
-{{- define "agent-workloads.validateOpencodeIdentity" -}}
-{{- $root := .root -}}
-{{- $values := .values -}}
-{{- $identity := $values.identity -}}
-{{- $label := .label -}}
-{{- $workerId := required (printf "%s identity requires workerId" $label) $identity.workerId -}}
-{{- if ne $workerId $values.env.AGENT_WORKLOADS_WORKER_ID -}}
-{{- fail (printf "%s identity workerId must match AGENT_WORKLOADS_WORKER_ID" $label) -}}
+{{- $workerId := .workerId -}}
+{{- $worker := .worker -}}
+{{- $identity := required (printf "workers[%s].identity is required" $workerId) $worker.identity -}}
+{{- if ne (required (printf "workers[%s].identity.workerId is required" $workerId) $identity.workerId) $workerId -}}
+{{- fail (printf "workers[%s].identity.workerId must match its map key" $workerId) -}}
 {{- end -}}
-{{- $releasePins := required (printf "%s identity requires mandateReleasePins" $label) $root.Values.mandateReleasePins -}}
-{{- $workerPins := required (printf "%s identity requires mandateReleasePins[%s]" $label $workerId) (index $releasePins $workerId) -}}
-{{- $runtimeImageDigest := required (printf "%s governed identity requires immutable image.digest" $label) $values.image.digest -}}
-{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $runtimeImageDigest) -}}
-{{- fail (printf "%s image.digest must be lowercase sha256:<64 hex>" $label) -}}
+{{- if ne (required (printf "workers[%s].identity.mode is required" $workerId) $identity.mode) "projected" -}}
+{{- fail (printf "workers[%s].identity.mode must be projected" $workerId) -}}
 {{- end -}}
-{{- if ne $runtimeImageDigest $workerPins.imageDigest -}}
-{{- fail (printf "%s image.digest must equal mandateReleasePins[%s].imageDigest" $label $workerId) -}}
+{{- if ne (required (printf "workers[%s].env.AGENT_WORKLOADS_WORKER_ID is required" $workerId) $worker.env.AGENT_WORKLOADS_WORKER_ID) $workerId -}}
+{{- fail (printf "workers[%s] identity must match AGENT_WORKLOADS_WORKER_ID" $workerId) -}}
 {{- end -}}
-{{- if hasKey $values.env "AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE" -}}
-{{- fail (printf "%s artifact handoff mode env is chart-owned" $label) -}}
+{{- if and $worker.handoffMode (or (ne (len $worker.secretKeys) 0) (ne (len $worker.secretEnv) 0)) -}}
+{{- fail (printf "workers[%s] governed projected identity must not inject static credentials" $workerId) -}}
 {{- end -}}
-{{- if not (has $identity.mode (list "hmac" "projected")) -}}
-{{- fail (printf "%s identity mode must be hmac or projected" $label) -}}
+{{- $pins := required "mandateReleasePins is required" $root.Values.mandateReleasePins -}}
+{{- $release := required (printf "mandateReleasePins[%s] is required" $workerId) (index $pins $workerId) -}}
+{{- $imageDigest := required (printf "workers[%s].image.digest is required" $workerId) $worker.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $imageDigest) -}}
+{{- fail (printf "workers[%s].image.digest must be lowercase sha256:<64 hex>" $workerId) -}}
 {{- end -}}
-{{- if eq $identity.mode "hmac" -}}
-{{- if or (ne (len $values.secretKeys) 0) (ne (len $values.secretEnv) 1) (not (hasKey $values.secretEnv "MANDATE_WORKLOAD_IDENTITY_TOKEN")) -}}
-{{- fail (printf "%s hmac identity must inject only MANDATE_WORKLOAD_IDENTITY_TOKEN" $label) -}}
+{{- if ne $imageDigest (required (printf "mandateReleasePins[%s].imageDigest is required" $workerId) $release.imageDigest) -}}
+{{- fail (printf "workers[%s].image.digest must equal mandateReleasePins[%s].imageDigest" $workerId $workerId) -}}
 {{- end -}}
-{{- if or (hasKey $values.env "MANDATE_WORKLOAD_IDENTITY_TOKEN") (hasKey $values.env "MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE") -}}
-{{- fail (printf "%s hmac identity token env is chart-owned" $label) -}}
-{{- end -}}
-{{- else -}}
-{{- if or (ne (len $values.secretKeys) 0) (ne (len $values.secretEnv) 0) (hasKey $values.env "MANDATE_WORKLOAD_IDENTITY_TOKEN") (hasKey $values.env "MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE") -}}
-{{- fail (printf "%s projected identity must not inject static credentials" $label) -}}
-{{- end -}}
-{{- $audience := required (printf "%s projected identity audience is required" $label) $identity.token.audience -}}
+{{- $audience := required (printf "workers[%s].identity.token.audience is required" $workerId) $identity.token.audience -}}
 {{- if ne $audience (trim $audience) -}}
-{{- fail (printf "%s projected identity audience must not have surrounding whitespace" $label) -}}
+{{- fail (printf "workers[%s].identity.token.audience must not have surrounding whitespace" $workerId) -}}
 {{- end -}}
 {{- $expirationSeconds := int $identity.token.expirationSeconds -}}
 {{- if or (lt $expirationSeconds 600) (gt $expirationSeconds 3600) -}}
-{{- fail (printf "%s projected identity expirationSeconds must be between 600 and 3600" $label) -}}
+{{- fail (printf "workers[%s].identity.token.expirationSeconds must be between 600 and 3600" $workerId) -}}
 {{- end -}}
-{{- $mountPath := required (printf "%s projected identity mountPath is required" $label) $identity.token.mountPath -}}
+{{- $mountPath := required (printf "workers[%s].identity.token.mountPath is required" $workerId) $identity.token.mountPath -}}
 {{- if or (ne $mountPath (trim $mountPath)) (not (regexMatch "^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$" $mountPath)) (regexMatch "(^|/)\\.\\.?(/|$)" $mountPath) -}}
-{{- fail (printf "%s projected identity mountPath must be a normalized absolute path" $label) -}}
+{{- fail (printf "workers[%s].identity.token.mountPath must be a normalized absolute path" $workerId) -}}
 {{- end -}}
-{{- $fileName := required (printf "%s projected identity fileName is required" $label) $identity.token.fileName -}}
+{{- $fileName := required (printf "workers[%s].identity.token.fileName is required" $workerId) $identity.token.fileName -}}
 {{- if or (ne $fileName (trim $fileName)) (not (regexMatch "^[A-Za-z0-9._-]+$" $fileName)) (eq $fileName ".") (eq $fileName "..") -}}
-{{- fail (printf "%s projected identity fileName must be a normalized basename" $label) -}}
+{{- fail (printf "workers[%s].identity.token.fileName must be a normalized basename" $workerId) -}}
+{{- end -}}
+{{- $rollback := $identity.hmacRollbackRelease -}}
+{{- $rollbackKey := $identity.hmacRollbackTokenKey -}}
+{{- if or (and $rollback (not $rollbackKey)) (and (not $rollback) $rollbackKey) -}}
+{{- fail (printf "workers[%s].identity.hmacRollbackRelease and hmacRollbackTokenKey must appear together" $workerId) -}}
+{{- end -}}
+{{- range $envName := list "MANDATE_WORKLOAD_IDENTITY_TOKEN" "MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE" -}}
+{{- if hasKey $worker.env $envName -}}
+{{- fail (printf "workers[%s].env.%s is chart-owned" $workerId $envName) -}}
+{{- end -}}
+{{- if hasKey $worker.secretEnv $envName -}}
+{{- fail (printf "workers[%s].secretEnv.%s is chart-owned" $workerId $envName) -}}
+{{- end -}}
+{{- if has $envName $worker.secretKeys -}}
+{{- fail (printf "workers[%s].secretKeys must not contain %s" $workerId $envName) -}}
+{{- end -}}
+{{- end -}}
+{{- if hasKey $worker.env "AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE" -}}
+{{- fail (printf "workers[%s].env.AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE is chart-owned" $workerId) -}}
+{{- end -}}
+{{- if and $worker.handoffMode (not $worker.networkPolicy.enabled) -}}
+{{- fail (printf "workers[%s] requires an enabled networkPolicy for governed handoff" $workerId) -}}
+{{- end -}}
+{{- range $mount := $worker.volumeMounts -}}
+{{- $extraPath := clean (required (printf "workers[%s].volumeMounts requires mountPath" $workerId) $mount.mountPath) -}}
+{{- if or (eq $extraPath "/") (eq $extraPath $mountPath) (hasPrefix (printf "%s/" $mountPath) $extraPath) (hasPrefix (printf "%s/" $extraPath) $mountPath) -}}
+{{- fail (printf "workers[%s].volumeMounts must not overlap the projected identity token path" $workerId) -}}
+{{- end -}}
+{{- end -}}
+{{- range $volume := $worker.volumes -}}
+{{- with $volume.secret -}}
+{{- if eq .secretName "agent-workloads-workload-identity-tokens" -}}
+{{- fail (printf "workers[%s] must not mount the legacy identity Secret" $workerId) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- with $identity.previousRelease -}}
+{{- range $label, $digest := dict "codeDigest" .codeDigest "manifestDigest" .manifestDigest "imageDigest" .imageDigest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail (printf "workers[%s].identity.previousRelease.%s must be lowercase sha256:<64 hex>" $workerId $label) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end }}

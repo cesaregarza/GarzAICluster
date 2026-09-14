@@ -1,72 +1,73 @@
 from __future__ import annotations
 
-import base64
-import hashlib
 import json
-import shutil
 import unittest
-from pathlib import Path
-from typing import Any
 
-from ruamel.yaml import YAML
-
-from scripts.check_agent_workloads_identity_digests import (
-    DriftGateError,
-    check_agent_workloads_identity_digests,
+from scripts.identity_digest_helpers import DriftGateError
+from tests.worker_identity_fixtures import (
+    DIGESTS,
+    DRIFT_GATE_RECIPIENT,
+    OLD_MUTABLE_BROKER_ACTION,
+    REPO_ROOT,
+    REPO_SOPS_SECRET_CONTEXT,
+    RUNTIME_SECRET_PATH,
+    SHARED_DRIFT_GATE_ACTION,
+    TOKEN_KEYS,
+    TOKEN_METADATA_PATH,
+    TOKEN_SECRET_PATH,
+    YAML_PARSER,
+    _check,
+    _configure_governed_hmac_identities,
+    _configure_governed_release_subjects,
+    _configure_retained_hmac_token,
+    _configure_workspace_projected_identity,
+    _fixture_repo,
+    _mwit_token,
+    _release_subject,
+    _set_workspace_identity_audience,
+    _sops_age_recipients,
+    _write_metadata,
+    _write_yaml,
+    _yaml_text,
 )
-
-
-YAML_PARSER = YAML(typ="safe")
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DRIFT_GATE_RECIPIENT = (
-    "age1qny3qstwqglwdyau5x7sp3vy0qmd3petzp4f3slf7u3qrudhdq0qf4cjau"
-)
-
-DIGESTS = {
-    "data.workspace_probe": {
-        "codeDigest": "sha256:" + "a" * 64,
-        "manifestDigest": "sha256:" + "b" * 64,
-        "imageDigest": "sha256:" + "c" * 64,
-    },
-    "opencode.proposer": {
-        "codeDigest": "sha256:" + "d" * 64,
-        "manifestDigest": "sha256:" + "e" * 64,
-        "imageDigest": "sha256:" + "f" * 64,
-    },
-    "opencode.apply_executor": {
-        "codeDigest": "sha256:" + "1" * 64,
-        "manifestDigest": "sha256:" + "2" * 64,
-        "imageDigest": "sha256:" + "3" * 64,
-    },
-}
-
-TOKEN_KEYS = {
-    "data.workspace_probe": "MANDATE_WORKLOAD_IDENTITY_TOKEN",
-    "opencode.proposer": "OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN",
-    "opencode.apply_executor": "OPENCODE_APPLY_EXECUTOR_WORKLOAD_IDENTITY_TOKEN",
-}
-RUNTIME_SECRET_PATH = Path("secrets/agent-workloads/runtime-secret.enc.yaml")
-TOKEN_SECRET_PATH = Path("secrets/agent-workloads/workload-identity-tokens.enc.yaml")
-TOKEN_METADATA_PATH = Path(
-    "secrets/agent-workloads/workload-identity-tokens.metadata.yaml"
-)
-DIGEST_SPEC_VERSION = "agent-workloads-code-digest-v2"
-WORKLOAD_IDENTITY_BUNDLE_DIGEST_VERSION = "workload_identity_bundle.v1"
-OLD_MUTABLE_BROKER_ACTION = (
-    "cesaregarza/"
-    ".github/actions/"
-    "fetch-broker-credentials"
-    "@main"
-)
-SHARED_ACTION_REF = "a1d2fb4a6b288066574b1ac53074ac62e920a07f"
-SHARED_DRIFT_GATE_ACTION = (
-    "cesaregarza/.github/actions/agent-workloads-identity-digest-drift-gate"
-    f"@{SHARED_ACTION_REF}"
-)
-REPO_SOPS_SECRET_CONTEXT = "secrets." "SOPS_AGE_KEY"
 
 
 class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
+    def test_fourth_projected_worker_needs_no_hmac_credential(self) -> None:
+        import copy
+
+        root = _fixture_repo()
+        worker_id = "extra.verification"
+        values_path = root / "apps/agent-workloads/values.yaml"
+        values = YAML_PARSER.load(values_path.read_text())
+        worker = copy.deepcopy(values["workers"]["data.workspace_probe"])
+        worker["identity"]["workerId"] = worker_id
+        worker["identity"].pop("hmacRollbackRelease")
+        worker["identity"].pop("hmacRollbackTokenKey")
+        values["workers"][worker_id] = worker
+        values["mandateReleasePins"][worker_id] = dict(DIGESTS["data.workspace_probe"])
+        _write_yaml(values_path, values)
+        path = root / "apps/agent-control-plane-registry-overlay/configmap.yaml"
+        configmap = YAML_PARSER.load(path.read_text())
+        imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
+        entry = copy.deepcopy(imports["imports"][0])
+        entry["id"] = worker_id
+        manifest = json.loads(configmap["data"]["agent-data.workspace_probe.json"])
+        manifest["id"] = worker_id
+        entry["manifest_path"] = "registries/imports/agent-extra.verification.json"
+        configmap["data"]["agent-extra.verification.json"] = json.dumps(manifest)
+        entry["agent"]["service_account_subject"] = _release_subject(
+            worker_id, DIGESTS["data.workspace_probe"]
+        )
+        imports["imports"].append(entry)
+        configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
+        _write_yaml(path, configmap)
+        self.assertIn("match release pins", _check(root))
+        values["workers"][worker_id]["identity"]["workerId"] = "data.workspace_probe"
+        _write_yaml(values_path, values)
+        with self.assertRaisesRegex(DriftGateError, "workerId must equal"):
+            _check(root)
+
     def test_ci_drift_gate_uses_pinned_shared_brokered_sops_key(self) -> None:
         workflow_path = REPO_ROOT / ".github" / "workflows" / "ci.yaml"
         workflow = YAML_PARSER.load(workflow_path.read_text())
@@ -173,14 +174,18 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
         self.assertIn("match release pins", result)
 
-    def test_gate_rejects_missing_sdk_receipt_when_release_pins_are_present(self) -> None:
+    def test_gate_rejects_missing_sdk_receipt_when_release_pins_are_present(
+        self,
+    ) -> None:
         root = _fixture_repo()
         (root / "contracts/mandate-worker/receipt.json").unlink()
 
         with self.assertRaisesRegex(DriftGateError, "SDK receipt"):
             _check(root)
 
-    def test_gate_rejects_malformed_sdk_receipt_when_release_pins_are_present(self) -> None:
+    def test_gate_rejects_malformed_sdk_receipt_when_release_pins_are_present(
+        self,
+    ) -> None:
         root = _fixture_repo()
         (root / "contracts/mandate-worker/receipt.json").write_text("{}\n")
 
@@ -221,10 +226,7 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
             _check(root)
 
     def test_omitted_audience_still_rejects_wrong_worker_token_audiences(self) -> None:
-        cases = [("data.workspace_probe", "projectedWorkloadIdentity"),
-                 ("opencode.proposer", "opencodeProposer"),
-                 ("opencode.apply_executor", "opencodeApplyExecutor")]
-        for worker, values_key in cases:
+        for worker in DIGESTS:
             with self.subTest(worker=worker):
                 root = _fixture_repo()
                 _configure_workspace_projected_identity(root)
@@ -238,10 +240,12 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
                 _write_yaml(path, configmap)
                 path = root / "apps/agent-workloads/values.yaml"
                 values = YAML_PARSER.load(path.read_text())
-                identity = values[values_key] if worker == "data.workspace_probe" else values[values_key]["identity"]
+                identity = values["workers"][worker]["identity"]
                 identity["token"]["audience"] = "wrong-audience"
                 _write_yaml(path, values)
-                with self.assertRaisesRegex(DriftGateError, "identity_audience differs"):
+                with self.assertRaisesRegex(
+                    DriftGateError, "identity_audience differs"
+                ):
                     _check(root)
 
     def test_omitted_audience_uses_configured_core_verifier_audience(self) -> None:
@@ -249,13 +253,19 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         _configure_workspace_projected_identity(root)
         _set_workspace_identity_audience(root, None)
         path = root / "apps/agent-control-plane/values.yaml"
-        _write_yaml(path, {"env": {"AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE": "custom-core"}})
+        _write_yaml(
+            path, {"env": {"AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE": "custom-core"}}
+        )
         with self.assertRaisesRegex(DriftGateError, "identity_audience differs"):
             _check(root)
         path = root / "apps/agent-workloads/values.yaml"
         values = YAML_PARSER.load(path.read_text())
-        values["projectedWorkloadIdentity"]["token"]["audience"] = "custom-core"
+        values["workers"]["data.workspace_probe"]["identity"]["token"]["audience"] = (
+            "custom-core"
+        )
         _write_yaml(path, values)
+        from tests.worker_identity_fixtures import replace_token_identity
+        replace_token_identity(root, "data.workspace_probe", {"aud": "custom-core"})
         self.assertIn("match release pins", _check(root))
 
     def test_gate_accepts_workspace_projected_subject_with_current_hmac_rollback(
@@ -268,32 +278,53 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
         self.assertIn("retained rollback tuples", result)
 
-    def test_retained_hmac_survives_projected_overlap_retirement_and_next_roll(self) -> None:
-        rollback = {key: "sha256:" + digit * 64 for key, digit in
-                    zip(("codeDigest", "manifestDigest", "imageDigest"), "456")}
-        next_previous = {key: "sha256:" + digit * 64 for key, digit in
-                         zip(("codeDigest", "manifestDigest", "imageDigest"), "789")}
+    def test_retained_hmac_survives_projected_overlap_retirement_and_next_roll(
+        self,
+    ) -> None:
+        rollback = {
+            key: "sha256:" + digit * 64
+            for key, digit in zip(
+                ("codeDigest", "manifestDigest", "imageDigest"), "456"
+            )
+        }
+        next_previous = {
+            key: "sha256:" + digit * 64
+            for key, digit in zip(
+                ("codeDigest", "manifestDigest", "imageDigest"), "789"
+            )
+        }
         for previous in (None, next_previous):
             with self.subTest(previous=previous):
                 root = _fixture_repo()
                 _configure_workspace_projected_identity(root, previous_release=previous)
-                _configure_retained_hmac_token(root, agent_id="data.workspace_probe", release=rollback)
+                _configure_retained_hmac_token(
+                    root, agent_id="data.workspace_probe", release=rollback
+                )
                 path = root / "apps/agent-workloads/values.yaml"
                 values = YAML_PARSER.load(path.read_text())
-                values["projectedWorkloadIdentity"]["hmacRollbackRelease"] = rollback
+                values["workers"]["data.workspace_probe"]["identity"][
+                    "hmacRollbackRelease"
+                ] = rollback
                 _write_yaml(path, values)
                 self.assertIn("retained rollback tuples", _check(root))
 
     def test_projected_rollback_requires_explicit_valid_exact_tuple(self) -> None:
-        invalid = (None, {}, "invalid", {**DIGESTS["data.workspace_probe"], "imageDigest": "bad"},
-                   {**DIGESTS["data.workspace_probe"], "extra": "bad"})
+        invalid = (
+            None,
+            {},
+            "invalid",
+            {**DIGESTS["data.workspace_probe"], "imageDigest": "bad"},
+            {**DIGESTS["data.workspace_probe"], "extra": "bad"},
+        )
         for rollback in invalid:
             with self.subTest(rollback=rollback):
                 root = _fixture_repo()
                 _configure_workspace_projected_identity(root)
                 path = root / "apps/agent-workloads/values.yaml"
                 values = YAML_PARSER.load(path.read_text())
-                values["projectedWorkloadIdentity"]["hmacRollbackRelease"] = rollback
+                values["workers"]["data.workspace_probe"]["identity"][
+                    "hmacRollbackRelease"
+                ] = rollback
                 _write_yaml(path, values)
                 with self.assertRaisesRegex(DriftGateError, "hmacRollbackRelease"):
                     _check(root)
@@ -301,7 +332,7 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         _configure_workspace_projected_identity(root)
         path = root / "apps/agent-workloads/values.yaml"
         values = YAML_PARSER.load(path.read_text())
-        del values["projectedWorkloadIdentity"]["hmacRollbackRelease"]
+        del values["workers"]["data.workspace_probe"]["identity"]["hmacRollbackRelease"]
         _write_yaml(path, values)
         with self.assertRaisesRegex(DriftGateError, "hmacRollbackRelease"):
             _check(root)
@@ -313,36 +344,43 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
                 _configure_workspace_projected_identity(root)
                 path = root / "apps/agent-workloads/values.yaml"
                 values = YAML_PARSER.load(path.read_text())
-                values["projectedWorkloadIdentity"]["hmacRollbackRelease"][key] = "sha256:" + "9" * 64
+                values["workers"]["data.workspace_probe"]["identity"][
+                    "hmacRollbackRelease"
+                ][key] = "sha256:" + "9" * 64
                 _write_yaml(path, values)
                 with self.assertRaisesRegex(DriftGateError, "mismatch"):
                     _check(root)
 
     def test_hmac_mode_cannot_use_rollback_to_override_current_claims(self) -> None:
         root = _fixture_repo()
-        rollback = {key: "sha256:" + digit * 64 for key, digit in
-                    zip(("codeDigest", "manifestDigest", "imageDigest"), "456")}
-        _configure_retained_hmac_token(root, agent_id="data.workspace_probe", release=rollback)
+        rollback = {
+            key: "sha256:" + digit * 64
+            for key, digit in zip(
+                ("codeDigest", "manifestDigest", "imageDigest"), "456"
+            )
+        }
+        _configure_retained_hmac_token(
+            root, agent_id="data.workspace_probe", release=rollback
+        )
         path = root / "apps/agent-workloads/values.yaml"
         values = YAML_PARSER.load(path.read_text())
-        values["projectedWorkloadIdentity"] = {"enabled": False, "hmacRollbackRelease": rollback}
+        values["workers"]["data.workspace_probe"]["identity"]["mode"] = "hmac"
         _write_yaml(path, values)
-        with self.assertRaisesRegex(DriftGateError, "code_digest mismatch"):
+        with self.assertRaisesRegex(DriftGateError, "mode must be projected"):
             _check(root)
 
     def test_gate_rejects_workspace_projected_subject_drift(self) -> None:
         root = _fixture_repo()
         _configure_workspace_projected_identity(root)
         configmap_path = (
-            root
-            / "apps"
-            / "agent-control-plane-registry-overlay"
-            / "configmap.yaml"
+            root / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
         )
         configmap = YAML_PARSER.load(configmap_path.read_text())
         imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
         workspace = next(
-            entry for entry in imports["imports"] if entry["id"] == "data.workspace_probe"
+            entry
+            for entry in imports["imports"]
+            if entry["id"] == "data.workspace_probe"
         )
         workspace["agent"]["service_account_subject"] = (
             "system:serviceaccount:agent-workloads:wrong-release"
@@ -402,39 +440,61 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
                 self.assertIn("retained rollback tuples", result)
 
-    def test_opencode_explicit_rollback_survives_retirement_and_next_overlap(self) -> None:
-        rollback = {key: "sha256:" + digit * 64 for key, digit in
-                    zip(("codeDigest", "manifestDigest", "imageDigest"), "456")}
-        next_previous = {key: "sha256:" + digit * 64 for key, digit in
-                         zip(("codeDigest", "manifestDigest", "imageDigest"), "789")}
-        for agent_id, values_key in (("opencode.proposer", "opencodeProposer"),
-                                     ("opencode.apply_executor", "opencodeApplyExecutor")):
+    def test_opencode_explicit_rollback_survives_retirement_and_next_overlap(
+        self,
+    ) -> None:
+        rollback = {
+            key: "sha256:" + digit * 64
+            for key, digit in zip(
+                ("codeDigest", "manifestDigest", "imageDigest"), "456"
+            )
+        }
+        next_previous = {
+            key: "sha256:" + digit * 64
+            for key, digit in zip(
+                ("codeDigest", "manifestDigest", "imageDigest"), "789"
+            )
+        }
+        for agent_id in DIGESTS:
             for previous in (None, next_previous):
                 with self.subTest(agent_id=agent_id, previous=previous):
                     root = _fixture_repo()
                     _configure_governed_release_subjects(
-                        root, previous_by_agent={agent_id: previous} if previous else None
+                        root,
+                        previous_by_agent={agent_id: previous} if previous else None,
                     )
-                    _configure_retained_hmac_token(root, agent_id=agent_id, release=rollback)
+                    _configure_retained_hmac_token(
+                        root, agent_id=agent_id, release=rollback
+                    )
                     path = root / "apps/agent-workloads/values.yaml"
                     values = YAML_PARSER.load(path.read_text())
-                    values[values_key]["identity"]["hmacRollbackRelease"] = rollback
+                    values["workers"][agent_id]["identity"]["hmacRollbackRelease"] = (
+                        rollback
+                    )
                     _write_yaml(path, values)
                     self.assertIn("retained rollback tuples", _check(root))
 
-    def test_opencode_explicit_rollback_rejects_invalid_shape_and_claim_drift(self) -> None:
+    def test_opencode_explicit_rollback_rejects_invalid_shape_and_claim_drift(
+        self,
+    ) -> None:
         keys = ("codeDigest", "manifestDigest", "imageDigest")
-        for agent_id, values_key in (("opencode.proposer", "opencodeProposer"),
-                                     ("opencode.apply_executor", "opencodeApplyExecutor")):
-            invalid = (None, {}, "invalid", {**DIGESTS[agent_id], "imageDigest": "bad"},
-                       {**DIGESTS[agent_id], "extra": "bad"})
+        for agent_id in DIGESTS:
+            invalid = (
+                None,
+                {},
+                "invalid",
+                {**DIGESTS[agent_id], "imageDigest": "bad"},
+                {**DIGESTS[agent_id], "extra": "bad"},
+            )
             for rollback in invalid:
                 with self.subTest(agent_id=agent_id, rollback=rollback):
                     root = _fixture_repo()
                     _configure_governed_release_subjects(root)
                     path = root / "apps/agent-workloads/values.yaml"
                     values = YAML_PARSER.load(path.read_text())
-                    values[values_key]["identity"]["hmacRollbackRelease"] = rollback
+                    values["workers"][agent_id]["identity"]["hmacRollbackRelease"] = (
+                        rollback
+                    )
                     _write_yaml(path, values)
                     with self.assertRaisesRegex(DriftGateError, "hmacRollbackRelease"):
                         _check(root)
@@ -444,27 +504,37 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
                     _configure_governed_release_subjects(root)
                     path = root / "apps/agent-workloads/values.yaml"
                     values = YAML_PARSER.load(path.read_text())
-                    values[values_key]["identity"]["hmacRollbackRelease"] = {
-                        **DIGESTS[agent_id], key: "sha256:" + "9" * 64
+                    values["workers"][agent_id]["identity"]["hmacRollbackRelease"] = {
+                        **DIGESTS[agent_id],
+                        key: "sha256:" + "9" * 64,
                     }
                     _write_yaml(path, values)
                     with self.assertRaisesRegex(DriftGateError, "mismatch"):
                         _check(root)
 
-    def test_opencode_hmac_mode_cannot_override_current_claims_with_rollback(self) -> None:
-        rollback = {key: "sha256:" + digit * 64 for key, digit in
-                    zip(("codeDigest", "manifestDigest", "imageDigest"), "456")}
-        for agent_id, values_key in (("opencode.proposer", "opencodeProposer"),
-                                     ("opencode.apply_executor", "opencodeApplyExecutor")):
+    def test_opencode_hmac_mode_cannot_override_current_claims_with_rollback(
+        self,
+    ) -> None:
+        rollback = {
+            key: "sha256:" + digit * 64
+            for key, digit in zip(
+                ("codeDigest", "manifestDigest", "imageDigest"), "456"
+            )
+        }
+        for agent_id in DIGESTS:
             with self.subTest(agent_id=agent_id):
                 root = _fixture_repo()
                 _configure_governed_hmac_identities(root)
-                _configure_retained_hmac_token(root, agent_id=agent_id, release=rollback)
+                _configure_retained_hmac_token(
+                    root, agent_id=agent_id, release=rollback
+                )
                 path = root / "apps/agent-workloads/values.yaml"
                 values = YAML_PARSER.load(path.read_text())
-                values[values_key]["identity"]["hmacRollbackRelease"] = rollback
+                values["workers"][agent_id]["identity"]["hmacRollbackRelease"] = (
+                    rollback
+                )
                 _write_yaml(path, values)
-                with self.assertRaisesRegex(DriftGateError, "code_digest mismatch"):
+                with self.assertRaisesRegex(DriftGateError, "mode must be projected"):
                     _check(root)
 
     def test_gate_rejects_current_hmac_token_during_previous_tuple_overlap(
@@ -489,22 +559,17 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
                 ):
                     _check(root)
 
-    def test_gate_accepts_governed_hmac_without_projected_subjects(self) -> None:
+    def test_gate_rejects_hmac_identity_mode(self) -> None:
         root = _fixture_repo()
         _configure_governed_hmac_identities(root)
-
-        result = _check(root)
-
-        self.assertIn("match release pins", result)
+        with self.assertRaisesRegex(DriftGateError, "mode must be projected"):
+            _check(root)
 
     def test_gate_rejects_projected_subject_on_governed_hmac_identity(self) -> None:
         root = _fixture_repo()
         _configure_governed_hmac_identities(root)
         configmap_path = (
-            root
-            / "apps"
-            / "agent-control-plane-registry-overlay"
-            / "configmap.yaml"
+            root / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
         )
         configmap = YAML_PARSER.load(configmap_path.read_text())
         imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
@@ -520,7 +585,7 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             DriftGateError,
-            "HMAC identity must not declare projected release subjects",
+            "mode must be projected",
         ):
             _check(root)
 
@@ -528,23 +593,20 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         root = _fixture_repo()
         _configure_governed_release_subjects(root)
         configmap_path = (
-            root
-            / "apps"
-            / "agent-control-plane-registry-overlay"
-            / "configmap.yaml"
+            root / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
         )
         configmap = YAML_PARSER.load(configmap_path.read_text())
         imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
         imports_by_id = {entry["id"]: entry for entry in imports["imports"]}
-        imports_by_id["opencode.apply_executor"]["agent"][
-            "service_account_subject"
-        ] = imports_by_id["opencode.proposer"]["agent"]["service_account_subject"]
+        imports_by_id["opencode.apply_executor"]["agent"]["service_account_subject"] = (
+            imports_by_id["opencode.proposer"]["agent"]["service_account_subject"]
+        )
         configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
         _write_yaml(configmap_path, configmap)
 
         with self.assertRaisesRegex(
             DriftGateError,
-            "service_account_subject differs from governed render",
+            "service_account_subject differs from projected render",
         ):
             _check(root)
 
@@ -561,25 +623,20 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
             },
         )
         configmap_path = (
-            root
-            / "apps"
-            / "agent-control-plane-registry-overlay"
-            / "configmap.yaml"
+            root / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
         )
         configmap = YAML_PARSER.load(configmap_path.read_text())
         imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
         proposer = next(
             entry for entry in imports["imports"] if entry["id"] == "opencode.proposer"
         )
-        proposer["agent"]["previous_release"]["image_digest"] = (
-            "sha256:" + "9" * 64
-        )
+        proposer["agent"]["previous_release"]["image_digest"] = "sha256:" + "9" * 64
         configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
         _write_yaml(configmap_path, configmap)
 
         with self.assertRaisesRegex(
             DriftGateError,
-            "previous_release differs from governed render",
+            "previous_release differs from projected render",
         ):
             _check(root)
 
@@ -597,9 +654,7 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         root = _fixture_repo()
         values_path = root / "apps" / "agent-workloads" / "values.yaml"
         values = YAML_PARSER.load(values_path.read_text())
-        values["rolloutChecksums"]["workloadIdentityTokenSecret"] = (
-            "sha256:" + "9" * 64
-        )
+        values["rolloutChecksums"]["workloadIdentityTokenSecret"] = "sha256:" + "9" * 64
         _write_yaml(values_path, values)
 
         with self.assertRaisesRegex(
@@ -624,7 +679,7 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         root = _fixture_repo()
         values_path = root / "apps" / "agent-workloads" / "values.yaml"
         values = YAML_PARSER.load(values_path.read_text())
-        values["opencodeProposer"]["image"]["digest"] = "sha256:" + "8" * 64
+        values["workers"]["opencode.proposer"]["image"]["digest"] = "sha256:" + "8" * 64
         _write_yaml(values_path, values)
 
         with self.assertRaisesRegex(DriftGateError, "values image.digest"):
@@ -698,7 +753,9 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
         root = _fixture_repo()
         secret_path = root / TOKEN_SECRET_PATH
         secret = YAML_PARSER.load(secret_path.read_text())
-        secret["stringData"]["OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN"] = "not-a-token"
+        secret["stringData"]["OPENCODE_PROPOSER_WORKLOAD_IDENTITY_TOKEN"] = (
+            "not-a-token"
+        )
         _write_yaml(secret_path, secret)
         _write_metadata(root)
 
@@ -728,424 +785,3 @@ class AgentWorkloadsIdentityDigestGateTests(unittest.TestCase):
 
         with self.assertRaisesRegex(DriftGateError, "ciphertext_sha256 mismatch"):
             _check(root)
-
-
-def _fixture_repo(
-    *,
-    include_pins: bool = True,
-    token_claim_overrides: dict[str, dict[str, Any]] | None = None,
-) -> Path:
-    import tempfile
-
-    root = Path(tempfile.mkdtemp())
-    core_path = root / "apps/agent-control-plane/values.yaml"
-    core_path.parent.mkdir(parents=True, exist_ok=True)
-    _write_yaml(core_path, {"env": {"AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE": "mandate-api"}})
-    values_path = root / "apps" / "agent-workloads" / "values.yaml"
-    values_path.parent.mkdir(parents=True)
-    values: dict[str, Any] = {
-        "opencodeArtifactHandoff": {"mode": "legacySharedVolume"},
-        "image": {
-            "tag": "sha-test",
-            "digest": DIGESTS["data.workspace_probe"]["imageDigest"],
-        },
-        "opencodeProposer": {
-            "image": {
-                "tag": "sha-test",
-                "digest": DIGESTS["opencode.proposer"]["imageDigest"],
-            }
-        },
-        "opencodeApplyExecutor": {
-            "image": {
-                "tag": "sha-test",
-                "digest": DIGESTS["opencode.apply_executor"]["imageDigest"],
-            }
-        },
-    }
-    if include_pins:
-        values["mandateReleasePins"] = DIGESTS
-        receipt_path = root / "contracts/mandate-worker/receipt.json"
-        receipt_path.parent.mkdir(parents=True)
-        shutil.copyfile(REPO_ROOT / "contracts/mandate-worker/receipt.json", receipt_path)
-
-    configmap_path = root / "apps" / "agent-control-plane-registry-overlay" / (
-        "configmap.yaml"
-    )
-    configmap_path.parent.mkdir(parents=True)
-    _write_yaml(configmap_path, _configmap())
-
-    runtime_secret_path = root / RUNTIME_SECRET_PATH
-    runtime_secret_path.parent.mkdir(parents=True)
-    _write_yaml(
-        runtime_secret_path,
-        {
-            "apiVersion": "v1",
-            "kind": "Secret",
-            "metadata": {"name": "agent-workloads-secrets"},
-            "stringData": {
-                "MANDATE_WORKER_TOKEN": "worker-token",
-                "AGENT_WORKLOADS_DATABASE_URL": "postgresql://example.invalid/db",
-            },
-        },
-    )
-
-    token_secret_path = root / TOKEN_SECRET_PATH
-    token_claim_overrides = token_claim_overrides or {}
-    token_secret = {
-        "apiVersion": "v1",
-        "kind": "Secret",
-        "metadata": {"name": "agent-workloads-workload-identity-tokens"},
-        "stringData": {
-            TOKEN_KEYS[agent_id]: _mwit_token(
-                agent_id,
-                claim_overrides=token_claim_overrides.get(agent_id),
-            )
-            for agent_id in DIGESTS
-        },
-    }
-    _write_yaml(token_secret_path, token_secret)
-    ciphertext_hash = _write_metadata(root)
-    if include_pins:
-        values["rolloutChecksums"] = {
-            "workloadIdentityTokenSecret": ciphertext_hash,
-        }
-    _write_yaml(values_path, values)
-    return root
-
-
-def _check(root: Path) -> str:
-    return check_agent_workloads_identity_digests(
-        repo_root=root,
-        values_path=Path("apps/agent-workloads/values.yaml"),
-        overlay_configmap_path=Path(
-            "apps/agent-control-plane-registry-overlay/configmap.yaml"
-        ),
-        runtime_secret_path=RUNTIME_SECRET_PATH,
-        token_secret_path=TOKEN_SECRET_PATH,
-        token_metadata_path=TOKEN_METADATA_PATH,
-    )
-
-
-def _configmap() -> dict[str, Any]:
-    imports = []
-    data: dict[str, str] = {}
-    for agent_id, pins in DIGESTS.items():
-        manifest_key = f"agent-{agent_id}.json"
-        imports.append(
-            {
-                "id": agent_id,
-                "manifest_path": f"registries/imports/{manifest_key}",
-                "manifest_digest": pins["manifestDigest"],
-                "image_digest": pins["imageDigest"],
-            }
-        )
-        data[manifest_key] = json.dumps(
-            {
-                "id": agent_id,
-                "digest": pins["manifestDigest"],
-                "code_digest": pins["codeDigest"],
-                "image": {"digest": pins["imageDigest"]},
-            },
-            sort_keys=True,
-        )
-    data["workload_imports.yaml"] = _yaml_text(
-        {"schema_version": "workload-imports.v1", "imports": imports}
-    )
-    return {
-        "apiVersion": "v1",
-        "kind": "ConfigMap",
-        "metadata": {"name": "agent-control-plane-registry-overlay"},
-        "data": data,
-    }
-
-
-def _set_workspace_identity_audience(root: Path, audience: str | None) -> None:
-    configmap_path = (
-        root / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
-    )
-    configmap = YAML_PARSER.load(configmap_path.read_text())
-    imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
-    workspace = next(
-        entry for entry in imports["imports"] if entry["id"] == "data.workspace_probe"
-    )
-    agent = workspace["agent"]
-    if audience is None:
-        agent.pop("identity_audience", None)
-    else:
-        agent["identity_audience"] = audience
-    configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
-    _write_yaml(configmap_path, configmap)
-
-
-def _configure_governed_release_subjects(
-    root: Path,
-    *,
-    previous_by_agent: dict[str, dict[str, str]] | None = None,
-) -> None:
-    previous_by_agent = previous_by_agent or {}
-    values_path = root / "apps" / "agent-workloads" / "values.yaml"
-    values = YAML_PARSER.load(values_path.read_text())
-    values["opencodeArtifactHandoff"] = {"mode": "governedCore"}
-    for agent_id, values_key in (
-        ("opencode.proposer", "opencodeProposer"),
-        ("opencode.apply_executor", "opencodeApplyExecutor"),
-    ):
-        values[values_key]["identity"] = {
-            "workerId": agent_id,
-            "serviceAccountNamePrefix": "agent-workloads",
-            "mode": "projected",
-            "token": {"audience": "mandate-api"},
-            "previousRelease": previous_by_agent.get(agent_id),
-        }
-    _write_yaml(values_path, values)
-
-    configmap_path = (
-        root / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
-    )
-    configmap = YAML_PARSER.load(configmap_path.read_text())
-    imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
-    for entry in imports["imports"]:
-        agent_id = entry["id"]
-        if agent_id not in {"opencode.proposer", "opencode.apply_executor"}:
-            continue
-        agent = entry.setdefault("agent", {})
-        agent["identity_audience"] = "mandate-api"
-        agent["service_account_subject"] = _release_subject(
-            agent_id,
-            DIGESTS[agent_id],
-        )
-        previous = previous_by_agent.get(agent_id)
-        if previous is not None:
-            agent["previous_release"] = {
-                "service_account_subject": _release_subject(agent_id, previous),
-                "code_digest": previous["codeDigest"],
-                "manifest_digest": previous["manifestDigest"],
-                "image_digest": previous["imageDigest"],
-            }
-    configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
-    _write_yaml(configmap_path, configmap)
-
-
-def _configure_workspace_projected_identity(
-    root: Path,
-    *,
-    previous_release: dict[str, str] | None = None,
-) -> None:
-    agent_id = "data.workspace_probe"
-    values_path = root / "apps" / "agent-workloads" / "values.yaml"
-    values = YAML_PARSER.load(values_path.read_text())
-    values["projectedWorkloadIdentity"] = {
-        "enabled": True,
-        "workerId": agent_id,
-        "serviceAccountNamePrefix": "agent-workloads",
-        "token": {"audience": "mandate-api"},
-        "previousRelease": previous_release,
-        "hmacRollbackRelease": dict(previous_release or DIGESTS[agent_id]),
-    }
-    _write_yaml(values_path, values)
-
-    configmap_path = (
-        root / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
-    )
-    configmap = YAML_PARSER.load(configmap_path.read_text())
-    imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
-    workspace = next(
-        entry for entry in imports["imports"] if entry["id"] == agent_id
-    )
-    agent = workspace.setdefault("agent", {})
-    agent["identity_audience"] = "mandate-api"
-    agent["service_account_subject"] = _release_subject(
-        agent_id,
-        DIGESTS[agent_id],
-    )
-    if previous_release is not None:
-        agent["previous_release"] = {
-            "service_account_subject": _release_subject(
-                agent_id,
-                previous_release,
-            ),
-            "code_digest": previous_release["codeDigest"],
-            "manifest_digest": previous_release["manifestDigest"],
-            "image_digest": previous_release["imageDigest"],
-        }
-    configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
-    _write_yaml(configmap_path, configmap)
-
-
-def _configure_retained_hmac_token(
-    root: Path,
-    *,
-    agent_id: str,
-    release: dict[str, str],
-) -> None:
-    token_secret_path = root / TOKEN_SECRET_PATH
-    token_secret = YAML_PARSER.load(token_secret_path.read_text())
-    token_secret["stringData"][TOKEN_KEYS[agent_id]] = _mwit_token(
-        agent_id,
-        release_pins=release,
-    )
-    _write_yaml(token_secret_path, token_secret)
-
-    token_pins = {
-        configured_agent_id: dict(pins)
-        for configured_agent_id, pins in DIGESTS.items()
-    }
-    token_pins[agent_id] = dict(release)
-    ciphertext_hash = _write_metadata(
-        root,
-        token_pins_by_agent=token_pins,
-    )
-    values_path = root / "apps" / "agent-workloads" / "values.yaml"
-    values = YAML_PARSER.load(values_path.read_text())
-    values["rolloutChecksums"]["workloadIdentityTokenSecret"] = ciphertext_hash
-    _write_yaml(values_path, values)
-
-
-def _configure_governed_hmac_identities(root: Path) -> None:
-    values_path = root / "apps" / "agent-workloads" / "values.yaml"
-    values = YAML_PARSER.load(values_path.read_text())
-    values["opencodeArtifactHandoff"] = {"mode": "governedCore"}
-    for agent_id, values_key in (
-        ("opencode.proposer", "opencodeProposer"),
-        ("opencode.apply_executor", "opencodeApplyExecutor"),
-    ):
-        values[values_key]["identity"] = {
-            "workerId": agent_id,
-            "serviceAccountNamePrefix": "agent-workloads",
-            "mode": "hmac",
-            "token": {"audience": "mandate-api"},
-            "previousRelease": None,
-        }
-    _write_yaml(values_path, values)
-
-    configmap_path = (
-        root / "apps" / "agent-control-plane-registry-overlay" / "configmap.yaml"
-    )
-    configmap = YAML_PARSER.load(configmap_path.read_text())
-    imports = YAML_PARSER.load(configmap["data"]["workload_imports.yaml"])
-    for entry in imports["imports"]:
-        if entry["id"] in {"opencode.proposer", "opencode.apply_executor"}:
-            entry.setdefault("agent", {})["identity_audience"] = "mandate-api"
-    configmap["data"]["workload_imports.yaml"] = _yaml_text(imports)
-    _write_yaml(configmap_path, configmap)
-
-
-def _release_subject(agent_id: str, release: dict[str, str]) -> str:
-    payload = {
-        "schema_version": WORKLOAD_IDENTITY_BUNDLE_DIGEST_VERSION,
-        "code_digest": release["codeDigest"],
-        "manifest_digest": release["manifestDigest"],
-        "image_digest": release["imageDigest"],
-    }
-    suffix = hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()[:20]
-    worker_name = agent_id.replace(".", "-").replace("_", "-")
-    return (
-        "system:serviceaccount:agent-workloads:"
-        f"agent-workloads-{worker_name}-{suffix}"
-    )
-
-
-def _write_metadata(
-    root: Path,
-    *,
-    token_pins_by_agent: dict[str, dict[str, str]] | None = None,
-) -> str:
-    token_secret_path = root / TOKEN_SECRET_PATH
-    ciphertext_hash = "sha256:" + hashlib.sha256(token_secret_path.read_bytes()).hexdigest()
-    token_pins_by_agent = token_pins_by_agent or DIGESTS
-    metadata = {
-        "schema_version": "agent-workloads-workload-identity-tokens.metadata.v1",
-        "token_secret_path": TOKEN_SECRET_PATH.as_posix(),
-        "tokens": {
-            agent_id: {
-                "agent_id": agent_id,
-                "token_key": TOKEN_KEYS[agent_id],
-                "code_digest": pins["codeDigest"],
-                "manifest_digest": pins["manifestDigest"],
-                "image_digest": pins["imageDigest"],
-                "bundle_digest": _workload_identity_bundle_digest(pins),
-                "iat": 1700000000,
-                "exp": 4102444800,
-                "iss": "kubernetes",
-                "sub": agent_id,
-                "aud": "mandate-api",
-                "scp": ["worker_service"],
-                "digest_spec_version": DIGEST_SPEC_VERSION,
-                "source_commit": "fixture",
-                "ciphertext_sha256": ciphertext_hash,
-            }
-            for agent_id, pins in token_pins_by_agent.items()
-        },
-    }
-    _write_yaml(root / TOKEN_METADATA_PATH, metadata)
-    return ciphertext_hash
-
-
-def _mwit_token(
-    agent_id: str,
-    *,
-    claim_overrides: dict[str, Any] | None = None,
-    release_pins: dict[str, str] | None = None,
-) -> str:
-    pins = release_pins or DIGESTS[agent_id]
-    payload = {
-        "aud": "mandate-api",
-        "bundle_digest": _workload_identity_bundle_digest(pins),
-        "code_digest": pins["codeDigest"],
-        "exp": 4102444800,
-        "iat": 1700000000,
-        "image_digest": pins["imageDigest"],
-        "iss": "kubernetes",
-        "manifest_digest": pins["manifestDigest"],
-        "scp": ["worker_service"],
-        "sub": agent_id,
-    }
-    for claim, value in (claim_overrides or {}).items():
-        if value is None:
-            payload.pop(claim, None)
-        else:
-            payload[claim] = value
-    encoded = base64.urlsafe_b64encode(
-        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
-    ).decode().rstrip("=")
-    return f"mwit_v1.{encoded}.signature"
-
-
-def _workload_identity_bundle_digest(pins: dict[str, str]) -> str:
-    payload = {
-        "schema_version": WORKLOAD_IDENTITY_BUNDLE_DIGEST_VERSION,
-        "code_digest": pins["codeDigest"],
-        "manifest_digest": pins["manifestDigest"],
-        "image_digest": pins["imageDigest"],
-    }
-    serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
-    return "sha256:" + hashlib.sha256(serialized).hexdigest()
-
-
-def _write_yaml(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(_yaml_text(payload), encoding="utf-8")
-
-
-def _yaml_text(payload: dict[str, Any]) -> str:
-    from io import StringIO
-
-    stream = StringIO()
-    yaml = YAML()
-    yaml.default_flow_style = False
-    yaml.dump(payload, stream)
-    return stream.getvalue()
-
-
-def _sops_age_recipients(path: Path) -> set[str]:
-    loaded = YAML_PARSER.load(path.read_text())
-    return {
-        entry["recipient"]
-        for entry in loaded["sops"]["age"]
-        if isinstance(entry, dict) and isinstance(entry.get("recipient"), str)
-    }
-
-
-if __name__ == "__main__":
-    unittest.main()

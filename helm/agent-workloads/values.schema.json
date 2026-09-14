@@ -1,140 +1,56 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": false,
+  "required": ["global", "serviceAccount", "rolloutChecksums", "workspaceSeedBundle", "workers", "mandateReleasePins"],
   "properties": {
-    "projectedWorkloadIdentity": {
+    "global": {
       "type": "object",
-      "required": [
-        "enabled",
-        "workerId",
-        "serviceAccountNamePrefix",
-        "serviceAccount",
-        "token"
-      ],
+      "required": ["imagePullSecrets", "runtimeSecretName"],
+      "additionalProperties": false,
       "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "workerId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "serviceAccountNamePrefix": {
-          "type": "string",
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "serviceAccount": {
-          "type": "object",
-          "required": [
-            "create",
-            "annotations"
-          ],
-          "properties": {
-            "create": {
-              "type": "boolean"
-            },
-            "annotations": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
-              }
-            }
-          }
-        },
-        "token": {
-          "type": "object",
-          "required": [
-            "audience",
-            "expirationSeconds",
-            "mountPath",
-            "fileName"
-          ],
-          "properties": {
-            "audience": {
-              "type": "string",
-              "minLength": 1
-            },
-            "expirationSeconds": {
-              "type": "integer",
-              "minimum": 600,
-              "maximum": 3600
-            },
-            "mountPath": {
-              "type": "string",
-              "minLength": 2
-            },
-            "fileName": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        },
-        "previousRelease": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "required": [
-            "codeDigest",
-            "manifestDigest",
-            "imageDigest"
-          ],
-          "properties": {
-            "codeDigest": {
-              "$ref": "#/definitions/sha256Digest"
-            },
-            "manifestDigest": {
-              "$ref": "#/definitions/sha256Digest"
-            },
-            "imageDigest": {
-              "$ref": "#/definitions/sha256Digest"
-            }
-          },
-          "additionalProperties": false
-        },
-        "hmacRollbackRelease": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/releaseTuple"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
+        "imagePullSecrets": {"type": "array", "items": {"type": "string"}},
+        "runtimeSecretName": {"type": "string", "minLength": 1}
       }
     },
-    "opencodeArtifactHandoff": {
+    "nameOverride": {"type": "string"},
+    "fullnameOverride": {"type": "string"},
+    "serviceAccount": {
       "type": "object",
-      "required": [
-        "mode"
-      ],
+      "required": ["create", "automountServiceAccountToken", "annotations"],
+      "additionalProperties": false,
       "properties": {
-        "mode": {
-          "type": "string",
-          "enum": [
-            "legacySharedVolume",
-            "governedCore"
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "opencodeProposer": {
-      "type": "object",
-      "properties": {
-        "identity": {
-          "$ref": "#/definitions/opencodeIdentity"
-        }
+        "create": {"type": "boolean"},
+        "name": {"type": "string"},
+        "automountServiceAccountToken": {"type": "boolean"},
+        "annotations": {"type": "object", "additionalProperties": {"type": "string"}}
       }
     },
-    "opencodeApplyExecutor": {
+    "rolloutChecksums": {
       "type": "object",
+      "required": ["workloadIdentityTokenSecret"],
+      "additionalProperties": false,
+      "properties": {"workloadIdentityTokenSecret": {"type": "string"}}
+    },
+    "workspaceSeedBundle": {
+      "type": "object",
+      "required": ["base64"],
+      "additionalProperties": false,
       "properties": {
-        "identity": {
-          "$ref": "#/definitions/opencodeIdentity"
-        }
+        "base64": {"type": "string"},
+        "name": {"type": "string", "minLength": 1},
+        "appName": {"type": "string", "minLength": 1},
+        "labels": {"type": "object", "additionalProperties": {"type": "string"}}
       }
+    },
+    "workers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"$ref": "#/definitions/worker"}
+    },
+    "mandateReleasePins": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/definitions/releaseTuple"}
     }
   },
   "definitions": {
@@ -144,112 +60,143 @@
     },
     "releaseTuple": {
       "type": "object",
-      "required": [
-        "codeDigest",
-        "manifestDigest",
-        "imageDigest"
-      ],
+      "required": ["codeDigest", "manifestDigest", "imageDigest"],
+      "additionalProperties": false,
       "properties": {
-        "codeDigest": {
-          "$ref": "#/definitions/sha256Digest"
-        },
-        "manifestDigest": {
-          "$ref": "#/definitions/sha256Digest"
-        },
-        "imageDigest": {
-          "$ref": "#/definitions/sha256Digest"
-        }
-      },
-      "additionalProperties": false
+        "codeDigest": {"$ref": "#/definitions/sha256Digest"},
+        "manifestDigest": {"$ref": "#/definitions/sha256Digest"},
+        "imageDigest": {"$ref": "#/definitions/sha256Digest"}
+      }
     },
-    "opencodeIdentity": {
+    "identity": {
       "type": "object",
-      "required": [
-        "workerId",
-        "serviceAccountNamePrefix",
-        "mode",
-        "serviceAccount",
-        "token"
-      ],
+      "required": ["workerId", "mode", "serviceAccountNamePrefix", "serviceAccount", "token"],
+      "additionalProperties": false,
       "properties": {
-        "workerId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "serviceAccountNamePrefix": {
-          "type": "string",
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "mode": {
-          "type": "string",
-          "enum": [
-            "hmac",
-            "projected"
-          ]
-        },
-        "serviceAccount": {
+        "workerId": {"type": "string", "minLength": 1},
+        "mode": {"type": "string", "enum": ["projected"]},
+        "serviceAccountNamePrefix": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+        "serviceAccount": {"$ref": "#/definitions/serviceAccount"},
+        "token": {"$ref": "#/definitions/token"},
+        "previousRelease": {"anyOf": [{"$ref": "#/definitions/releaseTuple"}, {"type": "null"}]},
+        "hmacRollbackRelease": {"$ref": "#/definitions/releaseTuple"},
+        "hmacRollbackTokenKey": {"type": "string", "minLength": 1}
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "required": ["create", "annotations"],
+      "additionalProperties": false,
+      "properties": {
+        "create": {"type": "boolean"},
+        "component": {"type": "string", "minLength": 1},
+        "previousComponent": {"type": "string", "minLength": 1},
+        "annotations": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "token": {
+      "type": "object",
+      "required": ["audience", "expirationSeconds", "mountPath", "fileName"],
+      "additionalProperties": false,
+      "properties": {
+        "audience": {"type": "string", "minLength": 1},
+        "expirationSeconds": {"type": "integer", "minimum": 600, "maximum": 3600},
+        "mountPath": {"type": "string", "minLength": 2},
+        "fileName": {"type": "string", "minLength": 1}
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "required": ["enabled", "egress"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "egress": {
           "type": "object",
-          "required": [
-            "create",
-            "annotations"
-          ],
+          "required": ["dns", "destinations"],
+          "additionalProperties": false,
           "properties": {
-            "create": {
-              "type": "boolean"
-            },
-            "annotations": {
+            "dns": {
               "type": "object",
-              "additionalProperties": {
-                "type": "string"
+              "required": ["enabled", "destinations", "ports"],
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {"type": "boolean"},
+                "destinations": {"type": "array"},
+                "ports": {"type": "array"}
               }
-            }
-          },
-          "additionalProperties": false
-        },
-        "token": {
-          "type": "object",
-          "required": [
-            "audience",
-            "expirationSeconds",
-            "mountPath",
-            "fileName"
-          ],
-          "properties": {
-            "audience": {
-              "type": "string",
-              "minLength": 1
             },
-            "expirationSeconds": {
-              "type": "integer",
-              "minimum": 600,
-              "maximum": 3600
-            },
-            "mountPath": {
-              "type": "string",
-              "minLength": 2
-            },
-            "fileName": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "additionalProperties": false
-        },
-        "hmacRollbackRelease": {
-          "$ref": "#/definitions/releaseTuple"
-        },
-        "previousRelease": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/releaseTuple"
-            },
-            {
-              "type": "null"
-            }
-          ]
+            "destinations": {"type": "array"}
+          }
         }
-      },
-      "additionalProperties": false
+      }
+    },
+    "worker": {
+      "type": "object",
+      "required": ["enabled", "replicaCount", "image", "identity", "command", "args", "secretKeys", "secretEnv", "env", "podSecurityContext", "securityContext", "resources", "initWorkspace", "volumes", "volumeMounts", "networkPolicy", "workspace"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "replicaCount": {"type": "integer", "minimum": 0},
+        "metadataName": {"type": "string", "minLength": 1},
+        "labels": {"type": "object", "additionalProperties": {"type": "string"}},
+        "selectorLabels": {"type": "object", "additionalProperties": {"type": "string"}},
+        "podAnnotations": {"type": "object", "additionalProperties": {"type": "string"}},
+        "podLabels": {"type": "object", "additionalProperties": {"type": "string"}},
+        "enableServiceLinks": {"type": "boolean"},
+        "enableServiceLinksField": {"type": "boolean"},
+        "containerName": {"type": "string", "minLength": 1},
+        "image": {
+          "type": "object",
+          "required": ["repository", "tag", "digest", "pullPolicy"],
+          "additionalProperties": false,
+          "properties": {
+            "repository": {"type": "string", "minLength": 1},
+            "tag": {"type": "string", "minLength": 1},
+            "digest": {"type": "string"},
+            "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+          }
+        },
+        "identity": {"$ref": "#/definitions/identity"},
+        "command": {"type": "array", "items": {"type": "string"}},
+        "args": {"type": "array", "items": {"type": "string"}},
+        "secretKeys": {"type": "array", "items": {"type": "string"}},
+        "secretEnvSecretName": {"type": "string"},
+        "secretEnv": {"type": "object", "additionalProperties": {"type": "string"}},
+        "env": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}},
+        "handoffMode": {"type": "string", "enum": ["", "governed_core"]},
+        "podSecurityContext": {"type": "object"},
+        "securityContext": {"type": "object"},
+        "resources": {"type": "object"},
+        "initWorkspace": {
+          "type": "object",
+          "required": ["enabled", "name", "command", "script", "args", "env", "volumeMounts"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "name": {"type": "string", "minLength": 1},
+            "command": {"type": "array", "items": {"type": "string"}},
+            "script": {"type": "string"},
+            "args": {"type": "array", "items": {"type": "string"}},
+            "env": {"type": "array"},
+            "volumeMounts": {"type": "array"},
+            "resources": {"type": "object"},
+            "securityContext": {"type": "object"}
+          }
+        },
+        "volumes": {"type": "array"},
+        "volumeMounts": {"type": "array"},
+        "networkPolicy": {"$ref": "#/definitions/networkPolicy"},
+        "workspace": {
+          "type": "object",
+          "required": ["seedBundle", "seedConfigMapName"],
+          "additionalProperties": false,
+          "properties": {
+            "seedBundle": {"type": "boolean"},
+            "seedConfigMapName": {"type": "string"}
+          }
+        }
+      }
     }
   }
 }

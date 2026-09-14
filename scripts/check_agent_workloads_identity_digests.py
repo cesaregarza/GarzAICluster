@@ -8,9 +8,9 @@ import base64
 import hashlib
 import json
 import os
-import re
 import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -27,12 +27,8 @@ except ModuleNotFoundError:  # Direct ``python scripts/check_*.py`` execution.
 
 try:
     from scripts.identity_digest_helpers import (
-        DriftGateError,
-        IMAGE_PATHS_BY_AGENT_ID,
-        OPENCODE_VALUES_KEYS_BY_AGENT_ID,
-        TOKEN_KEYS_BY_AGENT_ID,
-        WORKLOAD_IDENTITY_BUNDLE_VERSION,
         YAML_PARSER,
+        DriftGateError,
         _assert_token_bundle_claims_match,
         _assert_token_metadata_matches,
         _load_yaml,
@@ -44,12 +40,8 @@ try:
     from scripts.worker_sdk_receipt import SDKReceiptError, load_sdk_receipt
 except ModuleNotFoundError:  # Direct ``python scripts/check_*.py`` execution.
     from identity_digest_helpers import (  # type: ignore[no-redef]
-        DriftGateError,
-        IMAGE_PATHS_BY_AGENT_ID,
-        OPENCODE_VALUES_KEYS_BY_AGENT_ID,
-        TOKEN_KEYS_BY_AGENT_ID,
-        WORKLOAD_IDENTITY_BUNDLE_VERSION,
         YAML_PARSER,
+        DriftGateError,
         _assert_token_bundle_claims_match,
         _assert_token_metadata_matches,
         _load_yaml,
@@ -58,12 +50,31 @@ except ModuleNotFoundError:  # Direct ``python scripts/check_*.py`` execution.
         _validate_digest,
         _workload_identity_claims,
     )
-    from worker_sdk_receipt import SDKReceiptError, load_sdk_receipt  # type: ignore[no-redef]
+    from worker_sdk_receipt import (  # type: ignore[no-redef]
+        SDKReceiptError,
+        load_sdk_receipt,
+    )
+
+
+try:
+    from scripts.worker_identity_bindings import (
+        assert_release_subject_bindings,
+        configured_workers,
+        retained_hmac_configuration,
+    )
+except ModuleNotFoundError:
+    from worker_identity_bindings import (
+        assert_release_subject_bindings,
+        configured_workers,
+        retained_hmac_configuration,
+    )
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VALUES_PATH = Path("apps/agent-workloads/values.yaml")
-OVERLAY_CONFIGMAP_PATH = Path("apps/agent-control-plane-registry-overlay/configmap.yaml")
+OVERLAY_CONFIGMAP_PATH = Path(
+    "apps/agent-control-plane-registry-overlay/configmap.yaml"
+)
 REGISTRY_OVERLAY_CONFIGMAP_NAME = "agent-control-plane-registry-overlay"
 RUNTIME_SECRET_PATH = Path("secrets/agent-workloads/runtime-secret.enc.yaml")
 TOKEN_SECRET_PATH = Path("secrets/agent-workloads/workload-identity-tokens.enc.yaml")
@@ -83,7 +94,9 @@ def main() -> int:
     )
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
     parser.add_argument("--values-path", type=Path, default=VALUES_PATH)
-    parser.add_argument("--overlay-configmap-path", type=Path, default=OVERLAY_CONFIGMAP_PATH)
+    parser.add_argument(
+        "--overlay-configmap-path", type=Path, default=OVERLAY_CONFIGMAP_PATH
+    )
     parser.add_argument("--runtime-secret-path", type=Path, default=RUNTIME_SECRET_PATH)
     parser.add_argument("--token-secret-path", type=Path, default=TOKEN_SECRET_PATH)
     parser.add_argument("--token-metadata-path", type=Path, default=TOKEN_METADATA_PATH)
@@ -129,7 +142,9 @@ def check_agent_workloads_identity_digests(
     values = _load_yaml(repo_root / values_path)
     release_pins = values.get("mandateReleasePins")
     if release_pins in (None, {}):
-        return "agent-workloads mandateReleasePins absent; identity digest gate inactive."
+        return (
+            "agent-workloads mandateReleasePins absent; identity digest gate inactive."
+        )
     if not isinstance(release_pins, dict):
         raise DriftGateError("mandateReleasePins must be a mapping")
     try:
@@ -138,7 +153,50 @@ def check_agent_workloads_identity_digests(
         raise DriftGateError(f"invalid mandate-worker SDK receipt: {exc}") from exc
     digest_spec_version = sdk_receipt["digest_spec_version"]
 
-    expected_agents = set(TOKEN_KEYS_BY_AGENT_ID)
+    workers = configured_workers(values)
+    overlay_pins, overlay_imports = _check_current_releases(
+        values, workers, release_pins, repo_root / overlay_configmap_path
+    )
+    core_values = _load_yaml(repo_root / "apps/agent-control-plane/values.yaml")
+    core_env = _required_mapping(core_values, "env", "Core values")
+    default_identity_audience = _required_str(
+        core_env, "AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE", "Core verifier env"
+    )
+    assert_release_subject_bindings(
+        workers=workers,
+        overlay_pins=overlay_pins,
+        overlay_imports=overlay_imports,
+        workload_namespace=workload_namespace,
+        default_identity_audience=default_identity_audience,
+    )
+    token_keys, retained_hmac_pins = retained_hmac_configuration(workers)
+
+    if token_keys:
+        _check_retained_tokens(
+            repo_root=repo_root,
+            values=values,
+            runtime_secret_path=runtime_secret_path,
+            token_secret_path=token_secret_path,
+            token_metadata_path=token_metadata_path,
+            workers=workers,
+            token_keys=token_keys,
+            retained_hmac_pins=retained_hmac_pins,
+            digest_spec_version=digest_spec_version,
+        )
+
+    return (
+        "agent-workloads deployed images and workload identity bundle claims "
+        "match release pins and retained rollback tuples."
+    )
+
+
+def _check_current_releases(
+    values: dict[str, Any],
+    workers: dict[str, Any],
+    release_pins: dict[str, Any],
+    overlay_path: Path,
+) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, Any]]]:
+    expected_agents = set(workers)
     pinned_agents = set(release_pins)
     if pinned_agents != expected_agents:
         raise DriftGateError(
@@ -147,51 +205,75 @@ def check_agent_workloads_identity_digests(
         )
 
     overlay_pins, overlay_imports = _load_overlay_release_state(
-        repo_root / overlay_configmap_path
+        overlay_path, expected_agents
     )
     for agent_id in sorted(expected_agents):
-        _assert_pin_matches_overlay(agent_id, release_pins[agent_id], overlay_pins[agent_id])
+        _assert_pin_matches_overlay(
+            agent_id, release_pins[agent_id], overlay_pins[agent_id]
+        )
         _assert_values_image_digest_matches_pin(
             agent_id,
             values,
             release_pins[agent_id],
         )
-    core_values = _load_yaml(repo_root / "apps/agent-control-plane/values.yaml")
-    core_env = _required_mapping(core_values, "env", "Core values")
-    default_identity_audience = _required_str(
-        core_env, "AGENT_PLATFORM_WORKLOAD_IDENTITY_AUDIENCE", "Core verifier env"
-    )
-    _assert_workspace_release_subject_binding(
-        values=values,
-        overlay_pins=overlay_pins,
-        overlay_imports=overlay_imports,
-        workload_namespace=workload_namespace,
-        default_identity_audience=default_identity_audience,
-    )
-    _assert_opencode_release_subject_bindings(
-        values=values,
-        overlay_pins=overlay_pins,
-        overlay_imports=overlay_imports,
-        workload_namespace=workload_namespace,
-        default_identity_audience=default_identity_audience,
-    )
-    retained_hmac_pins = _retained_hmac_release_pins(
-        values=values,
-        overlay_pins=overlay_pins,
-    )
+    return overlay_pins, overlay_imports
 
-    _assert_runtime_secret_excludes_tokens(repo_root / runtime_secret_path)
+
+def _check_retained_tokens(
+    *,
+    repo_root: Path,
+    values: dict[str, Any],
+    runtime_secret_path: Path,
+    token_secret_path: Path,
+    token_metadata_path: Path,
+    workers: dict[str, Any],
+    token_keys: dict[str, str],
+    retained_hmac_pins: dict[str, dict[str, str]],
+    digest_spec_version: str,
+) -> None:
+    _assert_runtime_secret_excludes_tokens(
+        repo_root / runtime_secret_path, token_keys.values()
+    )
     secret_path = repo_root / token_secret_path
     secret = _load_secret(
         secret_path,
         cwd=repo_root,
         label="workload identity token secret",
     )
+    token_claims_by_agent = _check_token_claims(
+        secret, workers, token_keys, retained_hmac_pins
+    )
+
+    _assert_token_metadata_matches(
+        metadata_path=repo_root / token_metadata_path,
+        token_secret_path=secret_path,
+        configured_token_secret_path=token_secret_path,
+        token_release_pins=retained_hmac_pins,
+        token_claims_by_agent=token_claims_by_agent,
+        digest_spec_version=digest_spec_version,
+        token_keys=token_keys,
+    )
+    _assert_rollout_checksum_matches(
+        values=values,
+        ciphertext_sha256="sha256:"
+        + hashlib.sha256(secret_path.read_bytes()).hexdigest(),
+    )
+
+
+def _check_token_claims(
+    secret: dict[str, Any],
+    workers: dict[str, Any],
+    token_keys: dict[str, str],
+    retained_hmac_pins: dict[str, dict[str, str]],
+) -> dict[str, dict[str, Any]]:
     token_claims_by_agent: dict[str, dict[str, Any]] = {}
-    for agent_id in sorted(expected_agents):
-        token_key = TOKEN_KEYS_BY_AGENT_ID[agent_id]
+    for agent_id, token_key in sorted(token_keys.items()):
         token = _secret_value(secret, token_key)
         claims = _workload_identity_claims(token, token_key)
+        if claims["sub"] != agent_id:
+            raise DriftGateError(f"{token_key} sub must match worker {agent_id}")
+        if claims["aud"] != workers[agent_id]["identity"]["token"]["audience"]:
+            raise DriftGateError(f"{token_key} aud must match worker identity audience")
         token_code_digest = str(claims["code_digest"])
         expected_code_digest = retained_hmac_pins[agent_id]["codeDigest"]
         if token_code_digest != expected_code_digest:
@@ -207,34 +289,21 @@ def check_agent_workloads_identity_digests(
         )
         token_claims_by_agent[agent_id] = claims
 
-    _assert_token_metadata_matches(
-        metadata_path=repo_root / token_metadata_path,
-        token_secret_path=secret_path,
-        configured_token_secret_path=token_secret_path,
-        token_release_pins=retained_hmac_pins,
-        token_claims_by_agent=token_claims_by_agent,
-        digest_spec_version=digest_spec_version,
-    )
-    _assert_rollout_checksum_matches(
-        values=values,
-        ciphertext_sha256="sha256:" + hashlib.sha256(secret_path.read_bytes()).hexdigest(),
-    )
-
-    return (
-        "agent-workloads deployed images and workload identity bundle claims "
-        "match release pins and retained rollback tuples."
-    )
+    return token_claims_by_agent
 
 
 def _load_overlay_release_state(
     configmap_path: Path,
+    expected_agents: set[str],
 ) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, Any]]]:
     data = _load_overlay_data(configmap_path)
     if not isinstance(data, dict):
         raise DriftGateError("registry overlay ConfigMap must contain data")
     imports = YAML_PARSER.load(data.get("workload_imports.yaml") or "")
     if not isinstance(imports, dict) or not isinstance(imports.get("imports"), list):
-        raise DriftGateError("registry overlay workload_imports.yaml must contain imports")
+        raise DriftGateError(
+            "registry overlay workload_imports.yaml must contain imports"
+        )
 
     imports_by_id = {
         entry["id"]: entry
@@ -242,12 +311,18 @@ def _load_overlay_release_state(
         if isinstance(entry, dict) and isinstance(entry.get("id"), str)
     }
     pins: dict[str, dict[str, str]] = {}
-    for agent_id in TOKEN_KEYS_BY_AGENT_ID:
+    for agent_id in sorted(expected_agents):
         import_entry = imports_by_id.get(agent_id)
         if not isinstance(import_entry, dict):
             raise DriftGateError(f"registry overlay missing import for {agent_id}")
         manifest_key = Path(_required_str(import_entry, "manifest_path", agent_id)).name
-        manifest = json.loads(_required_str(data, manifest_key, "registry overlay data"))
+        manifest = json.loads(
+            _required_str(data, manifest_key, "registry overlay data")
+        )
+        if not isinstance(manifest, dict) or manifest.get("id") != agent_id:
+            raise DriftGateError(
+                f"{agent_id} manifest id must match its importing worker"
+            )
         code_digest = _required_str(manifest, "code_digest", agent_id)
         manifest_digest = _required_str(manifest, "digest", agent_id)
         image = manifest.get("image")
@@ -258,397 +333,19 @@ def _load_overlay_release_state(
         _validate_digest(manifest_digest, f"{agent_id} manifestDigest")
         _validate_digest(image_digest, f"{agent_id} imageDigest")
         if import_entry.get("manifest_digest") != manifest_digest:
-            raise DriftGateError(f"{agent_id} import manifest_digest differs from manifest")
+            raise DriftGateError(
+                f"{agent_id} import manifest_digest differs from manifest"
+            )
         if import_entry.get("image_digest") != image_digest:
-            raise DriftGateError(f"{agent_id} import image_digest differs from manifest")
+            raise DriftGateError(
+                f"{agent_id} import image_digest differs from manifest"
+            )
         pins[agent_id] = {
             "codeDigest": code_digest,
             "manifestDigest": manifest_digest,
             "imageDigest": image_digest,
         }
     return pins, imports_by_id
-
-
-def _assert_workspace_release_subject_binding(
-    *,
-    values: dict[str, Any],
-    overlay_pins: dict[str, dict[str, str]],
-    overlay_imports: dict[str, dict[str, Any]],
-    workload_namespace: str,
-    default_identity_audience: str,
-) -> None:
-    agent_id = "data.workspace_probe"
-    identity = values.get("projectedWorkloadIdentity")
-    import_entry = overlay_imports[agent_id]
-    agent = import_entry.get("agent")
-    actual_subject = agent.get("service_account_subject") if isinstance(agent, dict) else None
-    imported_previous = agent.get("previous_release") if isinstance(agent, dict) else None
-
-    if not isinstance(identity, dict) or identity.get("enabled") is not True:
-        if actual_subject is not None or imported_previous is not None:
-            raise DriftGateError(
-                "data.workspace_probe HMAC identity must not declare projected release subjects"
-            )
-        return
-    if not isinstance(workload_namespace, str) or not workload_namespace.strip():
-        raise DriftGateError("workload namespace must be non-empty")
-    if not isinstance(agent, dict):
-        raise DriftGateError("data.workspace_probe import agent must be a mapping")
-
-    worker_id = _required_str(
-        identity,
-        "workerId",
-        "projectedWorkloadIdentity",
-    )
-    if worker_id != agent_id:
-        raise DriftGateError(
-            "projectedWorkloadIdentity.workerId must equal data.workspace_probe"
-        )
-    prefix = _required_str(
-        identity,
-        "serviceAccountNamePrefix",
-        "projectedWorkloadIdentity",
-    )
-    current_subject = _release_service_account_subject(
-        namespace=workload_namespace,
-        prefix=prefix,
-        worker_id=agent_id,
-        release=overlay_pins[agent_id],
-    )
-    if actual_subject != current_subject:
-        raise DriftGateError(
-            "data.workspace_probe service_account_subject differs from projected render: "
-            f"expected {current_subject}, got {actual_subject}"
-        )
-
-    token = _required_mapping(
-        identity,
-        "token",
-        "projectedWorkloadIdentity",
-    )
-    expected_audience = _required_str(
-        token,
-        "audience",
-        "projectedWorkloadIdentity.token",
-    )
-    configured_audience = agent.get("identity_audience", default_identity_audience)
-    if configured_audience != expected_audience:
-        raise DriftGateError(
-            "data.workspace_probe identity_audience differs from projected render: "
-            f"expected {expected_audience}, got {configured_audience}"
-        )
-
-    configured_previous = identity.get("previousRelease")
-    if configured_previous is None:
-        if imported_previous is not None:
-            raise DriftGateError(
-                "data.workspace_probe registry previous_release is not rendered by Helm values"
-            )
-        return
-    if not isinstance(configured_previous, dict):
-        raise DriftGateError(
-            "projectedWorkloadIdentity.previousRelease must be a mapping"
-        )
-    if not isinstance(imported_previous, dict):
-        raise DriftGateError(
-            "data.workspace_probe registry previous_release is required for rollout overlap"
-        )
-    previous_subject = _release_service_account_subject(
-        namespace=workload_namespace,
-        prefix=prefix,
-        worker_id=agent_id,
-        release=configured_previous,
-    )
-    expected_previous = {
-        "service_account_subject": previous_subject,
-        "code_digest": _required_str(
-            configured_previous,
-            "codeDigest",
-            "projectedWorkloadIdentity.previousRelease",
-        ),
-        "manifest_digest": _required_str(
-            configured_previous,
-            "manifestDigest",
-            "projectedWorkloadIdentity.previousRelease",
-        ),
-        "image_digest": _required_str(
-            configured_previous,
-            "imageDigest",
-            "projectedWorkloadIdentity.previousRelease",
-        ),
-    }
-    if imported_previous != expected_previous:
-        raise DriftGateError(
-            "data.workspace_probe registry previous_release differs from projected render"
-        )
-
-
-def _assert_opencode_release_subject_bindings(
-    *,
-    values: dict[str, Any],
-    overlay_pins: dict[str, dict[str, str]],
-    overlay_imports: dict[str, dict[str, Any]],
-    workload_namespace: str,
-    default_identity_audience: str,
-) -> None:
-    handoff = values.get("opencodeArtifactHandoff")
-    if not isinstance(handoff, dict) or handoff.get("mode") != "governedCore":
-        return
-    if not isinstance(workload_namespace, str) or not workload_namespace.strip():
-        raise DriftGateError("workload namespace must be non-empty")
-
-    current_subjects: dict[str, str] = {}
-    all_subjects: dict[str, str] = {}
-    for agent_id, values_key in OPENCODE_VALUES_KEYS_BY_AGENT_ID.items():
-        worker_values = _required_mapping(values, values_key, "agent-workloads values")
-        identity = _required_mapping(worker_values, "identity", values_key)
-        worker_id = _required_str(identity, "workerId", f"{values_key}.identity")
-        if worker_id != agent_id:
-            raise DriftGateError(
-                f"{values_key}.identity.workerId must equal {agent_id}"
-            )
-        prefix = _required_str(
-            identity,
-            "serviceAccountNamePrefix",
-            f"{values_key}.identity",
-        )
-        current_subject = _release_service_account_subject(
-            namespace=workload_namespace,
-            prefix=prefix,
-            worker_id=agent_id,
-            release=overlay_pins[agent_id],
-        )
-        current_subjects[agent_id] = current_subject
-        _claim_unique_subject(
-            all_subjects,
-            subject=current_subject,
-            owner=f"{agent_id}:current",
-        )
-
-        import_entry = overlay_imports[agent_id]
-        agent = _required_mapping(import_entry, "agent", f"{agent_id} import")
-        token = _required_mapping(identity, "token", f"{values_key}.identity")
-        expected_audience = _required_str(
-            token,
-            "audience",
-            f"{values_key}.identity.token",
-        )
-        configured_audience = agent.get("identity_audience", default_identity_audience)
-        if configured_audience != expected_audience:
-            raise DriftGateError(
-                f"{agent_id} identity_audience differs from governed render: "
-                f"expected {expected_audience}, got {configured_audience}"
-            )
-
-        identity_mode = _required_str(
-            identity,
-            "mode",
-            f"{values_key}.identity",
-        )
-        configured_previous = identity.get("previousRelease")
-        imported_previous = agent.get("previous_release")
-        actual_subject = agent.get("service_account_subject")
-        if identity_mode == "hmac":
-            if actual_subject is not None or imported_previous is not None:
-                raise DriftGateError(
-                    f"{agent_id} HMAC identity must not declare projected release subjects"
-                )
-            if configured_previous is not None:
-                raise DriftGateError(
-                    f"{values_key}.identity.previousRelease requires projected mode"
-                )
-            continue
-        if identity_mode != "projected":
-            raise DriftGateError(
-                f"{values_key}.identity.mode must be hmac or projected"
-            )
-        if actual_subject != current_subject:
-            raise DriftGateError(
-                f"{agent_id} service_account_subject differs from governed render: "
-                f"expected {current_subject}, got {actual_subject}"
-            )
-        if configured_previous is None:
-            if imported_previous is not None:
-                raise DriftGateError(
-                    f"{agent_id} registry previous_release is not rendered by Helm values"
-                )
-            continue
-        if not isinstance(configured_previous, dict):
-            raise DriftGateError(
-                f"{values_key}.identity.previousRelease must be a mapping"
-            )
-        if not isinstance(imported_previous, dict):
-            raise DriftGateError(
-                f"{agent_id} registry previous_release is required for rollout overlap"
-            )
-        previous_subject = _release_service_account_subject(
-            namespace=workload_namespace,
-            prefix=prefix,
-            worker_id=agent_id,
-            release=configured_previous,
-        )
-        _claim_unique_subject(
-            all_subjects,
-            subject=previous_subject,
-            owner=f"{agent_id}:previous",
-        )
-        expected_previous = {
-            "service_account_subject": previous_subject,
-            "code_digest": _required_str(
-                configured_previous,
-                "codeDigest",
-                f"{values_key}.identity.previousRelease",
-            ),
-            "manifest_digest": _required_str(
-                configured_previous,
-                "manifestDigest",
-                f"{values_key}.identity.previousRelease",
-            ),
-            "image_digest": _required_str(
-                configured_previous,
-                "imageDigest",
-                f"{values_key}.identity.previousRelease",
-            ),
-        }
-        if imported_previous != expected_previous:
-            raise DriftGateError(
-                f"{agent_id} registry previous_release differs from governed render"
-            )
-
-    if len(set(current_subjects.values())) != len(current_subjects):
-        raise DriftGateError(
-            "governed OpenCode proposer and apply subjects must be distinct"
-        )
-
-
-def _retained_hmac_release_pins(
-    *,
-    values: dict[str, Any],
-    overlay_pins: dict[str, dict[str, str]],
-) -> dict[str, dict[str, str]]:
-    retained_pins = {
-        agent_id: dict(release)
-        for agent_id, release in overlay_pins.items()
-    }
-    workspace_identity = values.get("projectedWorkloadIdentity")
-    if (
-        isinstance(workspace_identity, dict)
-        and workspace_identity.get("enabled") is True
-    ):
-        # Retained HMAC credentials outlive a projected rollout overlap. Never
-        # infer their claims from the current or previous projected release.
-        retained_pins["data.workspace_probe"] = _explicit_hmac_rollback_release(
-            workspace_identity, "projectedWorkloadIdentity"
-        )
-    handoff = values.get("opencodeArtifactHandoff")
-    if not isinstance(handoff, dict) or handoff.get("mode") != "governedCore":
-        return retained_pins
-
-    for agent_id, values_key in OPENCODE_VALUES_KEYS_BY_AGENT_ID.items():
-        worker_values = _required_mapping(
-            values,
-            values_key,
-            "agent-workloads values",
-        )
-        identity = _required_mapping(worker_values, "identity", values_key)
-        if identity.get("mode") != "projected":
-            continue
-        if "hmacRollbackRelease" in identity:
-            retained_pins[agent_id] = _explicit_hmac_rollback_release(
-                identity, f"{values_key}.identity"
-            )
-            continue
-        # Preserve existing configurations until their reviewed overlap cleanup
-        # records the retained credential tuple independently.
-        previous_release = identity.get("previousRelease")
-        if previous_release is None:
-            continue
-        if not isinstance(previous_release, dict):
-            raise DriftGateError(
-                f"{values_key}.identity.previousRelease must be a mapping"
-            )
-        retained_pins[agent_id] = {
-            "codeDigest": _required_str(
-                previous_release,
-                "codeDigest",
-                f"{values_key}.identity.previousRelease",
-            ),
-            "manifestDigest": _required_str(
-                previous_release,
-                "manifestDigest",
-                f"{values_key}.identity.previousRelease",
-            ),
-            "imageDigest": _required_str(
-                previous_release,
-                "imageDigest",
-                f"{values_key}.identity.previousRelease",
-            ),
-        }
-    return retained_pins
-
-
-def _explicit_hmac_rollback_release(
-    identity: dict[str, Any], label: str,
-) -> dict[str, str]:
-    rollback = _required_mapping(identity, "hmacRollbackRelease", label)
-    label = f"{label}.hmacRollbackRelease"
-    keys = ("codeDigest", "manifestDigest", "imageDigest")
-    if set(rollback) != set(keys):
-        raise DriftGateError(f"{label} must contain exactly the three release digests")
-    result = {}
-    for key in keys:
-        digest = _required_str(rollback, key, label)
-        _validate_digest(digest, f"{label}.{key}")
-        result[key] = digest
-    return result
-
-
-def _release_service_account_subject(
-    *,
-    namespace: str,
-    prefix: str,
-    worker_id: str,
-    release: dict[str, Any],
-) -> str:
-    digests = {
-        "code_digest": _required_str(release, "codeDigest", worker_id),
-        "manifest_digest": _required_str(release, "manifestDigest", worker_id),
-        "image_digest": _required_str(release, "imageDigest", worker_id),
-    }
-    for label, digest in digests.items():
-        _validate_digest(digest, f"{worker_id} {label}")
-    payload = {
-        "schema_version": WORKLOAD_IDENTITY_BUNDLE_VERSION,
-        **digests,
-    }
-    suffix = hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()[:20]
-    worker_name = re.sub(r"[^a-z0-9]+", "-", worker_id.lower()).strip("-")
-    service_account_name = f"{prefix}-{worker_name}-{suffix}"
-    if len(service_account_name) > 63 or re.fullmatch(
-        r"[a-z0-9]([-a-z0-9]*[a-z0-9])?",
-        service_account_name,
-    ) is None:
-        raise DriftGateError(
-            f"{worker_id} release-scoped ServiceAccount name is invalid"
-        )
-    return f"system:serviceaccount:{namespace}:{service_account_name}"
-
-
-def _claim_unique_subject(
-    seen: dict[str, str],
-    *,
-    subject: str,
-    owner: str,
-) -> None:
-    existing = seen.get(subject)
-    if existing is not None:
-        raise DriftGateError(
-            f"governed OpenCode subject maps to multiple releases: "
-            f"{subject} ({existing}, {owner})"
-        )
-    seen[subject] = owner
 
 
 def _load_overlay_data(configmap_path: Path) -> dict[str, str]:
@@ -694,7 +391,7 @@ def _assert_values_image_digest_matches_pin(
     expected = release_pin.get("imageDigest")
     _validate_digest(expected, f"{agent_id} mandateReleasePins.imageDigest")
 
-    image_path = IMAGE_PATHS_BY_AGENT_ID[agent_id]
+    image_path = ("workers", agent_id, "image")
     image = _nested_mapping(values, image_path, f"{agent_id} values image")
     actual = image.get("digest")
     _validate_digest(actual, f"{agent_id} values image.digest")
@@ -719,9 +416,11 @@ def _nested_mapping(
     return current
 
 
-def _assert_runtime_secret_excludes_tokens(secret_path: Path) -> None:
+def _assert_runtime_secret_excludes_tokens(
+    secret_path: Path, token_keys: Iterable[str]
+) -> None:
     raw = secret_path.read_text(encoding="utf-8")
-    for token_key in TOKEN_KEYS_BY_AGENT_ID.values():
+    for token_key in token_keys:
         if token_key in raw:
             raise DriftGateError(
                 f"runtime secret must not contain workload identity token key {token_key}"
@@ -770,7 +469,9 @@ def _secret_value(secret: dict[str, Any], token_key: str) -> str:
             try:
                 return base64.b64decode(encoded, validate=True).decode()
             except (ValueError, UnicodeDecodeError) as exc:
-                raise DriftGateError(f"{token_key} data value is not valid base64") from exc
+                raise DriftGateError(
+                    f"{token_key} data value is not valid base64"
+                ) from exc
 
     raise DriftGateError(f"workload identity token secret missing {token_key}")
 
