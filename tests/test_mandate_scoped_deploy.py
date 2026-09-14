@@ -277,6 +277,11 @@ class ScopedDeployTests(unittest.TestCase):
         parser = mock.Mock()
         parser.parse_args.return_value = self.args
         self.patch(SCOPED, "build_parser", return_value=parser)
+        self.patch(
+            SCOPED.argocd_client,
+            "resolve_argocd",
+            return_value=SCOPED.argocd_client.ArgocdResolution("argocd", "test"),
+        )
         self.patch(SCOPED.argo, "resolve_executable", side_effect=lambda value: value)
         self.patch(SCOPED.argo, "validate_argocd_version")
         self.patch(SCOPED.argo, "core_kubeconfig", side_effect=temporary_config)
