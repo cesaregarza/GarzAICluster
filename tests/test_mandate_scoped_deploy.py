@@ -110,6 +110,8 @@ class ScopedDeployTests(unittest.TestCase):
             [],
             ["splattop-root"],
             ["unknown"],
+            [SCOPED.train.OVERLAY_APPLICATION],
+            [SCOPED.train.OVERLAY_APPLICATION, "agent-control-plane"],
             ["agent-workloads"] * 2,
             list(reversed(WORKERS)),
         ):
@@ -156,6 +158,33 @@ class ScopedDeployTests(unittest.TestCase):
         self.assertTrue(
             all(call.kwargs["force_sync"] for call in self.reconcile.call_args_list)
         )
+
+    def test_overlay_hooks_converge_before_workers_and_fresh_verification(self) -> None:
+        self.args.application = [SCOPED.train.OVERLAY_APPLICATION, "agent-workloads"]
+        events = []
+
+        def reconcile(contract, **kwargs):
+            events.append(contract.name)
+            return "manual"
+
+        self.reconcile.side_effect = reconcile
+        self.verify.side_effect = (
+            lambda *args, **kwargs: events.append("verify") or "fresh"
+        )
+        SCOPED.execute(self.args, Path("kubeconfig"), self.receipt)
+        self.assertEqual(
+            events, [SCOPED.train.OVERLAY_APPLICATION, "agent-workloads", "verify"]
+        )
+        for call in self.reconcile.call_args_list:
+            self.assertEqual(call.args[0].resolved_revisions, (SHA,))
+
+    def test_overlay_failure_prevents_worker_activation(self) -> None:
+        self.args.application = [SCOPED.train.OVERLAY_APPLICATION, "agent-workloads"]
+        self.reconcile.side_effect = SCOPED.argo.ArgoCoreError("overlay hook failed")
+        with self.assertRaisesRegex(SCOPED.argo.ArgoCoreError, "overlay hook failed"):
+            SCOPED.execute(self.args, Path("kubeconfig"), self.receipt)
+        self.assertEqual(self.reconcile.call_count, 1)
+        self.verify.assert_not_called()
 
     def test_reconcile_baseline_is_the_verified_owned_dry_run(self) -> None:
         SCOPED.execute(self.args, Path("kubeconfig"), self.receipt)

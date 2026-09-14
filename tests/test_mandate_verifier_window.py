@@ -31,8 +31,10 @@ class VerifierWindowTests(unittest.TestCase):
             },
             "spec": {"suspend": False},
         }
+        self.scheduled_jobs = []
+        self.delete_commands = []
+        self.delete_error = None
         self.patches = []
-        self.drain_error = None
         self.context = mock.patch.object(window.VerifierWindow, "command", self.command)
         self.context.start()
         self.addCleanup(self.context.stop)
@@ -40,9 +42,29 @@ class VerifierWindowTests(unittest.TestCase):
         self.jobs = self.no_active.start()
         self.addCleanup(self.no_active.stop)
 
-    def command(self, *args):
+    def command(self, *args, input_text=None):
         if args[0] == "get":
-            return json.dumps(self.current)
+            if args[1] == "cronjob":
+                return json.dumps(self.current)
+            if args[1] == "jobs":
+                return json.dumps({"items": self.scheduled_jobs})
+            raise AssertionError(args)
+        if args[0] == "delete":
+            self.delete_commands.append(args)
+            raw_index = args.index("--raw")
+            self.assertEqual(args[raw_index + 2 : raw_index + 4], ("-f", "-"))
+            options = json.loads(input_text)
+            self.assertEqual(options["kind"], "DeleteOptions")
+            uid = options["preconditions"]["uid"]
+            self.assertEqual(options["preconditions"]["resourceVersion"], "job-version")
+            self.assertEqual(options["propagationPolicy"], "Foreground")
+            if self.delete_error is not None:
+                raise self.delete_error
+            self.scheduled_jobs = [
+                job for job in self.scheduled_jobs
+                if job["metadata"].get("uid") != uid
+            ]
+            return ""
         operations = json.loads(args[args.index("-p") + 1])
         candidate = copy.deepcopy(self.current)
         for operation in operations:
@@ -128,38 +150,103 @@ class VerifierWindowTests(unittest.TestCase):
                     self.receipt["verifier_window"]["state"], "resume-failed"
                 )
 
-    def test_drain_waits_only_for_known_overlap(self):
-        self.jobs.side_effect = [
-            window.argo.ArgoCoreError(
-                "stage=mandate-verify reason=nonterminal-job-overlap jobs=existing"
-            ),
-            None,
-        ]
-        with mock.patch.object(window.time, "sleep") as sleep, self.run_window():
-            self.assertEqual(self.jobs.call_count, 2)
-            sleep.assert_called_once_with(1)
+    def scheduled_job(self, *, cron_uid="cron-a", job_uid="job-a", name=None):
+        return {
+            "metadata": {
+                "name": name or f"{window.train.VERIFY_CRONJOB}-12345678",
+                "uid": job_uid,
+                "resourceVersion": "job-version",
+                "ownerReferences": [
+                    {
+                        "kind": "CronJob",
+                        "name": window.train.VERIFY_CRONJOB,
+                        "uid": cron_uid,
+                        "controller": True,
+                    }
+                ],
+            },
+            "status": {},
+        }
 
-    def test_drain_timeout_restores_schedule_without_starting_work(self):
+    def test_active_scheduled_job_is_cancelled_before_work(self):
+        self.scheduled_jobs = [self.scheduled_job()]
+        with self.run_window():
+            self.assertEqual(len(self.delete_commands), 1)
+            self.assertIn("--raw", self.delete_commands[0])
+        self.assertFalse(self.current["spec"]["suspend"])
+
+    def test_manual_or_wrong_owner_job_is_never_deleted(self):
+        self.scheduled_jobs = [
+            self.scheduled_job(cron_uid="cron-b", job_uid="manual-a")
+        ]
         self.jobs.side_effect = window.argo.ArgoCoreError(
-            "stage=mandate-verify reason=nonterminal-job-overlap jobs=existing"
+            "stage=mandate-verify reason=nonterminal-job-overlap jobs=manual"
         )
         with (
-            mock.patch.object(window.time, "monotonic", side_effect=[0, 511]),
+            self.assertRaisesRegex(window.argo.ArgoCoreError, "nonterminal-job-overlap"),
+            self.run_window(),
+        ):
+            self.fail("must not deploy")
+        self.assertEqual(self.delete_commands, [])
+        self.assertFalse(self.current["spec"]["suspend"])
+
+    def test_replaced_cronjob_is_never_used_to_cancel_jobs(self):
+        self.scheduled_jobs = [self.scheduled_job()]
+        original_read = window.VerifierWindow.read
+        reads = []
+
+        def replaced(instance):
+            current = original_read(instance)
+            reads.append(True)
+            if len(reads) == 2:
+                current["metadata"]["uid"] = "cron-b"
+            return current
+
+        with (
+            mock.patch.object(window.VerifierWindow, "read", replaced),
+            self.assertRaisesRegex(window.argo.ArgoCoreError, "ownership changed"),
+            self.run_window(),
+        ):
+            self.fail("must not deploy")
+        self.assertEqual(self.delete_commands, [])
+        self.assertFalse(self.current["spec"]["suspend"])
+
+    def test_failed_delete_restores_schedule(self):
+        self.scheduled_jobs = [self.scheduled_job()]
+        self.delete_error = window.argo.ArgoCoreError("delete unavailable")
+        with (
+            self.assertRaisesRegex(window.argo.ArgoCoreError, "delete unavailable"),
+            self.run_window(),
+        ):
+            self.fail("must not deploy")
+        self.assertFalse(self.current["spec"]["suspend"])
+
+    def test_terminal_job_still_waits_for_foreground_deletion(self):
+        instance = window.VerifierWindow(self.args, "kubeconfig", self.receipt, self.save)
+        terminal = self.scheduled_job()
+        terminal["status"] = {"conditions": [{"type": "Complete", "status": "True"}]}
+        with (
+            mock.patch.object(instance, "list_jobs", side_effect=[[terminal], []]),
+            mock.patch.object(window.time, "sleep") as sleep,
+        ):
+            instance.wait_cancelled({"job-a"})
+        sleep.assert_called_once()
+
+    def test_cancellation_timeout_restores_schedule_without_work(self):
+        self.scheduled_jobs = [self.scheduled_job()]
+        with (
+            mock.patch.object(window.VerifierWindow, "_delete_job"),
+            mock.patch.object(window.time, "monotonic", side_effect=[0, 1000]),
             self.assertRaisesRegex(window.argo.ArgoCoreError, "deadline exceeded"),
             self.run_window(),
         ):
             self.fail("must not deploy")
         self.assertFalse(self.current["spec"]["suspend"])
+        self.jobs.assert_not_called()
 
-    def test_unexpected_drain_error_is_not_retried(self):
-        self.jobs.side_effect = window.argo.ArgoCoreError("API unavailable")
-        with (
-            self.assertRaisesRegex(window.argo.ArgoCoreError, "API unavailable"),
-            self.run_window(),
-        ):
-            self.fail("must not deploy")
-        self.jobs.assert_called_once()
-        self.assertFalse(self.current["spec"]["suspend"])
+    def test_no_active_scheduled_job_runs_final_guard(self):
+        with self.run_window():
+            self.jobs.assert_called_once()
 
     def test_dry_run_and_core_sync_cannot_request_a_pause(self):
         for apply, apps in (
