@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping, Sequence
 
+import argocd_client
+
 
 VERSION_FILE = Path(__file__).with_name("argocd-client-version.txt")
 VERSION_PATTERN = re.compile(r"\bv?(\d+\.\d+\.\d+)(?:[-+][^\s]+)?\b")
@@ -736,11 +738,6 @@ def pinned_version() -> str:
     return value
 
 
-def default_argocd_executable() -> str:
-    managed = Path("/root/dev/.tools") / f"argocd-v{pinned_version()}" / "argocd"
-    return str(managed) if managed.is_file() else "argocd"
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -753,7 +750,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--context")
     parser.add_argument("--namespace", default="argocd")
-    parser.add_argument("--argocd", default=default_argocd_executable())
+    parser.add_argument("--argocd-bin", "--argocd", dest="argocd", default=None)
     parser.add_argument("--kubectl", default="kubectl")
     subparsers = parser.add_subparsers(dest="operation", required=True)
     status = subparsers.add_parser("status")
@@ -764,7 +761,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     try:
         args = build_parser().parse_args()
-        argocd = resolve_executable(args.argocd)
+        resolution = argocd_client.resolve_argocd(args.argocd, pinned_version())
+        argocd_client.emit_preflight(resolution)
+        argocd = resolution.path
         kubectl = resolve_executable(args.kubectl)
         validate_argocd_version(argocd, pinned_version())
         with core_kubeconfig(
@@ -785,7 +784,7 @@ def main() -> int:
                 )
             sys.stdout.write(result.stdout)
             return 0
-    except ArgoCoreError as error:
+    except (ArgoCoreError, OSError) as error:
         print(f"argocd_core: {error}", file=sys.stderr)
         return 1
 

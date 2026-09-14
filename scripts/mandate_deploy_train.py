@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 
 from ruamel.yaml import YAML
 
+import argocd_client
 import argocd_core as argo
 
 
@@ -2034,7 +2035,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exact production kube context (required; no current-context fallback).",
     )
     parser.add_argument("--namespace", default="argocd")
-    parser.add_argument("--argocd", default=argo.default_argocd_executable())
+    parser.add_argument("--argocd-bin", "--argocd", dest="argocd", default=None)
     parser.add_argument("--kubectl", default="kubectl")
     parser.add_argument("--uv", default="uv")
     parser.add_argument("--git", default="git")
@@ -2068,7 +2069,9 @@ def main() -> int:
             raise argo.ArgoCoreError(
                 "timeouts must be positive and adoption timeout non-negative"
             )
-        argocd = argo.resolve_executable(args.argocd)
+        resolution = argocd_client.resolve_argocd(args.argocd, argo.pinned_version())
+        argocd_client.emit_preflight(resolution)
+        argocd = resolution.path
         kubectl = argo.resolve_executable(args.kubectl)
         uv = argo.resolve_executable(args.uv)
         git = argo.resolve_executable(args.git)
@@ -2097,7 +2100,7 @@ def main() -> int:
                 interval=args.poll_interval,
             )
         return 0 if result in {"succeeded", "no-op"} else 1
-    except argo.ArgoCoreError as error:
+    except (argo.ArgoCoreError, OSError) as error:
         print(f"mandate_deploy_train: {error}", file=sys.stderr)
         return 1
 

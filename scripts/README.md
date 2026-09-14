@@ -82,6 +82,15 @@ Utilities that were previously bundled with the app repo move here when they are
     --receipt-dir /tmp/mandate-release
   ```
 
+  Client lookup runs after argument parsing: `--argocd-bin` (the existing
+  `--argocd` is an alias), then `ARGOCD_BIN`, then an executable `argocd` on PATH,
+  then the pinned installation under `/root/dev/.tools`. An explicitly selected
+  but unusable client fails without falling back. Startup reports the selected
+  executable and still requires the repository's exact `argocd-client-version.txt`
+  version. Non-root operators can use their own matching installation; `--help`
+  requires none. Missing-client errors name the four lookup sources. This lookup
+  does not install a client or grant Kubernetes access.
+
   The default performs dry runs, which update Argo operation history but do not
   apply workload resources. Each dry run is tagged with the invocation owner;
   only its successful, exact-revision full-hook receipt becomes the baseline for

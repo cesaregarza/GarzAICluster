@@ -13,6 +13,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+import argocd_client
 import mandate_deploy_train as train
 from mandate_verifier_window import recover_expired_window, verifier_window
 
@@ -329,7 +330,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--kubeconfig", type=Path, default=Path.home() / ".kube/config")
     parser.add_argument("--context", required=True, choices=(train.PRODUCTION_CONTEXT,))
     parser.add_argument("--namespace", choices=("argocd",), default="argocd")
-    parser.add_argument("--argocd", default=argo.default_argocd_executable())
+    parser.add_argument("--argocd-bin", "--argocd", dest="argocd", default=None)
     parser.add_argument("--kubectl", default="kubectl")
     parser.add_argument("--git", default="git")
     parser.add_argument("--refresh-timeout", type=float, default=60)
@@ -367,7 +368,10 @@ def main() -> int:
             raise argo.ArgoCoreError(
                 "run the entrypoint from the selected release checkout"
             )
-        for name in ("argocd", "kubectl", "git"):
+        resolution = argocd_client.resolve_argocd(args.argocd, argo.pinned_version())
+        argocd_client.emit_preflight(resolution)
+        args.argocd = resolution.path
+        for name in ("kubectl", "git"):
             setattr(args, name, argo.resolve_executable(getattr(args, name)))
         argo.validate_argocd_version(args.argocd, argo.pinned_version())
         with argo.core_kubeconfig(

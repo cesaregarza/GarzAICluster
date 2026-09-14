@@ -15,6 +15,7 @@ from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "argocd_core.py"
+sys.path.insert(0, str(SCRIPT.parent))
 LOADER = SourceFileLoader("argocd_core", str(SCRIPT))
 SPEC = importlib.util.spec_from_loader(LOADER.name, LOADER)
 assert SPEC is not None and SPEC.loader is not None
@@ -127,12 +128,10 @@ def old_operation() -> object:
 
 class ArgoCoreTests(unittest.TestCase):
     def test_cli_exposes_status_but_not_single_application_sync(self) -> None:
-        with mock.patch.object(
-            ARGO, "default_argocd_executable", return_value="argocd"
-        ):
-            parser = ARGO.build_parser()
+        parser = ARGO.build_parser()
         status = parser.parse_args(["status", "agent-control-plane"])
         self.assertEqual(status.operation, "status")
+        self.assertIsNone(status.argocd)
         with redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):
                 parser.parse_args(["sync", "agent-control-plane"])
