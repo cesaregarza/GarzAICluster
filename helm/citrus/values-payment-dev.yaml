@@ -19,3 +19,18 @@ directOrderPaymentSweep:
   runtimeSecretName: citrus-dev-sweep-runtime
   verifiedImageTag: 9a13ab08608be31d681e4da31edfe76f18709eb9
   offSessionMode: legacy
+
+# Normal browser checkout uses the isolated Stripe sandbox. This overlay follows
+# the compatible source rollout and exact-image smoke; values-dev stays deny
+# as the fallback. Roll back these settings before reverting the source image.
+paymentSafety:
+  networkMode: sandbox
+  policy:
+    revision: citrus-dev-sandbox-v1
+
+# Capture test messages privately inside the container, outside served media.
+# No SMTP delivery; inspect only owned QA messages and remove them after QA.
+application:
+  configData:
+    EMAIL_BACKEND: "django.core.mail.backends.filebased.EmailBackend"
+    EMAIL_FILE_PATH: "/tmp/citrus-dev-email"

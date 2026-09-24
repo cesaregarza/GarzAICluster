@@ -894,7 +894,7 @@ class CitrusDormantDevActivationTests(unittest.TestCase):
                     self.assertEqual(container["image"].rsplit(":", 1)[1], revision)
                     self.assertEqual(env["RECURRING_RUNTIME_TOPOLOGY_REVISION"], "ces-850-dev-v1")
                     self.assertEqual(env["RECURRING_RUNTIME_SCHEDULER"], "kubernetes-cronjob")
-                    self.assertEqual(env["PAYMENT_NETWORK_MODE"], "deny")
+                    self.assertEqual(env["PAYMENT_NETWORK_MODE"], "sandbox")
                     self.assertNotIn("CITRUS_STRIPE_SMOKE_RUNNER", env)
                     container_count += 1
         self.assertEqual(container_count, 5)

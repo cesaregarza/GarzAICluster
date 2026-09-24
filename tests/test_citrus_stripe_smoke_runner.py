@@ -116,7 +116,7 @@ def _plain_env(container: dict[str, Any]) -> dict[str, str]:
 
 
 class CitrusStripeSmokeRunnerTests(unittest.TestCase):
-    def test_active_dev_overlay_enables_automated_gate_with_normal_dev_denied(self) -> None:
+    def test_active_dev_overlay_enables_automated_gate_with_normal_dev_sandbox(self) -> None:
         app = YAML_PARSER.load(
             (REPO_ROOT / "argocd/applications/citrus-dev.yaml").read_text()
         )
@@ -150,7 +150,7 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
                 for container in document["spec"]["template"]["spec"]["containers"]:
                     env = _plain_env(container)
                     if "PAYMENT_NETWORK_MODE" in env:
-                        self.assertEqual(env["PAYMENT_NETWORK_MODE"], "deny")
+                        self.assertEqual(env["PAYMENT_NETWORK_MODE"], "sandbox")
                         self.assertNotIn("CITRUS_STRIPE_SMOKE_RUNNER", env)
 
     @classmethod
@@ -177,14 +177,18 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
                     for document in documents
                 )
             )
-            self.assertFalse(
-                any(
-                    target.get("matchName") == "api.stripe.com"
-                    for document in documents
-                    if document.get("kind") == "CiliumNetworkPolicy"
-                    for rule in document["spec"].get("egress", [])
-                    for target in rule.get("toFQDNs", [])
-                )
+            sandbox_policies = {
+                document["metadata"]["name"]
+                for document in documents
+                if document.get("kind") == "CiliumNetworkPolicy"
+                and any(target.get("matchName") == "api.stripe.com"
+                        for rule in document["spec"].get("egress", [])
+                        for target in rule.get("toFQDNs", []))
+            }
+            self.assertEqual(
+                sandbox_policies,
+                {"citrus-dev-payment-egress", "citrus-dev-payment-egress-batch"}
+                if documents is self.dev_off else set(),
             )
 
     def test_enabled_runner_is_permanently_suspended_and_bounded(self) -> None:
@@ -477,7 +481,7 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
             },
         )
 
-    def test_one_stripe_policy_selects_only_the_runner(self) -> None:
+    def test_smoke_stripe_policy_selects_only_the_runner(self) -> None:
         dev_values = YAML_PARSER.load(
             (CHART_PATH / "values-dev.yaml").read_text(encoding="utf-8")
         )
@@ -498,8 +502,15 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
             }
             if any(host.endswith(".stripe.com") for host in fqdn_hosts):
                 stripe_policies.append((policy, fqdn_hosts))
-        self.assertEqual(len(stripe_policies), 1)
-        policy, fqdn_hosts = stripe_policies[0]
+        self.assertEqual(
+            {policy["metadata"]["name"] for policy, _ in stripe_policies},
+            {"citrus-dev-payment-egress", "citrus-dev-payment-egress-batch",
+             "citrus-dev-stripe-smoke-runner-egress"},
+        )
+        policy, fqdn_hosts = next(
+            item for item in stripe_policies
+            if item[0]["metadata"]["name"] == "citrus-dev-stripe-smoke-runner-egress"
+        )
         self.assertEqual(
             policy["metadata"]["name"],
             "citrus-dev-stripe-smoke-runner-egress",
@@ -627,13 +638,15 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
                 "stripe-smoke-runner",
                 json.dumps(general["spec"]["endpointSelector"], sort_keys=True),
             )
-            self.assertFalse(
-                any(
-                    target.get("matchName", "").endswith(".stripe.com")
-                    for rule in general["spec"].get("egress", [])
-                    for target in rule.get("toFQDNs", [])
-                )
-            )
+            stripe_rules = [
+                rule for rule in general["spec"].get("egress", [])
+                if any(target.get("matchName", "").endswith((".stripe.com", ".stripe.network"))
+                       for target in rule.get("toFQDNs", []))
+            ]
+            self.assertEqual(stripe_rules, [{
+                "toFQDNs": [{"matchName": "api.stripe.com"}],
+                "toPorts": [{"ports": [{"port": "443", "protocol": "TCP"}]}],
+            }])
 
     def test_enabled_runner_hard_fails_outside_dev_or_when_unsuspended(self) -> None:
         wrong_release = _command(enabled=True)
