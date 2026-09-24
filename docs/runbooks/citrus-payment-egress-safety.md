@@ -83,9 +83,26 @@ only these allow rules:
 6. Separately reviewed exact FQDN/port entries for enabled optional features.
 
 Wildcards, raw IP addresses, malformed names, and every exact or subdomain
-destination under `stripe.com` or `stripe.network` fail Helm rendering. The
-policy has no ingress section, so synthetic inbound webhook requests remain
-possible through the existing ingress path.
+destination under `stripe.com` or `stripe.network` in
+`additionalExternalEgress` fail Helm rendering. The policy has no ingress
+section, so synthetic inbound webhook requests remain possible through the
+existing ingress path.
+
+### Development sandbox mode
+
+The chart also supports `paymentSafety.networkMode=sandbox` for ordinary
+checkout in the exact `development` / `citrus-dev` / `citrus-dev` release and
+namespace tuple. It requires the enabled `citrus-dev-payment-credentials`
+projection and exact `STRIPE_WEBHOOK_SECRET_DEV` role already defined by the
+dev credential overlay. Cilium adds only `api.stripe.com` on TCP 443 to the
+same constrained allowlist. The host is a chart-owned exception; attempts to
+add Stripe through `additionalExternalEgress` continue to fail validation.
+
+Sandbox mode does not enable smoke-runner operations or change the checked-in
+`values-dev.yaml`, which remains in `deny` mode. It does not alter production's
+explicit `allow` render. The application must still enforce test credential
+class at each payment adapter boundary because Cilium cannot distinguish
+Stripe test and live API credentials.
 
 ### Production allow mode
 
@@ -179,7 +196,8 @@ verify all of the following:
 - The two Cilium policy selectors cover both pre-activation and proposed Citrus
   Pod templates and neither selector matches the Redis Pod.
 - The database, storage, email, and optional exact destinations are complete.
-- No rendered `toFQDNs` entry ends in `.stripe.com` or `.stripe.network`.
+- In deny mode, no rendered `toFQDNs` entry is a Stripe destination. In sandbox
+  mode, the only Stripe entry is exact `api.stripe.com` on TCP 443.
 - The source image implements the matching runtime guard contract.
 - The rollback image remains frozen for activation; the guarded source image is
   pinned only after the live policy receipt.
@@ -198,3 +216,12 @@ reviewed exact allow rule. If the activation must be abandoned, remove the dev
 payment credential projection or scale the affected payment-capable workloads
 down before reverting the source and policy activation together. Record the
 source image, GitOps revision, policy revision, and credential-absence evidence.
+
+### Automated smoke coexistence
+
+The actual dev Application includes `values-stripe-smoke-dev.yaml`. Its PostSync
+smoke remains enabled in both ordinary `deny` and `sandbox` modes. The smoke pod
+still receives its distinct `allow` mode, exact runner marker, expected account,
+and dedicated network policy. Ordinary web/worker pods never receive the smoke
+marker. A full Application-overlay render test verifies this separation; do not
+disable the automated smoke gate merely to enable browser sandbox checkout.

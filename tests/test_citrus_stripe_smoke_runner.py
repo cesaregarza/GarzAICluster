@@ -13,6 +13,9 @@ from ruamel.yaml import YAML
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHART_PATH = REPO_ROOT / "helm" / "citrus"
 TEMPLATE_PATH = CHART_PATH / "templates" / "stripe-smoke-runner.yaml"
+PAYMENT_POLICY_TEMPLATE_PATH = (
+    CHART_PATH / "templates" / "payment-egress-cilium-policy.yaml"
+)
 POLICY_REVISION = "ces-883-stripe-smoke-v1"
 AUTOMATION_POLICY_REVISION = "ces-881-stripe-smoke-gate-v1"
 SENTINEL_ACCOUNT_ID = "acct_0000000000000000"
@@ -854,12 +857,15 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
             )
         )
 
-    def test_only_runner_template_names_the_stripe_api_hostname(self) -> None:
+    def test_only_sandbox_policy_and_smoke_runner_name_the_stripe_api_hostname(self) -> None:
         occurrences = []
         for template in (CHART_PATH / "templates").glob("*.yaml"):
             if "api.stripe.com" in template.read_text(encoding="utf-8"):
                 occurrences.append(template.name)
-        self.assertEqual(occurrences, [TEMPLATE_PATH.name])
+        self.assertCountEqual(
+            occurrences,
+            [PAYMENT_POLICY_TEMPLATE_PATH.name, TEMPLATE_PATH.name],
+        )
 
 
 if __name__ == "__main__":
