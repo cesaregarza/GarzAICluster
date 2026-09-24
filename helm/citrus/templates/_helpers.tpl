@@ -319,8 +319,13 @@ attestation; an env-only claim is intentionally rejected.
 {{- if ne $owner "citrus-dev" -}}
 {{- fail "paymentSafety.owner must be citrus-dev when paymentSafety.environment=development" -}}
 {{- end -}}
-{{- if ne $networkMode "deny" -}}
-{{- fail "paymentSafety.networkMode must be deny when paymentSafety.environment=development" -}}
+{{- if not (has $networkMode (list "deny" "sandbox")) -}}
+{{- fail "paymentSafety.networkMode must be deny or sandbox when paymentSafety.environment=development" -}}
+{{- end -}}
+{{- if eq $networkMode "sandbox" -}}
+{{- if or (not .Values.paymentCredentials.enabled) (ne .Values.paymentCredentials.owner "citrus-dev") (ne .Values.paymentCredentials.secretName "citrus-dev-payment-credentials") (ne .Values.paymentCredentials.webhookEnvironmentVariable "STRIPE_WEBHOOK_SECRET_DEV") (ne .Values.paymentCredentials.webhookSecretName .Values.application.secretName) (ne .Values.paymentCredentials.webhookSecretKey "STRIPE_WEBHOOK_SECRET_DEV") -}}
+{{- fail "paymentSafety.networkMode=sandbox requires enabled citrus-dev credentials with the exact dev webhook role" -}}
+{{- end -}}
 {{- end -}}
 {{- if not .Values.redis.enabled -}}
 {{- fail "redis.enabled must be true for the development payment egress policy" -}}

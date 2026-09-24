@@ -538,7 +538,7 @@
         },
         "networkMode": {
           "type": "string",
-          "enum": ["", "deny", "allow"]
+          "enum": ["", "deny", "sandbox", "allow"]
         },
         "policy": {
           "type": "object",
@@ -665,7 +665,7 @@
                 "minLength": 1
               },
               "networkMode": {
-                "enum": ["deny", "allow"]
+                "enum": ["deny", "sandbox", "allow"]
               },
               "policy": {
                 "properties": {
@@ -693,7 +693,7 @@
           "then": {
             "properties": {
               "owner": {"const": "citrus-dev"},
-              "networkMode": {"const": "deny"},
+              "networkMode": {"enum": ["deny", "sandbox"]},
               "networkPolicy": {
                 "properties": {
                   "database": {
@@ -704,6 +704,22 @@
                 }
               }
             }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "networkMode": {"const": "sandbox"}
+            },
+            "required": ["networkMode"]
+          },
+          "then": {
+            "properties": {
+              "enabled": {"const": true},
+              "environment": {"const": "development"},
+              "owner": {"const": "citrus-dev"}
+            },
+            "required": ["enabled", "environment", "owner"]
           }
         },
         {
@@ -952,6 +968,35 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "paymentSafety": {
+            "properties": {
+              "networkMode": {"const": "sandbox"}
+            },
+            "required": ["networkMode"]
+          }
+        },
+        "required": ["paymentSafety"]
+      },
+      "then": {
+        "properties": {
+          "paymentCredentials": {
+            "properties": {
+              "enabled": {"const": true},
+              "secretName": {"const": "citrus-dev-payment-credentials"},
+              "owner": {"const": "citrus-dev"},
+              "webhookEnvironmentVariable": {"const": "STRIPE_WEBHOOK_SECRET_DEV"},
+              "webhookSecretName": {"const": "django-secrets"},
+              "webhookSecretKey": {"const": "STRIPE_WEBHOOK_SECRET_DEV"}
+            },
+            "required": ["enabled", "secretName", "owner", "webhookEnvironmentVariable", "webhookSecretName", "webhookSecretKey"]
+          }
+        },
+        "required": ["paymentCredentials"]
+      }
+    },
     {
       "if": {
         "properties": {

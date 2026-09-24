@@ -97,6 +97,14 @@ def _helm_command(*, development: bool, enabled: bool) -> list[str]:
     return command
 
 
+def _sandbox_dev_command() -> list[str]:
+    command = _helm_command(development=True, enabled=True)
+    command.extend(
+        ["-f", str(DEV_PAYMENT_VALUES), "--set-string", "paymentSafety.networkMode=sandbox"]
+    )
+    return command
+
+
 def _actual_dev_command() -> list[str]:
     return [
         "helm",
@@ -235,6 +243,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             _helm_command(development=False, enabled=False)
         )
         cls.actual_dev = _documents(_actual_dev_command())
+        cls.sandbox_dev = _documents(_sandbox_dev_command())
 
         cls.legacy_dev = cls.actual_dev
 
@@ -580,6 +589,79 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             [{"port": "6379", "protocol": "TCP"}],
         )
 
+    def test_sandbox_mode_adds_only_exact_stripe_api_https_egress(self) -> None:
+        policies = [
+            document
+            for document in self.sandbox_dev
+            if document.get("kind") == "CiliumNetworkPolicy"
+        ]
+        self.assertEqual(len(policies), 2)
+        for policy in policies:
+            self.assertFalse(
+                any("toEntities" in rule for rule in policy["spec"]["egress"])
+            )
+            stripe_rules = [
+                rule for rule in policy["spec"]["egress"]
+                if any(
+                    target.get("matchName") == "api.stripe.com"
+                    for target in rule.get("toFQDNs", [])
+                )
+            ]
+            self.assertEqual(stripe_rules, [{
+                "toFQDNs": [{"matchName": "api.stripe.com"}],
+                "toPorts": [{"ports": [{"port": "443", "protocol": "TCP"}]}],
+            }])
+            all_hosts = [
+                target["matchName"]
+                for rule in policy["spec"]["egress"]
+                for target in rule.get("toFQDNs", [])
+            ]
+            self.assertEqual(all_hosts.count("api.stripe.com"), 1)
+            self.assertEqual(len(all_hosts), len(set(all_hosts)))
+
+    def test_actual_dev_overlays_keep_the_automated_smoke_identity_separate(self) -> None:
+        application = YAML_PARSER.load(
+            (REPO_ROOT / "argocd/applications/citrus-dev.yaml").read_text()
+        )
+        command = ["helm", "template", "citrus-dev", str(CHART_PATH), "--namespace", "citrus-dev"]
+        for filename in application["spec"]["source"]["helm"]["valueFiles"]:
+            command.extend(["-f", str(CHART_PATH / filename)])
+        for mode in ("deny", "sandbox"):
+            with self.subTest(mode=mode):
+                documents = _documents(command + ["--set-string", f"paymentSafety.networkMode={mode}"])
+                web = _named(documents, "Deployment", "citrus-dev")
+                web_env = _env(_pod_template(web)["spec"]["containers"][0])
+                self.assertEqual(web_env["PAYMENT_NETWORK_MODE"], mode)
+                self.assertNotIn("CITRUS_STRIPE_SMOKE_RUNNER", web_env)
+                smoke = next(item for item in documents if item.get("kind") == "Job"
+                             and item["metadata"]["name"].startswith("citrus-smoke-"))
+                smoke_env = _env(_pod_template(smoke)["spec"]["containers"][0])
+                self.assertEqual(smoke_env["PAYMENT_NETWORK_MODE"], "allow")
+                self.assertEqual(smoke_env["CITRUS_STRIPE_SMOKE_RUNNER"], "true")
+                self.assertEqual(smoke["metadata"]["annotations"]["argocd.argoproj.io/hook"], "PostSync")
+
+    def test_sandbox_mode_requires_exact_development_credentials(self) -> None:
+        missing_credentials = _helm_command(development=True, enabled=True)
+        missing_credentials.extend(
+            ["--set-string", "paymentSafety.networkMode=sandbox"]
+        )
+        result = _run(missing_credentials)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("paymentCredentials", _normalize_helm_error(result.stderr))
+
+        wrong_webhook = _sandbox_dev_command() + [
+            "--set-string",
+            "paymentCredentials.webhookEnvironmentVariable=STRIPE_WEBHOOK_SECRET_PROD",
+        ]
+        result = _run(wrong_webhook)
+        self.assertNotEqual(result.returncode, 0)
+
+        production = _helm_command(development=False, enabled=True) + [
+            "--set-string", "paymentSafety.networkMode=sandbox"
+        ]
+        result = _run(production)
+        self.assertNotEqual(result.returncode, 0)
+
     def test_production_requires_and_renders_explicit_allow_mode(self) -> None:
         policies = [
             document
@@ -787,7 +869,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
         self.assertFalse(payment_safety["additionalProperties"])
         self.assertEqual(
             payment_safety["properties"]["networkMode"]["enum"],
-            ["", "deny", "allow"],
+            ["", "deny", "sandbox", "allow"],
         )
 
         project = YAML_PARSER.load(PROJECT_PATH.read_text(encoding="utf-8"))
@@ -807,6 +889,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
         for required in (
             "chart defaults and production Application remain disabled",
             "development overlay now activates CES-845 deny mode",
+            "Cilium adds only `api.stripe.com` on TCP 443",
             "tracks `main` with automated prune and self-heal",
             "review and merge are the deployment gate",
             "Never use a Stripe request to validate this policy",

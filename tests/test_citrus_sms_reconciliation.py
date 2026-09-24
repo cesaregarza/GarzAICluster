@@ -1339,7 +1339,15 @@ class CitrusSmsReconciliationChartTests(unittest.TestCase):
         ):
             with self.subTest(exact_guard=exact_guard):
                 self.assertIn(exact_guard, serialized_root_guards)
-        enabled_guards = schema["allOf"][0]["then"]["properties"]
+        sms_enabled_guards = [
+            guard
+            for guard in schema["allOf"]
+            if guard.get("if", {}).get("properties", {}).get(
+                "smsReconciliation", {}
+            ).get("properties", {}).get("enabled") == {"const": True}
+        ]
+        self.assertEqual(len(sms_enabled_guards), 1)
+        enabled_guards = sms_enabled_guards[0]["then"]["properties"]
         self.assertEqual(
             enabled_guards["syncWaves"]["properties"],
             {

@@ -29,8 +29,8 @@
 {{- if not .Values.paymentSafety.enabled -}}
 {{- fail "stripeSmokeRunner.enabled requires paymentSafety.enabled=true" -}}
 {{- end -}}
-{{- if or (ne .Values.paymentSafety.environment "development") (ne .Values.paymentSafety.owner "citrus-dev") (ne .Values.paymentSafety.networkMode "deny") -}}
-{{- fail "stripeSmokeRunner requires the existing citrus-dev development deny contract" -}}
+{{- if or (ne .Values.paymentSafety.environment "development") (ne .Values.paymentSafety.owner "citrus-dev") (not (has .Values.paymentSafety.networkMode (list "deny" "sandbox"))) -}}
+{{- fail "stripeSmokeRunner requires the citrus-dev development deny or sandbox contract" -}}
 {{- end -}}
 {{- if or (not .Values.paymentSafety.policy.required) (ne .Values.paymentSafety.policy.provider "cilium") (not .Values.paymentSafety.networkPolicy.enabled) -}}
 {{- fail "stripeSmokeRunner requires the existing required Cilium payment boundary" -}}

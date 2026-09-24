@@ -61,7 +61,7 @@ spec:
   {{- else }}
   # Development enters default-deny egress as soon as this policy selects its
   # pods. Only chart-owned dependencies and separately reviewed exact FQDNs are
-  # admitted; no Stripe hostname is renderable through this chart.
+  # admitted. Sandbox mode adds one exact Stripe API hostname below.
   egress:
     - toEndpoints:
         - matchLabels:
@@ -104,6 +104,14 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
+    {{- if eq $.Values.paymentSafety.networkMode "sandbox" }}
+    - toFQDNs:
+        - matchName: "api.stripe.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    {{- end }}
     {{- $emailBackend := default "django.core.mail.backends.smtp.EmailBackend" $.Values.application.configData.EMAIL_BACKEND }}
     {{- if eq $emailBackend "django.core.mail.backends.smtp.EmailBackend" }}
     - toFQDNs:
