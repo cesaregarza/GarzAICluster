@@ -395,8 +395,8 @@ class CitrusCiContractTests(unittest.TestCase):
             "Citrus production base render must keep CES-845 disabled",
             "Citrus production Argo render must activate production allow mode",
             "Citrus production must omit generic and dev webhook environment roles",
-            "Citrus dev Argo render must activate CES-845 deny mode",
-            "ces-845-dev-v1",
+            "Citrus dev Argo render must activate sandbox mode",
+            "citrus-dev-sandbox-v1",
             "citrus-payment-safety-dev.yaml",
             "citrus-payment-safety-prod.yaml",
             "PAYMENT_EGRESS_POLICY_REVISION",
@@ -421,7 +421,7 @@ class CitrusCiContractTests(unittest.TestCase):
             "grep -Fc 'name: PAYMENT_EGRESS_POLICY_REVISION'",
             "grep -Fc 'matchName:'",
             "grep -Fc 'port: \"25060\"'",
-            "matchName:.*stripe\\.(com|network)|toEntities:",
+            "toEntities:",
         ):
             with self.subTest(actual_dev_assertion=expected):
                 self.assertIn(expected, run)
@@ -449,7 +449,7 @@ class CitrusCiContractTests(unittest.TestCase):
             "acct_0000000000000000",
             "ces-883-stripe-smoke-v1",
             'matchName: "api.stripe.com"',
-            "Only the enabled dev runner render may contain Stripe egress",
+            "Only active sandbox or enabled dev runner renders may contain Stripe egress",
             "must not add a ServiceAccount",
             "argocd.argoproj.io/hook: PostSync",
             "argocd.argoproj.io/hook-delete-policy: HookSucceeded",

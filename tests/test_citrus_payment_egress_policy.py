@@ -21,7 +21,7 @@ RUNBOOK_PATH = (
 )
 YAML_PARSER = YAML(typ="safe")
 APP_IMAGE = "registry.digitalocean.com/sendouq/citrus:"
-ACTIVE_DEV_REVISION = "ces-845-dev-v1"
+ACTIVE_DEV_REVISION = "citrus-dev-sandbox-v1"
 ATTESTATION = {
     "DJANGO_ENV",
     "CITRUS_ENVIRONMENT_OWNER",
@@ -266,7 +266,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
         _enable_recurring_runtime(prod_command)
         cls.explicit_prod = _documents(prod_command)
 
-    def test_current_argo_activates_only_development_deny_mode(self) -> None:
+    def test_current_payment_overlay_activates_only_development_sandbox_mode(self) -> None:
         self.assertFalse(
             any(
                 document.get("kind") == "CiliumNetworkPolicy"
@@ -330,22 +330,21 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
                 "nyc3.digitaloceanspaces.com",
                 "citrus-media-dev.nyc3.digitaloceanspaces.com",
                 "citrus-media-dev.nyc3.cdn.digitaloceanspaces.com",
+                "api.stripe.com",
             },
         )
-        self.assertFalse(
-            any(
-                host == "stripe.com"
-                or host.endswith(".stripe.com")
-                or host == "stripe.network"
-                or host.endswith(".stripe.network")
-                for host in fqdn_hosts
-            )
-        )
+        for policy in policies:
+            stripe_rules = [rule for rule in policy["spec"]["egress"]
+                            if {"matchName": "api.stripe.com"} in rule.get("toFQDNs", [])]
+            self.assertEqual(stripe_rules, [{
+                "toFQDNs": [{"matchName": "api.stripe.com"}],
+                "toPorts": [{"ports": [{"port": "443", "protocol": "TCP"}]}],
+            }])
 
         expected_env = {
             "DJANGO_ENV": "development",
             "CITRUS_ENVIRONMENT_OWNER": "citrus-dev",
-            "PAYMENT_NETWORK_MODE": "deny",
+            "PAYMENT_NETWORK_MODE": "sandbox",
             "PAYMENT_EGRESS_POLICY_REQUIRED": "true",
             "PAYMENT_EGRESS_POLICY_PROVIDER": "cilium",
             "PAYMENT_EGRESS_POLICY_REVISION": ACTIVE_DEV_REVISION,
@@ -887,8 +886,8 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             RUNBOOK_PATH.read_text(encoding="utf-8").split()
         )
         for required in (
-            "chart defaults and production Application remain disabled",
-            "development overlay now activates CES-845 deny mode",
+            "chart defaults remain disabled",
+            "development payment overlay activates sandbox mode",
             "Cilium adds only `api.stripe.com` on TCP 443",
             "tracks `main` with automated prune and self-heal",
             "review and merge are the deployment gate",

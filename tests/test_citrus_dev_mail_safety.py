@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CHART_PATH = REPO_ROOT / "helm" / "citrus"
 DEV_VALUES = CHART_PATH / "values-dev.yaml"
 YAML_PARSER = YAML(typ="safe")
-DUMMY_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
+CAPTURE_BACKEND = "django.core.mail.backends.filebased.EmailBackend"
 
 
 def _render(*, dev: bool) -> list[dict[str, Any]]:
@@ -29,7 +29,7 @@ def _render(*, dev: bool) -> list[dict[str, Any]]:
         "citrus-dev" if dev else "default",
     ]
     if dev:
-        command.extend(["-f", str(DEV_VALUES)])
+        command.extend(["-f", str(DEV_VALUES), "-f", str(CHART_PATH / "values-payment-dev.yaml")])
 
     result = subprocess.run(
         command,
@@ -70,11 +70,19 @@ class CitrusDevMailSafetyTests(unittest.TestCase):
         cls.dev_documents = _render(dev=True)
         cls.prod_documents = _render(dev=False)
 
-    def test_dev_discards_outbound_mail(self) -> None:
+    def test_dev_captures_mail_privately_without_smtp(self) -> None:
         self.assertEqual(
             _config_map(self.dev_documents)["data"]["EMAIL_BACKEND"],
-            DUMMY_BACKEND,
+            CAPTURE_BACKEND,
         )
+
+        self.assertEqual(
+            _config_map(self.dev_documents)["data"]["EMAIL_FILE_PATH"],
+            "/tmp/citrus-dev-email",
+        )
+        for document in self.dev_documents:
+            if document.get("kind") == "CiliumNetworkPolicy":
+                self.assertNotIn("smtp-relay.gmail.com", str(document))
 
     def test_production_mail_backend_is_not_overridden(self) -> None:
         self.assertNotIn(

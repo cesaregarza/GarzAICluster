@@ -104,7 +104,7 @@ def _render_specs() -> tuple[RenderSpec, ...]:
                 "values-recurring-dev.yaml",
                 "values-stripe-smoke-dev.yaml",
             ),
-            # This matrix checks normal recurring workloads under deny.
+            # This matrix checks normal recurring workloads under sandbox.
             # The active automated runner and its isolated policy have their
             # own actual-Argo-overlay contract in test_citrus_stripe_smoke_runner.
             ("--set", "stripeSmokeRunner.enabled=false",
@@ -246,18 +246,18 @@ def _verify_renders(rendered: dict[str, str], *, active_dev_revision: str) -> No
     for marker in (
         "kind: CiliumNetworkPolicy",
         "citrus.grace/payment-egress-boundary: enabled",
-        'citrus.grace/payment-egress-policy-revision: "ces-845-dev-v1"',
+        'citrus.grace/payment-egress-policy-revision: "citrus-dev-sandbox-v1"',
         "app.kubernetes.io/component: direct-order-payment-sweep",
         "  suspend: false",
         (f'citrus.grace/verified-image-tag: "{active_dev_revision}"'),
         "name: citrus-dev-sweep-runtime",
         'value: "development"',
-        'value: "deny"',
+        'value: "sandbox"',
     ):
         _require(dev, marker, render="citrus-dev")
     if dev.count("name: PAYMENT_EGRESS_POLICY_REVISION") != 6:
         raise ContractError("citrus-dev must attest exactly 6 active Citrus containers")
-    if dev.count('citrus.grace/payment-egress-policy-revision: "ces-845-dev-v1"') != 4:
+    if dev.count('citrus.grace/payment-egress-policy-revision: "citrus-dev-sandbox-v1"') != 4:
         raise ContractError(
             "citrus-dev must retain exactly 4 active payment policy receipts"
         )
@@ -321,8 +321,12 @@ def _verify_renders(rendered: dict[str, str], *, active_dev_revision: str) -> No
             raise ContractError(
                 f"citrus-runtime-dev must project {name} into exactly {count} containers"
             )
-    if re.search(r"matchName:.*stripe\.(?:com|network)", runtime_dev, re.IGNORECASE):
-        raise ContractError("citrus-runtime-dev must omit every Stripe destination")
+    for name, contents in (("citrus-dev", dev), ("citrus-runtime-dev", runtime_dev)):
+        stripe_hosts = re.findall(r'matchName: "([^"\n]*stripe\.(?:com|network))"', contents)
+        if stripe_hosts != ["api.stripe.com", "api.stripe.com"]:
+            raise ContractError(f"{name} must allow only two exact Stripe sandbox API rules")
+        if "toEntities:" in contents:
+            raise ContractError(f"{name} must not allow broad egress")
 
     for name, contents in rendered.items():
         if re.search(r"^kind:\s+Secret\s*$", contents, re.MULTILINE):

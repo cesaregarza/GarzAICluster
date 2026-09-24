@@ -2,17 +2,25 @@
 
 ## Current status
 
-The chart defaults and production Application remain disabled. The development
-overlay now activates CES-845 deny mode for the exact `citrus-dev` release and
-namespace at policy revision `ces-845-dev-v1`. Its checked-in Argo render keeps
-the healthy rollback image pinned while adding the runtime attestation and two
-same-release `CiliumNetworkPolicy` resources at sync wave `-1`.
+The chart defaults remain disabled. Production uses its existing explicit allow
+mode through the production payment overlay and is unchanged by this dev rollout.
+The development payment overlay activates sandbox mode for the exact `citrus-dev`
+release and namespace at policy revision `citrus-dev-sandbox-v1`.
+`values-dev.yaml` retains deny as its fallback; `values-payment-dev.yaml` supplies
+the dedicated test credential projection and the explicit sandbox override.
 
-The `citrus-dev` Application tracks `main` with automated prune and self-heal.
-Merging this activation therefore authorizes and can immediately trigger Argo
-reconciliation; review and merge are the deployment gate. A later source-image
-pin remains a separate change. Never use a Stripe request to validate this
-policy.
+The `citrus-dev` Application tracks `main` with automated prune and self-heal;
+review and merge are the deployment gate. Activate this overlay only after the
+compatible Citrus source image is healthy and has a passed exact-image smoke
+receipt. The image pin is maintained separately by the release tuple updater.
+Never use a Stripe request to validate this policy in deny mode. Once sandbox
+activation is authorized, ordinary test Checkout and verified webhooks form the
+application acceptance test.
+
+Dev captures email with Django's file backend at `/tmp/citrus-dev-email`, outside
+served static/media paths. It does not deliver through SMTP. Read only owned QA
+messages, keep tokens and payment links private, and remove those messages after
+verification. Capture is ephemeral per container; it is not a durable inbox.
 
 ## Boundary
 
@@ -32,7 +40,7 @@ The chart accepts only these named runtime tuples:
 
 | Environment | Release | Namespace | Owner | Network mode |
 | --- | --- | --- | --- | --- |
-| `development` | `citrus-dev` | `citrus-dev` | `citrus-dev` | `deny` |
+| `development` | `citrus-dev` | `citrus-dev` | `citrus-dev` | `deny` or `sandbox` |
 | `production` | `citrus` | `default` | `citrus` | `allow` |
 
 Both require `PAYMENT_EGRESS_POLICY_REQUIRED=true`, provider `cilium`, a safe
@@ -54,7 +62,7 @@ renders independently of this policy. Activating payment safety does not change
 its Secret names, key references, rollout revision, or credential contents.
 The web process receives `STRIPE_WEBHOOK_SECRET_OWNER`, and the chart binds the
 dev webhook variable to `citrus-dev-payment-credentials` owned by `citrus-dev`.
-The separately prepared production overlay remains disabled. Generic webhook
+The production overlay remains on its existing explicit allow configuration. Generic webhook
 projection is not an allowed managed-environment contract. This is value-free
 provenance metadata; it does not classify credential contents, so the CES-844
 operator classification receipt remains a separate gate.
@@ -98,8 +106,9 @@ dev credential overlay. Cilium adds only `api.stripe.com` on TCP 443 to the
 same constrained allowlist. The host is a chart-owned exception; attempts to
 add Stripe through `additionalExternalEgress` continue to fail validation.
 
-Sandbox mode does not enable smoke-runner operations or change the checked-in
-`values-dev.yaml`, which remains in `deny` mode. It does not alter production's
+Sandbox mode does not enable smoke-runner operations. The checked-in baseline
+`values-dev.yaml` remains in `deny`; `values-payment-dev.yaml` overrides the
+active deployment to `sandbox`. It does not alter production's
 explicit `allow` render. The application must still enforce test credential
 class at each payment adapter boundary because Cilium cannot distinguish
 Stripe test and live API credentials.
@@ -109,7 +118,7 @@ Stripe test and live API credentials.
 Production must explicitly select owner `citrus` and network mode `allow`. Its
 same-release Cilium policy renders `toEntities: [all]`, preserving existing
 production connectivity while making the production exception visible and
-revision-bound. This preparation does not activate that mode.
+revision-bound. This dev activation preserves that existing production mode.
 
 ## Development activation inventory
 

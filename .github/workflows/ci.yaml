@@ -691,19 +691,20 @@ jobs:
           test "$(grep -Ec '^kind:[[:space:]]+CiliumNetworkPolicy$' "$active_dev")" -eq 2
           test "$(grep -Fc 'citrus.grace/payment-egress-boundary: enabled' "$active_dev")" -eq 6
           test "$(grep -Fc 'name: PAYMENT_EGRESS_POLICY_REVISION' "$active_dev")" -eq 6
-          test "$(grep -Fc 'value: "ces-845-dev-v1"' "$active_dev")" -eq 6
-          test "$(grep -Fc 'citrus.grace/payment-egress-policy-revision: "ces-845-dev-v1"' "$active_dev")" -eq 4
-          test "$(grep -Fc 'matchName:' "$active_dev")" -eq 8
+          test "$(grep -Fc 'value: "citrus-dev-sandbox-v1"' "$active_dev")" -eq 6
+          test "$(grep -Fc 'citrus.grace/payment-egress-policy-revision: "citrus-dev-sandbox-v1"' "$active_dev")" -eq 4
+          test "$(grep -Fc 'matchName:' "$active_dev")" -eq 10
           test "$(grep -Fc 'port: "25060"' "$active_dev")" -eq 2
           grep -F 'app.kubernetes.io/component: direct-order-payment-sweep' "$active_dev" >/dev/null
           grep -F '  suspend: false' "$active_dev" >/dev/null
           grep -F "citrus.grace/verified-image-tag: \"$active_dev_sha\"" "$active_dev" >/dev/null
           grep -F 'name: citrus-dev-sweep-runtime' "$active_dev" >/dev/null
           grep -F 'value: "development"' "$active_dev" >/dev/null
-          grep -F 'value: "deny"' "$active_dev" >/dev/null
+          grep -F 'value: "sandbox"' "$active_dev" >/dev/null
           grep -F 'value: "cilium"' "$active_dev" >/dev/null
-          if grep -Ei 'matchName:.*stripe\.(com|network)|toEntities:' "$active_dev" >/dev/null; then
-            echo "Citrus dev Argo render must activate CES-845 deny mode without Stripe or broad egress" >&2
+          test "$(grep -Fc 'matchName: "api.stripe.com"' "$active_dev")" -eq 2
+          if grep -Ei 'toEntities:' "$active_dev" >/dev/null; then
+            echo "Citrus dev Argo render must activate sandbox mode without broad egress" >&2
             exit 1
           fi
 
@@ -728,7 +729,7 @@ jobs:
           test "$(grep -Fc 'name: CITRUS_STRIPE_SMOKE_EXPECTED_ACCOUNT_ID' "$stripe_smoke")" -eq 1
           test "$(grep -Fc 'value: "acct_0000000000000000"' "$stripe_smoke")" -eq 1
           test "$(grep -Fc 'value: "ces-883-stripe-smoke-v1"' "$stripe_smoke")" -eq 1
-          test "$(grep -Fc 'matchName: "api.stripe.com"' "$stripe_smoke")" -eq 1
+          test "$(grep -Fc 'matchName: "api.stripe.com"' "$stripe_smoke")" -eq 3
           test "$(grep -Fc 'port: "25060"' "$stripe_smoke")" -eq 3
           test "$(grep -Ec '^kind:[[:space:]]+CiliumNetworkPolicy$' "$stripe_smoke")" -eq 3
           if grep -F 'serviceAccountName:' "$stripe_smoke" >/dev/null; then
@@ -756,7 +757,7 @@ jobs:
           grep -F 'value: "ces-881-stripe-smoke-gate-v1"' "$stripe_smoke_auto" >/dev/null
           grep -F 'toEntities:' "$stripe_smoke_auto" >/dev/null
           grep -F -- '- kube-apiserver' "$stripe_smoke_auto" >/dev/null
-          test "$(grep -Fc 'matchName: "api.stripe.com"' "$stripe_smoke_auto")" -eq 1
+          test "$(grep -Fc 'matchName: "api.stripe.com"' "$stripe_smoke_auto")" -eq 3
           test "$(grep -Ec '^kind:[[:space:]]+(ServiceAccount|Role|RoleBinding)$' "$stripe_smoke_auto")" -eq 3
           if grep -F 'ttlSecondsAfterFinished:' "$stripe_smoke_auto" >/dev/null; then
             echo "Failed smoke hooks must remain available for diagnosis" >&2
@@ -767,8 +768,16 @@ jobs:
             if [[ "$file" == "$stripe_smoke" || "$file" == "$stripe_smoke_auto" ]]; then
               continue
             fi
-            if grep -Ei 'matchName:.*stripe\.(com|network)|CITRUS_STRIPE_SMOKE_' "$file" >/dev/null; then
-              echo "Only the enabled dev runner render may contain Stripe egress or the smoke marker: $file" >&2
+            if grep -F 'CITRUS_STRIPE_SMOKE_' "$file" >/dev/null; then
+              echo "Only the enabled dev runner render may contain the smoke marker: $file" >&2
+              exit 1
+            fi
+            if [[ "$file" == "$active_dev" || "$file" == "rendered/citrus-runtime-dev.yaml" || "$file" == "rendered/citrus-payment-dev.yaml" ]]; then
+              test "$(grep -Fc 'matchName: "api.stripe.com"' "$file")" -eq 2
+              continue
+            fi
+            if grep -Ei 'matchName:.*stripe\.(com|network)' "$file" >/dev/null; then
+              echo "Only active sandbox or enabled dev runner renders may contain Stripe egress: $file" >&2
               exit 1
             fi
           done
