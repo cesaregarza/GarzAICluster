@@ -3,4 +3,4 @@
 # Remove this overlay only after the new image can start with the narrower roles.
 paymentCredentials:
   legacyProductionRuntime: true
-  legacyProductionRuntimeVerifiedImageTag: 3f68967f777b2665fccb4f0ab423f339b8ea1357
+  legacyProductionRuntimeVerifiedImageTag: fb4d7d9932494ce6095c21a37dee6b027a20299b

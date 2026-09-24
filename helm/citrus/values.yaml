@@ -12,7 +12,7 @@ strategy:
 
 image:
   repository: registry.digitalocean.com/sendouq/citrus
-  tag: 3f68967f777b2665fccb4f0ab423f339b8ea1357 # allow-latest
+  tag: fb4d7d9932494ce6095c21a37dee6b027a20299b # allow-latest
   pullPolicy: IfNotPresent
 
 # CES-881 production-promotion authority. The operator copies the exact SHA
@@ -21,7 +21,7 @@ image:
 # advancing image.tag on its own while this gate is enabled.
 stripeSmokePromotion:
   enabled: true
-  verifiedImageTag: 3f68967f777b2665fccb4f0ab423f339b8ea1357
+  verifiedImageTag: fb4d7d9932494ce6095c21a37dee6b027a20299b
 
 nameOverride: ""
 fullnameOverride: ""
@@ -250,7 +250,7 @@ recurringRuntime:
   # Must equal image.tag before any recurring component can render. The source
   # preflight compares this expected revision with the revision baked into the
   # image by the trusted Citrus build workflow.
-  expectedSourceRevision: 3f68967f777b2665fccb4f0ab423f339b8ea1357
+  expectedSourceRevision: fb4d7d9932494ce6095c21a37dee6b027a20299b
   # The scheduler and per-workload revisions are an explicit, nonsecret
   # topology attestation. All four revisions must match before Helm will render
   # any recurring controller.
