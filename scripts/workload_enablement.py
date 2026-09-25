@@ -35,13 +35,11 @@ ALLOWED_TOP_LEVEL_KEYS = {
     "capability",
     "grant",
     "model_bounds",
-    "worker",
     "secrets",
     "network",
 }
 ALLOWED_GRANT_KEYS = {"binding"}
 ALLOWED_MODEL_BOUNDS_KEYS = {"allowed_profile"}
-ALLOWED_WORKER_KEYS = {"claims"}
 ALLOWED_SECRET_KEYS = {"key"}
 ALLOWED_NETWORK_KEYS = {"to"}
 
@@ -142,16 +140,6 @@ def apply_workload_enablement(
             str(registry_overlay_value_path(repo_root, "workload_imports.yaml"))
         )
 
-    worker_claims_changed = _plan_worker_claims(
-        document=document,
-        workload_id=workload_id,
-        capability_id=capability_id,
-        values=values,
-        actions=actions,
-    )
-    if worker_claims_changed:
-        changed_files.add(str(AGENT_WORKLOADS_VALUES_PATH))
-
     _plan_secret_references(
         repo_root=repo_root,
         document=document,
@@ -170,8 +158,6 @@ def apply_workload_enablement(
             overlay_updates["workload_imports.yaml"] = _dump_yaml(workload_imports)
         if overlay_updates:
             write_registry_overlay_values(repo_root, overlay_updates)
-        if worker_claims_changed:
-            _write_yaml(values_path, values)
 
     result = WorkloadEnablementResult(
         workload=_required_str(import_entry.get("id"), "workload import id"),
@@ -233,7 +219,6 @@ def _load_document(path: Path) -> dict[str, Any]:
         raise WorkloadEnablementError(f"kind must be {KIND!r}")
     _validate_grant(document.get("grant"))
     _validate_model_bounds(document.get("model_bounds"))
-    _validate_worker(document.get("worker"))
     _validate_secrets(document.get("secrets"))
     _validate_network(document.get("network"))
     return document
@@ -257,15 +242,6 @@ def _validate_model_bounds(value: Any) -> None:
         raise WorkloadEnablementError(
             "model_bounds must declare exactly one non-empty allowed_profile"
         )
-
-
-def _validate_worker(value: Any) -> None:
-    if value is None:
-        return
-    worker = _required_mapping(value, "worker")
-    _reject_unknown_keys(worker, ALLOWED_WORKER_KEYS, "worker")
-    if worker.get("claims") is not True:
-        raise WorkloadEnablementError("worker.claims must be true when declared")
 
 
 def _validate_secrets(value: Any) -> None:
@@ -357,50 +333,6 @@ def _plan_model_bounds(
             code="model_profile_set",
             message=f"Set `{capability_id}` allowed model profile to `{profile}`.",
             path="data.workload_imports.yaml",
-        )
-    )
-    return True
-
-
-def _plan_worker_claims(
-    *,
-    document: dict[str, Any],
-    workload_id: str,
-    capability_id: str,
-    values: dict[str, Any],
-    actions: list[EnablementAction],
-) -> bool:
-    worker = document.get("worker")
-    if worker is None or worker.get("claims") is not True:
-        return False
-    workers = values.get("workers")
-    if not isinstance(workers, dict) or workload_id not in workers:
-        raise WorkloadEnablementError(
-            f"worker claim-list path is unknown for workload {workload_id!r}"
-        )
-    env_path = ("workers", workload_id, "env", "AGENT_WORKLOADS_WORKER_CAPABILITIES")
-    current = _get_nested(values, list(env_path))
-    if not isinstance(current, str):
-        raise WorkloadEnablementError(
-            f"worker capability env is missing or not scalar for workload {workload_id!r}"
-        )
-    capabilities = [item.strip() for item in current.split(",") if item.strip()]
-    if capability_id in capabilities:
-        actions.append(
-            EnablementAction(
-                code="worker_claim_present",
-                message=f"`{workload_id}` already claims `{capability_id}`.",
-                path=str(AGENT_WORKLOADS_VALUES_PATH),
-            )
-        )
-        return False
-    capabilities.append(capability_id)
-    _set_nested(values, list(env_path), ",".join(sorted(capabilities)))
-    actions.append(
-        EnablementAction(
-            code="worker_claim_added",
-            message=f"Add `{capability_id}` to `{workload_id}` worker claim list.",
-            path=str(AGENT_WORKLOADS_VALUES_PATH),
         )
     )
     return True
@@ -571,29 +503,6 @@ def _dump_yaml(payload: Any) -> str:
     stream = StringIO()
     YAML_RT.dump(payload, stream)
     return stream.getvalue()
-
-
-def _write_yaml(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(_dump_yaml(payload), encoding="utf-8")
-
-
-def _get_nested(root: dict[str, Any], parts: list[str]) -> Any:
-    current: Any = root
-    for part in parts:
-        if not isinstance(current, dict) or part not in current:
-            return None
-        current = current[part]
-    return current
-
-
-def _set_nested(root: dict[str, Any], parts: list[str], value: Any) -> None:
-    current = root
-    for part in parts[:-1]:
-        child = current.get(part)
-        if not isinstance(child, dict):
-            raise WorkloadEnablementError(f"cannot descend into scalar key {part!r}")
-        current = child
-    current[parts[-1]] = value
 
 
 def _required_mapping(value: Any, label: str) -> dict[str, Any]:

@@ -66,7 +66,6 @@ workers:
     env:
       MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
       AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
-      AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.db_probe,agent_workloads.readonly_query
       AGENT_WORKLOADS_ENVIRONMENT: production
       AGENT_WORKLOADS_SCHEMA: agent_workloads
       AGENT_WORKLOADS_POLL_SECONDS: '2'
@@ -206,7 +205,6 @@ workers:
     env:
       MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
       AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
-      AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_apply
       AGENT_WORKLOADS_POLL_SECONDS: '2'
       AGENT_WORKLOADS_ENVIRONMENT: production
       AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_DIR: /workspace/job
@@ -372,7 +370,6 @@ workers:
       MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
       MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
       AGENT_WORKLOADS_WORKER_ID: opencode.proposer
-      AGENT_WORKLOADS_WORKER_CAPABILITIES: agent_workloads.opencode_propose,agent_workloads.opencode_task,agent_workloads.opencode_orchestrate
       AGENT_WORKLOADS_POLL_SECONDS: '2'
       AGENT_WORKLOADS_ENVIRONMENT: production
       AGENT_WORKLOADS_OPENCODE_WORKSPACE_DIR: /workspace/job

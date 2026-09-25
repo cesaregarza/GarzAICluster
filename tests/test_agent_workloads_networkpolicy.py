@@ -375,10 +375,6 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
             apply_env["AGENT_WORKLOADS_WORKER_ID"]["value"],
             "opencode.apply_executor",
         )
-        self.assertEqual(
-            apply_env["AGENT_WORKLOADS_WORKER_CAPABILITIES"]["value"],
-            "agent_workloads.opencode_apply",
-        )
         apply_image = self.values["workers"]["opencode.apply_executor"]["image"]
         self.assertEqual(
             apply_executor["image"],
