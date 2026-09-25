@@ -11,7 +11,7 @@ from ruamel.yaml import YAML
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHART_PATH = REPO_ROOT / "helm" / "citrus"
-CURRENT_PROD_SHA = "3f68967f777b2665fccb4f0ab423f339b8ea1357"
+CURRENT_PROD_SHA = "fb4d7d9932494ce6095c21a37dee6b027a20299b"
 NEXT_SHA = "a" * 40
 YAML_PARSER = YAML(typ="safe")
 
