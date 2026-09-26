@@ -18,11 +18,6 @@ imports:
     max_runtime_seconds: 120
     model_call: true
     readonly_sql_broker: true
-    previous_release:
-      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-f678cc2337ff1df8d22e
-      code_digest: sha256:c92818378dff1d477e7bd01da549601ff67b851aa5d0103fbf50288de09fc7d4
-      manifest_digest: sha256:21df383248a615db3af1ccff263dd49ea42f96f26784684fccfff12ece1e4728
-      image_digest: sha256:ae3c91372ff156bf131d0240cb2c39eb0e46ca935791b9df3bc74b80f31705f0
   capabilities:
     agent_workloads.db_probe:
       description: Imported reversible staging database workspace probe.
@@ -105,11 +100,6 @@ imports:
     max_runtime_seconds: 900
     model_gateway_token: true
     service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-d52435fdf1b5fb40e6e1
-    previous_release:
-      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-f194a7d61ab07eeba167
-      code_digest: sha256:be93ef1f2e0bc36c4ede6795a9423804e31e5b16e74a3afccb0f3ac7498fe6e3
-      manifest_digest: sha256:9104b8dfc03590c48e7fb9183020f64e43dd0988c6e88777f515c8c542bb3633
-      image_digest: sha256:89adae8acc9a65139fa7d17e66ae175a9eb4e404b018f9e7529d25575c2fac63
   capabilities:
     agent_workloads.opencode_propose:
       description: Imported OpenCode proposer that writes requested edits as isolated
@@ -329,11 +319,6 @@ imports:
     concurrency: 1
     max_runtime_seconds: 300
     service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-apply-executor-7e56d4b27c2002b0859f
-    previous_release:
-      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-apply-executor-0df6f2b124cf5088d190
-      code_digest: sha256:ac201bfe895911a79d8adae580b5295a7ec7fd5ba27bf4bd80ab6b096dfbcf4a
-      manifest_digest: sha256:783bf8d249e7161f469e756ce6648ce554f43d7392d067dd38be43e7eee300e7
-      image_digest: sha256:9fe82fa198394617c2a0a7d0e72f6c5e688b149a9319f0eb528aec532926af28
   capabilities:
     agent_workloads.opencode_apply:
       description: Imported OpenCode apply executor for approved proposal diffs.
