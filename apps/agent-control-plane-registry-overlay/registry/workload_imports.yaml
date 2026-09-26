@@ -2,8 +2,8 @@ schema_version: workload-imports.v1
 imports:
 - id: data.workspace_probe
   manifest_path: registries/imports/agent-data.workspace_probe.json
-  manifest_digest: sha256:81e539e42ec8fdad8881fdc249badafb1cfceb3a6db7491b4ebb8bda29c606d3
-  image_digest: sha256:752ac6e502491df926c62b1a3aa13ffc477c03a173ce2e2f8e3b0700d09b4073
+  manifest_digest: sha256:b0e6c9b402a377b330415126252b4232b4842c1fff048188d3b30e0761ab5c30
+  image_digest: sha256:92081e8963b906b45deafa3aea9266d5bd5822d739ebff7860652d6a6959159b
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
@@ -12,12 +12,17 @@ imports:
     execution_posture: capability_worker
     network_access: database_only
     service_account_ref: agent-workloads-worker
-    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-40200129baf5f16146a3
+    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-6645f649c5771bb3f04a
     capacity_tier: 4
     concurrency: 1
     max_runtime_seconds: 120
     model_call: true
     readonly_sql_broker: true
+    previous_release:
+      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-40200129baf5f16146a3
+      code_digest: sha256:c97cb53d1dc4b8d63365a6c89e1f3c75148eeeb17c81d0a3e17b11e881dce10c
+      manifest_digest: sha256:81e539e42ec8fdad8881fdc249badafb1cfceb3a6db7491b4ebb8bda29c606d3
+      image_digest: sha256:752ac6e502491df926c62b1a3aa13ffc477c03a173ce2e2f8e3b0700d09b4073
   capabilities:
     agent_workloads.db_probe:
       description: Imported reversible staging database workspace probe.

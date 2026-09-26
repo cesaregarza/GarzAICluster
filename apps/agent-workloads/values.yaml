@@ -14,7 +14,6 @@ workspaceSeedBundle:
   base64: IyB2MiBnaXQgYnVuZGxlCmQyZTJjYmVmM2EzMTMwYTZhY2FmN2U3OTRhNjNkNTA3OTMxNjc3NzcgcmVmcy9oZWFkcy9tYWluCgpQQUNLAAAAAgAAAAORQHicfZPJrqtGFEXnfEXNrVzTN9JL9Mpg+guUwdh4hoGiB5vGGL4+Tl4GGUTZwyVt6ehor2nIMiDxNGZIhhYSEnMiJ5JZeqcY/CFkiu8pL7JkFmMxIeJ5KvoBJNkYD1keD1sMfrAkTXMkSe3+RX/OYzaMX10/ZI9m/crLqZjvX0nf/gEoQaQoTmBZHuxIiiSJD23LacoGoJWTPt/Bj39qP/+3lj/ysczBb3/lcNQMB3iaB3xDc2BwPh3/5gQgwDKqyQHCgwwhOiDzadWcJp9kKkbCPHPnooEQDpuBoK0z/qJ3vFdR77pO8tOV/U5VkwA3B/Fi10F8eKJeX59YLRULspGvKVvefD/Hm5tcRkvRFScSknKN48sYodt9xEdeenKIAL4th0cDditjl9P7aiWhxFmajTTJVlkl0059LGf366am++dbFi5Fpe3CZDqm1DL4jwtJANv1MPT42Eaww+ID5WTbxE2bvrbU/8ZasxWpmiTzLEzrWHRFy5SQxraedq3n6dUtJ8AgRkxXC+GyJub1agmkR/Lm07FrHyXFcy7omnMnh0O0EdSJLF05NuQs9nBlhrY6hx77+eQ+oOlqerkT7yksZY7n98E5lZav77qcl0a5HtsKarB5NciaZPehQ1wo97LbTt59ZCQCINFhwmBsmKuOyLM9bY0ivNuLqtJCk1FKPfWmg/CqMOXrttom3fvZ5NWme0acUM+3PQF0KjWC4HLJl5fpW5GxD4X8hL5P7LPvpqauX72uNa7Tqmxnj2FLrxncnGvx1sVTLqsXmgAeTgzVLlU5wvTIz91he++8W9IO6qFmhZkWuSndpG3oi620305VhUvkp7CxKjsNXvvPDcpNLBrWnKrOC4OaK3EHRUPyhmO47o/J+96mVyflthL7Uk+/dpykXs6X/bJFYp1Yiu8SYFaESpNJXlwWXXIHXAjzFrkaVQvzk53rKN9rXBUw8vh47QPdD7rFdlXjPLyRlvZ2QhFgdT7WzadOw1nl0SGS81gnwO+fOYXELyeOjvLfRhBGV05l3IBf4v0JzgJGGqUCeJwzNDAwMzFRCHJ1dPF11ctNYUj9dWGi3szc46/3vV1yZO1Z7rQdT5QB+BsQYL4FeJxTVshNzEtJLEnVLQbSSfkVXL4QvkJ+QWpecn5KqgJUQkFXIT2/LLUoLzVFoaAovyC/ODFHP7GgIKdSoSSxKD21REHD2TVY19DAVB9MG5lrcgEAQHsftwQVocG6EFZbspuJ7gS5xCZ+WWpK
   name: agent-workloads-opencode-proposer-seed-bundle
   appName: opencode-proposer
-
 workers:
   data.workspace_probe:
     enabled: true
@@ -31,8 +30,8 @@ workers:
     containerName: worker
     image:
       repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-      tag: sha-372af45558df
-      digest: sha256:752ac6e502491df926c62b1a3aa13ffc477c03a173ce2e2f8e3b0700d09b4073
+      tag: sha-e2798cc9d8d2
+      digest: sha256:92081e8963b906b45deafa3aea9266d5bd5822d739ebff7860652d6a6959159b
       pullPolicy: IfNotPresent
     identity:
       workerId: data.workspace_probe
@@ -53,12 +52,15 @@ workers:
         codeDigest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
         manifestDigest: sha256:912222e0cf0adea2733166543213e6ff70aadff34f13815ca36038bdf30d123f
         imageDigest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
-      previousRelease: null
+      previousRelease:
+        codeDigest: sha256:c97cb53d1dc4b8d63365a6c89e1f3c75148eeeb17c81d0a3e17b11e881dce10c
+        manifestDigest: sha256:81e539e42ec8fdad8881fdc249badafb1cfceb3a6db7491b4ebb8bda29c606d3
+        imageDigest: sha256:752ac6e502491df926c62b1a3aa13ffc477c03a173ce2e2f8e3b0700d09b4073
     command:
-      - agent-workloads-worker
+    - agent-workloads-worker
     args: []
     secretKeys:
-      - AGENT_WORKLOADS_DATABASE_URL
+    - AGENT_WORKLOADS_DATABASE_URL
     secretEnv: {}
     env:
       MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
@@ -70,7 +72,7 @@ workers:
       AGENT_WORKLOADS_READONLY_QUERY_MAX_PASSES: '3'
       AGENT_WORKLOADS_READONLY_QUERY_MAX_ROWS: '50'
       AGENT_WORKLOADS_READONLY_QUERY_CONNECT_TIMEOUT_SECONDS: '5'
-    handoffMode: ""
+    handoffMode: ''
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 65532
@@ -83,7 +85,8 @@ workers:
       readOnlyRootFilesystem: true
       runAsNonRoot: true
       capabilities:
-        drop: [ALL]
+        drop:
+        - ALL
     resources:
       requests:
         cpu: 25m
@@ -95,61 +98,60 @@ workers:
       enabled: false
       name: init-workspace
       command: []
-      script: ""
+      script: ''
       args: []
       env: []
       volumeMounts: []
     volumes:
-      - name: tmp
-        emptyDir: {}
+    - name: tmp
+      emptyDir: {}
     volumeMounts:
-      - name: tmp
-        mountPath: /tmp
+    - name: tmp
+      mountPath: /tmp
     networkPolicy:
       enabled: true
       egress:
         dns:
           enabled: true
           destinations:
-            - namespaceSelector:
-                matchLabels:
-                  kubernetes.io/metadata.name: kube-system
-              podSelector:
-                matchLabels:
-                  k8s-app: kube-dns
-          ports:
-            - port: 53
-              protocol: UDP
-            - port: 53
-              protocol: TCP
-        destinations:
           - namespaceSelector:
               matchLabels:
-                kubernetes.io/metadata.name: agent-control-plane
+                kubernetes.io/metadata.name: kube-system
             podSelector:
               matchLabels:
-                app.kubernetes.io/name: agent-control-plane
-                app.kubernetes.io/instance: agent-control-plane
-                app.kubernetes.io/component: api
-            ports:
-              - port: 80
-                protocol: TCP
-              - port: 8000
-                protocol: TCP
-          - ipBlock:
-              cidr: 10.108.0.0/20
-            ports:
-              - port: 25060
-                protocol: TCP
-          - ipBlock:
-              cidr: 159.203.109.0/32
-            ports:
-              - port: 25060
-                protocol: TCP
+                k8s-app: kube-dns
+          ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+        destinations:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agent-control-plane
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: agent-control-plane
+              app.kubernetes.io/instance: agent-control-plane
+              app.kubernetes.io/component: api
+          ports:
+          - port: 80
+            protocol: TCP
+          - port: 8000
+            protocol: TCP
+        - ipBlock:
+            cidr: 10.108.0.0/20
+          ports:
+          - port: 25060
+            protocol: TCP
+        - ipBlock:
+            cidr: 159.203.109.0/32
+          ports:
+          - port: 25060
+            protocol: TCP
     workspace:
       seedBundle: false
-      seedConfigMapName: ""
-
+      seedConfigMapName: ''
   opencode.apply_executor:
     enabled: true
     replicaCount: 1
@@ -193,7 +195,7 @@ workers:
         imageDigest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
       previousRelease: null
     command:
-      - agent-workloads-worker
+    - agent-workloads-worker
     args: []
     secretKeys: []
     secretEnv: {}
@@ -221,7 +223,8 @@ workers:
       readOnlyRootFilesystem: true
       runAsNonRoot: true
       capabilities:
-        drop: [ALL]
+        drop:
+        - ALL
     resources:
       requests:
         cpu: 50m
@@ -232,7 +235,9 @@ workers:
     initWorkspace:
       enabled: true
       name: init-apply-workspace
-      command: [/bin/sh, -c]
+      command:
+      - /bin/sh
+      - -c
       script: |
         set -eu
         pin="d2e2cbef3a3130a6acaf7e794a63d50793167777"
@@ -250,68 +255,67 @@ workers:
         printf '{"schema_version":"agent_workloads_opencode_workspace_seed_v1","base_repo":"https://github.com/cesaregarza/mandate-sandbox","base_ref_name":"main","base_commit_sha":"%s","base_tree_sha":"%s"}\n' "$head" "$tree" > /workspace/seed/apply-workspace-seed.json
       args: []
       env:
-        - name: HOME
-          value: /tmp
-        - name: TMPDIR
-          value: /tmp
+      - name: HOME
+        value: /tmp
+      - name: TMPDIR
+        value: /tmp
       volumeMounts:
-        - name: apply-tmp
-          mountPath: /tmp
-        - name: apply-workspace
-          mountPath: /workspace/job
-        - name: apply-workspace-seed
-          mountPath: /workspace/seed
-    volumes:
-      - name: apply-tmp
-        emptyDir: {}
-      - name: apply-workspace
-        emptyDir: {}
-      - name: apply-workspace-seed
-        emptyDir:
-          sizeLimit: 8Mi
-    volumeMounts:
       - name: apply-tmp
         mountPath: /tmp
       - name: apply-workspace
         mountPath: /workspace/job
       - name: apply-workspace-seed
         mountPath: /workspace/seed
-        readOnly: true
+    volumes:
+    - name: apply-tmp
+      emptyDir: {}
+    - name: apply-workspace
+      emptyDir: {}
+    - name: apply-workspace-seed
+      emptyDir:
+        sizeLimit: 8Mi
+    volumeMounts:
+    - name: apply-tmp
+      mountPath: /tmp
+    - name: apply-workspace
+      mountPath: /workspace/job
+    - name: apply-workspace-seed
+      mountPath: /workspace/seed
+      readOnly: true
     networkPolicy:
       enabled: true
       egress:
         dns:
           enabled: true
           destinations:
-            - namespaceSelector:
-                matchLabels:
-                  kubernetes.io/metadata.name: kube-system
-              podSelector:
-                matchLabels:
-                  k8s-app: kube-dns
-          ports:
-            - port: 53
-              protocol: UDP
-            - port: 53
-              protocol: TCP
-        destinations:
           - namespaceSelector:
               matchLabels:
-                kubernetes.io/metadata.name: agent-control-plane
+                kubernetes.io/metadata.name: kube-system
             podSelector:
               matchLabels:
-                app.kubernetes.io/name: agent-control-plane
-                app.kubernetes.io/instance: agent-control-plane
-                app.kubernetes.io/component: api
-            ports:
-              - port: 80
-                protocol: TCP
-              - port: 8000
-                protocol: TCP
+                k8s-app: kube-dns
+          ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+        destinations:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agent-control-plane
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: agent-control-plane
+              app.kubernetes.io/instance: agent-control-plane
+              app.kubernetes.io/component: api
+          ports:
+          - port: 80
+            protocol: TCP
+          - port: 8000
+            protocol: TCP
     workspace:
       seedBundle: true
       seedConfigMapName: agent-workloads-opencode-proposer-seed-bundle
-
   opencode.proposer:
     enabled: true
     replicaCount: 1
@@ -355,7 +359,7 @@ workers:
         imageDigest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
       previousRelease: null
     command:
-      - agent-workloads-worker
+    - agent-workloads-worker
     args: []
     secretKeys: []
     secretEnv: {}
@@ -385,7 +389,8 @@ workers:
       readOnlyRootFilesystem: true
       runAsNonRoot: true
       capabilities:
-        drop: [ALL]
+        drop:
+        - ALL
     resources:
       requests:
         cpu: 100m
@@ -396,7 +401,9 @@ workers:
     initWorkspace:
       enabled: true
       name: init-workspace
-      command: [/bin/sh, -c]
+      command:
+      - /bin/sh
+      - -c
       script: |
         set -eu
         pin="d2e2cbef3a3130a6acaf7e794a63d50793167777"
@@ -415,31 +422,11 @@ workers:
         printf '{"schema_version":"agent_workloads_opencode_workspace_seed_v1","base_repo":"https://github.com/cesaregarza/mandate-sandbox","base_ref_name":"main","base_commit_sha":"%s","base_tree_sha":"%s"}\n' "$head" "$tree" > /workspace/seed/workspace-seed.json
       args: []
       env:
-        - name: HOME
-          value: /tmp
-        - name: TMPDIR
-          value: /tmp
+      - name: HOME
+        value: /tmp
+      - name: TMPDIR
+        value: /tmp
       volumeMounts:
-        - name: proposer-tmp
-          mountPath: /tmp
-        - name: proposer-workspace
-          mountPath: /workspace/job
-        - name: proposer-artifacts
-          mountPath: /workspace/proposals
-        - name: proposer-workspace-seed
-          mountPath: /workspace/seed
-    volumes:
-      - name: proposer-tmp
-        emptyDir: {}
-      - name: proposer-workspace
-        emptyDir: {}
-      - name: proposer-artifacts
-        emptyDir:
-          sizeLimit: 4Mi
-      - name: proposer-workspace-seed
-        emptyDir:
-          sizeLimit: 8Mi
-    volumeMounts:
       - name: proposer-tmp
         mountPath: /tmp
       - name: proposer-workspace
@@ -448,60 +435,79 @@ workers:
         mountPath: /workspace/proposals
       - name: proposer-workspace-seed
         mountPath: /workspace/seed
-        readOnly: true
+    volumes:
+    - name: proposer-tmp
+      emptyDir: {}
+    - name: proposer-workspace
+      emptyDir: {}
+    - name: proposer-artifacts
+      emptyDir:
+        sizeLimit: 4Mi
+    - name: proposer-workspace-seed
+      emptyDir:
+        sizeLimit: 8Mi
+    volumeMounts:
+    - name: proposer-tmp
+      mountPath: /tmp
+    - name: proposer-workspace
+      mountPath: /workspace/job
+    - name: proposer-artifacts
+      mountPath: /workspace/proposals
+    - name: proposer-workspace-seed
+      mountPath: /workspace/seed
+      readOnly: true
     networkPolicy:
       enabled: true
       egress:
         dns:
           enabled: true
           destinations:
-            - namespaceSelector:
-                matchLabels:
-                  kubernetes.io/metadata.name: kube-system
-              podSelector:
-                matchLabels:
-                  k8s-app: kube-dns
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
           ports:
-            - port: 53
-              protocol: UDP
-            - port: 53
-              protocol: TCP
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
         destinations:
-          - namespaceSelector:
-              matchLabels:
-                kubernetes.io/metadata.name: agent-control-plane
-            podSelector:
-              matchLabels:
-                app.kubernetes.io/name: agent-control-plane
-                app.kubernetes.io/instance: agent-control-plane
-                app.kubernetes.io/component: api
-            ports:
-              - port: 80
-                protocol: TCP
-              - port: 8000
-                protocol: TCP
-          - namespaceSelector:
-              matchLabels:
-                kubernetes.io/metadata.name: agent-control-plane
-            podSelector:
-              matchLabels:
-                app.kubernetes.io/name: agent-control-plane
-                app.kubernetes.io/instance: agent-control-plane
-                app.kubernetes.io/component: model-gateway
-            ports:
-              - port: 80
-                protocol: TCP
-              - port: 8000
-                protocol: TCP
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agent-control-plane
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: agent-control-plane
+              app.kubernetes.io/instance: agent-control-plane
+              app.kubernetes.io/component: api
+          ports:
+          - port: 80
+            protocol: TCP
+          - port: 8000
+            protocol: TCP
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agent-control-plane
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: agent-control-plane
+              app.kubernetes.io/instance: agent-control-plane
+              app.kubernetes.io/component: model-gateway
+          ports:
+          - port: 80
+            protocol: TCP
+          - port: 8000
+            protocol: TCP
     workspace:
       seedBundle: true
       seedConfigMapName: agent-workloads-opencode-proposer-seed-bundle
-
 mandateReleasePins:
   data.workspace_probe:
-    codeDigest: sha256:c97cb53d1dc4b8d63365a6c89e1f3c75148eeeb17c81d0a3e17b11e881dce10c
-    manifestDigest: sha256:81e539e42ec8fdad8881fdc249badafb1cfceb3a6db7491b4ebb8bda29c606d3
-    imageDigest: sha256:752ac6e502491df926c62b1a3aa13ffc477c03a173ce2e2f8e3b0700d09b4073
+    codeDigest: sha256:793059aa0a5d2ae453168caa3f33825d6cf7cead5b3c45ac859b030e12f08a49
+    manifestDigest: sha256:b0e6c9b402a377b330415126252b4232b4842c1fff048188d3b30e0761ab5c30
+    imageDigest: sha256:92081e8963b906b45deafa3aea9266d5bd5822d739ebff7860652d6a6959159b
   opencode.apply_executor:
     codeDigest: sha256:675e6f6a504c5af97125edf3f8b7cd7c8be2e0846c395ed350d36768abc945d1
     manifestDigest: sha256:1d5b468ca29df08fe21fa2310bd7489e29de62cdcd1ec5ddeea591653db62c09
