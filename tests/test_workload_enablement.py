@@ -32,49 +32,18 @@ YAML_WRITER = YAML()
 
 
 class WorkloadEnablementTests(unittest.TestCase):
-    def test_claim_planner_uses_a_new_worker_entry_and_preserves_other_claims(
-        self,
-    ) -> None:
-        from scripts.workload_enablement import _plan_worker_claims
-
-        values = {
-            "workers": {
-                "example.fourth": {
-                    "env": {"AGENT_WORKLOADS_WORKER_CAPABILITIES": "example.old"}
-                },
-                "example.other": {
-                    "env": {"AGENT_WORKLOADS_WORKER_CAPABILITIES": "example.keep"}
-                },
-            }
-        }
-        actions = []
-        self.assertTrue(
-            _plan_worker_claims(
-                document={"worker": {"claims": True}},
-                workload_id="example.fourth",
-                capability_id="example.new",
-                values=values,
-                actions=actions,
-            )
-        )
-        self.assertEqual(
-            _worker_env(values, "example.fourth")[
-                "AGENT_WORKLOADS_WORKER_CAPABILITIES"
-            ],
-            "example.new,example.old",
-        )
-        self.assertEqual(
-            _worker_env(values, "example.other")["AGENT_WORKLOADS_WORKER_CAPABILITIES"],
-            "example.keep",
-        )
-        with self.assertRaisesRegex(WorkloadEnablementError, "unknown"):
-            _plan_worker_claims(
-                document={"worker": {"claims": True}},
-                workload_id="missing",
-                capability_id="example.new",
-                values=values,
-                actions=[],
-            )
+    def test_retired_worker_claim_configuration_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = _write_enablement(root, {
+                "schema_version": "mandate-workload-enablement.v1",
+                "kind": "MandateWorkloadEnablement",
+                "workload": "data.workspace_probe",
+                "capability": "agent_workloads.readonly_query",
+                "worker": {"claims": True},
+            })
+            with self.assertRaisesRegex(WorkloadEnablementError, "unsupported keys: worker"):
+                plan_workload_enablement(repo_root=root, document_path=document)
 
     def test_existing_readonly_query_enablement_plans_no_changes(self) -> None:
         root = _fixture_repo()
@@ -89,7 +58,6 @@ class WorkloadEnablementTests(unittest.TestCase):
                 "model_bounds": {
                     "allowed_profile": "openai.gpt-5.6-luna",
                 },
-                "worker": {"claims": True},
             },
         )
 
@@ -99,14 +67,11 @@ class WorkloadEnablementTests(unittest.TestCase):
         self.assertFalse(result.gaps)
         self.assertIn("policy_grant_present", _codes(result.actions))
         self.assertIn("model_profile_present", _codes(result.actions))
-        self.assertIn("worker_claim_present", _codes(result.actions))
 
-    def test_write_adds_policy_grant_and_worker_claim_only(self) -> None:
+    def test_write_adds_policy_grant_without_editing_worker_configuration(self) -> None:
         root = _fixture_repo()
         _remove_policy_grant(root, "agent_workloads.readonly_query")
-        _set_worker_capabilities(
-            root, "data.workspace_probe", ["agent_workloads.db_probe"]
-        )
+        before_values = (root / AGENT_WORKLOADS_VALUES_PATH).read_bytes()
         document = _write_enablement(
             root,
             {
@@ -115,7 +80,6 @@ class WorkloadEnablementTests(unittest.TestCase):
                 "workload": "data.workspace_probe",
                 "capability": "agent_workloads.readonly_query",
                 "grant": {"binding": "private-admin-controlled-capabilities"},
-                "worker": {"claims": True},
             },
         )
 
@@ -130,19 +94,14 @@ class WorkloadEnablementTests(unittest.TestCase):
             result.changed_files,
             (
                 "apps/agent-control-plane-registry-overlay/registry/policy.prod.yaml",
-                "apps/agent-workloads/values.yaml",
             ),
         )
         self.assertIn("policy_grant_added", _codes(result.actions))
-        self.assertIn("worker_claim_added", _codes(result.actions))
         self.assertIn(
             "agent_workloads.readonly_query",
             _policy_allow(root, "private-admin-controlled-capabilities"),
         )
-        self.assertEqual(
-            _worker_capabilities(root, "data.workspace_probe"),
-            ["agent_workloads.db_probe", "agent_workloads.readonly_query"],
-        )
+        self.assertEqual((root / AGENT_WORKLOADS_VALUES_PATH).read_bytes(), before_values)
         secret_text = (root / AGENT_WORKLOADS_RUNTIME_SECRET_PATH).read_text()
         self.assertIn("ENC[AES256_GCM", secret_text)
         body = (root / "mandate-apply-pr.md").read_text()
@@ -264,36 +223,6 @@ def _policy_allow_from_payload(policy: dict[str, Any], binding_id: str) -> list[
         if binding["id"] == binding_id:
             return binding["capabilities"]["allow"]
     raise AssertionError(f"binding not found: {binding_id}")
-
-
-def _set_worker_capabilities(
-    root: Path,
-    workload_id: str,
-    capabilities: list[str],
-) -> None:
-    values = _load_values(root)
-    env = _worker_env(values, workload_id)
-    env["AGENT_WORKLOADS_WORKER_CAPABILITIES"] = ",".join(capabilities)
-    _write_yaml(root / AGENT_WORKLOADS_VALUES_PATH, values)
-
-
-def _worker_capabilities(root: Path, workload_id: str) -> list[str]:
-    values = _load_values(root)
-    raw = _worker_env(values, workload_id)["AGENT_WORKLOADS_WORKER_CAPABILITIES"]
-    return [item.strip() for item in raw.split(",") if item.strip()]
-
-
-def _worker_env(values: dict[str, Any], workload_id: str) -> dict[str, Any]:
-    return values["workers"][workload_id]["env"]
-
-
-def _load_values(root: Path) -> dict[str, Any]:
-    return YAML_PARSER.load((root / AGENT_WORKLOADS_VALUES_PATH).read_text())
-
-
-def _write_yaml(path: Path, payload: dict[str, Any]) -> None:
-    with path.open("w", encoding="utf-8") as handle:
-        YAML_WRITER.dump(payload, handle)
 
 
 def _yaml_text(payload: dict[str, Any]) -> str:

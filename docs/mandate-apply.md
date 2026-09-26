@@ -20,8 +20,6 @@ grant:
   binding: private-admin-controlled-capabilities
 model_bounds:
   allowed_profile: openai.gpt-5.3-codex-spark
-worker:
-  claims: true
 network:
   - to: agent-control-plane.agent-control-plane.svc.cluster.local:80
 ```
@@ -47,8 +45,10 @@ uv run python scripts/mandate_apply.py enablement.yaml \
   append the requested capability to an existing binding.
 - `workload_imports.yaml` embedded in the registry overlay: set exactly one
   allowed model profile on a deployment-owned `model_bounds`.
-- `apps/agent-workloads/values.yaml`: add the capability to a known worker's
-  `AGENT_WORKLOADS_WORKER_CAPABILITIES` claim list.
+
+Workers claim by ID from their imported capability list; enablement does not
+maintain a second list in deployment values. Retired `worker.claims` input is
+rejected instead of silently accepted.
 
 All of these changes still require the normal PR, CI, merge, Argo sync, and
 control-plane restart path. The enablement document is not dispatch authority.
