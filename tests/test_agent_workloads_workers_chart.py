@@ -95,6 +95,54 @@ class AgentWorkloadsWorkersChartTests(unittest.TestCase):
             self.assertNotIn("OPENAI_SQL_BROKER_TIMEOUT_SECONDS", names)
             self.assertIn("MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE", names)
 
+    def test_canonical_environment_bridge_matches_legacy_values(self) -> None:
+        values = _load_values()
+        documents = _render(values)
+        for worker_id, worker in values["workers"].items():
+            with self.subTest(worker_id=worker_id):
+                deployment = _find(documents, "Deployment", worker["metadataName"])
+                container = deployment["spec"]["template"]["spec"]["containers"][0]
+                env = {entry["name"]: entry for entry in container.get("env", [])}
+                legacy_names = [
+                    name for name in worker["env"] if name.startswith("AGENT_WORKLOADS_")
+                ]
+                self.assertTrue(legacy_names)
+                for legacy_name in legacy_names:
+                    canonical_name = (
+                        "MANDATE_WORKER_ID"
+                        if legacy_name == "AGENT_WORKLOADS_WORKER_ID"
+                        else legacy_name.replace("AGENT_WORKLOADS_", "MANDATE_WORKER_", 1)
+                    )
+                    self.assertEqual(
+                        env[canonical_name]["value"], env[legacy_name]["value"]
+                    )
+                for env_name, secret_key in worker["secretEnv"].items():
+                    secret_ref = env[env_name]["valueFrom"]["secretKeyRef"]
+                    self.assertEqual(secret_ref["key"], secret_key)
+                    self.assertEqual(
+                        secret_ref["name"],
+                        env["AGENT_WORKLOADS_DATABASE_URL"]["valueFrom"]
+                        ["secretKeyRef"]["name"],
+                    )
+                if worker["handoffMode"]:
+                    self.assertEqual(
+                        env["MANDATE_WORKER_OPENCODE_ARTIFACT_HANDOFF_MODE"]["value"],
+                        worker["handoffMode"],
+                    )
+                    self.assertEqual(
+                        env["AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE"]["value"],
+                        worker["handoffMode"],
+                    )
+
+    def test_present_canonical_worker_id_must_match_map_key(self) -> None:
+        baseline = _load_values()
+        for canonical_id in ("opencode.apply_executor", ""):
+            with self.subTest(canonical_id=canonical_id):
+                values = copy.deepcopy(baseline)
+                values["workers"]["opencode.proposer"]["env"]["MANDATE_WORKER_ID"] = canonical_id
+                with self.assertRaisesRegex(AssertionError, "MANDATE_WORKER_ID"):
+                    _render(values)
+
     def test_worker_identity_and_governed_credential_guards_remain_enforced(
         self,
     ) -> None:
@@ -106,6 +154,12 @@ class AgentWorkloadsWorkersChartTests(unittest.TestCase):
                     AGENT_WORKLOADS_WORKER_ID="opencode.apply_executor"
                 ),
                 "AGENT_WORKLOADS_WORKER_ID",
+            ),
+            (
+                lambda worker: worker["env"].update(
+                    MANDATE_WORKER_OPENCODE_ARTIFACT_HANDOFF_MODE="shadowed"
+                ),
+                "MANDATE_WORKER_OPENCODE_ARTIFACT_HANDOFF_MODE",
             ),
             (
                 lambda worker: worker["secretEnv"].update(
@@ -138,6 +192,7 @@ class AgentWorkloadsWorkersChartTests(unittest.TestCase):
         fourth["metadataName"] = "agent-workloads-fourth-worker"
         fourth["selectorLabels"]["app.kubernetes.io/name"] = "fourth-worker"
         fourth["env"]["AGENT_WORKLOADS_WORKER_ID"] = fourth_id
+        fourth["env"]["MANDATE_WORKER_ID"] = fourth_id
         fourth["image"]["digest"] = "sha256:" + "4" * 64
         values["workers"][fourth_id] = fourth
         values["mandateReleasePins"][fourth_id] = {

@@ -61,9 +61,17 @@ workers:
     args: []
     secretKeys:
     - AGENT_WORKLOADS_DATABASE_URL
-    secretEnv: {}
+    secretEnv:
+      MANDATE_WORKER_DATABASE_URL: AGENT_WORKLOADS_DATABASE_URL
     env:
       MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
+      MANDATE_WORKER_ID: data.workspace_probe
+      MANDATE_WORKER_ENVIRONMENT: production
+      MANDATE_WORKER_SCHEMA: agent_workloads
+      MANDATE_WORKER_POLL_SECONDS: '2'
+      MANDATE_WORKER_READONLY_QUERY_MAX_PASSES: '3'
+      MANDATE_WORKER_READONLY_QUERY_MAX_ROWS: '50'
+      MANDATE_WORKER_READONLY_QUERY_CONNECT_TIMEOUT_SECONDS: '5'
       AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
       AGENT_WORKLOADS_ENVIRONMENT: production
       AGENT_WORKLOADS_SCHEMA: agent_workloads
@@ -203,6 +211,12 @@ workers:
     secretEnv: {}
     env:
       MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
+      MANDATE_WORKER_ID: opencode.apply_executor
+      MANDATE_WORKER_POLL_SECONDS: '2'
+      MANDATE_WORKER_ENVIRONMENT: production
+      MANDATE_WORKER_OPENCODE_APPLY_WORKSPACE_DIR: /workspace/job
+      MANDATE_WORKER_OPENCODE_APPLY_WORKSPACE_SEED_PATH: /workspace/seed/apply-workspace-seed.json
+      MANDATE_WORKER_OPENCODE_APPLY_DEFAULT_BRANCH: main
       AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
       AGENT_WORKLOADS_POLL_SECONDS: '2'
       AGENT_WORKLOADS_ENVIRONMENT: production
@@ -370,6 +384,13 @@ workers:
     env:
       MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
       MANDATE_MODEL_GATEWAY_BASE_URL: http://agent-control-plane-model-gateway.agent-control-plane.svc.cluster.local/v1
+      MANDATE_WORKER_ID: opencode.proposer
+      MANDATE_WORKER_POLL_SECONDS: '2'
+      MANDATE_WORKER_ENVIRONMENT: production
+      MANDATE_WORKER_OPENCODE_WORKSPACE_DIR: /workspace/job
+      MANDATE_WORKER_OPENCODE_PROPOSALS_DIR: /workspace/proposals
+      MANDATE_WORKER_OPENCODE_WORKSPACE_SEED_PATH: /workspace/seed/workspace-seed.json
+      MANDATE_WORKER_OPENCODE_TIMEOUT_SECONDS: '600'
       AGENT_WORKLOADS_WORKER_ID: opencode.proposer
       AGENT_WORKLOADS_POLL_SECONDS: '2'
       AGENT_WORKLOADS_ENVIRONMENT: production

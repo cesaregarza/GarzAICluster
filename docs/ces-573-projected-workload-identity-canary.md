@@ -114,6 +114,18 @@ field keep their existing previous/current inference until their reviewed
 cleanup adds the explicit tuple; both deployed OpenCode workers now have one.
 In HMAC mode the current release still governs token validation.
 
+## CES-973 worker environment compatibility bridge
+
+The GitOps values temporarily provide matching `MANDATE_WORKER_*` names beside
+the existing `AGENT_WORKLOADS_*` custom worker settings, including the governed
+handoff setting and the database URL secret reference. This bridge lets the
+canonical SDK environment contract reach all three workers while their current
+images still read the legacy custom names. Retirement marker: remove legacy
+aliases and the legacy handoff variable only after all three deployed worker
+images consume the canonical names and a separately reviewed GitOps change
+confirms parity. Keep image pins, release tuples, and rollback state unchanged
+while this bridge is active.
+
 ## Proposer HMAC rollback-only follow-up (CES-655)
 
 The proposer passed projected proposal release, current/previous identity,

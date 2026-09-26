@@ -79,6 +79,8 @@ spec:
           env:
             {{- include "agent-workloads.envFromWorker" $ctx | nindent 12 }}
             {{- with $worker.handoffMode }}
+            - name: MANDATE_WORKER_OPENCODE_ARTIFACT_HANDOFF_MODE
+              value: {{ . | quote }}
             - name: AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE
               value: {{ . | quote }}
             {{- end }}
