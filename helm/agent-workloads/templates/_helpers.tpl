@@ -175,6 +175,9 @@ credential identity. */}}
 {{- if ne (required (printf "workers[%s].env.AGENT_WORKLOADS_WORKER_ID is required" $workerId) $worker.env.AGENT_WORKLOADS_WORKER_ID) $workerId -}}
 {{- fail (printf "workers[%s] identity must match AGENT_WORKLOADS_WORKER_ID" $workerId) -}}
 {{- end -}}
+{{- if and (hasKey $worker.env "MANDATE_WORKER_ID") (ne (index $worker.env "MANDATE_WORKER_ID") $workerId) -}}
+{{- fail (printf "workers[%s] identity must match MANDATE_WORKER_ID" $workerId) -}}
+{{- end -}}
 {{- if and $worker.handoffMode (or (ne (len $worker.secretKeys) 0) (ne (len $worker.secretEnv) 0)) -}}
 {{- fail (printf "workers[%s] governed projected identity must not inject static credentials" $workerId) -}}
 {{- end -}}
@@ -221,6 +224,9 @@ credential identity. */}}
 {{- end -}}
 {{- if hasKey $worker.env "AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE" -}}
 {{- fail (printf "workers[%s].env.AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE is chart-owned" $workerId) -}}
+{{- end -}}
+{{- if hasKey $worker.env "MANDATE_WORKER_OPENCODE_ARTIFACT_HANDOFF_MODE" -}}
+{{- fail (printf "workers[%s].env.MANDATE_WORKER_OPENCODE_ARTIFACT_HANDOFF_MODE is chart-owned" $workerId) -}}
 {{- end -}}
 {{- if and $worker.handoffMode (not $worker.networkPolicy.enabled) -}}
 {{- fail (printf "workers[%s] requires an enabled networkPolicy for governed handoff" $workerId) -}}
