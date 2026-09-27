@@ -30,8 +30,8 @@ workers:
     containerName: worker
     image:
       repository: registry.digitalocean.com/sendouq/agent-workloads-worker
-      tag: sha-e2798cc9d8d2
-      digest: sha256:92081e8963b906b45deafa3aea9266d5bd5822d739ebff7860652d6a6959159b
+      tag: sha-63fe1d6a8bed
+      digest: sha256:f265bc495f8b8eabb95b2e7c339a7f7e3a150daa953cc8de3a8d6811c9f043a8
       pullPolicy: IfNotPresent
     identity:
       workerId: data.workspace_probe
@@ -52,12 +52,14 @@ workers:
         codeDigest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
         manifestDigest: sha256:912222e0cf0adea2733166543213e6ff70aadff34f13815ca36038bdf30d123f
         imageDigest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
-      previousRelease: null
+      previousRelease:
+        codeDigest: sha256:793059aa0a5d2ae453168caa3f33825d6cf7cead5b3c45ac859b030e12f08a49
+        manifestDigest: sha256:b0e6c9b402a377b330415126252b4232b4842c1fff048188d3b30e0761ab5c30
+        imageDigest: sha256:92081e8963b906b45deafa3aea9266d5bd5822d739ebff7860652d6a6959159b
     command:
     - agent-workloads-worker
     args: []
-    secretKeys:
-    - AGENT_WORKLOADS_DATABASE_URL
+    secretKeys: []
     secretEnv:
       MANDATE_WORKER_DATABASE_URL: AGENT_WORKLOADS_DATABASE_URL
     env:
@@ -69,13 +71,6 @@ workers:
       MANDATE_WORKER_READONLY_QUERY_MAX_PASSES: '3'
       MANDATE_WORKER_READONLY_QUERY_MAX_ROWS: '50'
       MANDATE_WORKER_READONLY_QUERY_CONNECT_TIMEOUT_SECONDS: '5'
-      AGENT_WORKLOADS_WORKER_ID: data.workspace_probe
-      AGENT_WORKLOADS_ENVIRONMENT: production
-      AGENT_WORKLOADS_SCHEMA: agent_workloads
-      AGENT_WORKLOADS_POLL_SECONDS: '2'
-      AGENT_WORKLOADS_READONLY_QUERY_MAX_PASSES: '3'
-      AGENT_WORKLOADS_READONLY_QUERY_MAX_ROWS: '50'
-      AGENT_WORKLOADS_READONLY_QUERY_CONNECT_TIMEOUT_SECONDS: '5'
     handoffMode: ''
     podSecurityContext:
       runAsNonRoot: true
@@ -175,8 +170,8 @@ workers:
     containerName: opencode-apply-executor
     image:
       repository: registry.digitalocean.com/sendouq/opencode-apply-executor
-      tag: sha-e2798cc9d8d2
-      digest: sha256:c6dbc687645d90f9e3c7f479669b8679539733354e2ae92532ceb56a580f928d
+      tag: sha-63fe1d6a8bed
+      digest: sha256:8b9ba5a5da1b02e07b8187e082aca9fe076cada1d50c5bd85d7780e345d9dec2
       pullPolicy: IfNotPresent
     identity:
       workerId: opencode.apply_executor
@@ -197,7 +192,10 @@ workers:
         codeDigest: sha256:253e5c97a7f149587f2a23c5a74883bde0e2fd3321285c731a0740eff9d3908f
         manifestDigest: sha256:2d36cfef1ed45057f3e396039ec21450ac34f4da145eb40fc0ec4aa6f67fc479
         imageDigest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
-      previousRelease: null
+      previousRelease:
+        codeDigest: sha256:32ecc96c54878d8fe7db5efcea33ea1e585010a37058ff9c63684104d781974d
+        manifestDigest: sha256:25818f8747213cb29359f0bb1aec1dc662e1021c061ef67a9b8399956e3f0a34
+        imageDigest: sha256:c6dbc687645d90f9e3c7f479669b8679539733354e2ae92532ceb56a580f928d
     command:
     - agent-workloads-worker
     args: []
@@ -211,12 +209,6 @@ workers:
       MANDATE_WORKER_OPENCODE_APPLY_WORKSPACE_DIR: /workspace/job
       MANDATE_WORKER_OPENCODE_APPLY_WORKSPACE_SEED_PATH: /workspace/seed/apply-workspace-seed.json
       MANDATE_WORKER_OPENCODE_APPLY_DEFAULT_BRANCH: main
-      AGENT_WORKLOADS_WORKER_ID: opencode.apply_executor
-      AGENT_WORKLOADS_POLL_SECONDS: '2'
-      AGENT_WORKLOADS_ENVIRONMENT: production
-      AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_DIR: /workspace/job
-      AGENT_WORKLOADS_OPENCODE_APPLY_WORKSPACE_SEED_PATH: /workspace/seed/apply-workspace-seed.json
-      AGENT_WORKLOADS_OPENCODE_APPLY_DEFAULT_BRANCH: main
       HOME: /tmp
       TMPDIR: /tmp
     handoffMode: governed_core
@@ -344,8 +336,8 @@ workers:
     containerName: opencode-proposer
     image:
       repository: registry.digitalocean.com/sendouq/opencode-proposer
-      tag: sha-e2798cc9d8d2
-      digest: sha256:214a2490567f6dfeef5c3377ebf7fad507f31d9781924627e3ffdf3b21a7cac1
+      tag: sha-63fe1d6a8bed
+      digest: sha256:df42ca7fd43303107dc214a8cd8df7d8475ea73cd8f00344c25b676b22eb2fd7
       pullPolicy: IfNotPresent
     identity:
       workerId: opencode.proposer
@@ -366,7 +358,10 @@ workers:
         codeDigest: sha256:02f824315c53d671a40c4357e8868e6950eb330a6e495c6b21b3e8f71b095db7
         manifestDigest: sha256:d69820fe79941fa9dab307f33097d35c0703b11d5f66e9f4e7754d2468753906
         imageDigest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
-      previousRelease: null
+      previousRelease:
+        codeDigest: sha256:737226ded3833576d613151f0c396af42abbddb63e5d0053471d2dcb701fc3b5
+        manifestDigest: sha256:778fea259240b62c16a32555647d95a2337baca1793576caa876c62f4b4391f2
+        imageDigest: sha256:214a2490567f6dfeef5c3377ebf7fad507f31d9781924627e3ffdf3b21a7cac1
     command:
     - agent-workloads-worker
     args: []
@@ -382,13 +377,6 @@ workers:
       MANDATE_WORKER_OPENCODE_PROPOSALS_DIR: /workspace/proposals
       MANDATE_WORKER_OPENCODE_WORKSPACE_SEED_PATH: /workspace/seed/workspace-seed.json
       MANDATE_WORKER_OPENCODE_TIMEOUT_SECONDS: '600'
-      AGENT_WORKLOADS_WORKER_ID: opencode.proposer
-      AGENT_WORKLOADS_POLL_SECONDS: '2'
-      AGENT_WORKLOADS_ENVIRONMENT: production
-      AGENT_WORKLOADS_OPENCODE_WORKSPACE_DIR: /workspace/job
-      AGENT_WORKLOADS_OPENCODE_PROPOSALS_DIR: /workspace/proposals
-      AGENT_WORKLOADS_OPENCODE_WORKSPACE_SEED_PATH: /workspace/seed/workspace-seed.json
-      AGENT_WORKLOADS_OPENCODE_TIMEOUT_SECONDS: '600'
       HOME: /tmp
       TMPDIR: /tmp
     handoffMode: governed_core
@@ -520,14 +508,14 @@ workers:
       seedConfigMapName: agent-workloads-opencode-proposer-seed-bundle
 mandateReleasePins:
   data.workspace_probe:
-    codeDigest: sha256:793059aa0a5d2ae453168caa3f33825d6cf7cead5b3c45ac859b030e12f08a49
-    manifestDigest: sha256:b0e6c9b402a377b330415126252b4232b4842c1fff048188d3b30e0761ab5c30
-    imageDigest: sha256:92081e8963b906b45deafa3aea9266d5bd5822d739ebff7860652d6a6959159b
+    codeDigest: sha256:78446f183c23cf9ee250763479b8ed94e9058afd2d7346809886466a3866ce1c
+    manifestDigest: sha256:63996bf4d9b593f5b5d21b1634463cf89866e8e776d92f75174ef061507a071e
+    imageDigest: sha256:f265bc495f8b8eabb95b2e7c339a7f7e3a150daa953cc8de3a8d6811c9f043a8
   opencode.apply_executor:
-    codeDigest: sha256:32ecc96c54878d8fe7db5efcea33ea1e585010a37058ff9c63684104d781974d
-    manifestDigest: sha256:25818f8747213cb29359f0bb1aec1dc662e1021c061ef67a9b8399956e3f0a34
-    imageDigest: sha256:c6dbc687645d90f9e3c7f479669b8679539733354e2ae92532ceb56a580f928d
+    codeDigest: sha256:0fa909cc259c63bd6e6ccb591dec468484e0759b93488aca2da3604176363e91
+    manifestDigest: sha256:52684efbfd26d9d3d4c74d736547d9b8620ad73b7c7cbc7abf35a613aad480c8
+    imageDigest: sha256:8b9ba5a5da1b02e07b8187e082aca9fe076cada1d50c5bd85d7780e345d9dec2
   opencode.proposer:
-    codeDigest: sha256:737226ded3833576d613151f0c396af42abbddb63e5d0053471d2dcb701fc3b5
-    manifestDigest: sha256:778fea259240b62c16a32555647d95a2337baca1793576caa876c62f4b4391f2
-    imageDigest: sha256:214a2490567f6dfeef5c3377ebf7fad507f31d9781924627e3ffdf3b21a7cac1
+    codeDigest: sha256:cea20ccb12a0a8abdf5cb43c71b2b4499e7d5aa575f42c59c6419571e74be45a
+    manifestDigest: sha256:2cd63ae91d7df88522ab8875ec2990321d41578adf228a393ec3d8d261b45dab
+    imageDigest: sha256:df42ca7fd43303107dc214a8cd8df7d8475ea73cd8f00344c25b676b22eb2fd7

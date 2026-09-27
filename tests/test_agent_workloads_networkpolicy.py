@@ -372,7 +372,7 @@ class AgentWorkloadsNetworkPolicyTests(unittest.TestCase):
         )
         self.assertFalse(any("secret" in volume for volume in apply_pod["volumes"]))
         self.assertEqual(
-            apply_env["AGENT_WORKLOADS_WORKER_ID"]["value"],
+            apply_env["MANDATE_WORKER_ID"]["value"],
             "opencode.apply_executor",
         )
         apply_image = self.values["workers"]["opencode.apply_executor"]["image"]

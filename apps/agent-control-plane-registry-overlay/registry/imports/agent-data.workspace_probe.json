@@ -11,9 +11,9 @@
       "consequence_class": "read_only"
     }
   },
-  "code_digest": "sha256:793059aa0a5d2ae453168caa3f33825d6cf7cead5b3c45ac859b030e12f08a49",
-  "digest": "sha256:b0e6c9b402a377b330415126252b4232b4842c1fff048188d3b30e0761ab5c30",
-  "display_name": "Agent Workloads Data Worker",
+  "code_digest": "sha256:78446f183c23cf9ee250763479b8ed94e9058afd2d7346809886466a3866ce1c",
+  "digest": "sha256:63996bf4d9b593f5b5d21b1634463cf89866e8e776d92f75174ef061507a071e",
+  "display_name": "Mandate Data Worker",
   "evals": {
     "optional": [],
     "required": [
@@ -23,7 +23,7 @@
   },
   "id": "data.workspace_probe",
   "image": {
-    "digest": "sha256:92081e8963b906b45deafa3aea9266d5bd5822d739ebff7860652d6a6959159b",
+    "digest": "sha256:f265bc495f8b8eabb95b2e7c339a7f7e3a150daa953cc8de3a8d6811c9f043a8",
     "repository": "registry.digitalocean.com/sendouq/agent-workloads-worker"
   },
   "loop": {
@@ -33,7 +33,7 @@
   },
   "schema_version": "agent-workload.v1",
   "source": {
-    "path": "agents/db-workspace-probe/agent.yaml",
+    "path": "workers/db-workspace-probe/worker.yaml",
     "repo": "agent-workloads",
     "repo_url": "https://github.com/cesaregarza/agent-workloads"
   },

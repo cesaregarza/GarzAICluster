@@ -523,7 +523,7 @@ class GrantOwnershipTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             GrantEditError,
-            "agents/opencode-proposer/agent.yaml.*re-minted",
+            "workers/opencode-proposer/worker.yaml.*re-minted",
         ):
             apply_grant_edit(
                 repo_root=root,

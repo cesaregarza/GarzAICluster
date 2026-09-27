@@ -95,7 +95,7 @@ class AgentWorkloadsWorkersChartTests(unittest.TestCase):
             self.assertNotIn("OPENAI_SQL_BROKER_TIMEOUT_SECONDS", names)
             self.assertIn("MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE", names)
 
-    def test_canonical_environment_bridge_matches_legacy_values(self) -> None:
+    def test_runtime_environment_uses_canonical_names(self) -> None:
         values = _load_values()
         documents = _render(values)
         for worker_id, worker in values["workers"].items():
@@ -103,43 +103,30 @@ class AgentWorkloadsWorkersChartTests(unittest.TestCase):
                 deployment = _find(documents, "Deployment", worker["metadataName"])
                 container = deployment["spec"]["template"]["spec"]["containers"][0]
                 env = {entry["name"]: entry for entry in container.get("env", [])}
-                legacy_names = [
-                    name for name in worker["env"] if name.startswith("AGENT_WORKLOADS_")
-                ]
-                self.assertTrue(legacy_names)
-                for legacy_name in legacy_names:
-                    canonical_name = (
-                        "MANDATE_WORKER_ID"
-                        if legacy_name == "AGENT_WORKLOADS_WORKER_ID"
-                        else legacy_name.replace("AGENT_WORKLOADS_", "MANDATE_WORKER_", 1)
-                    )
+                self.assertEqual(env["MANDATE_WORKER_ID"]["value"], worker_id)
+                self.assertFalse(any(name.startswith("AGENT_WORKLOADS_") for name in env))
+                if worker_id == "data.workspace_probe":
                     self.assertEqual(
-                        env[canonical_name]["value"], env[legacy_name]["value"]
-                    )
-                for env_name, secret_key in worker["secretEnv"].items():
-                    secret_ref = env[env_name]["valueFrom"]["secretKeyRef"]
-                    self.assertEqual(secret_ref["key"], secret_key)
-                    self.assertEqual(
-                        secret_ref["name"],
-                        env["AGENT_WORKLOADS_DATABASE_URL"]["valueFrom"]
-                        ["secretKeyRef"]["name"],
+                        env["MANDATE_WORKER_DATABASE_URL"]["valueFrom"]["secretKeyRef"],
+                        {"name": values["global"]["runtimeSecretName"],
+                         "key": "AGENT_WORKLOADS_DATABASE_URL"},
                     )
                 if worker["handoffMode"]:
                     self.assertEqual(
                         env["MANDATE_WORKER_OPENCODE_ARTIFACT_HANDOFF_MODE"]["value"],
                         worker["handoffMode"],
                     )
-                    self.assertEqual(
-                        env["AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE"]["value"],
-                        worker["handoffMode"],
-                    )
 
-    def test_present_canonical_worker_id_must_match_map_key(self) -> None:
+    def test_canonical_worker_id_is_required_and_matches_map_key(self) -> None:
         baseline = _load_values()
-        for canonical_id in ("opencode.apply_executor", ""):
+        for canonical_id in ("opencode.apply_executor", "", None):
             with self.subTest(canonical_id=canonical_id):
                 values = copy.deepcopy(baseline)
-                values["workers"]["opencode.proposer"]["env"]["MANDATE_WORKER_ID"] = canonical_id
+                env = values["workers"]["opencode.proposer"]["env"]
+                if canonical_id is None:
+                    env.pop("MANDATE_WORKER_ID")
+                else:
+                    env["MANDATE_WORKER_ID"] = canonical_id
                 with self.assertRaisesRegex(AssertionError, "MANDATE_WORKER_ID"):
                     _render(values)
 
@@ -151,9 +138,9 @@ class AgentWorkloadsWorkersChartTests(unittest.TestCase):
         for mutation, expected in (
             (
                 lambda worker: worker["env"].update(
-                    AGENT_WORKLOADS_WORKER_ID="opencode.apply_executor"
+                    MANDATE_WORKER_ID="opencode.apply_executor"
                 ),
-                "AGENT_WORKLOADS_WORKER_ID",
+                "MANDATE_WORKER_ID",
             ),
             (
                 lambda worker: worker["env"].update(
@@ -191,7 +178,6 @@ class AgentWorkloadsWorkersChartTests(unittest.TestCase):
         fourth["identity"].pop("hmacRollbackTokenKey")
         fourth["metadataName"] = "agent-workloads-fourth-worker"
         fourth["selectorLabels"]["app.kubernetes.io/name"] = "fourth-worker"
-        fourth["env"]["AGENT_WORKLOADS_WORKER_ID"] = fourth_id
         fourth["env"]["MANDATE_WORKER_ID"] = fourth_id
         fourth["image"]["digest"] = "sha256:" + "4" * 64
         values["workers"][fourth_id] = fourth

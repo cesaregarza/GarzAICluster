@@ -35,7 +35,7 @@ capabilities:
     source:
       repo: agent-workloads
       repo_url: https://github.com/cesaregarza/agent-workloads
-      path: agents/db-workspace-probe/agent.yaml
+      path: workers/db-workspace-probe/worker.yaml
     config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=data.workspace_probe].capabilities.agent_workloads.db_probe
     keys:
       description:
@@ -43,19 +43,19 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       output_schema:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
   agent_workloads.readonly_query:
     agent_id: data.workspace_probe
     source:
       repo: agent-workloads
       repo_url: https://github.com/cesaregarza/agent-workloads
-      path: agents/db-workspace-probe/agent.yaml
+      path: workers/db-workspace-probe/worker.yaml
     config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=data.workspace_probe].capabilities.agent_workloads.readonly_query
     keys:
       artifacts:
@@ -69,7 +69,7 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       broker_bounds:
         owner: mixed
         deploy_consequence: control_plane_restart
@@ -84,7 +84,7 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       model_bounds:
         owner: deployment_overlay
         deploy_consequence: control_plane_restart
@@ -96,19 +96,19 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       output_schema:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       result_contract:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       session_authority_budget:
         owner: mixed
         deploy_consequence: control_plane_restart
@@ -124,13 +124,13 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
   agent_workloads.opencode_orchestrate:
     agent_id: opencode.proposer
     source:
       repo: agent-workloads
       repo_url: https://github.com/cesaregarza/agent-workloads
-      path: agents/opencode-proposer/agent.yaml
+      path: workers/opencode-proposer/worker.yaml
     config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=opencode.proposer].capabilities.agent_workloads.opencode_orchestrate
     keys:
       artifacts:
@@ -144,13 +144,13 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       description:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       disclosure:
         owner: deployment_overlay
         deploy_consequence: control_plane_restart
@@ -162,13 +162,13 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       limitations:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       model_bounds:
         owner: deployment_overlay
         deploy_consequence: control_plane_restart
@@ -180,19 +180,19 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       output_schema:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       result_contract:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       session_authority_budget:
         owner: mixed
         deploy_consequence: control_plane_restart
@@ -208,13 +208,13 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
   agent_workloads.opencode_propose:
     agent_id: opencode.proposer
     source:
       repo: agent-workloads
       repo_url: https://github.com/cesaregarza/agent-workloads
-      path: agents/opencode-proposer/agent.yaml
+      path: workers/opencode-proposer/worker.yaml
     config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=opencode.proposer].capabilities.agent_workloads.opencode_propose
     keys:
       artifacts:
@@ -228,7 +228,7 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       disclosure:
         owner: deployment_overlay
         deploy_consequence: control_plane_restart
@@ -240,13 +240,13 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       limitations:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       model_bounds:
         owner: deployment_overlay
         deploy_consequence: control_plane_restart
@@ -258,19 +258,19 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       output_schema:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       result_contract:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       session_authority_budget:
         owner: mixed
         deploy_consequence: control_plane_restart
@@ -286,13 +286,13 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
   agent_workloads.opencode_task:
     agent_id: opencode.proposer
     source:
       repo: agent-workloads
       repo_url: https://github.com/cesaregarza/agent-workloads
-      path: agents/opencode-proposer/agent.yaml
+      path: workers/opencode-proposer/worker.yaml
     config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=opencode.proposer].capabilities.agent_workloads.opencode_task
     keys:
       artifacts:
@@ -306,7 +306,7 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       disclosure:
         owner: deployment_overlay
         deploy_consequence: control_plane_restart
@@ -318,13 +318,13 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       limitations:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       model_bounds:
         owner: deployment_overlay
         deploy_consequence: control_plane_restart
@@ -336,13 +336,13 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       result_contract:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       session_authority_budget:
         owner: mixed
         deploy_consequence: control_plane_restart
@@ -358,13 +358,13 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
   agent_workloads.opencode_apply:
     agent_id: opencode.apply_executor
     source:
       repo: agent-workloads
       repo_url: https://github.com/cesaregarza/agent-workloads
-      path: agents/opencode-apply-executor/agent.yaml
+      path: workers/opencode-apply-executor/worker.yaml
     config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=opencode.apply_executor].capabilities.agent_workloads.opencode_apply
     keys:
       approval_mode:
@@ -384,7 +384,7 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       disclosure:
         owner: deployment_overlay
         deploy_consequence: control_plane_restart
@@ -396,31 +396,31 @@ capabilities:
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       limitations:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       output_gate:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       output_schema:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       result_contract:
         owner: workload_release
         deploy_consequence: digest_moves_repin_remint
         remint_required: true
         digest_moves: true
-        source: workload agent.yaml
+        source: workload worker.yaml
       session_authority_budget:
         owner: mixed
         deploy_consequence: control_plane_restart

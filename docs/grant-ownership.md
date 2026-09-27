@@ -9,7 +9,7 @@ requires a control-plane restart. It does not move workload image, manifest,
 or code digests, and it does not require workload identity token re-minting.
 
 Changing a workload-release-owned key belongs in `agent-workloads`
-`agents/<id>/agent.yaml`; that moves the workload code digest and requires the
+`workers/<id>/worker.yaml`; that moves the workload code digest and requires the
 normal publish, re-pin, and re-mint flow.
 
 ## Source Contract
