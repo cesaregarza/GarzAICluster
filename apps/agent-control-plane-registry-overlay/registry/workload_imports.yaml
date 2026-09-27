@@ -2,22 +2,27 @@ schema_version: workload-imports.v1
 imports:
 - id: data.workspace_probe
   manifest_path: registries/imports/agent-data.workspace_probe.json
-  manifest_digest: sha256:b0e6c9b402a377b330415126252b4232b4842c1fff048188d3b30e0761ab5c30
-  image_digest: sha256:92081e8963b906b45deafa3aea9266d5bd5822d739ebff7860652d6a6959159b
+  manifest_digest: sha256:63996bf4d9b593f5b5d21b1634463cf89866e8e776d92f75174ef061507a071e
+  image_digest: sha256:f265bc495f8b8eabb95b2e7c339a7f7e3a150daa953cc8de3a8d6811c9f043a8
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
-    path: agents/db-workspace-probe/agent.yaml
+    path: workers/db-workspace-probe/worker.yaml
   agent:
     execution_posture: capability_worker
     network_access: database_only
     service_account_ref: agent-workloads-worker
-    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-6645f649c5771bb3f04a
+    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-00cdc549c4346119b54e
     capacity_tier: 4
     concurrency: 1
     max_runtime_seconds: 120
     model_call: true
     readonly_sql_broker: true
+    previous_release:
+      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-data-workspace-probe-6645f649c5771bb3f04a
+      code_digest: sha256:793059aa0a5d2ae453168caa3f33825d6cf7cead5b3c45ac859b030e12f08a49
+      manifest_digest: sha256:b0e6c9b402a377b330415126252b4232b4842c1fff048188d3b30e0761ab5c30
+      image_digest: sha256:92081e8963b906b45deafa3aea9266d5bd5822d739ebff7860652d6a6959159b
   capabilities:
     agent_workloads.db_probe:
       description: Imported reversible staging database workspace probe.
@@ -85,12 +90,12 @@ imports:
         - rows_truncated
 - id: opencode.proposer
   manifest_path: registries/imports/agent-opencode.proposer.json
-  manifest_digest: sha256:778fea259240b62c16a32555647d95a2337baca1793576caa876c62f4b4391f2
-  image_digest: sha256:214a2490567f6dfeef5c3377ebf7fad507f31d9781924627e3ffdf3b21a7cac1
+  manifest_digest: sha256:2cd63ae91d7df88522ab8875ec2990321d41578adf228a393ec3d8d261b45dab
+  image_digest: sha256:df42ca7fd43303107dc214a8cd8df7d8475ea73cd8f00344c25b676b22eb2fd7
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
-    path: agents/opencode-proposer/agent.yaml
+    path: workers/opencode-proposer/worker.yaml
   agent:
     execution_posture: hosted_harness
     network_access: broker_only
@@ -99,7 +104,12 @@ imports:
     concurrency: 1
     max_runtime_seconds: 900
     model_gateway_token: true
-    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-b8970ba30327a50e88ce
+    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-47d300d7651b90eb38f4
+    previous_release:
+      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-proposer-b8970ba30327a50e88ce
+      code_digest: sha256:737226ded3833576d613151f0c396af42abbddb63e5d0053471d2dcb701fc3b5
+      manifest_digest: sha256:778fea259240b62c16a32555647d95a2337baca1793576caa876c62f4b4391f2
+      image_digest: sha256:214a2490567f6dfeef5c3377ebf7fad507f31d9781924627e3ffdf3b21a7cac1
   capabilities:
     agent_workloads.opencode_propose:
       description: Imported OpenCode proposer that writes requested edits as isolated
@@ -304,12 +314,12 @@ imports:
       - Must not be used as a local fallback when no governed capability matches.
 - id: opencode.apply_executor
   manifest_path: registries/imports/agent-opencode.apply_executor.json
-  manifest_digest: sha256:25818f8747213cb29359f0bb1aec1dc662e1021c061ef67a9b8399956e3f0a34
-  image_digest: sha256:c6dbc687645d90f9e3c7f479669b8679539733354e2ae92532ceb56a580f928d
+  manifest_digest: sha256:52684efbfd26d9d3d4c74d736547d9b8620ad73b7c7cbc7abf35a613aad480c8
+  image_digest: sha256:8b9ba5a5da1b02e07b8187e082aca9fe076cada1d50c5bd85d7780e345d9dec2
   expected_source:
     repo: agent-workloads
     repo_url: https://github.com/cesaregarza/agent-workloads
-    path: agents/opencode-apply-executor/agent.yaml
+    path: workers/opencode-apply-executor/worker.yaml
   agent:
     execution_posture: capability_worker
     network_access: broker_only
@@ -318,7 +328,12 @@ imports:
     capacity_tier: 4
     concurrency: 1
     max_runtime_seconds: 300
-    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-apply-executor-0d33df015de9e8b7cd26
+    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-apply-executor-efd4d492603df2e4a92c
+    previous_release:
+      service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-opencode-apply-executor-0d33df015de9e8b7cd26
+      code_digest: sha256:32ecc96c54878d8fe7db5efcea33ea1e585010a37058ff9c63684104d781974d
+      manifest_digest: sha256:25818f8747213cb29359f0bb1aec1dc662e1021c061ef67a9b8399956e3f0a34
+      image_digest: sha256:c6dbc687645d90f9e3c7f479669b8679539733354e2ae92532ceb56a580f928d
   capabilities:
     agent_workloads.opencode_apply:
       description: Imported OpenCode apply executor for approved proposal diffs.

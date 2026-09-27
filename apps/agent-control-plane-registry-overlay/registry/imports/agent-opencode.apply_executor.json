@@ -7,8 +7,8 @@
       "consequence_class": "consequential"
     }
   },
-  "code_digest": "sha256:32ecc96c54878d8fe7db5efcea33ea1e585010a37058ff9c63684104d781974d",
-  "digest": "sha256:25818f8747213cb29359f0bb1aec1dc662e1021c061ef67a9b8399956e3f0a34",
+  "code_digest": "sha256:0fa909cc259c63bd6e6ccb591dec468484e0759b93488aca2da3604176363e91",
+  "digest": "sha256:52684efbfd26d9d3d4c74d736547d9b8620ad73b7c7cbc7abf35a613aad480c8",
   "display_name": "OpenCode Apply Executor",
   "evals": {
     "optional": [],
@@ -16,7 +16,7 @@
   },
   "id": "opencode.apply_executor",
   "image": {
-    "digest": "sha256:c6dbc687645d90f9e3c7f479669b8679539733354e2ae92532ceb56a580f928d",
+    "digest": "sha256:8b9ba5a5da1b02e07b8187e082aca9fe076cada1d50c5bd85d7780e345d9dec2",
     "repository": "registry.digitalocean.com/sendouq/opencode-apply-executor"
   },
   "loop": {
@@ -26,7 +26,7 @@
   },
   "schema_version": "agent-workload.v1",
   "source": {
-    "path": "agents/opencode-apply-executor/agent.yaml",
+    "path": "workers/opencode-apply-executor/worker.yaml",
     "repo": "agent-workloads",
     "repo_url": "https://github.com/cesaregarza/agent-workloads"
   },

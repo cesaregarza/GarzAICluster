@@ -15,8 +15,8 @@
       "consequence_class": "reversible_staging"
     }
   },
-  "code_digest": "sha256:737226ded3833576d613151f0c396af42abbddb63e5d0053471d2dcb701fc3b5",
-  "digest": "sha256:778fea259240b62c16a32555647d95a2337baca1793576caa876c62f4b4391f2",
+  "code_digest": "sha256:cea20ccb12a0a8abdf5cb43c71b2b4499e7d5aa575f42c59c6419571e74be45a",
+  "digest": "sha256:2cd63ae91d7df88522ab8875ec2990321d41578adf228a393ec3d8d261b45dab",
   "display_name": "OpenCode Proposer",
   "evals": {
     "optional": [],
@@ -24,7 +24,7 @@
   },
   "id": "opencode.proposer",
   "image": {
-    "digest": "sha256:214a2490567f6dfeef5c3377ebf7fad507f31d9781924627e3ffdf3b21a7cac1",
+    "digest": "sha256:df42ca7fd43303107dc214a8cd8df7d8475ea73cd8f00344c25b676b22eb2fd7",
     "repository": "registry.digitalocean.com/sendouq/opencode-proposer"
   },
   "loop": {
@@ -34,7 +34,7 @@
   },
   "schema_version": "agent-workload.v1",
   "source": {
-    "path": "agents/opencode-proposer/agent.yaml",
+    "path": "workers/opencode-proposer/worker.yaml",
     "repo": "agent-workloads",
     "repo_url": "https://github.com/cesaregarza/agent-workloads"
   },

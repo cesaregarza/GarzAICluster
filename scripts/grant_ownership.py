@@ -355,7 +355,7 @@ def render_ownership_markdown(ownership: dict[str, Any]) -> str:
         "or code digests, and it does not require workload identity token re-minting.",
         "",
         "Changing a workload-release-owned key belongs in `agent-workloads`",
-        "`agents/<id>/agent.yaml`; that moves the workload code digest and requires the",
+        "`workers/<id>/worker.yaml`; that moves the workload code digest and requires the",
         "normal publish, re-pin, and re-mint flow.",
         "",
         "## Source Contract",
@@ -691,7 +691,7 @@ def _ownership_for_key(key: str, contract: ApplierContract) -> dict[str, Any]:
         "deploy_consequence": DIGEST_MOVES,
         "remint_required": True,
         "digest_moves": True,
-        "source": "workload agent.yaml",
+        "source": "workload worker.yaml",
     }
 
 

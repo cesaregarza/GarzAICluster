@@ -81,8 +81,6 @@ spec:
             {{- with $worker.handoffMode }}
             - name: MANDATE_WORKER_OPENCODE_ARTIFACT_HANDOFF_MODE
               value: {{ . | quote }}
-            - name: AGENT_WORKLOADS_OPENCODE_ARTIFACT_HANDOFF_MODE
-              value: {{ . | quote }}
             {{- end }}
             - name: MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE
               value: {{ include "agent-workloads.workerTokenPath" $ctx | quote }}

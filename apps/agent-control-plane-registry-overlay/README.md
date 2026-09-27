@@ -53,13 +53,14 @@ Imports without an `output_gate` use Core's deterministic public-result policy a
 
 `agent_workloads.opencode_propose` is proposal-only reversible-staging authority. It receives only a per-job model-gateway leased token through the worker claim response, and its diff is released as metadata-only `opencode_proposal` artifact metadata.
 
-The proposer configuration selects a release-scoped projected ServiceAccount
-identity; apply retains its static HMAC binding. Finish the overlay's Core reload
-and verify the new subject before manually syncing `agent-workloads`. Proposer
-activation preserves its release tuple and retained HMAC credential without
-creating previous-release overlap. Live proposal, identity-denial and token
-rotation checks are still required; rollback restores only the proposer's HMAC
-mode/binding at the retained tuple. Allowlist retirement is a separate change.
+All three workers use release-scoped projected ServiceAccount identities. Their
+manifests and expected source paths use `workers/<id>/worker.yaml`; runtime
+configuration uses `MANDATE_WORKER_*`. The database environment variable maps
+to the existing `AGENT_WORKLOADS_DATABASE_URL` Secret key. Stored keys and the
+independent HMAC rollback tuples remain unchanged. Production policy retains
+`bindings` until a grants-aware Core is deployed. Activate a re-pin through the
+scoped overlay-and-workers sequence above, then verify claims, identity denials,
+and token rotation before retiring previous-release overlap.
 
 `agent_workloads.opencode_apply` is consequential authority and remains behind `admin_confirm`. The apply worker is a separate `executor: true` `capability_worker`, not a hosted harness. It receives no model gateway URL, provider credentials, Git credentials, or database credentials.
 
