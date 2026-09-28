@@ -80,6 +80,22 @@ Publication evidence: [Core](https://github.com/cesaregarza/agent-platform/actio
 The broker uses the separate `citrus-purchasing-broker.json` receipt, not worker
 registry artifacts. The fixture records its published digest.
 
+## Core runtime prerequisite (CES-1048)
+
+The Core Application now selects the published `69bb119a22d5df71912f92fbd4261ff6a930abbd`
+chart and image tuple above. This installs the broker-operation implementation
+when the operator explicitly syncs Core; it does not configure a provider or
+activate a Citrus broker, worker, credential or grant. Existing worker release
+tuples and policy remain unchanged. All five Core Deployments share this image.
+
+Before proceeding with activation, sync the reviewed Core revision and verify
+migrations, all five deployed image digests/readiness, existing worker claims,
+callback/output delivery and zero identity/provider digest mismatches. The old
+source was `cdf4a4388aa28ac0a8595efa5ed243765c1deca5`, tag `sha-cdf4a4388aa2`, digest
+`sha256:f3b947b5f9b29bc5349c9f852cfff19891651334d91d44345d5e1f7cd53da065`.
+Keep that complete tuple as the rollback reference and verify database/schema
+compatibility before rollback. A merged pin is not evidence of a live rollout.
+
 ## Later activation sequence
 
 1. Select the actual Citrus API environment and verify the purchasing API is
