@@ -18,6 +18,7 @@ workers:
   data.workspace_probe:
     enabled: true
     replicaCount: 2
+    spreadAcrossNodes: true
     metadataName: agent-workloads
     labels: {}
     selectorLabels:

@@ -10,6 +10,21 @@ global:
   appImageTag: v2.0.41
 fastapi:
   replicas: 2
+  spreadAcrossNodes: true
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 10
+  # /api is the lightweight route index and verifies the application is serving.
+  readinessProbe:
+    httpGet:
+      path: /api
+      port: http
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
   # Reserve typical CPU use while allowing burst above it; no CPU limit.
   resources:
     requests:
