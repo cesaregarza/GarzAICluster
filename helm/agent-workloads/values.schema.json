@@ -4,6 +4,251 @@
   "additionalProperties": false,
   "required": ["global", "serviceAccount", "rolloutChecksums", "workspaceSeedBundle", "workers", "mandateReleasePins"],
   "properties": {
+    "citrusPurchasingBroker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "image",
+        "serverTlsSecretName",
+        "clientCaSecretName",
+        "purchasingTokenSecretName",
+        "apiCaSecretName",
+        "clientUriSan",
+        "apiOrigin",
+        "rolloutRevision",
+        "network"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "digest"
+          ],
+          "properties": {
+            "repository": {
+              "type": "string",
+              "enum": [
+                "registry.digitalocean.com/sendouq/agent-workloads-citrus-purchasing-broker"
+              ]
+            },
+            "digest": {
+              "type": "string"
+            }
+          }
+        },
+        "serverTlsSecretName": {
+          "type": "string"
+        },
+        "clientCaSecretName": {
+          "type": "string"
+        },
+        "purchasingTokenSecretName": {
+          "type": "string"
+        },
+        "apiCaSecretName": {
+          "type": "string"
+        },
+        "clientUriSan": {
+          "type": "string"
+        },
+        "apiOrigin": {
+          "type": "string"
+        },
+        "rolloutRevision": {
+          "type": "string"
+        },
+        "network": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "core",
+            "dns",
+            "citrusIpv4Addresses"
+          ],
+          "properties": {
+            "core": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "namespace",
+                "appName",
+                "releaseName"
+              ],
+              "properties": {
+                "namespace": {
+                  "type": "string"
+                },
+                "appName": {
+                  "type": "string"
+                },
+                "releaseName": {
+                  "type": "string"
+                }
+              }
+            },
+            "dns": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "namespace",
+                "podLabels"
+              ],
+              "properties": {
+                "namespace": {
+                  "type": "string"
+                },
+                "podLabels": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "citrusIpv4Addresses": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "image": {
+                "properties": {
+                  "digest": {
+                    "$ref": "#/definitions/sha256Digest"
+                  }
+                }
+              },
+              "serverTlsSecretName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+              },
+              "clientCaSecretName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+              },
+              "purchasingTokenSecretName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+              },
+              "apiCaSecretName": {
+                "anyOf": [
+                  {
+                    "const": ""
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 253,
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                  }
+                ]
+              },
+              "clientUriSan": {
+                "type": "string",
+                "maxLength": 2048,
+                "pattern": "^[A-Za-z][A-Za-z0-9+.-]*://[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?(/[^\\s?#@]*)?$"
+              },
+              "apiOrigin": {
+                "type": "string",
+                "maxLength": 300,
+                "pattern": "^https://[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*(:443)?/?$"
+              },
+              "rolloutRevision": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "pattern": "^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$"
+              },
+              "network": {
+                "properties": {
+                  "core": {
+                    "properties": {
+                      "namespace": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 63,
+                        "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                      },
+                      "appName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 63,
+                        "pattern": "^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$"
+                      },
+                      "releaseName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 63,
+                        "pattern": "^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$"
+                      }
+                    }
+                  },
+                  "dns": {
+                    "properties": {
+                      "namespace": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 63,
+                        "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                      },
+                      "podLabels": {
+                        "minProperties": 1,
+                        "maxProperties": 16,
+                        "propertyNames": {
+                          "maxLength": 317,
+                          "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$"
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 63,
+                          "pattern": "^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$"
+                        }
+                      }
+                    }
+                  },
+                  "citrusIpv4Addresses": {
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "pattern": "^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(\\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])){3}/32$"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
     "global": {
       "type": "object",
       "required": ["imagePullSecrets", "runtimeSecretName"],

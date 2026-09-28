@@ -342,6 +342,14 @@ jobs:
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" > "rendered/${{ matrix.chart.name }}-default.yaml"
           helm template "${{ matrix.chart.release }}" "${{ matrix.chart.path }}" -f "${{ matrix.chart.prod_values }}" > "rendered/${{ matrix.chart.name }}-prod.yaml"
 
+      - name: Render isolated Citrus broker fixture
+        if: matrix.chart.name == 'agent-workloads'
+        run: |
+          helm template agent-workloads helm/agent-workloads \
+            -f apps/agent-workloads/values.yaml \
+            -f tests/fixtures/citrus-purchasing-broker-enabled.yaml \
+            > rendered/agent-workloads-citrus-broker.yaml
+
       - name: Render Citrus production, dev, payment, and safe runtime
         if: matrix.chart.name == 'citrus'
         run: >-

@@ -1,0 +1,144 @@
+{{- include "agent-workloads.citrusBroker.validate" . -}}
+{{- with .Values.citrusPurchasingBroker -}}
+{{- if .enabled -}}
+{{- $root := $ -}}
+{{- $cfg := . -}}
+{{- $name := include "agent-workloads.citrusBroker.name" $root -}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "agent-workloads.citrusBroker.labels" $root | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "agent-workloads.citrusBroker.selectorLabels" $root | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "agent-workloads.citrusBroker.selectorLabels" $root | nindent 8 }}
+      annotations:
+        citrus-purchasing-broker.garz.ai/rollout-revision: {{ $cfg.rolloutRevision | quote }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      serviceAccountName: {{ $name }}
+      {{- include "agent-workloads.imagePullSecrets" $root | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: citrus-purchasing-broker
+          image: {{ printf "%s@%s" $cfg.image.repository $cfg.image.digest | quote }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+          env:
+            - name: CITRUS_PURCHASING_SERVER_CERT_FILE
+              value: /var/run/citrus/server-tls/tls.crt
+            - name: CITRUS_PURCHASING_SERVER_KEY_FILE
+              value: /var/run/citrus/server-tls/tls.key
+            - name: CITRUS_PURCHASING_CLIENT_CA_FILE
+              value: /var/run/citrus/client-ca/ca.crt
+            - name: CITRUS_PURCHASING_CLIENT_URI_SAN
+              value: {{ $cfg.clientUriSan | quote }}
+            - name: CITRUS_PURCHASING_API_ORIGIN
+              value: {{ $cfg.apiOrigin | quote }}
+            - name: CITRUS_PURCHASING_TOKEN_FILE
+              value: /var/run/citrus/purchasing-token/token
+            {{- with $cfg.apiCaSecretName }}
+            - name: CITRUS_PURCHASING_API_CA_FILE
+              value: /var/run/citrus/api-ca/ca.crt
+            {{- end }}
+            - name: CITRUS_PURCHASING_BROKER_PORT
+              value: "8443"
+          readinessProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: 10
+            timeoutSeconds: 1
+            failureThreshold: 3
+          startupProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: 5
+            timeoutSeconds: 1
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: server-tls
+              mountPath: /var/run/citrus/server-tls
+              readOnly: true
+            - name: client-ca
+              mountPath: /var/run/citrus/client-ca
+              readOnly: true
+            - name: purchasing-token
+              mountPath: /var/run/citrus/purchasing-token
+              readOnly: true
+            {{- with $cfg.apiCaSecretName }}
+            - name: api-ca
+              mountPath: /var/run/citrus/api-ca
+              readOnly: true
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: server-tls
+          secret:
+            secretName: {{ $cfg.serverTlsSecretName | quote }}
+            defaultMode: 288
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+        - name: client-ca
+          secret:
+            secretName: {{ $cfg.clientCaSecretName | quote }}
+            defaultMode: 288
+            items:
+              - key: ca.crt
+                path: ca.crt
+        - name: purchasing-token
+          secret:
+            secretName: {{ $cfg.purchasingTokenSecretName | quote }}
+            defaultMode: 288
+            items:
+              - key: token
+                path: token
+        {{- with $cfg.apiCaSecretName }}
+        - name: api-ca
+          secret:
+            secretName: {{ . | quote }}
+            defaultMode: 288
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+{{- end -}}
+{{- end -}}

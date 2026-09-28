@@ -1,0 +1,54 @@
+{{- include "agent-workloads.citrusBroker.validate" . -}}
+{{- with .Values.citrusPurchasingBroker -}}
+{{- if .enabled -}}
+{{- $root := $ -}}
+{{- $cfg := . -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "agent-workloads.citrusBroker.name" $root }}
+  labels:
+    {{- include "agent-workloads.citrusBroker.labels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "agent-workloads.citrusBroker.selectorLabels" $root | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $cfg.network.core.namespace | quote }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $cfg.network.core.appName | quote }}
+              app.kubernetes.io/instance: {{ $cfg.network.core.releaseName | quote }}
+              app.kubernetes.io/component: api
+      ports:
+        - port: 8443
+          protocol: TCP
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $cfg.network.dns.namespace | quote }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $cfg.network.dns.podLabels | nindent 14 }}
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    {{- range $cidr := $cfg.network.citrusIpv4Addresses }}
+    - to:
+        - ipBlock:
+            cidr: {{ $cidr | quote }}
+      ports:
+        - port: 443
+          protocol: TCP
+    {{- end }}
+{{- end -}}
+{{- end -}}

@@ -1,0 +1,22 @@
+# Render/test fixture only. Names, SAN and TEST-NET address are not deployment inputs.
+citrusPurchasingBroker:
+  enabled: true
+  image:
+    digest: sha256:216e824e52a2e4e3c8ea09f6ddf6d24633947d3dc143dcdabe61e9b116f3ef59
+  serverTlsSecretName: citrus-broker-server-tls
+  clientCaSecretName: citrus-broker-client-ca
+  purchasingTokenSecretName: citrus-broker-purchasing-token
+  clientUriSan: spiffe://mandate.test/core/citrus-purchasing
+  apiOrigin: https://purchasing.example.test
+  rolloutRevision: fixture-v1
+  network:
+    core:
+      namespace: agent-control-plane
+      appName: mandate
+      releaseName: agent-control-plane
+    dns:
+      namespace: kube-system
+      podLabels:
+        k8s-app: kube-dns
+    citrusIpv4Addresses:
+      - 192.0.2.10/32
