@@ -1,0 +1,18 @@
+{{- range $workerId, $worker := .Values.workers }}
+{{- if and $worker.enabled $worker.spreadAcrossNodes (gt (int $worker.replicaCount) 1) }}
+{{- $ctx := dict "root" $ "worker" $worker "workerId" $workerId }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "agent-workloads.workerMetadataName" $ctx }}
+  labels:
+    {{- include "agent-workloads.workerLabels" $ctx | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      {{- include "agent-workloads.workerSelectorLabels" $ctx | nindent 6 }}
+{{- end }}
+{{- end }}

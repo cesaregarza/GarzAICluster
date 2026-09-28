@@ -62,6 +62,10 @@ fastapi:
     COMP_LEADERBOARD_ENABLED: "true"
   resources: {}
   affinity: {}
+  # Balance each rollout revision across eligible nodes; requires Kubernetes 1.27+.
+  spreadAcrossNodes: false
+  strategy: {}
+  minReadySeconds: 0
   livenessProbe: {}
   readinessProbe: {}
   extraSecretEnv:

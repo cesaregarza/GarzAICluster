@@ -27,6 +27,8 @@ workers:
   data.workspace_probe:
     enabled: false
     replicaCount: 1
+    # Balance each rollout revision across eligible nodes; requires Kubernetes 1.27+.
+    spreadAcrossNodes: false
     metadataName: agent-workloads
     labels: {}
     selectorLabels:

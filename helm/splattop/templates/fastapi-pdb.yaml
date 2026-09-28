@@ -1,0 +1,14 @@
+{{- if and .Values.fastapi.enabled .Values.fastapi.spreadAcrossNodes (gt (int .Values.fastapi.replicas) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "splattop.fullname" . }}-fastapi
+  labels:
+    {{- include "splattop.componentLabels" (dict "component" "fastapi" "root" .) | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      {{- include "splattop.componentSelectorLabels" (dict "component" "fastapi" "root" .) | nindent 6 }}
+{{- end }}
