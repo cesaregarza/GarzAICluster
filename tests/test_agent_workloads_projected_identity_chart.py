@@ -248,6 +248,47 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             worker["spec"]["template"]["metadata"]["annotations"],
         )
 
+        citrus_id = "citrus.shopping_list"
+        citrus_worker = self.production_values["workers"][citrus_id]
+        citrus_account = _release_service_account_name(
+            citrus_id,
+            self.production_values["mandateReleasePins"][citrus_id],
+            prefix=citrus_worker["identity"]["serviceAccountNamePrefix"],
+        )
+        citrus_deployment = _find_document(
+            documents, kind="Deployment", name=citrus_worker["metadataName"]
+        )
+        citrus_pod = citrus_deployment["spec"]["template"]["spec"]
+        citrus_container = _container(citrus_deployment, citrus_worker["containerName"])
+        self.assertEqual(citrus_pod["serviceAccountName"], citrus_account)
+        self.assertIs(citrus_pod["automountServiceAccountToken"], False)
+        self.assertIn(
+            "projected-workload-identity-token",
+            {volume["name"] for volume in citrus_pod["volumes"]},
+        )
+        self.assertEqual(
+            _environment(citrus_container)["MANDATE_WORKER_ID"]["value"],
+            citrus_id,
+        )
+        self.assertIn(
+            "MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE",
+            _environment(citrus_container),
+        )
+
+        broker = _find_document(
+            documents, kind="Deployment", name="agent-workloads-citrus-broker"
+        )
+        broker_pod = broker["spec"]["template"]["spec"]
+        self.assertIs(broker_pod["automountServiceAccountToken"], False)
+        self.assertNotIn(
+            "projected-workload-identity-token",
+            {volume["name"] for volume in broker_pod.get("volumes", [])},
+        )
+        self.assertNotIn(
+            "MANDATE_WORKLOAD_IDENTITY_TOKEN_FILE",
+            _environment(_container(broker, "citrus-purchasing-broker")),
+        )
+
         service_accounts = [
             document
             for document in documents
@@ -267,6 +308,8 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
         expected_service_accounts = {
             "agent-workloads",
             workspace_account,
+            citrus_account,
+            "agent-workloads-citrus-broker",
             *opencode_accounts.values(),
         }
         for worker_id, worker_key in (
@@ -379,6 +422,12 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             set(service_accounts),
             {
                 "agent-workloads",
+                _release_service_account_name(
+                    "citrus.shopping_list",
+                    self.production_values["mandateReleasePins"]["citrus.shopping_list"],
+                    prefix=self.production_values["workers"]["citrus.shopping_list"]["identity"]["serviceAccountNamePrefix"],
+                ),
+                "agent-workloads-citrus-broker",
                 CURRENT_SERVICE_ACCOUNT,
                 PREVIOUS_SERVICE_ACCOUNT,
                 *opencode_accounts.values(),
@@ -386,6 +435,15 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             },
         )
         self.assertNotEqual(CURRENT_SERVICE_ACCOUNT, PREVIOUS_SERVICE_ACCOUNT)
+        broker = _find_document(
+            documents, kind="Deployment", name="agent-workloads-citrus-broker"
+        )
+        broker_pod = broker["spec"]["template"]["spec"]
+        self.assertIs(broker_pod["automountServiceAccountToken"], False)
+        self.assertNotIn(
+            "projected-workload-identity-token",
+            {volume["name"] for volume in broker_pod.get("volumes", [])},
+        )
         for name in (CURRENT_SERVICE_ACCOUNT, PREVIOUS_SERVICE_ACCOUNT):
             self.assertIs(service_accounts[name]["automountServiceAccountToken"], False)
 

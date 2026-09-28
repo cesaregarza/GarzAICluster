@@ -506,6 +506,124 @@ workers:
     workspace:
       seedBundle: true
       seedConfigMapName: agent-workloads-opencode-proposer-seed-bundle
+  citrus.shopping_list:
+    enabled: true
+    replicaCount: 1
+    metadataName: agent-workloads-citrus-shopping-list
+    labels:
+      app.kubernetes.io/part-of: agent-workloads
+      app.kubernetes.io/component: citrus-shopping-list
+    selectorLabels:
+      app.kubernetes.io/name: citrus-shopping-list
+      app.kubernetes.io/instance: agent-workloads
+    podAnnotations: {}
+    podLabels:
+      app.kubernetes.io/component: citrus-shopping-list
+      mandate.cesaregarza.io/egress-profile: control-plane-only
+    enableServiceLinks: false
+    containerName: citrus-shopping-list
+    image:
+      repository: registry.digitalocean.com/sendouq/agent-workloads-citrus-shopping-list
+      tag: sha-1f77449d0e93
+      digest: sha256:cdced6a87554fa32e284d9b5e7f2a2bbf30938b2d378bdd22a3594eb2c3c918e
+      pullPolicy: IfNotPresent
+    identity:
+      workerId: citrus.shopping_list
+      mode: projected
+      serviceAccountNamePrefix: agent-workloads
+      serviceAccount:
+        create: true
+        component: citrus-shopping-release-identity
+        previousComponent: citrus-shopping-release-identity-previous
+        annotations: {}
+      token:
+        audience: mandate-api
+        expirationSeconds: 3600
+        mountPath: /var/run/mandate/workload-identity
+        fileName: token
+      previousRelease: null
+    command:
+    - agent-workloads-worker
+    args: []
+    secretKeys: []
+    secretEnv: {}
+    env:
+      MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
+      MANDATE_WORKER_ID: citrus.shopping_list
+      MANDATE_WORKER_ENVIRONMENT: production
+      MANDATE_WORKER_POLL_SECONDS: '2'
+    handoffMode: ''
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      fsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      capabilities:
+        drop:
+        - ALL
+    resources:
+      requests:
+        cpu: 25m
+        memory: 96Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    initWorkspace:
+      enabled: false
+      name: init-workspace
+      command: []
+      script: ''
+      args: []
+      env: []
+      volumeMounts: []
+    volumes:
+    - name: tmp
+      emptyDir:
+        sizeLimit: 16Mi
+    volumeMounts:
+    - name: tmp
+      mountPath: /tmp
+    networkPolicy:
+      enabled: true
+      egress:
+        dns:
+          enabled: true
+          destinations:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+          ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+        destinations:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agent-control-plane
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: agent-control-plane
+              app.kubernetes.io/instance: agent-control-plane
+              app.kubernetes.io/component: api
+          ports:
+          - port: 80
+            protocol: TCP
+          - port: 8000
+            protocol: TCP
+    workspace:
+      seedBundle: false
+      seedConfigMapName: ''
+    enableServiceLinksField: true
 mandateReleasePins:
   data.workspace_probe:
     codeDigest: sha256:78446f183c23cf9ee250763479b8ed94e9058afd2d7346809886466a3866ce1c
@@ -519,3 +637,30 @@ mandateReleasePins:
     codeDigest: sha256:cea20ccb12a0a8abdf5cb43c71b2b4499e7d5aa575f42c59c6419571e74be45a
     manifestDigest: sha256:2cd63ae91d7df88522ab8875ec2990321d41578adf228a393ec3d8d261b45dab
     imageDigest: sha256:df42ca7fd43303107dc214a8cd8df7d8475ea73cd8f00344c25b676b22eb2fd7
+  citrus.shopping_list:
+    codeDigest: sha256:7ff6e0199eab531667d33fbd40d4ba54bbbff77362aa2c815a7a2844c42060a4
+    manifestDigest: sha256:95328f457787bbcd3da4fa6547c8ed91920604b9813a9f0fb3fdbbdd29ceb9b1
+    imageDigest: sha256:cdced6a87554fa32e284d9b5e7f2a2bbf30938b2d378bdd22a3594eb2c3c918e
+
+citrusPurchasingBroker:
+  enabled: true
+  image:
+    repository: registry.digitalocean.com/sendouq/agent-workloads-citrus-purchasing-broker
+    digest: sha256:216e824e52a2e4e3c8ea09f6ddf6d24633947d3dc143dcdabe61e9b116f3ef59
+  serverTlsSecretName: citrus-dev-broker-server-tls
+  clientCaSecretName: citrus-dev-broker-client-ca
+  purchasingTokenSecretName: citrus-dev-purchasing-token
+  clientUriSan: spiffe://mandate.garz.ai/core/citrus-dev-purchasing
+  apiOrigin: https://dev.citrus-grace.com
+  rolloutRevision: citrus-dev-20260928-140e5bf7faff
+  network:
+    core:
+      namespace: agent-control-plane
+      appName: agent-control-plane
+      releaseName: agent-control-plane
+    dns:
+      namespace: kube-system
+      podLabels:
+        k8s-app: kube-dns
+    citrusIpv4Addresses:
+    - 143.244.222.41/32

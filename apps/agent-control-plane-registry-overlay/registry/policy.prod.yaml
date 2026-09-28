@@ -2,6 +2,7 @@ defaults:
   max_cost_usd_per_job: 10.0
   max_runtime_seconds_per_job: 60
   max_runtime_seconds_per_capability:
+    agent_workloads.citrus_shopping_list: 120
     agent_workloads.readonly_query: 180
     agent_workloads.opencode_propose: 900
     agent_workloads.opencode_task: 900
@@ -35,6 +36,7 @@ bindings:
         - mandate.ops.inspect
         - mandate.deploy.smoke
         - agent_workloads.db_probe
+        - agent_workloads.citrus_shopping_list
         - agent_workloads.readonly_query
         - agent_workloads.opencode_apply
         - agent_workloads.opencode_propose

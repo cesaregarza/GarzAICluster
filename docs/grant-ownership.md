@@ -36,6 +36,14 @@ control-plane restart and do not require re-minting.
 
 | capability | key | owner | consequence |
 | --- | --- | --- | --- |
+| `agent_workloads.citrus_shopping_list` | `artifacts` | `deployment_overlay` | `control_plane_restart` |
+| `agent_workloads.citrus_shopping_list` | `broker` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.citrus_shopping_list` | `broker_bounds` | `mixed` | `control_plane_restart` |
+| `agent_workloads.citrus_shopping_list` | `description` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.citrus_shopping_list` | `output_gate` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.citrus_shopping_list` | `output_schema` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.citrus_shopping_list` | `result_contract` | `workload_release` | `digest_moves_repin_remint` |
+| `agent_workloads.citrus_shopping_list` | `session_authority_budget` | `mixed` | `control_plane_restart` |
 | `agent_workloads.db_probe` | `description` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.db_probe` | `output_schema` | `workload_release` | `digest_moves_repin_remint` |
 | `agent_workloads.opencode_apply` | `approval_mode` | `deployment_overlay` | `control_plane_restart` |

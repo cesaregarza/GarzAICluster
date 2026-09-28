@@ -431,3 +431,66 @@ capabilities:
         - max_operations
         release_owned_subkeys: '*'
         source: SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS
+  agent_workloads.citrus_shopping_list:
+    agent_id: citrus.shopping_list
+    source:
+      repo: agent-workloads
+      repo_url: https://github.com/cesaregarza/agent-workloads
+      path: workers/citrus-shopping-list/worker.yaml
+    config_path: apps/agent-control-plane-registry-overlay/registry/workload_imports.yaml:imports[id=citrus.shopping_list].capabilities.agent_workloads.citrus_shopping_list
+    keys:
+      artifacts:
+        owner: deployment_overlay
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        source: DEPLOYMENT_OWNED_CAPABILITY_KEYS
+      broker:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload worker.yaml
+      broker_bounds:
+        owner: mixed
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        deployment_owned_subkeys:
+        - max_cost_usd
+        release_owned_subkeys: '*'
+        source: SPEND_LIMIT_PRESERVING_MAPPING_KEYS/SPEND_LIMIT_KEYS
+      description:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload worker.yaml
+      output_gate:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload worker.yaml
+      output_schema:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload worker.yaml
+      result_contract:
+        owner: workload_release
+        deploy_consequence: digest_moves_repin_remint
+        remint_required: true
+        digest_moves: true
+        source: workload worker.yaml
+      session_authority_budget:
+        owner: mixed
+        deploy_consequence: control_plane_restart
+        remint_required: false
+        digest_moves: false
+        deployment_owned_subkeys:
+        - influence
+        - max_operations
+        release_owned_subkeys: '*'
+        source: SESSION_AUTHORITY_BUDGET_PRESERVED_KEYS

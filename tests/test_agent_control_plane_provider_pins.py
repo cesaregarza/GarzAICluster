@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import base64
 import json
+import os
 import subprocess
 import tempfile
 import textwrap
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from typing import Any
 
@@ -12,9 +15,14 @@ from ruamel.yaml import YAML
 
 from scripts.check_agent_control_plane_provider_pins import (
     MODEL_GATEWAY_CODEX_AUTH_STORE_PATH_ENV,
+    BROKER_OPERATION_PROVIDERS_ENV,
+    BROKER_PUBLIC_CERTIFICATES_PATH,
     PROVIDER_PINS_ENV,
     ProviderPinGateError,
     check_agent_control_plane_provider_pins,
+    _operation_provider_inputs,
+    _run_operation_fingerprint,
+    _run_provider_fingerprints,
 )
 
 
@@ -205,6 +213,265 @@ class AgentControlPlaneProviderPinTests(unittest.TestCase):
             self.assertIn("sha256:" + "4" * 64, message)
             self.assertIn("sha256:" + "8" * 64, message)
 
+    def test_api_env_pin_override_is_checked_at_override_and_siblings_ignore_it(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            tmp = Path(raw_tmp)
+            platform_repo, target_revision = _fake_agent_platform_repo(tmp)
+            operation = _operation_descriptor()
+            pins = dict(API_PINS)
+            pins["citrus_purchasing"] = {
+                "digest": "sha256:" + "5" * 64,
+                "protocol": "broker-operation-mtls.v1",
+            }
+            config_repo = _config_repo(
+                tmp,
+                target_revision=target_revision,
+                api_env={
+                    BROKER_OPERATION_PROVIDERS_ENV: json.dumps([operation]),
+                    PROVIDER_PINS_ENV: _pins_json(pins),
+                },
+            )
+            _write_public_manifest(config_repo)
+            seen: dict[str, list[dict[str, str]]] = {}
+
+            check_agent_control_plane_provider_pins(
+                repo_root=config_repo,
+                agent_platform_repo=platform_repo,
+                fingerprint_runner=_fingerprint_runner(seen),
+                operation_fingerprint_runner=lambda *_: "sha256:" + "5" * 64,
+            )
+            api_env = seen["control-api"][0]
+            worker_env = seen["control-api"][1]
+            self.assertIn(BROKER_OPERATION_PROVIDERS_ENV, api_env)
+            self.assertNotIn(BROKER_OPERATION_PROVIDERS_ENV, worker_env)
+            self.assertNotIn(
+                BROKER_OPERATION_PROVIDERS_ENV, seen["model-gateway"][0]
+            )
+
+            stale = dict(pins)
+            stale["citrus_purchasing"] = {
+                "digest": "sha256:" + "6" * 64,
+                "protocol": "broker-operation-mtls.v1",
+            }
+            values_path = config_repo / "apps/agent-control-plane/values.yaml"
+            values = YAML_PARSER.load(values_path.read_text())
+            values["apiEnv"][PROVIDER_PINS_ENV] = _pins_json(stale)
+            _write_yaml(values_path, values)
+            with self.assertRaises(ProviderPinGateError) as raised:
+                check_agent_control_plane_provider_pins(
+                    repo_root=config_repo,
+                    agent_platform_repo=platform_repo,
+                    fingerprint_runner=_fingerprint_runner({}),
+                    operation_fingerprint_runner=lambda *_: "sha256:" + "5" * 64,
+                )
+            self.assertIn(f"apiEnv.{PROVIDER_PINS_ENV}", str(raised.exception))
+
+            collision_operation = dict(operation, broker_id="model_gateway")
+            values["apiEnv"][BROKER_OPERATION_PROVIDERS_ENV] = json.dumps([collision_operation])
+            _write_yaml(values_path, values)
+            _write_public_manifest(config_repo, provider_id="model_gateway")
+            with self.assertRaisesRegex(ProviderPinGateError, "conflicts with base provider pin"):
+                check_agent_control_plane_provider_pins(
+                    repo_root=config_repo,
+                    agent_platform_repo=platform_repo,
+                    fingerprint_runner=_fingerprint_runner({}),
+                    operation_fingerprint_runner=lambda *_: "sha256:" + "5" * 64,
+                )
+
+    def test_operation_manifest_requires_exact_ids_and_safe_public_files(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            tmp = Path(raw_tmp)
+            platform_repo, target_revision = _fake_agent_platform_repo(tmp)
+            config_repo = _config_repo(
+                tmp,
+                target_revision=target_revision,
+                api_env={BROKER_OPERATION_PROVIDERS_ENV: json.dumps([_operation_descriptor()])},
+            )
+            fake = _fingerprint_runner({})
+            with self.assertRaisesRegex(ProviderPinGateError, "mapping is required"):
+                check_agent_control_plane_provider_pins(
+                    repo_root=config_repo,
+                    agent_platform_repo=platform_repo,
+                    fingerprint_runner=fake,
+                    operation_fingerprint_runner=lambda *_: "sha256:" + "5" * 64,
+                )
+
+            _write_public_manifest(config_repo, extra_provider=True)
+            with self.assertRaisesRegex(ProviderPinGateError, "exactly match"):
+                check_agent_control_plane_provider_pins(
+                    repo_root=config_repo,
+                    agent_platform_repo=platform_repo,
+                    fingerprint_runner=fake,
+                    operation_fingerprint_runner=lambda *_: "sha256:" + "5" * 64,
+                )
+
+            _write_public_manifest(config_repo, ca_file="apps/agent-control-plane/public/missing.pem")
+            with self.assertRaisesRegex(ProviderPinGateError, "file missing or unsafe"):
+                check_agent_control_plane_provider_pins(
+                    repo_root=config_repo,
+                    agent_platform_repo=platform_repo,
+                    fingerprint_runner=fake,
+                    operation_fingerprint_runner=lambda *_: "sha256:" + "5" * 64,
+                )
+
+            _write_public_manifest(config_repo, ca_file="../outside.pem")
+            with self.assertRaisesRegex(ProviderPinGateError, "path unsafe"):
+                check_agent_control_plane_provider_pins(
+                    repo_root=config_repo,
+                    agent_platform_repo=platform_repo,
+                    fingerprint_runner=fake,
+                    operation_fingerprint_runner=lambda *_: "sha256:" + "5" * 64,
+                )
+
+            _write_public_manifest(config_repo, private_key=True)
+            with self.assertRaisesRegex(ProviderPinGateError, "unsafe PEM material"):
+                check_agent_control_plane_provider_pins(
+                    repo_root=config_repo,
+                    agent_platform_repo=platform_repo,
+                    fingerprint_runner=fake,
+                    operation_fingerprint_runner=lambda *_: "sha256:" + "5" * 64,
+                )
+
+    def test_operation_fingerprint_subprocess_contract_is_offline_and_sanitized(self) -> None:
+        core_repo = Path("/tmp/selected core checkout")
+        config = _operation_descriptor()
+        ca_pem = b"-----BEGIN CERTIFICATE-----\nY2E=\n-----END CERTIFICATE-----\n"
+        cert_pem = b"-----BEGIN CERTIFICATE-----\nY2xpZW50\n-----END CERTIFICATE-----\n"
+        expected_digest = "sha256:" + "a" * 64
+        with patch.dict(os.environ, {"AGENT_PLATFORM_PRIVATE_SENTINEL": "do-not-forward"}):
+            with patch("scripts.check_agent_control_plane_provider_pins.subprocess.run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = json.dumps({
+                    "digest": expected_digest,
+                    "protocol": "broker-operation-mtls.v1",
+                })
+                run.return_value.stderr = ""
+                digest = _run_operation_fingerprint(config, ca_pem, cert_pem, core_repo)
+        self.assertEqual(digest, expected_digest)
+        args = run.call_args.args[0]
+        self.assertEqual(args[:4], ["uv", "--directory", str(core_repo), "run"])
+        payload = json.loads(run.call_args.kwargs["input"])
+        self.assertEqual(payload["config"], config)
+        self.assertEqual(base64.b64decode(payload["ca_pem_base64"]), ca_pem)
+        self.assertEqual(base64.b64decode(payload["client_cert_pem_base64"]), cert_pem)
+        self.assertNotIn("AGENT_PLATFORM_PRIVATE_SENTINEL", run.call_args.kwargs["env"])
+        self.assertEqual(run.call_args.kwargs["check"], False)
+        first_payload = payload
+
+        changed_digest = "sha256:" + "b" * 64
+        with patch("scripts.check_agent_control_plane_provider_pins.subprocess.run") as run:
+            run.return_value.returncode = 0
+            run.return_value.stdout = json.dumps({
+                "digest": changed_digest,
+                "protocol": "broker-operation-mtls.v1",
+            })
+            changed_ca = b"-----BEGIN CERTIFICATE-----\nY2E=\n-----END CERTIFICATE-----\n\n"
+            digest = _run_operation_fingerprint(config, changed_ca, cert_pem, core_repo)
+        self.assertNotEqual(digest, expected_digest)
+        changed_payload = json.loads(run.call_args.kwargs["input"])
+        self.assertNotEqual(
+            first_payload["ca_pem_base64"], changed_payload["ca_pem_base64"]
+        )
+
+        with patch("scripts.check_agent_control_plane_provider_pins.subprocess.run") as run:
+            run.return_value.returncode = 1
+            run.return_value.stdout = "private environment output"
+            run.return_value.stderr = "private environment detail"
+            with self.assertRaises(ProviderPinGateError) as raised:
+                _run_operation_fingerprint(config, ca_pem, cert_pem, core_repo)
+        self.assertNotIn("private environment", str(raised.exception))
+
+        with patch("scripts.check_agent_control_plane_provider_pins.subprocess.run") as run:
+            run.return_value.returncode = 0
+            run.return_value.stdout = json.dumps({
+                "digest": "bad-digest",
+                "protocol": "broker-operation-mtls.v1",
+            })
+            with self.assertRaisesRegex(ProviderPinGateError, "invalid digest"):
+                _run_operation_fingerprint(config, ca_pem, cert_pem, core_repo)
+
+    def test_operation_provider_json_and_manifest_reject_duplicates_and_stale_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            repo = Path(raw_tmp)
+            duplicate_field = (
+                '[{"broker_id":"one","broker_id":"two","endpoint":"https://x",'
+                '"ca_file":"/ca","client_cert_file":"/cert","client_key_file":"/key"}]'
+            )
+            with self.assertRaisesRegex(ProviderPinGateError, "unique-key JSON"):
+                _operation_provider_inputs(
+                    repo_root=repo,
+                    api_env={BROKER_OPERATION_PROVIDERS_ENV: duplicate_field},
+                )
+
+            duplicate_ids = [_operation_descriptor(), _operation_descriptor()]
+            with self.assertRaisesRegex(ProviderPinGateError, "duplicate broker ID"):
+                _operation_provider_inputs(
+                    repo_root=repo,
+                    api_env={BROKER_OPERATION_PROVIDERS_ENV: json.dumps(duplicate_ids)},
+                )
+
+            _write_public_manifest(repo)
+            with self.assertRaisesRegex(ProviderPinGateError, "exactly match"):
+                _operation_provider_inputs(
+                    repo_root=repo,
+                    api_env={BROKER_OPERATION_PROVIDERS_ENV: "[]"},
+                )
+
+            manifest = repo / BROKER_PUBLIC_CERTIFICATES_PATH
+            manifest.write_text(
+                "schema_version: broker-provider-public-certificates.v1\n"
+                "schema_version: broker-provider-public-certificates.v1\n"
+                "providers: {}\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ProviderPinGateError, "YAML is invalid"):
+                _operation_provider_inputs(
+                    repo_root=repo,
+                    api_env={BROKER_OPERATION_PROVIDERS_ENV: "[]"},
+                )
+
+    def test_public_certificate_paths_and_mapping_fields_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            repo = Path(raw_tmp)
+            _write_public_manifest(repo, ca_file="/etc/passwd")
+            env = {BROKER_OPERATION_PROVIDERS_ENV: json.dumps([_operation_descriptor()])}
+            with self.assertRaisesRegex(ProviderPinGateError, "path unsafe"):
+                _operation_provider_inputs(repo_root=repo, api_env=env)
+
+            _write_public_manifest(repo, ca_file="apps/agent-control-plane/public/ca-link.pem")
+            public_dir = repo / "apps/agent-control-plane/public"
+            (public_dir / "ca-link.pem").symlink_to(public_dir / "ca.pem")
+            with self.assertRaisesRegex(ProviderPinGateError, "path unsafe"):
+                _operation_provider_inputs(repo_root=repo, api_env=env)
+
+            _write_public_manifest(repo, ca_file="apps/agent-control-plane/public-link/ca.pem")
+            (repo / "apps/agent-control-plane/public-link").symlink_to(public_dir)
+            with self.assertRaisesRegex(ProviderPinGateError, "path unsafe"):
+                _operation_provider_inputs(repo_root=repo, api_env=env)
+
+            _write_public_manifest(repo, extra_private_field=True)
+            with self.assertRaisesRegex(ProviderPinGateError, "entry invalid"):
+                _operation_provider_inputs(repo_root=repo, api_env=env)
+
+            _write_public_manifest(repo)
+            ca_path = public_dir / "ca.pem"
+            ca_path.write_bytes(b"preamble\n-----BEGIN CERTIFICATE-----\nY2E=\n-----END CERTIFICATE-----\n")
+            with self.assertRaisesRegex(ProviderPinGateError, "unsafe PEM material"):
+                _operation_provider_inputs(repo_root=repo, api_env=env)
+
+            ca_path.write_bytes(b"-----BEGIN CERTIFICATE-----\nnot-base64!\n-----END CERTIFICATE-----\n")
+            with self.assertRaisesRegex(ProviderPinGateError, "unsafe PEM material"):
+                _operation_provider_inputs(repo_root=repo, api_env=env)
+
+    def test_base_api_fingerprint_subprocess_drops_operation_provider_env(self) -> None:
+        env = {BROKER_OPERATION_PROVIDERS_ENV: "[]"}
+        with patch("scripts.check_agent_control_plane_provider_pins.subprocess.run") as run:
+            run.return_value.returncode = 0
+            run.return_value.stdout = "{}"
+            run.return_value.stderr = ""
+            _run_provider_fingerprints("control-api", env, Path("/unused"))
+        self.assertNotIn(BROKER_OPERATION_PROVIDERS_ENV, run.call_args.kwargs["env"])
+
     def test_target_revision_must_be_agent_platform_main_ancestor(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             tmp = Path(raw_tmp)
@@ -322,6 +589,55 @@ def _fingerprint_runner(
     return run
 
 
+def _operation_descriptor() -> dict[str, str]:
+    return {
+        "broker_id": "citrus_purchasing",
+        "endpoint": "https://broker.example/v1/execute",
+        "ca_file": "/var/run/broker/ca.crt",
+        "client_cert_file": "/var/run/broker/client.crt",
+        "client_key_file": "/var/run/broker/client.key",
+    }
+
+
+def _write_public_manifest(
+    repo: Path,
+    *,
+    ca_file: str = "apps/agent-control-plane/public/ca.pem",
+    extra_provider: bool = False,
+    private_key: bool = False,
+    extra_private_field: bool = False,
+    provider_id: str = "citrus_purchasing",
+) -> None:
+    public_dir = repo / "apps/agent-control-plane/public"
+    public_dir.mkdir(parents=True, exist_ok=True)
+    ca_bytes = (
+        b"-----BEGIN PRIVATE KEY-----\nY2E=\n-----END PRIVATE KEY-----\n"
+        if private_key
+        else b"-----BEGIN CERTIFICATE-----\nY2E=\n-----END CERTIFICATE-----\n"
+    )
+    (public_dir / "ca.pem").write_bytes(ca_bytes)
+    (public_dir / "client.pem").write_bytes(
+        b"-----BEGIN CERTIFICATE-----\nY2xpZW50\n-----END CERTIFICATE-----\n"
+    )
+    providers: dict[str, Any] = {
+        provider_id: {
+            "ca_file": ca_file,
+            "client_cert_file": "apps/agent-control-plane/public/client.pem",
+        }
+    }
+    if extra_private_field:
+        providers[provider_id]["client_key_file"] = "apps/agent-control-plane/public/client.pem"
+    if extra_provider:
+        providers["stale"] = {
+            "ca_file": "apps/agent-control-plane/public/ca.pem",
+            "client_cert_file": "apps/agent-control-plane/public/client.pem",
+        }
+    _write_yaml(
+        repo / BROKER_PUBLIC_CERTIFICATES_PATH,
+        {"schema_version": "broker-provider-public-certificates.v1", "providers": providers},
+    )
+
+
 def _fake_agent_platform_repo(
     tmp: Path,
     *,
@@ -358,6 +674,7 @@ def _config_repo(
     api_pins: dict[str, Any] | None = None,
     gateway_pins: dict[str, Any] | None = None,
     worker_pins: dict[str, Any] | None = None,
+    api_env: dict[str, str] | None = None,
 ) -> Path:
     repo = tmp / f"config-{target_revision[:8]}"
     application_path = repo / "argocd" / "applications" / "agent-control-plane.yaml"
@@ -413,6 +730,7 @@ def _config_repo(
                     '{"worker_service":["opencode.proposer"]}'
                 ),
             },
+            **({"apiEnv": api_env} if api_env is not None else {}),
             "migrations": {
                 "enabled": True,
                 "disableStartupSchemaMigration": True,

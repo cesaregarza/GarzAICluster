@@ -1,155 +1,163 @@
-# Citrus purchasing broker: deployment support and activation prerequisites
+# Governed Citrus-dev shopping canary
 
-`helm/agent-workloads` can render an isolated Citrus purchasing broker through
-`citrusPurchasingBroker`. It is **disabled by default** and absent from the
-production overlay. Merging this support creates no runtime resources. The
-fixture in `tests/fixtures/citrus-purchasing-broker-enabled.yaml` uses synthetic
-TLS names, an example domain and a TEST-NET address; it is not deployable config.
+The candidate connects shared Mandate Core to **Citrus dev** and grants
+`agent_workloads.citrus_shopping_list` only to the existing private-admin
+binding. The result is a gross ingredient shopping list for an explicit,
+inclusive date window of at most 31 days; stock is not subtracted. Missing
+recipes and excluded demand remain visible as warnings. Only `output_text`
+passes the existing `text_result_v1` release projection.
 
-When enabled, it adds one Deployment, ClusterIP Service, ServiceAccount and
-NetworkPolicy. Its name is the release name (truncated to 49 characters) plus
-`-citrus-broker`. An enabled worker cannot use that name. It is a provider server,
-not a polling worker: no projected identity, API token, Role, RoleBinding,
-Ingress, worker environment or worker runtime Secret is inherited. Registry
-pull-secret names are the only shared chart input.
+The application source remains on Citrus `dev`. Core, worker and GitOps
+changes use their repositories' `main` branches. This does not promote Citrus
+production, create wife-specific access, or enable receipt processing.
 
-## Required broker inputs
-
-All input belongs to `citrusPurchasingBroker`; unknown keys are rejected.
-
-| Input | Contract |
-| --- | --- |
-| `enabled` | Defaults to false; incomplete configuration fails when true. |
-| `image.repository` | Fixed to `registry.digitalocean.com/sendouq/agent-workloads-citrus-purchasing-broker`. |
-| `image.digest` | Required immutable `sha256:` digest, never a mutable tag. |
-| `serverTlsSecretName` | Existing Secret with `tls.crt` and `tls.key`; server certificate must cover the internal Service hostname. |
-| `clientCaSecretName` | Existing Secret with `ca.crt`, the trust root for Core's client certificate. |
-| `purchasingTokenSecretName` | Existing Secret with `token`, containing only the narrow Citrus purchasing-read credential. |
-| `apiCaSecretName` | Optional existing Secret with `ca.crt` for Citrus API trust; otherwise image system roots apply. |
-| `clientUriSan` | Exact URI identity from Core's client certificate; broker requires that sole URI SAN. |
-| `apiOrigin` | Fixed HTTPS origin, no credentials/path/query/fragment, port 443 only. |
-| `rolloutRevision` | Required non-secret revision label; change when rotating secrets or reviewing changed provider addresses. |
-| `network.core` | Explicit `namespace`, `appName`, `releaseName`; peer also requires component `api`. |
-| `network.dns` | Explicit `namespace` and nonempty `podLabels`. |
-| `network.citrusIpv4Addresses` | 1–16 unique IPv4 `/32` host CIDRs, selected by the operator for the fixed API origin. |
-
-The pod runs as UID/GID 65532, with a read-only root, no capabilities or privilege
-escalation, RuntimeDefault seccomp and no automatic ServiceAccount token. Only
-named Secret keys are mounted read-only at mode 0440; fsGroup 65532 makes them
-readable. `/tmp` is a 16 MiB emptyDir. Fixed resources request 50m CPU/64Mi memory
-and limit 500m/256Mi. No arbitrary environment, command, volume, ServiceAccount
-or security override is exposed. Secrets must not be included in chart values.
-
-Mounts are `/var/run/citrus/server-tls`, `client-ca`, `purchasing-token`, and
-optional `api-ca`. The templates supply the exact `CITRUS_PURCHASING_*` file,
-origin and client-SAN environment contract from the published broker. It listens
-on TLS port 8443. TCP startup/readiness probes test the listener only; they do
-not prove authorization or provider health. There is no plaintext health bypass.
-
-The mandatory NetworkPolicy selects only this broker and combines namespace
-and pod selectors within each peer. Ingress permits Core's API pods on TCP8443;
-egress permits selected DNS pods on UDP/TCP53 and explicit Citrus host addresses
-on TCP443. There is no policy disable switch or broad CIDR fallback. IPv6,
-non-443 providers and service-selector egress require a reviewed chart extension.
-NetworkPolicy is additive: activation must check other namespace/CNI policies do
-not broaden access. Confirm CNI enforcement and actual service/NAT routing;
-a Kubernetes render cannot prove these properties. DNS resolution is pinned by
-the broker process at startup. Review DNS/IP changes, update the host allowlist
-and bump `rolloutRevision`; restart after TLS/CA/token rotation as appropriate.
-
-mTLS authenticates Core; Core's lease and capability policy authorize broker
-operations; the Citrus token authorizes provider reads. Network selectors are
-an additional boundary, not authentication. A compromised broker can read its
-mounted narrow token. Namespace administrators and a compromised authorized
-Core remain trusted by this deployment design. Image/source receipts bind a
-published artifact, not a claim about live runtime state.
-
-## Published inputs for the first activation
-
-These source artifacts exist; none of these pins is activated by this change.
+## Immutable inputs
 
 | Component | Source | Published image digest |
 | --- | --- | --- |
-| Core | `69bb119a22d5df71912f92fbd4261ff6a930abbd` | `sha256:99f707b1206adc4d0c86b8aac39ccfb3112ede51386e86a78dec641b6367f267` |
+| Core/chart | `f98a5ca247344249f9b6e2461342eccc787c7041` | `sha256:f710ce7108867739e653c8f06f554117c20bff8c15bd3432f2de94b570a2d898` |
 | Shopping worker | `1f77449d0e9310db1b74b06e17be507336793487` | `sha256:cdced6a87554fa32e284d9b5e7f2a2bbf30938b2d378bdd22a3594eb2c3c918e` |
 | Purchasing broker | `1f77449d0e9310db1b74b06e17be507336793487` | `sha256:216e824e52a2e4e3c8ea09f6ddf6d24633947d3dc143dcdabe61e9b116f3ef59` |
 
-Publication evidence: [Core](https://github.com/cesaregarza/agent-platform/actions/runs/36369933531),
+Published evidence: [Core](https://github.com/cesaregarza/agent-platform/actions/runs/36394613770),
 [worker](https://github.com/cesaregarza/agent-workloads/actions/runs/36369937184),
 [broker](https://github.com/cesaregarza/agent-workloads/actions/runs/36369940096).
-The broker uses the separate `citrus-purchasing-broker.json` receipt, not worker
-registry artifacts. The fixture records its published digest.
+The broker has its own image receipt and is not a worker registry import.
+The generated shopping manifest, values tuple and projected subject are applied
+transactionally from the single-worker release artifact. There is no previous
+shopping release, HMAC mint or overlap.
 
-## Core runtime prerequisite (CES-1048)
+## Authority and credential boundaries
 
-The Core Application now selects the published `69bb119a22d5df71912f92fbd4261ff6a930abbd`
-chart and image tuple above. This installs the broker-operation implementation
-when the operator explicitly syncs Core; it does not configure a provider or
-activate a Citrus broker, worker, credential or grant. Existing worker release
-tuples and policy remain unchanged. All five Core Deployments share this image.
+- The shopping worker has a Kubernetes projected identity, no provider secrets,
+  and network access only to DNS and Core. It receives one leased
+  `purchasing_requirements` operation, with no model or SQL ability.
+- The capability's policy gives the whole job **120 seconds**. Its independent
+  broker bound remains **20 seconds**, with one operation, zero provider cost,
+  bounded request/response bytes and external influence on returned data.
+- Only Core's API receives `apiEnv` provider configuration and the dedicated
+  `apiExtraVolumes` client identity. The other Core processes retain their
+  existing provider pins and cannot mount this client key through these values.
+- The broker owns the purchasing-read token. Its fixed origin is
+  `https://dev.citrus-grace.com`; there is no caller URL, redirect or proxy
+  override. The credential has no receipt create/read/legacy scope.
+- Broker ingress requires both the Core namespace and API pod labels on TCP8443.
+  Egress allows selected DNS pods and `143.244.222.41/32` on TCP443. Verify the
+  origin's IPv4 addresses again before activation. Cilium is enforcing policy;
+  the current inventory has no additional policy selecting the new broker or
+  worker. Still prove actual denied connections after deployment.
+- mTLS validates the server chain and hostname and authenticates the Core client
+  by its sole URI SAN, `spiffe://mandate.garz.ai/core/citrus-dev-purchasing`.
+  Namespace administrators and a compromised authorized Core remain trusted.
+  NetworkPolicy is additive and is not a replacement for authentication.
 
-Before proceeding with activation, sync the reviewed Core revision and verify
-migrations, all five deployed image digests/readiness, existing worker claims,
-callback/output delivery and zero identity/provider digest mismatches. The old
-source was `cdf4a4388aa28ac0a8595efa5ed243765c1deca5`, tag `sha-cdf4a4388aa2`, digest
-`sha256:f3b947b5f9b29bc5349c9f852cfff19891651334d91d44345d5e1f7cd53da065`.
-Keep that complete tuple as the rollback reference and verify database/schema
-compatibility before rollback. A merged pin is not evidence of a live rollout.
+The worker/broker pods run as UID/GID65532 with read-only roots, no ambient
+ServiceAccount token, no privilege escalation and no Linux capabilities.
+The worker has only its explicit projected token. The broker has no Kubernetes
+Role/RoleBinding. Broker secret mounts are read-only mode0440; its resources
+are bounded and `/tmp` is a 16MiB emptyDir.
 
-## Later activation sequence
+Dedicated SOPS files are referenced by the two namespaces' KSOPS generators.
+No pre-existing secret is rotated. The Core secret holds server-CA trust and
+client certificate/key; the broker's separate secrets hold server certificate/key,
+client-CA trust and the token. The purchasing token is never mounted into Core
+or the worker. The credential and TLS material were issued for 90 days on
+2026-09-28; certificates expire on 2026-12-27. Rotate before expiry. Issuer keys
+were discarded, so rotation creates a new complete trust bundle rather than
+renewing from a retained CA key.
 
-1. Select the actual Citrus API environment and verify the purchasing API is
-   available there. Dev support does not prove production promotion. Issue the
-   narrow purchasing-read token, server TLS and a dedicated Core client
-   certificate with the exact sole URI SAN. Install Secrets in the appropriate
-   namespaces, never in worker mounts or plaintext Git values. Review actual
-   Core labels, DNS labels and Citrus IPs against the enforcing CNI.
-2. Prepare a reviewed enabled broker overlay with the receipt digest. Prepare
-   Core's compatible chart revision and image digest together: its current
-   external Argo chart pin must not be assumed to contain the provider support.
-   Core's chart supports `env`, `extraVolumes` and `extraVolumeMounts`. Mount
-   broker server-CA trust and the dedicated client cert/key read-only into Core;
-   do not mount the Citrus token there. Set
-   `AGENT_PLATFORM_BROKER_OPERATION_PROVIDERS_JSON` to a descriptor array with
-   `broker_id: citrus_purchasing`, `endpoint`, `ca_file`, `client_cert_file`,
-   `client_key_file`. For release/namespace `agent-workloads`, endpoint is
-   `https://agent-workloads-citrus-broker.agent-workloads.svc:8443/v1/execute`.
-   Ensure server certificate DNS SAN and trust match this exact endpoint.
-   Recompute any provider digest pin from this complete reviewed configuration;
-   do not reuse an old digest after changing endpoint or certificate inputs.
-3. Prepare the initial shopping worker registry/manifest import, release tuple
-   and projected ServiceAccount from the published worker artifact. This is a
-   new identity, not an OpenCode identity rotation; do not use the existing
-   OpenCode-only activation helper. The proposed subject is
-   `system:serviceaccount:agent-workloads:agent-workloads-citrus-shopping-list-17e988b0dcbf95d47f6a`.
-   Verify the artifact's manifest, code, image and bundle digests together.
-4. Establish the chosen Hermes principal/channel and only its shopping grant.
-   Add the named policy prerequisite `citrus-shopping-job-runtime-120`:
-   `defaults.max_runtime_seconds_per_capability.agent_workloads.citrus_shopping_list=120`.
-   Keep the broker operation bound and timeout at 20 seconds, one operation,
-   zero provider cost, and requester-channel output release. Worker declaration
-   alone does not provide a 120-second lease. Preserve unrelated grants.
-5. Review the complete rollout and rollback tuple before requesting deployment.
-   The Core and workload Argo apps require explicit sync. Deploy broker and
-   compatible Core substrate first, verify mTLS/provider readiness, then enable
-   the coherent worker registry/identity/grant tuple. Confirm wrong client SAN,
-   absent credentials, ungranted principal, and direct worker-to-Citrus access
-   remain denied. On failure, disable the new capability/worker and restore the
-   previously reviewed pins before retrying; do not leave partial authority.
-6. Run one real ingredient-shopping request with an explicit date window.
-   Verify stored job lease 120 seconds, broker bound 20 seconds, successful
-   purchasing response and output release only to the intended principal/channel.
-   TCP readiness is insufficient. Only then expose the workflow for daily use.
+## Public identity verification
 
-Receipt processing remains a subsequent capability. This change neither issues
-credentials nor grants authority, syncs Argo, runs a live canary or deploys images.
-While disabled, reverting this chart addition has no runtime rollback work.
+`apps/agent-control-plane/broker-public-certificates.yaml` maps the configured
+provider IDs to committed public server-CA and Core-client certificate files.
+The provider-pin gate rejects missing/extra/duplicate mappings, unknown fields,
+absolute or traversing paths, symlinks, non-certificate PEM material and malformed
+base64. It invokes `broker_operation_fingerprint` from the exact chart-pinned
+Core checkout, preserving the original endpoint and public bytes. It needs no
+private key, TLS context or cluster DNS. Public-file validation checks encoding;
+it does not establish X.509 trust or live readiness.
 
-## Verification
+The pin binds transport source, protocol, broker ID, endpoint, CA and client
+certificate. It does not attest the remote broker image; that image is pinned
+separately. The API override is checked at its actual `apiEnv` location, while
+local-worker and model-gateway pins are computed from their own environments.
+Runtime construction still performs all normal endpoint/TLS/key/DNS checks.
 
-Python chart tests exercise valid/invalid configurations, mandatory credentials
-and network inputs, exact peer selectors, resources, mounts, image pinning,
-name collisions and unchanged existing workers. CI renders the enabled fixture
-alongside production values for strict kubeconform validation. Default and
-production renders are also compared to the parent revision during delivery.
-No local Hermes tests or resource-intensive Hermes checks are part of this gate.
+Issuance verified key pairs, signatures and public-input equality before
+SOPS encryption. Local decryption was unavailable on the preparation host.
+Before activating the provider, verify that the installed Core CA/client
+certificate hashes match the committed public files without printing keys or
+plaintext credential values.
+
+## Reviewed rollout order
+
+Merging configuration is not the shopping canary. Core, registry and worker
+Applications use manual sync. The Core secrets Application auto-syncs; the
+workload secrets Application requires explicit sync. Use the exact reviewed
+GitOps merge SHA, recheck project sync windows and current operations, and
+record dry-run and apply receipts. Never alter sync-window policy.
+
+The existing train orders registry, Core, then workers. A new broker Service
+must exist **before** Core constructs its DNS-pinned provider, so bootstrap
+only the broker resources before running that train:
+
+1. Confirm exact GitOps `main`, successful post-merge CI and all published image
+   digests. Confirm Citrus dev is healthy at the purchasing API source revision,
+   that its purchasing migration is applied, and that its HTTPS/DNS address
+   still matches the broker allowlist. Keep the existing Core/worker baseline.
+2. Wait for the Core secrets app to sync at that revision; dry-run and sync the
+   workload secrets app at the same revision. Confirm all four new Secret names
+   and required keys, and public certificate hashes, using bounded metadata/hash
+   checks. Do not print private keys or tokens.
+3. Dry-run a resource-selected Argo sync of only the new broker's Deployment,
+   Service, ServiceAccount and NetworkPolicy in `agent-workloads`, all named
+   `agent-workloads-citrus-broker`. Verify the selected diff contains exactly
+   those four resources, then apply and wait for the broker listener and ready
+   Service endpoints. This explicit bootstrap has no hooks; it must not sync the
+   shopping worker or registry. The workload Application remains OutOfSync
+   until the final full reconciliation.
+4. Use `scripts/mandate_scoped_deploy.py` with the exact merge SHA and applications
+   `agent-control-plane-registry-overlay`, `agent-control-plane`,
+   `agent-workloads`, in that canonical order. Run its dry-run before `--apply`.
+   This keeps overlay hooks and worker reconciliation in one invocation.
+   The old Core has no Citrus provider until its image/config sync; readiness
+   denies shopping while it is unavailable. The new projected subject and
+   worker tuple must agree when the train finishes. Require all five Core
+   Deployments at the new image, migrations successful, all selected apps
+   Synced/Healthy, and the existing governed verification journeys passing.
+5. Run one real shopping request with explicit dates from the selected private
+   admin context. Inspect the stored 120-second job lease, 20-second broker
+   bound, consumed operation budget, external influence, output-gate pass,
+   released result and callback to that same requester channel. Do not expose
+   raw provider data as a shortcut. Empty demand is a valid result, but must be
+   identified as empty rather than a populated shopping plan.
+6. Check an ungranted principal is denied; wrong client certificate identity is
+   denied; the shopping worker cannot connect directly to Citrus or the broker;
+   and existing worker claims show no new identity/provider mismatches.
+   TCP readiness alone does not satisfy this acceptance.
+
+The user's approval covers this scoped Citrus-dev canary after critic merge.
+No broader principal, environment, receipt-write or production-promotion scope
+is authorized by this rollout.
+
+## Failure and rollback
+
+Stop before the next phase when any gate fails. Before the main train, the
+broker alone conveys no user-facing capability; do not add a grant to work
+around a failure. During or after the train, disable the new shopping grant
+and worker through a reviewed GitOps rollback and reconcile the overlay plus
+workers together. Revoke the named Citrus-dev credential
+`mandate-citrus-dev-purchasing-20260928` if abandoning this connection. Delete
+bootstrap resources only after confirming no active shopping job depends on
+them and removing the provider from Core.
+
+The previous Core source/chart is
+`69bb119a22d5df71912f92fbd4261ff6a930abbd`, image
+`sha256:99f707b1206adc4d0c86b8aac39ccfb3112ede51386e86a78dec641b6367f267`,
+at GitOps baseline `958c4a0c20ca26cf027d508f6ed31daeff5ba49e`.
+If reverting Core, restore its complete source/chart/image/provider-env tuple;
+never retain the new certificate-bound pin with old transport source. Existing
+worker release tuples, retained overlaps and HMAC ciphertext are unchanged.
+
+Receipt processing, a dedicated wife channel and production Citrus access
+remain later work.

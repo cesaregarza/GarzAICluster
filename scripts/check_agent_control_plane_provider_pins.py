@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable, Mapping
@@ -28,6 +31,10 @@ AGENT_PLATFORM_REPO_URLS = {
 }
 FULL_GIT_SHA_RE = r"^[0-9a-f]{40}$"
 PROVIDER_PINS_ENV = "AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON"
+BROKER_OPERATION_PROVIDERS_ENV = "AGENT_PLATFORM_BROKER_OPERATION_PROVIDERS_JSON"
+BROKER_PUBLIC_CERTIFICATES_PATH = Path(
+    "apps/agent-control-plane/broker-public-certificates.yaml"
+)
 MODEL_GATEWAY_CODEX_AUTH_STORE_PATH_ENV = (
     "AGENT_PLATFORM_MODEL_GATEWAY_CODEX_AUTH_STORE_PATH"
 )
@@ -38,6 +45,7 @@ YAML_PARSER = YAML(typ="safe")
 
 ProviderProcess = Literal["control-api", "model-gateway"]
 FingerprintRunner = Callable[[ProviderProcess, Mapping[str, str], Path], str]
+OperationFingerprintRunner = Callable[[Mapping[str, str], bytes, bytes, Path], str]
 ImageChecker = Callable[[str], None]
 
 
@@ -144,6 +152,7 @@ def check_agent_control_plane_provider_pins(
     agent_platform_main_ref: str = DEFAULT_AGENT_PLATFORM_MAIN_REF,
     check_image_exists: bool = False,
     fingerprint_runner: FingerprintRunner | None = None,
+    operation_fingerprint_runner: OperationFingerprintRunner | None = None,
     image_checker: ImageChecker | None = None,
 ) -> str:
     application = _load_yaml(repo_root / application_path)
@@ -184,6 +193,7 @@ def check_agent_control_plane_provider_pins(
         values_path=values_path,
         agent_platform_main_ref=agent_platform_main_ref,
         fingerprint_runner=fingerprint_runner,
+        operation_fingerprint_runner=operation_fingerprint_runner,
         validate_git=False,
     )
     _assert_declared_pins_match(
@@ -205,6 +215,7 @@ def expected_provider_pins(
     values_path: Path = VALUES_PATH,
     agent_platform_main_ref: str = DEFAULT_AGENT_PLATFORM_MAIN_REF,
     fingerprint_runner: FingerprintRunner | None = None,
+    operation_fingerprint_runner: OperationFingerprintRunner | None = None,
     validate_git: bool = True,
 ) -> dict[str, str]:
     application = _load_yaml(repo_root / application_path)
@@ -222,14 +233,33 @@ def expected_provider_pins(
     merged_values = _deep_merge(chart_values, deployment_values)
     locations = _provider_pin_locations(merged_values)
     runner = fingerprint_runner or _run_provider_fingerprints
+    operation_runner = operation_fingerprint_runner or _run_operation_fingerprint
 
     expected: dict[str, str] = {}
     for location in locations:
         raw = runner(location.process, location.env, agent_platform_repo)
-        expected[location.label] = _canonical_pin_json(
-            raw,
-            label=f"recomputed {location.label}",
-        )
+        canonical = _canonical_pin_json(raw, label=f"recomputed {location.label}")
+        if location.process == "control-api" and location.value_path in {
+            ("env", PROVIDER_PINS_ENV),
+            ("apiEnv", PROVIDER_PINS_ENV),
+        }:
+            pins = json.loads(canonical)
+            for config, ca_pem, client_cert_pem in _operation_provider_inputs(
+                repo_root=repo_root, api_env=location.env
+            ):
+                broker_id = config["broker_id"]
+                if broker_id in pins:
+                    raise ProviderPinGateError(
+                        f"broker operation provider ID conflicts with base provider pin: {broker_id}"
+                    )
+                pins[broker_id] = {
+                    "digest": operation_runner(
+                        config, ca_pem, client_cert_pem, agent_platform_repo
+                    ),
+                    "protocol": "broker-operation-mtls.v1",
+                }
+            canonical = json.dumps(pins, sort_keys=True, separators=(",", ":"))
+        expected[location.label] = canonical
     return expected
 
 
@@ -317,10 +347,16 @@ def _provider_pin_locations(values: Mapping[str, Any]) -> tuple[PinLocation, ...
     control_env = _control_api_process_env(values)
     gateway_env = _model_gateway_process_env(values)
     local_worker_env = _local_worker_process_env(values)
+    api_env_values = _optional_mapping(values.get("apiEnv")) or {}
+    api_pin_path = (
+        ("apiEnv", PROVIDER_PINS_ENV)
+        if PROVIDER_PINS_ENV in api_env_values
+        else ("env", PROVIDER_PINS_ENV)
+    )
     return (
         PinLocation(
             process="control-api",
-            value_path=("env", PROVIDER_PINS_ENV),
+            value_path=api_pin_path,
             env=control_env,
         ),
         PinLocation(
@@ -343,6 +379,9 @@ def _control_api_process_env(values: Mapping[str, Any]) -> dict[str, str]:
         label="agent-control-plane values env",
     )
     env.update(operator_env)
+    api_env = _string_map(
+        values.get("apiEnv"), label="agent-control-plane values apiEnv"
+    )
     _add_startup_migration_env(env, values, operator_env)
     _add_skills_env(env, values, operator_env)
     _add_metrics_env(env, values, operator_env)
@@ -350,6 +389,7 @@ def _control_api_process_env(values: Mapping[str, Any]) -> dict[str, str]:
         env,
         _optional_mapping(values.get("modelGateway")),
     )
+    env.update(api_env)
     env.pop(PROVIDER_PINS_ENV, None)
     return env
 
@@ -514,6 +554,8 @@ def _run_provider_fingerprints(
         if not key.startswith("AGENT_PLATFORM_")
     }
     process_env.update(env)
+    if process == "control-api":
+        process_env.pop(BROKER_OPERATION_PROVIDERS_ENV, None)
     try:
         result = subprocess.run(
             [
@@ -540,6 +582,174 @@ def _run_provider_fingerprints(
             f"{result.stderr.strip() or result.stdout.strip()}"
         )
     return result.stdout.strip()
+
+
+def _operation_provider_inputs(
+    *, repo_root: Path, api_env: Mapping[str, str]
+) -> tuple[tuple[dict[str, str], bytes, bytes], ...]:
+    raw = api_env.get(BROKER_OPERATION_PROVIDERS_ENV)
+    descriptors: list[dict[str, str]] = []
+    if raw:
+        try:
+            decoded = json.loads(raw, object_pairs_hook=_unique_json_object)
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise ProviderPinGateError(
+                f"{BROKER_OPERATION_PROVIDERS_ENV} must be unique-key JSON"
+            ) from exc
+        if not isinstance(decoded, list):
+            raise ProviderPinGateError(f"{BROKER_OPERATION_PROVIDERS_ENV} must be a JSON array")
+        required = {"broker_id", "endpoint", "ca_file", "client_cert_file", "client_key_file"}
+        ids: set[str] = set()
+        for item in decoded:
+            if not isinstance(item, dict) or set(item) != required:
+                raise ProviderPinGateError(
+                    f"{BROKER_OPERATION_PROVIDERS_ENV} descriptors must contain exactly "
+                    "broker_id, endpoint, ca_file, client_cert_file, and client_key_file"
+                )
+            if any(not isinstance(value, str) or not value for value in item.values()):
+                raise ProviderPinGateError(
+                    f"{BROKER_OPERATION_PROVIDERS_ENV} descriptor values must be non-empty strings"
+                )
+            broker_id = item["broker_id"]
+            if broker_id in ids:
+                raise ProviderPinGateError(
+                    f"{BROKER_OPERATION_PROVIDERS_ENV} contains duplicate broker ID: {broker_id}"
+                )
+            ids.add(broker_id)
+            descriptors.append(item)
+
+    manifest_path = repo_root / BROKER_PUBLIC_CERTIFICATES_PATH
+    if not manifest_path.exists() and not manifest_path.is_symlink():
+        if descriptors:
+            raise ProviderPinGateError(
+                "public broker certificate mapping is required: "
+                f"{BROKER_PUBLIC_CERTIFICATES_PATH.as_posix()}"
+            )
+        return ()
+    if manifest_path.is_symlink():
+        raise ProviderPinGateError("public broker certificate mapping path must not be a symlink")
+    try:
+        manifest = _load_yaml(manifest_path)
+    except Exception as exc:
+        raise ProviderPinGateError("public broker certificate mapping YAML is invalid") from exc
+    if set(manifest) != {"schema_version", "providers"}:
+        raise ProviderPinGateError("public broker certificate mapping has invalid fields")
+    if manifest.get("schema_version") != "broker-provider-public-certificates.v1":
+        raise ProviderPinGateError("public broker certificate mapping schema_version invalid")
+    providers = manifest.get("providers")
+    if not isinstance(providers, dict):
+        raise ProviderPinGateError("public broker certificate mapping providers must be a mapping")
+    configured_ids = {item["broker_id"] for item in descriptors}
+    if set(providers) != configured_ids:
+        raise ProviderPinGateError(
+            "public broker certificate mapping provider IDs must exactly match configured broker IDs"
+        )
+    inputs = []
+    for descriptor in descriptors:
+        broker_id = descriptor["broker_id"]
+        entry = providers[broker_id]
+        if not isinstance(entry, dict) or set(entry) != {"ca_file", "client_cert_file"}:
+            raise ProviderPinGateError(f"public broker certificate mapping entry invalid for {broker_id}")
+        inputs.append((
+            descriptor,
+            _read_public_pem(repo_root, entry["ca_file"], broker_id),
+            _read_public_pem(repo_root, entry["client_cert_file"], broker_id),
+        ))
+    return tuple(inputs)
+
+
+def _read_public_pem(repo_root: Path, raw_path: Any, broker_id: str) -> bytes:
+    """Validate public PEM encoding only; this does not establish X.509 trust or TLS readiness."""
+    if not isinstance(raw_path, str) or not raw_path:
+        raise ProviderPinGateError(f"public certificate path invalid for {broker_id}")
+    relative = Path(raw_path)
+    if relative.is_absolute() or ".." in relative.parts or not relative.parts:
+        raise ProviderPinGateError(f"public certificate path unsafe for {broker_id}")
+    candidate = repo_root / relative
+    cursor = repo_root
+    for part in relative.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise ProviderPinGateError(f"public certificate path unsafe for {broker_id}")
+    try:
+        resolved_root = repo_root.resolve(strict=True)
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(resolved_root)
+        if not resolved.is_file():
+            raise ValueError("not a regular file")
+        data = resolved.read_bytes()
+    except (OSError, ValueError) as exc:
+        raise ProviderPinGateError(f"public certificate file missing or unsafe for {broker_id}") from exc
+    blocks = tuple(
+        re.finditer(
+            rb"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----",
+            data,
+            flags=re.DOTALL,
+        )
+    )
+    if not blocks or re.sub(
+        rb"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----",
+        b"",
+        data,
+        flags=re.DOTALL,
+    ).strip():
+        raise ProviderPinGateError(f"public certificate file contains unsafe PEM material for {broker_id}")
+    try:
+        for block in blocks:
+            encoded = re.sub(rb"\s+", b"", block.group(1))
+            if re.fullmatch(rb"[A-Za-z0-9+/]+={0,2}", encoded) is None:
+                raise ValueError("invalid PEM base64")
+            if not base64.b64decode(encoded, validate=True):
+                raise ValueError("empty PEM certificate")
+    except (ValueError, binascii.Error) as exc:
+        raise ProviderPinGateError(f"public certificate file contains unsafe PEM material for {broker_id}") from exc
+    return data
+
+
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON field")
+        result[key] = value
+    return result
+
+
+def _run_operation_fingerprint(
+    config: Mapping[str, str], ca_pem: bytes, client_cert_pem: bytes,
+    agent_platform_repo: Path,
+) -> str:
+    payload = {
+        "config": dict(config),
+        "ca_pem_base64": base64.b64encode(ca_pem).decode("ascii"),
+        "client_cert_pem_base64": base64.b64encode(client_cert_pem).decode("ascii"),
+    }
+    process_env = {
+        key: value for key, value in os.environ.items()
+        if not key.startswith("AGENT_PLATFORM_")
+    }
+    helper = REPO_ROOT / "scripts" / "fingerprint_agent_control_plane_broker_operation.py"
+    try:
+        result = subprocess.run(
+            ["uv", "--directory", str(agent_platform_repo), "run", "python", str(helper)],
+            input=json.dumps(payload, separators=(",", ":")),
+            capture_output=True, text=True, env=process_env, check=False,
+        )
+    except FileNotFoundError as exc:
+        raise ProviderPinGateError("uv is required to recompute broker operation pins") from exc
+    if result.returncode != 0:
+        raise ProviderPinGateError("broker operation fingerprint helper failed")
+    try:
+        response = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise ProviderPinGateError("broker operation fingerprint helper returned invalid JSON") from exc
+    digest = response.get("digest") if isinstance(response, dict) else None
+    protocol = response.get("protocol") if isinstance(response, dict) else None
+    if not isinstance(digest, str) or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None:
+        raise ProviderPinGateError("broker operation fingerprint helper returned invalid digest")
+    if protocol != "broker-operation-mtls.v1":
+        raise ProviderPinGateError("broker operation fingerprint helper returned invalid protocol")
+    return digest
 
 
 def _assert_declared_pins_match(
