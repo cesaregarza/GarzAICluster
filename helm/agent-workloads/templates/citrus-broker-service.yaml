@@ -1,0 +1,18 @@
+{{- include "agent-workloads.citrusBroker.validate" . -}}
+{{- if .Values.citrusPurchasingBroker.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent-workloads.citrusBroker.name" . }}
+  labels:
+    {{- include "agent-workloads.citrusBroker.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: 8443
+      targetPort: https
+      protocol: TCP
+  selector:
+    {{- include "agent-workloads.citrusBroker.selectorLabels" . | nindent 4 }}
+{{- end -}}

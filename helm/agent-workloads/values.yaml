@@ -115,3 +115,28 @@ workers:
       seedConfigMapName: ""
 
 mandateReleasePins: {}
+
+# Standalone provider broker, never a projected worker. No resources until enabled.
+# See docs/agent-control-plane-citrus-procurement.md before activation.
+citrusPurchasingBroker:
+  enabled: false
+  image:
+    repository: registry.digitalocean.com/sendouq/agent-workloads-citrus-purchasing-broker
+    digest: ""
+  serverTlsSecretName: ""
+  clientCaSecretName: ""
+  purchasingTokenSecretName: ""
+  apiCaSecretName: ""
+  clientUriSan: ""
+  apiOrigin: ""
+  # Bump after rotating secrets or reviewing new provider DNS addresses.
+  rolloutRevision: ""
+  network:
+    core:
+      namespace: ""
+      appName: ""
+      releaseName: ""
+    dns:
+      namespace: ""
+      podLabels: {}
+    citrusIpv4Addresses: []
