@@ -227,6 +227,7 @@ data:
       max_cost_usd_per_job: 10.0
       max_runtime_seconds_per_job: 60
       max_runtime_seconds_per_capability:
+        agent_workloads.citrus_shopping_list: 120
         agent_workloads.readonly_query: 180
         agent_workloads.opencode_propose: 900
         agent_workloads.opencode_task: 900
@@ -260,6 +261,7 @@ data:
             - mandate.ops.inspect
             - mandate.deploy.smoke
             - agent_workloads.db_probe
+            - agent_workloads.citrus_shopping_list
             - agent_workloads.readonly_query
             - agent_workloads.opencode_apply
             - agent_workloads.opencode_propose
@@ -720,3 +722,86 @@ data:
           session_authority_budget:
             max_operations: 1
             influence: principal
+    - id: citrus.shopping_list
+      manifest_path: registries/imports/agent-citrus.shopping_list.json
+      manifest_digest: sha256:95328f457787bbcd3da4fa6547c8ed91920604b9813a9f0fb3fdbbdd29ceb9b1
+      image_digest: sha256:cdced6a87554fa32e284d9b5e7f2a2bbf30938b2d378bdd22a3594eb2c3c918e
+      expected_source:
+        repo: agent-workloads
+        repo_url: https://github.com/cesaregarza/agent-workloads
+        path: workers/citrus-shopping-list/worker.yaml
+      agent:
+        execution_posture: capability_worker
+        network_access: broker_only
+        service_account_ref: mandate-citrus-shopping-list
+        model_call: false
+        readonly_sql_broker: false
+        broker_operation: true
+        max_runtime_seconds: 120
+        service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-citrus-shopping-list-17e988b0dcbf95d47f6a
+      capabilities:
+        agent_workloads.citrus_shopping_list:
+          description: Read Citrus gross ingredient requirements for an explicit date
+            window.
+          output_schema: text_result
+          result_contract:
+            output_schema: text_result
+            released_result_fields:
+            - output_text
+          session_authority_budget:
+            max_operations: 1
+            influence: principal
+          artifacts:
+            allowed: false
+            broker_required: true
+          output_gate:
+            policy_id: deterministic-public-result-v1
+            projection_id: text_result_v1
+          broker:
+            allowed_broker: citrus_purchasing
+          broker_bounds:
+            kind: operation
+            max_request_bytes: 8192
+            max_response_bytes: 1048576
+            required: true
+            allowed_operations:
+            - purchasing_requirements
+            operation_max_influence:
+              purchasing_requirements: external
+            max_runtime_seconds: 20
+            max_cost_usd: 0
+  agent-citrus.shopping_list.json: |
+    {
+      "capabilities": [
+        "agent_workloads.citrus_shopping_list"
+      ],
+      "capability_metadata": {
+        "agent_workloads.citrus_shopping_list": {
+          "consequence_class": "read_only"
+        }
+      },
+      "code_digest": "sha256:7ff6e0199eab531667d33fbd40d4ba54bbbff77362aa2c815a7a2844c42060a4",
+      "digest": "sha256:95328f457787bbcd3da4fa6547c8ed91920604b9813a9f0fb3fdbbdd29ceb9b1",
+      "display_name": "Citrus Shopping List Worker",
+      "evals": {
+        "optional": [],
+        "required": []
+      },
+      "id": "citrus.shopping_list",
+      "image": {
+        "digest": "sha256:cdced6a87554fa32e284d9b5e7f2a2bbf30938b2d378bdd22a3594eb2c3c918e",
+        "repository": "registry.digitalocean.com/sendouq/agent-workloads-citrus-shopping-list"
+      },
+      "loop": {
+        "contract": "worker_service_v1",
+        "kind": "worker_service",
+        "protocol": "mandate_worker_service_pull_v1"
+      },
+      "schema_version": "agent-workload.v1",
+      "source": {
+        "path": "workers/citrus-shopping-list/worker.yaml",
+        "repo": "agent-workloads",
+        "repo_url": "https://github.com/cesaregarza/agent-workloads"
+      },
+      "workload_type": "agent"
+    }

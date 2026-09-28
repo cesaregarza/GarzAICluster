@@ -160,6 +160,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
                 "agent-data.workspace_probe.json",
                 "agent-opencode.proposer.json",
                 "agent-opencode.apply_executor.json",
+                "agent-citrus.shopping_list.json",
             },
         )
 
@@ -1347,6 +1348,7 @@ exit 64
         self.assertEqual(
             policy["defaults"]["max_runtime_seconds_per_capability"],
             {
+                "agent_workloads.citrus_shopping_list": 120,
                 "agent_workloads.readonly_query": 180,
                 "agent_workloads.opencode_propose": 900,
                 "agent_workloads.opencode_task": 900,

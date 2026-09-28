@@ -56,7 +56,10 @@ class CitrusPurchasingBrokerChartTests(unittest.TestCase):
     def test_disabled_and_existing_worker_parity(self):
         for production in (False, True):
             with self.subTest(production=production):
-                baseline = render({}, production=production)
+                baseline = render(
+                    {'citrusPurchasingBroker': {'enabled': False}},
+                    production=production,
+                )
                 disabled = fixture()
                 disabled['citrusPurchasingBroker']['enabled'] = False
                 self.assertEqual(baseline.returncode, 0, baseline.stderr)

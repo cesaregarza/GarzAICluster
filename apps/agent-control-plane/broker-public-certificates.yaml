@@ -1,0 +1,5 @@
+schema_version: broker-provider-public-certificates.v1
+providers:
+  citrus_purchasing:
+    ca_file: apps/agent-control-plane/broker-public/citrus-dev-server-ca.crt
+    client_cert_file: apps/agent-control-plane/broker-public/citrus-dev-core-client.crt
