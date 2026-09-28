@@ -41,7 +41,7 @@ DigitalOcean managed PostgreSQL documents automatic backups and point-in-time
 restore by forking a new database cluster. Restores must create a new cluster;
 do not restore in place over the current writer.
 
-Current GitOps Core release pin: `registry.digitalocean.com/sendouq/agent-platform:sha-cdf4a4388aa2` (`sha256:f3b947b5f9b29bc5349c9f852cfff19891651334d91d44345d5e1f7cd53da065`), source `cdf4a4388aa28ac0a8595efa5ed243765c1deca5`.
+Current GitOps Core release pin: `registry.digitalocean.com/sendouq/agent-platform:sha-69bb119a22d5` (`sha256:99f707b1206adc4d0c86b8aac39ccfb3112ede51386e86a78dec641b6367f267`), source `69bb119a22d5df71912f92fbd4261ff6a930abbd`.
 
 ## Accepted Recovery Targets
 
@@ -178,7 +178,7 @@ spec:
         - name: regcred
       containers:
         - name: schema-check
-          image: registry.digitalocean.com/sendouq/agent-platform:sha-cdf4a4388aa2
+          image: registry.digitalocean.com/sendouq/agent-platform:sha-69bb119a22d5
           envFrom:
             - secretRef:
                 name: agent-control-plane-secrets
