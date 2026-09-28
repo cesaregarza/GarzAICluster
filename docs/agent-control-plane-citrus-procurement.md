@@ -1,8 +1,12 @@
 # Governed Citrus-dev shopping canary
 
 The candidate connects shared Mandate Core to **Citrus dev** and grants
-`agent_workloads.citrus_shopping_list` only to the existing private-admin
-binding. The result is a gross ingredient shopping list for an explicit,
+`agent_workloads.citrus_shopping_list` only to the `citrus-shopping-private-assistant`
+binding: user `94265880216612864` in **#assistant** (`1546428227411513488`),
+guild `1523242748822425750`. The older `private-admin-controlled-capabilities`
+binding points to **#general** (`1523242750043226234`) and does not grant shopping.
+
+The result is a gross ingredient shopping list for an explicit,
 inclusive date window of at most 31 days; stock is not subtracted. Missing
 recipes and excluded demand remain visible as warnings. Only `output_text`
 passes the existing `text_result_v1` release projection.
@@ -139,6 +143,24 @@ only the broker resources before running that train:
 The user's approval covers this scoped Citrus-dev canary after critic merge.
 No broader principal, environment, receipt-write or production-promotion scope
 is authorized by this rollout.
+
+## Correcting the initial channel selection
+
+The first authentic request reached Core on 2026-09-28 but received
+`admission.forbidden` before job creation. The account and guild were correct;
+the request came from #assistant while the initial shopping grant reused the
+older #general binding. Channel names are explanatory; the exact IDs above
+remain the authorization selectors. A private channel does not automatically
+inherit another channel's grant.
+
+For this policy-only correction, reconcile `agent-control-plane-registry-overlay`
+and `agent-workloads` together with the scoped deploy helper at the reviewed
+merge SHA, after its dry run. The overlay hooks refresh Core's loaded registry.
+The broker, certificates, credential, image pins and runtime budgets are already
+installed and do not need reissuance or another bootstrap. Repeat a **fresh**
+authenticated request from #assistant; do not replay the denied event. The new
+binding grants only shopping, has no admins or approval overrides, and leaves
+other capabilities on their existing surfaces.
 
 ## Failure and rollback
 

@@ -261,7 +261,6 @@ data:
             - mandate.ops.inspect
             - mandate.deploy.smoke
             - agent_workloads.db_probe
-            - agent_workloads.citrus_shopping_list
             - agent_workloads.readonly_query
             - agent_workloads.opencode_apply
             - agent_workloads.opencode_propose
@@ -270,6 +269,20 @@ data:
           approval_overrides:
             approval.probe: admin_confirm
             agent_workloads.opencode_apply: admin_confirm
+      - id: citrus-shopping-private-assistant
+        description: >-
+          Citrus-dev shopping in the owner's private assistant channel. This
+          binding grants only shopping-list access and no approval authority.
+        surface_identifiers:
+          guild_id: "1523242748822425750"
+          channel_id: "1546428227411513488"
+        users:
+          admins: []
+          authorized:
+            - "94265880216612864"
+        capabilities:
+          allow:
+            - agent_workloads.citrus_shopping_list
       - id: synthetic-live-verify-probe
         description: >-
           Scheduled no-key deployment and readonly-query live verify probe. This

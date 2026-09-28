@@ -1297,6 +1297,29 @@ exit 64
         )
         self.assertEqual(manifest["evals"]["required"], [])
 
+    def test_citrus_shopping_is_scoped_to_private_assistant_channel(self) -> None:
+        policy = YAML_PARSER.load(self.data["policy.prod.yaml"])
+        shopping_bindings = [
+            binding
+            for binding in policy["bindings"]
+            if "agent_workloads.citrus_shopping_list"
+            in binding.get("capabilities", {}).get("allow", [])
+        ]
+        self.assertEqual(len(shopping_bindings), 1)
+        binding = shopping_bindings[0]
+        self.assertEqual(binding["id"], "citrus-shopping-private-assistant")
+        self.assertEqual(
+            binding["surface_identifiers"],
+            {"guild_id": "1523242748822425750", "channel_id": "1546428227411513488"},
+        )
+        self.assertEqual(
+            binding["users"], {"admins": [], "authorized": ["94265880216612864"]}
+        )
+        self.assertEqual(
+            binding["capabilities"], {"allow": ["agent_workloads.citrus_shopping_list"]}
+        )
+        self.assertNotIn("roles", binding)
+
     def test_opencode_policy_and_eval_overlay_are_mounted(self) -> None:
         policy = YAML_PARSER.load(self.data["policy.prod.yaml"])
         bindings_by_id = {item["id"]: item for item in policy["bindings"]}
