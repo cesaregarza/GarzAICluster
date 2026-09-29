@@ -7,7 +7,7 @@ global:
   environment: production
 
 # FastAPI backend configuration
-  appImageTag: v2.0.41
+  appImageTag: v2.0.42
 fastapi:
   replicas: 2
   spreadAcrossNodes: true
@@ -59,7 +59,7 @@ fastapi:
 
 # React frontend configuration
   image:
-    tag: v2.0.40
+    tag: v2.0.42
 react:
   replicas: 2
   resources:
@@ -103,14 +103,14 @@ celeryWorker:
 
 # Celery beat configuration
   image:
-    tag: v2.0.40
+    tag: v2.0.42
 celeryBeat:
   env:
     COMP_LEADERBOARD_ENABLED: "true"
 
 # Redis compatibility service overrides
   image:
-    tag: v2.0.40
+    tag: v2.0.42
 redis:
   persistence:
     enabled: true
