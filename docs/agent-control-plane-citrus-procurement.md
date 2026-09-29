@@ -181,5 +181,82 @@ If reverting Core, restore its complete source/chart/image/provider-env tuple;
 never retain the new certificate-bound pin with old transport source. Existing
 worker release tuples, retained overlaps and HMAC ciphertext are unchanged.
 
-Receipt processing, a dedicated wife channel and production Citrus access
-remain later work.
+The governed receipt extension is described below. A dedicated wife channel
+and production Citrus access remain later work.
+
+## Governed receipt drafts (CES-1062)
+
+The receipt path remains Citrus **dev** only. Hermes freezes one authenticated
+photo/extraction input; the native reader resolves only an admitted job. The
+`citrus.receipt_draft` projected-identity worker sends a reference to Core's
+`citrus_receipts` provider. The separate native broker owns the create-only
+Citrus credential and durable attempt journal. It uploads the image and creates
+a review draft; a person still confirms in Citrus. No receipt credential or
+original image reaches the Kubernetes worker or Core.
+
+The first worker import is from agent-workloads `e6242008b3ee`, publish run
+`36522063664`. The native broker is from reviewed `1e9db230b408`, run
+`36523894172`; its complete immutable receipt is
+`infra/hermes/citrus-receipts/citrus-receipts-broker.json`. The worker uses a
+single projected ServiceAccount derived from its full release tuple. Existing
+worker pins and previous-release overlaps remain unchanged. Only the existing
+owner's private assistant binding receives the receipt capability, with one
+operation, a 120-second job limit and 30-second broker limit.
+
+Core mounts `citrus-dev-receipts-client-tls` only in API pods. The separate
+runtime-control NetworkPolicy grants only those API pods TCP/8444 to the private
+native broker; the shared chart egress policy does not grant that port. Receipt
+worker egress permits DNS and Core only. The new provider has independent server
+trust and exact Core client URI identity; its pin is recomputed from the deployed
+Core source and committed public certificates. Private keys remain SOPS encrypted.
+
+Native deployment files are in `infra/hermes/citrus-receipts/`. Stage those exact
+files root-owned in `/var/lib/mandate-receipts-deploy-1e9db23` (0700). Provision
+only the broker's server certificate/key, client CA and a new Citrus-dev credential
+with scope `create` into `/var/lib/mandate-receipts/config`, directory 0500 and
+files 0400 owned by UID994/GID986. The parent directory is root-owned 0700;
+`state/` is 0700 owned by UID994/GID986. Never mount Hermes home, the Core client
+key, Docker socket or other credentials into the broker. Issuance and rotation
+must verify that read, purchasing and legacy permissions are false. If issuance
+fails after attempting the write, inspect or revoke only the named new credential
+before retrying; do not mint a different name or overwrite a partial recovery artifact.
+
+Stage the receipt's exact image digest. If temporary registry credentials are
+needed for the pull, remove them afterward. Run `deploy.py install`, then
+`deploy.py preflight`; only then enable/start `mandate-receipts-broker.service`.
+The wrapper refuses mismatched network, artifact, ownership or firewall state.
+It bounds the container to 256 MiB, half a CPU and 32 processes, with a read-only
+root, no capabilities and only its journal writable. The application journal
+accepts at most 512 records and 256 MiB of JSON, with at most one 20 MiB temporary
+replacement under its global lock. This is an application bound, not a host
+filesystem quota. The wrapper unit permits AF_NETLINK for route/firewall checks;
+the container retains its separate network and capability restrictions. The dedicated bridge allows
+Citrus HTTPS egress plus Docker DNS delegation, admits the broker's private
+listener from cluster nodes/pods, and blocks access to host services. mTLS and
+Core's API-only egress policy enforce the application identity. Do not interpret
+DNS delegation as prevention of DNS exfiltration.
+
+Deployment order: native reader and broker healthy while intake is disabled;
+new encrypted Core secret synchronized; registry, Core transport/network and
+new worker applied through scoped Argo operations; verify stored release tuple,
+provider pin, socket identities, TLS/lease denials and worker network isolation;
+verify existing shopping; then enable **only** `mandate-receipt-intake` and the
+bridge receipt switch in Hermes for the existing owner/guild/channel. The
+standalone `citrus-receipts` writing plugin stays disabled. A genuine fresh
+Discord photo is required for final end-to-end acceptance.
+
+Before activation, inspect state directories and resource usage, ensure the
+reader/runtime directory survives its documented restart lifecycle, verify the
+expected UID through the mounted socket, and test blocked provider/host ports
+from the broker and blocked native-broker access from a worker. Never create
+synthetic authenticated Discord events or receipt drafts as health probes.
+Citrus dev must retain HTTPS forwarded-protocol settings so review URLs are HTTPS.
+
+Rollback disables receipt intake and stops/disables only the new broker/worker;
+revert the new provider, grant and network changes through review. Retain all
+admitted inputs and the broker journal, including ambiguous attempts. The one
+operation budget does not promise automatic reconciliation/retry; cancellation
+does not undo an already-created draft. There is no automatic journal eviction.
+Reader/Hermes restoration must preserve subsequent delivery and receipt state.
+TLS and token expiry are 90 days; replace the complete reviewed trust bundle and
+rotate only this create-only credential before expiry.

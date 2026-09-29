@@ -441,3 +441,62 @@ imports:
           purchasing_requirements: external
         max_runtime_seconds: 20
         max_cost_usd: 0
+- id: citrus.receipt_draft
+  manifest_path: registries/imports/agent-citrus.receipt_draft.json
+  manifest_digest: sha256:517ec5ccedb6351a50434432322573f6fb95ec01de225e08e660f65f46d37620
+  image_digest: sha256:69b9b2e827431d30dca5407f60aa0b6434655c1408772f6a22b4cb058c9925cf
+  expected_source:
+    repo: agent-workloads
+    repo_url: https://github.com/cesaregarza/agent-workloads
+    path: workers/citrus-receipt-draft/worker.yaml
+  agent:
+    execution_posture: capability_worker
+    network_access: broker_only
+    service_account_ref: mandate-citrus-receipt-draft
+    model_call: false
+    readonly_sql_broker: false
+    broker_operation: true
+    executor: true
+    max_runtime_seconds: 120
+    service_account_subject: system:serviceaccount:agent-workloads:agent-workloads-citrus-receipt-draft-b12db20ae5a2da8992e2
+  capabilities:
+    agent_workloads.citrus_receipt_draft:
+      description: Create a review-only Citrus receipt draft from an authorized frozen
+        receipt image.
+      output_schema: text_result
+      result_contract:
+        output_schema: text_result
+        released_result_fields:
+        - output_text
+      session_authority_budget:
+        max_operations: 1
+        influence: principal
+      artifacts:
+        allowed: false
+        broker_required: true
+      task_contract:
+        input_schema: citrus_receipt_draft_v1
+        text: Create a review-only draft from the authorized receipt image input.
+        required_hints:
+        - citrus_receipt
+        optional_hints: []
+        routing_guidance: Use only when the trusted Discord bridge has captured one
+          direct receipt attachment. Hermes supplies an extraction candidate; the
+          trusted bridge freezes and admits it, then supplies the receipt reference.
+          Never ask the model or user to invent a receipt_ref.
+      output_gate:
+        policy_id: deterministic-public-result-v1
+        projection_id: text_result_v1
+      broker:
+        allowed_broker: citrus_receipts
+      broker_bounds:
+        kind: operation
+        max_request_bytes: 8192
+        max_response_bytes: 8192
+        required: true
+        allowed_operations:
+        - create_receipt_draft
+        operation_max_influence:
+          create_receipt_draft: external
+        max_runtime_seconds: 30
+        max_cost_usd: 0

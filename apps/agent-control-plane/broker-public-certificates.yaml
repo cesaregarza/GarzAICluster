@@ -3,3 +3,6 @@ providers:
   citrus_purchasing:
     ca_file: apps/agent-control-plane/broker-public/citrus-dev-server-ca.crt
     client_cert_file: apps/agent-control-plane/broker-public/citrus-dev-core-client.crt
+  citrus_receipts:
+    ca_file: apps/agent-control-plane/broker-public/citrus-dev-receipts-server-ca.crt
+    client_cert_file: apps/agent-control-plane/broker-public/citrus-dev-receipts-core-client.crt

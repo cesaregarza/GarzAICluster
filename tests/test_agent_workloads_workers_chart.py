@@ -78,6 +78,7 @@ class AgentWorkloadsWorkersChartTests(unittest.TestCase):
                 "opencode.apply_executor",
                 "opencode.proposer",
                 "citrus.shopping_list",
+                "citrus.receipt_draft",
             },
         )
         self.assertNotIn("projectedWorkloadIdentity", values)
@@ -86,7 +87,7 @@ class AgentWorkloadsWorkersChartTests(unittest.TestCase):
         for worker_id, worker in values["workers"].items():
             self.assertEqual(worker["identity"]["workerId"], worker_id)
             self.assertEqual(worker["identity"]["mode"], "projected")
-            if worker_id == "citrus.shopping_list":
+            if worker_id in {"citrus.shopping_list", "citrus.receipt_draft"}:
                 self.assertNotIn("hmacRollbackRelease", worker["identity"])
                 self.assertNotIn("hmacRollbackTokenKey", worker["identity"])
             else:
@@ -95,7 +96,7 @@ class AgentWorkloadsWorkersChartTests(unittest.TestCase):
 
         documents = _render(values)
         deployments = [d for d in documents if d.get("kind") == "Deployment"]
-        self.assertEqual(len(deployments), 5)
+        self.assertEqual(len(deployments), 6)
         worker_deployments = [
             d for d in deployments
             if d["metadata"]["name"] != "agent-workloads-citrus-broker"

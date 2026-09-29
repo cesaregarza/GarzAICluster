@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-control-plane-citrus-receipts-egress
+  namespace: agent-control-plane
+  labels:
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: agent-control-plane
+      app.kubernetes.io/instance: agent-control-plane
+      app.kubernetes.io/component: api
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 10.108.0.8/32
+    ports:
+    - protocol: TCP
+      port: 8444

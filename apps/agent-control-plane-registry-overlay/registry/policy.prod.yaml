@@ -3,6 +3,7 @@ defaults:
   max_runtime_seconds_per_job: 60
   max_runtime_seconds_per_capability:
     agent_workloads.citrus_shopping_list: 120
+    agent_workloads.citrus_receipt_draft: 120
     agent_workloads.readonly_query: 180
     agent_workloads.opencode_propose: 900
     agent_workloads.opencode_task: 900
@@ -46,8 +47,9 @@ bindings:
         agent_workloads.opencode_apply: admin_confirm
   - id: citrus-shopping-private-assistant
     description: >-
-      Citrus-dev shopping in the owner's private assistant channel. This
-      binding grants only shopping-list access and no approval authority.
+      Citrus-dev shopping and review-only receipt drafts in the owner's private
+      assistant channel. This binding grants only those capabilities and no
+      approval authority.
     surface_identifiers:
       guild_id: "1523242748822425750"
       channel_id: "1546428227411513488"
@@ -58,6 +60,7 @@ bindings:
     capabilities:
       allow:
         - agent_workloads.citrus_shopping_list
+        - agent_workloads.citrus_receipt_draft
   - id: synthetic-live-verify-probe
     description: >-
       Scheduled no-key deployment and readonly-query live verify probe. This
