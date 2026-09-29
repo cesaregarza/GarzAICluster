@@ -1,0 +1,33 @@
+[Unit]
+Description=Mandate receipts broker container
+Requires=docker.service hermes-receipt-reader.service
+After=docker.service hermes-receipt-reader.service
+PartOf=docker.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStartPre=/var/lib/mandate-receipts-deploy-1e9db23/deploy.py prestart
+ExecStart=/var/lib/mandate-receipts-deploy-1e9db23/deploy.py start
+ExecStop=/var/lib/mandate-receipts-deploy-1e9db23/deploy.py stop
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=45s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+User=root
+Group=root
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/xtables.lock
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

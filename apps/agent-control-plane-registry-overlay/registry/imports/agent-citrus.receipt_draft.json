@@ -1,0 +1,34 @@
+{
+  "capabilities": [
+    "agent_workloads.citrus_receipt_draft"
+  ],
+  "capability_metadata": {
+    "agent_workloads.citrus_receipt_draft": {
+      "consequence_class": "consequential"
+    }
+  },
+  "code_digest": "sha256:63b176229bd03eed4210f2366206c0903e41fa201e04ccf4aa10ddde7d15f93b",
+  "digest": "sha256:517ec5ccedb6351a50434432322573f6fb95ec01de225e08e660f65f46d37620",
+  "display_name": "Citrus Receipt Draft Worker",
+  "evals": {
+    "optional": [],
+    "required": []
+  },
+  "id": "citrus.receipt_draft",
+  "image": {
+    "digest": "sha256:69b9b2e827431d30dca5407f60aa0b6434655c1408772f6a22b4cb058c9925cf",
+    "repository": "registry.digitalocean.com/sendouq/agent-workloads-citrus-receipt-draft"
+  },
+  "loop": {
+    "contract": "worker_service_v1",
+    "kind": "worker_service",
+    "protocol": "mandate_worker_service_pull_v1"
+  },
+  "schema_version": "agent-workload.v1",
+  "source": {
+    "path": "workers/citrus-receipt-draft/worker.yaml",
+    "repo": "agent-workloads",
+    "repo_url": "https://github.com/cesaregarza/agent-workloads"
+  },
+  "workload_type": "agent"
+}

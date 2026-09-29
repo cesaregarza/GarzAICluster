@@ -161,6 +161,7 @@ class AgentControlPlaneRegistryOverlayTests(unittest.TestCase):
                 "agent-opencode.proposer.json",
                 "agent-opencode.apply_executor.json",
                 "agent-citrus.shopping_list.json",
+                "agent-citrus.receipt_draft.json",
             },
         )
 
@@ -1316,7 +1317,7 @@ exit 64
             binding["users"], {"admins": [], "authorized": ["94265880216612864"]}
         )
         self.assertEqual(
-            binding["capabilities"], {"allow": ["agent_workloads.citrus_shopping_list"]}
+            binding["capabilities"], {"allow": ["agent_workloads.citrus_shopping_list", "agent_workloads.citrus_receipt_draft"]}
         )
         self.assertNotIn("roles", binding)
 
@@ -1372,6 +1373,7 @@ exit 64
             policy["defaults"]["max_runtime_seconds_per_capability"],
             {
                 "agent_workloads.citrus_shopping_list": 120,
+                "agent_workloads.citrus_receipt_draft": 120,
                 "agent_workloads.readonly_query": 180,
                 "agent_workloads.opencode_propose": 900,
                 "agent_workloads.opencode_task": 900,

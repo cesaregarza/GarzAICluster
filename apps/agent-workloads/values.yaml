@@ -625,6 +625,124 @@ workers:
       seedBundle: false
       seedConfigMapName: ''
     enableServiceLinksField: true
+  citrus.receipt_draft:
+    enabled: true
+    replicaCount: 1
+    metadataName: agent-workloads-citrus-receipt-draft
+    labels:
+      app.kubernetes.io/part-of: agent-workloads
+      app.kubernetes.io/component: citrus-receipt-draft
+    selectorLabels:
+      app.kubernetes.io/name: citrus-receipt-draft
+      app.kubernetes.io/instance: agent-workloads
+    podAnnotations: {}
+    podLabels:
+      app.kubernetes.io/component: citrus-receipt-draft
+      mandate.cesaregarza.io/egress-profile: control-plane-only
+    enableServiceLinks: false
+    containerName: citrus-receipt-draft
+    image:
+      repository: registry.digitalocean.com/sendouq/agent-workloads-citrus-receipt-draft
+      tag: sha-e6242008b3ee
+      digest: sha256:69b9b2e827431d30dca5407f60aa0b6434655c1408772f6a22b4cb058c9925cf
+      pullPolicy: IfNotPresent
+    identity:
+      workerId: citrus.receipt_draft
+      mode: projected
+      serviceAccountNamePrefix: agent-workloads
+      serviceAccount:
+        create: true
+        component: citrus-receipt-release-identity
+        previousComponent: citrus-receipt-release-identity-previous
+        annotations: {}
+      token:
+        audience: mandate-api
+        expirationSeconds: 3600
+        mountPath: /var/run/mandate/workload-identity
+        fileName: token
+      previousRelease: null
+    command:
+    - agent-workloads-worker
+    args: []
+    secretKeys: []
+    secretEnv: {}
+    env:
+      MANDATE_WORKER_BASE_URL: http://agent-control-plane.agent-control-plane.svc.cluster.local
+      MANDATE_WORKER_ID: citrus.receipt_draft
+      MANDATE_WORKER_ENVIRONMENT: production
+      MANDATE_WORKER_POLL_SECONDS: '2'
+    handoffMode: ''
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      fsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      capabilities:
+        drop:
+        - ALL
+    resources:
+      requests:
+        cpu: 25m
+        memory: 96Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    initWorkspace:
+      enabled: false
+      name: init-workspace
+      command: []
+      script: ''
+      args: []
+      env: []
+      volumeMounts: []
+    volumes:
+    - name: tmp
+      emptyDir:
+        sizeLimit: 16Mi
+    volumeMounts:
+    - name: tmp
+      mountPath: /tmp
+    networkPolicy:
+      enabled: true
+      egress:
+        dns:
+          enabled: true
+          destinations:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+          ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+        destinations:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agent-control-plane
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: agent-control-plane
+              app.kubernetes.io/instance: agent-control-plane
+              app.kubernetes.io/component: api
+          ports:
+          - port: 80
+            protocol: TCP
+          - port: 8000
+            protocol: TCP
+    workspace:
+      seedBundle: false
+      seedConfigMapName: ''
+    enableServiceLinksField: true
 mandateReleasePins:
   data.workspace_probe:
     codeDigest: sha256:78446f183c23cf9ee250763479b8ed94e9058afd2d7346809886466a3866ce1c
@@ -642,7 +760,10 @@ mandateReleasePins:
     codeDigest: sha256:7ff6e0199eab531667d33fbd40d4ba54bbbff77362aa2c815a7a2844c42060a4
     manifestDigest: sha256:95328f457787bbcd3da4fa6547c8ed91920604b9813a9f0fb3fdbbdd29ceb9b1
     imageDigest: sha256:cdced6a87554fa32e284d9b5e7f2a2bbf30938b2d378bdd22a3594eb2c3c918e
-
+  citrus.receipt_draft:
+    codeDigest: sha256:63b176229bd03eed4210f2366206c0903e41fa201e04ccf4aa10ddde7d15f93b
+    manifestDigest: sha256:517ec5ccedb6351a50434432322573f6fb95ec01de225e08e660f65f46d37620
+    imageDigest: sha256:69b9b2e827431d30dca5407f60aa0b6434655c1408772f6a22b4cb058c9925cf
 citrusPurchasingBroker:
   enabled: true
   image:

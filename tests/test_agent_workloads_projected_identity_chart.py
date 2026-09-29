@@ -309,6 +309,11 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             "agent-workloads",
             workspace_account,
             citrus_account,
+            _release_service_account_name(
+                "citrus.receipt_draft",
+                self.production_values["mandateReleasePins"]["citrus.receipt_draft"],
+                prefix=self.production_values["workers"]["citrus.receipt_draft"]["identity"]["serviceAccountNamePrefix"],
+            ),
             "agent-workloads-citrus-broker",
             *opencode_accounts.values(),
         }
@@ -422,6 +427,11 @@ class AgentWorkloadsProjectedIdentityChartTests(unittest.TestCase):
             set(service_accounts),
             {
                 "agent-workloads",
+                _release_service_account_name(
+                    "citrus.receipt_draft",
+                    self.production_values["mandateReleasePins"]["citrus.receipt_draft"],
+                    prefix=self.production_values["workers"]["citrus.receipt_draft"]["identity"]["serviceAccountNamePrefix"],
+                ),
                 _release_service_account_name(
                     "citrus.shopping_list",
                     self.production_values["mandateReleasePins"]["citrus.shopping_list"],
