@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/garz-ai
-  tag: v0.1.4
+  tag: v0.1.5
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -26,6 +26,7 @@ ingress:
   hosts:
     - justflip.garz.ai
     - habit-taper.garz.ai
+    - justramp.garz.ai
   tls:
     enabled: true
     secretName: justflip-garz-ai-tls
