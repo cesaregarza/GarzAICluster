@@ -25,6 +25,7 @@ EXPECTED_AUTOMATED_APPLICATIONS = {
     "external-dns",
     "garz-ai",
     "garz-ai-secrets",
+    "health-buddy-site",
     "metrics-server",
     "poetry",
     "poetry-secrets",
