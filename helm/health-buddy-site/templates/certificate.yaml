@@ -1,0 +1,15 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "health-buddy-site.fullname" . }}-cert
+  labels:
+    {{- include "health-buddy-site.labels" . | nindent 4 }}
+spec:
+  secretName: {{ .Values.ingress.tls.secretName }}
+  privateKey:
+    rotationPolicy: Never
+  issuerRef:
+    name: {{ .Values.ingress.tls.issuerName }}
+    kind: ClusterIssuer
+  dnsNames:
+    - {{ .Values.site.host | quote }}

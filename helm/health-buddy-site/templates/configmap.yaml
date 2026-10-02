@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "health-buddy-site.fullname" . }}
+  labels:
+    {{- include "health-buddy-site.labels" . | nindent 4 }}
+data:
+  default.conf.template: |
+    # Rendered at container start: __RESOLVER__ becomes the pod's nameserver so the
+    # publisher hostname is re-resolved while nginx runs.
+    server_tokens off;
+
+    # Browsers ask for text/html and get the rendered pages; curl and agent fetch
+    # tools send */* or text/markdown and get the Markdown, at the same URLs.
+    map $http_accept $hb_html {
+        default 0;
+        "~*text/html" 1;
+    }
+    map $hb_html $hb_root {
+        0 "onboarding.md";
+        1 "index.html";
+    }
+    map $hb_html $hb_ext {
+        0 ".md";
+        1 ".html";
+    }
+
+    server {
+        listen 8080;
+        server_name _;
+        resolver __RESOLVER__ valid=60s ipv6=off;
+        set $publisher "{{ .Values.site.upstreamHost }}";
+        set $prefix "{{ .Values.site.prefix }}";
+        # Evaluate the Accept maps here, before location matching: a regex map
+        # evaluated inside a regex location would clobber the location's $1.
+        set $root_object $hb_root;
+        set $doc_ext $hb_ext;
+
+        location = /healthz {
+            default_type text/plain;
+            return 200 "ok\n";
+        }
+
+        # The onboarding page: rendered for browsers, Markdown for everyone else.
+        location = / {
+            proxy_pass https://$publisher/$prefix/$root_object;
+            include /etc/nginx/hb-proxy.conf;
+        }
+        location = /onboarding.md {
+            proxy_pass https://$publisher/$prefix/onboarding.md;
+            include /etc/nginx/hb-proxy.conf;
+        }
+        # Linked docs keep their .md paths; browsers receive the .html render.
+        location ~ ^/docs/([a-z0-9-]+)\.md$ {
+            proxy_pass https://$publisher/$prefix/docs/$1$doc_ext;
+            include /etc/nginx/hb-proxy.conf;
+        }
+        location / {
+            return 404;
+        }
+        location @missing {
+            default_type text/plain;
+            return 404 "not found\n";
+        }
+    }
+  hb-proxy.conf: |
+    proxy_http_version 1.1;
+    proxy_ssl_server_name on;
+    proxy_ssl_name $publisher;
+    proxy_set_header Host $publisher;
+    proxy_set_header Connection "";
+    proxy_hide_header x-amz-request-id;
+    proxy_hide_header x-amz-id-2;
+    proxy_hide_header x-amz-meta-s3cmd-attrs;
+    proxy_hide_header x-amz-storage-class;
+    proxy_intercept_errors on;
+    error_page 403 404 =404 @missing;
+    add_header Cache-Control "no-cache";
+    add_header Vary "Accept";

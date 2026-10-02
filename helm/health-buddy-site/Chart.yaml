@@ -1,0 +1,6 @@
+apiVersion: v2
+name: health-buddy-site
+description: Serves the Health Buddy onboarding page and docs from the release publisher, rendered for browsers and raw for agents.
+type: application
+version: 0.1.0
+appVersion: "1.27"
