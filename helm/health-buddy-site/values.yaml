@@ -1,0 +1,39 @@
+# health-buddy.garz.ai pulls the current onboarding page and docs from the
+# Health Buddy release publisher and displays them. A release updates the
+# publisher's current/ prefix; nothing here changes per release.
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: "1.27-alpine"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+site:
+  host: health-buddy.garz.ai
+  # Publisher origin and prefix the proxy reads from (HTTPS, same-origin objects).
+  upstreamHost: health-buddy-releases.nyc3.digitaloceanspaces.com
+  prefix: current
+
+service:
+  port: 80
+  targetPort: 8080
+
+ingress:
+  className: traefik-nginx
+  annotations:
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  tls:
+    secretName: health-buddy-site-tls
+    issuerName: letsencrypt-prod
+
+resources:
+  requests:
+    cpu: 5m
+    memory: 16Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi

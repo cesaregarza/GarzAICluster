@@ -313,6 +313,10 @@ jobs:
             path: apps/agent-control-plane-registry-overlay
             release: agent-control-plane-registry-overlay
             prod_values: apps/agent-control-plane-registry-overlay/values.yaml
+          - name: health-buddy-site
+            path: helm/health-buddy-site
+            release: health-buddy-site
+            prod_values: helm/health-buddy-site/values.yaml
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -77,7 +77,7 @@ class ControllerUpgradePlanTests(unittest.TestCase):
     def test_certificate_sources_pin_legacy_rotation_behavior(self):
         root = SCRIPT.parents[1]
         templates = list((root / "helm").glob("*/templates/certificate.yaml"))
-        self.assertEqual(len(templates), 8)
+        self.assertEqual(len(templates), 9)
         self.assertFalse((root / "k8s/argocd/certificate.yaml").exists())
         for path in templates:
             self.assertIn("rotationPolicy: Never", path.read_text(), path)
