@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/garz-ai
-  tag: v0.1.7@sha256:3cba5983ceebcbc13eec91136fc6c59858b9adec1c05cac0d1c9654bae678410
+  tag: v0.1.8@sha256:a4f8c9abdaaae1a4a896eeac0087c1427d46ca32bf3d6f83773bfbd942b124c7
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -24,6 +24,7 @@ ingress:
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
+    - garz.ai
     - justflip.garz.ai
     - habit-taper.garz.ai
     - justramp.garz.ai
