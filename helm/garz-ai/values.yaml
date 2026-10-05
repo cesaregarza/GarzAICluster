@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: registry.digitalocean.com/sendouq/garz-ai
-  tag: v0.1.9@sha256:32baf42ca756f7e79c376e7569d0f0fef4f7a535330e5c7f64d089daaf63f943
+  tag: v0.1.10@sha256:2dee2669358aa924f78517689d62726a61e8497222ae29f6d0fda78b14b2a9e8
   pullPolicy: IfNotPresent
 
 nameOverride: ""
