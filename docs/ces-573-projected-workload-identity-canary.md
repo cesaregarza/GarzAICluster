@@ -130,11 +130,12 @@ After activation Core accepts only the current projected subjects, and the
 chart stops rendering the previous ServiceAccounts. This clears the next
 automated re-pin's overlap gate.
 
-Before merging this retirement, record operator acceptance of the current
-releases' soak and loss of one-step pre-rename rollback on CES-1247. Also record
-whether an HMAC rollback would rerun publishing or re-pinning from a pre-rename
-source commit; if so, CES-657 must block CES-1248's historical-layout removal.
-The source change alone is not evidence of that decision or of live retirement.
+On 2026-10-11 the operator accepted the current releases' soak and loss of
+one-step pre-rename projected rollback on CES-1247. HMAC rollback by re-running
+publishing or re-pinning from a pre-rename commit remains required; CES-657
+therefore blocks CES-1248's historical-layout removal. Preserve that SDK reader
+until the HMAC rollback workflow is retired. The source change is not evidence
+of live retirement.
 After merge, use the scoped overlay-then-workers sequence above, including the
 Core reload, and verify one governed job per worker. HMAC rollback remains a
 separate reviewed restore of the retained tuple and credential configuration.
