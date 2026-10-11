@@ -53,10 +53,7 @@ workers:
         codeDigest: sha256:a1eff6143142995fc1ca59644533e258650674e0ba0e0058ca747ee980fadf02
         manifestDigest: sha256:912222e0cf0adea2733166543213e6ff70aadff34f13815ca36038bdf30d123f
         imageDigest: sha256:9132f8e5d761f42947186041a9b28a6298533d22b0d286f55551dabc978531ed
-      previousRelease:
-        codeDigest: sha256:793059aa0a5d2ae453168caa3f33825d6cf7cead5b3c45ac859b030e12f08a49
-        manifestDigest: sha256:b0e6c9b402a377b330415126252b4232b4842c1fff048188d3b30e0761ab5c30
-        imageDigest: sha256:92081e8963b906b45deafa3aea9266d5bd5822d739ebff7860652d6a6959159b
+      previousRelease: null
     command:
     - agent-workloads-worker
     args: []
@@ -193,10 +190,7 @@ workers:
         codeDigest: sha256:253e5c97a7f149587f2a23c5a74883bde0e2fd3321285c731a0740eff9d3908f
         manifestDigest: sha256:2d36cfef1ed45057f3e396039ec21450ac34f4da145eb40fc0ec4aa6f67fc479
         imageDigest: sha256:9961f061e162843438a63503380b3b5952fda0fdeaa632ad6b0da47971d458a1
-      previousRelease:
-        codeDigest: sha256:32ecc96c54878d8fe7db5efcea33ea1e585010a37058ff9c63684104d781974d
-        manifestDigest: sha256:25818f8747213cb29359f0bb1aec1dc662e1021c061ef67a9b8399956e3f0a34
-        imageDigest: sha256:c6dbc687645d90f9e3c7f479669b8679539733354e2ae92532ceb56a580f928d
+      previousRelease: null
     command:
     - agent-workloads-worker
     args: []
@@ -359,10 +353,7 @@ workers:
         codeDigest: sha256:02f824315c53d671a40c4357e8868e6950eb330a6e495c6b21b3e8f71b095db7
         manifestDigest: sha256:d69820fe79941fa9dab307f33097d35c0703b11d5f66e9f4e7754d2468753906
         imageDigest: sha256:95163fc1363ce2e4177a7a9526db94fde173b183e9bb26d12e28333e8309df4b
-      previousRelease:
-        codeDigest: sha256:737226ded3833576d613151f0c396af42abbddb63e5d0053471d2dcb701fc3b5
-        manifestDigest: sha256:778fea259240b62c16a32555647d95a2337baca1793576caa876c62f4b4391f2
-        imageDigest: sha256:214a2490567f6dfeef5c3377ebf7fad507f31d9781924627e3ffdf3b21a7cac1
+      previousRelease: null
     command:
     - agent-workloads-worker
     args: []

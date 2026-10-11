@@ -123,6 +123,22 @@ The canonical database variable still references the stored
 `AGENT_WORKLOADS_DATABASE_URL` Secret key; no Secret value or HMAC rollback tuple
 changes. See the registry overlay README for the scoped deployment sequence.
 
+CES-1247 removes the three pre-rename projected overlaps from the registry and
+sets `previousRelease: null` for data, proposer, and apply executor. The current
+release tuples and all three `hmacRollbackRelease` tuples remain unchanged.
+After activation Core accepts only the current projected subjects, and the
+chart stops rendering the previous ServiceAccounts. This clears the next
+automated re-pin's overlap gate.
+
+Before merging this retirement, record operator acceptance of the current
+releases' soak and loss of one-step pre-rename rollback on CES-1247. Also record
+whether an HMAC rollback would rerun publishing or re-pinning from a pre-rename
+source commit; if so, CES-657 must block CES-1248's historical-layout removal.
+The source change alone is not evidence of that decision or of live retirement.
+After merge, use the scoped overlay-then-workers sequence above, including the
+Core reload, and verify one governed job per worker. HMAC rollback remains a
+separate reviewed restore of the retained tuple and credential configuration.
+
 ## Proposer HMAC rollback-only follow-up (CES-655)
 
 The proposer passed projected proposal release, current/previous identity,
