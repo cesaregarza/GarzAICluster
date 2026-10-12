@@ -1341,15 +1341,21 @@ def reconcile_application(
         emit_receipt(stage, "started", application=contract.name, run_id=run_id)
         # Waiting for refresh/adoption can outlive another actor's spec edit.
         # Revalidate the complete reviewed spec and refuse a newly active sync.
-        current = validate_live_application(
-            contract,
-            argo.read_application_payload(
-                contract.name,
-                kubeconfig=kubeconfig,
-                kubectl=kubectl,
-                namespace=namespace,
-                runner=runner,
-            ),
+        live_payload = argo.read_application_payload(
+            contract.name,
+            kubeconfig=kubeconfig,
+            kubectl=kubectl,
+            namespace=namespace,
+            runner=runner,
+        )
+        current = validate_live_application(contract, live_payload)
+        # The sync prunes (CES-946): name every resource it will delete before
+        # it runs, so an unexpected entry is visible and recorded.
+        emit_receipt(
+            stage,
+            "prune-set",
+            application=contract.name,
+            delete=argo.pruning_resources(live_payload),
         )
         revision_guard()
         argo.submit_sync(

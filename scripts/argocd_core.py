@@ -367,6 +367,18 @@ def operation_snapshot(payload: Mapping[str, Any]) -> OperationSnapshot:
     )
 
 
+def pruning_resources(payload: Mapping[str, Any]) -> list[str]:
+    """The resources a `--prune` sync of this Application would delete, as Kind/namespace/name."""
+    resources = _mapping(payload.get("status")).get("resources")
+    if not isinstance(resources, list):
+        return []
+    return sorted(
+        f"{item.get('kind')}/{item.get('namespace') or '-'}/{item.get('name')}"
+        for item in resources
+        if isinstance(item, Mapping) and item.get("requiresPruning")
+    )
+
+
 def application_snapshot(payload: Mapping[str, Any]) -> ApplicationSnapshot:
     metadata = _mapping(payload.get("metadata"))
     annotations = _mapping(metadata.get("annotations"))

@@ -774,6 +774,61 @@ class MandateDeployTrainTests(unittest.TestCase):
         self.assertEqual(poll.call_args.kwargs["expected_revisions"], ("a" * 40,))
         self.assertIs(poll.call_args.kwargs["expected_automated"], False)
 
+    def test_the_prune_set_is_logged_before_the_sync_is_submitted(self) -> None:
+        events: list[str] = []
+        before = snapshot(resource_version="10", reconciled_at="2026-08-18T12:00:00Z")
+        refreshed = snapshot(resource_version="11", reconciled_at="2026-08-18T12:00:01Z")
+        contract = TRAIN.load_application_contracts(ROOT, "a" * 40)[TRAIN.ROOT_APPLICATION]
+        live = {"status": {"resources": [
+            {"kind": "Deployment", "namespace": "mandate", "name": "callback-adapter",
+             "requiresPruning": True},
+        ]}}
+        out = io.StringIO()
+
+        with (
+            mock.patch.object(TRAIN.argo, "read_application_payload", return_value=live),
+            mock.patch.object(
+                TRAIN, "validate_live_application", side_effect=[before, refreshed, refreshed]
+            ),
+            mock.patch.object(TRAIN.argo, "hard_refresh_application", return_value=({}, refreshed)),
+            mock.patch.object(TRAIN, "validate_hard_refresh"),
+            mock.patch.object(TRAIN, "_adopt_automated_operation", return_value=None),
+            mock.patch.object(TRAIN.argo, "read_application_snapshot", return_value=refreshed),
+            mock.patch.object(
+                TRAIN.argo, "submit_sync",
+                side_effect=lambda *a, **k: events.append(f"submit after: {out.getvalue()}"),
+            ),
+            mock.patch.object(TRAIN.argo, "poll_operation", return_value=operation()),
+            mock.patch.object(TRAIN.argo, "poll_application_ready", return_value=refreshed),
+            redirect_stdout(out),
+        ):
+            TRAIN.reconcile_application(
+                contract,
+                stage="control-plane",
+                invocation_id="ces395-test",
+                desired_skills=TRAIN.validate_skill_bundle_data(valid_skill_data(), "desired"),
+                preflight_snapshot=before,
+                preflight_skill_digest=None,
+                force_sync=True,
+                kubeconfig=Path("/tmp/scoped"),
+                argocd="argocd",
+                kubectl="kubectl",
+                namespace="argocd",
+                refresh_timeout=1,
+                operation_timeout=1,
+                adoption_timeout=0,
+                interval=0.01,
+                revision_guard=lambda: None,
+            )
+
+        [submitted] = events
+        prune = [json.loads(line) for line in submitted.splitlines() if '"prune-set"' in line]
+        self.assertEqual(
+            prune,
+            [{"stage": "control-plane", "result": "prune-set", "application": contract.name,
+              "delete": ["Deployment/mandate/callback-adapter"]}],
+        )
+
     def test_sync_boundary_drift_refuses_submission_or_final_acceptance(self) -> None:
         for failure in ("spec", "before-submit", "after-completion"):
             with self.subTest(failure=failure):

@@ -64,7 +64,11 @@ The command has four hard boundaries:
    submits no lone downstream sync: it re-runs the read-only preflight and
    restarts the entire canonical pass in forced-replay mode. Correlated manual
    replays use a full Hook sync with pruning enabled so reviewed resource
-   deletions are applied along with updates.
+   deletions are applied along with updates. Because that sync deletes live
+   resources, the train first prints a `prune-set` receipt naming every
+   resource the Application marks `requiresPruning` (`Kind/namespace/name`),
+   read from the same status query that revalidates the spec (CES-946). An
+   entry nobody expected is the signal to stop the train.
 3. It compares the complete content-addressed desired skill bundle with the
    live `mandate-skill-packs` ConfigMap. Argo `Synced` alone is not accepted,
    because that ConfigMap's data is intentionally ignored by Argo. The

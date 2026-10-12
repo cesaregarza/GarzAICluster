@@ -127,6 +127,20 @@ def old_operation() -> object:
 
 
 class ArgoCoreTests(unittest.TestCase):
+    def test_pruning_resources_names_exactly_what_a_prune_sync_deletes(self) -> None:
+        payload = {"status": {"resources": [
+            {"kind": "Deployment", "namespace": "mandate", "name": "callback-adapter",
+             "requiresPruning": True},
+            {"kind": "Service", "namespace": "mandate", "name": "control-plane"},
+            {"kind": "ClusterRole", "name": "old-role", "requiresPruning": True},
+        ]}}
+
+        self.assertEqual(
+            ARGO.pruning_resources(payload),
+            ["ClusterRole/-/old-role", "Deployment/mandate/callback-adapter"],
+        )
+        self.assertEqual(ARGO.pruning_resources({"status": {}}), [])
+
     def test_cli_exposes_status_but_not_single_application_sync(self) -> None:
         parser = ARGO.build_parser()
         status = parser.parse_args(["status", "agent-control-plane"])
