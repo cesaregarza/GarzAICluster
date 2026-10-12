@@ -565,19 +565,20 @@ def _import_registry_snapshot_from(repo_root: Path, *, environment: str) -> Any:
     with _isolated_mandate_modules(), _temporary_sys_path(layout.import_root):
         try:
             registry_module = importlib.import_module("mandate.core.registry")
+            loaders_module = importlib.import_module("mandate.loaders")
         except Exception as exc:  # noqa: BLE001 - surfacing import failures is the gate.
             raise RegistryCompatError(
                 f"could not import pinned agent-platform registry code: {exc}"
             ) from exc
 
-        registry_snapshot = getattr(registry_module, "RegistrySnapshot", None)
+        load_registry_snapshot = getattr(loaders_module, "load_registry_snapshot", None)
         registry_error = getattr(registry_module, "RegistryError", ValueError)
-        if registry_snapshot is None:
+        if load_registry_snapshot is None:
             raise RegistryCompatError(
-                "pinned agent-platform registry code does not expose RegistrySnapshot"
+                "pinned agent-platform registry code does not expose load_registry_snapshot"
             )
         kwargs: dict[str, Any] = {"environment": environment}
-        signature = inspect.signature(registry_snapshot.from_repo)
+        signature = inspect.signature(load_registry_snapshot)
         skills_dir = repo_root / "skills"
         if skills_dir.exists() and "skill_store" in signature.parameters:
             skills_module = importlib.import_module("mandate.loaders.skills")
@@ -587,7 +588,7 @@ def _import_registry_snapshot_from(repo_root: Path, *, environment: str) -> Any:
                     skills_dir
                 )
         try:
-            registry_snapshot.from_repo(repo_root, **kwargs)
+            load_registry_snapshot(repo_root, **kwargs)
         except registry_error as exc:
             raise RegistryCompatError(str(exc)) from exc
         except Exception as exc:  # noqa: BLE001 - fail closed on any boot-time break.

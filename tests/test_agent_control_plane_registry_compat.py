@@ -410,56 +410,62 @@ def _fake_agent_platform_repo(
     (package_root / "core" / "registry.py").write_text(
         textwrap.dedent(
             """
+            class RegistryError(ValueError):
+                pass
+            """
+        ).strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    (package_root / "loaders").mkdir()
+    (package_root / "loaders" / "__init__.py").write_text(
+        textwrap.dedent(
+            """
             from pathlib import Path
 
             from ruamel.yaml import YAML
+
+            from mandate.core.registry import RegistryError
 
 
             YAML_PARSER = YAML(typ="safe")
 
 
-            class RegistryError(ValueError):
-                pass
-
-
-            class RegistrySnapshot:
-                @classmethod
-                def from_repo(cls, repo_root, *, environment="dev"):
-                    root = Path(repo_root)
-                    rules = YAML_PARSER.load((root / "compat_rules.yaml").read_text())
-                    policy = YAML_PARSER.load(
-                        (root / "registries" / "policy.prod.yaml").read_text()
+            def load_registry_snapshot(repo_root, *, environment="dev"):
+                root = Path(repo_root)
+                rules = YAML_PARSER.load((root / "compat_rules.yaml").read_text())
+                policy = YAML_PARSER.load(
+                    (root / "registries" / "policy.prod.yaml").read_text()
+                )
+                aggregate = (
+                    ((policy or {}).get("defaults") or {}).get("aggregate_budget")
+                    or {}
+                )
+                if rules.get("require_per_user_daily_tokens") and (
+                    "per_user_daily_tokens" not in aggregate
+                ):
+                    raise RegistryError(
+                        "policy aggregate_budget per_user_daily_tokens is invalid"
                     )
-                    aggregate = (
-                        ((policy or {}).get("defaults") or {}).get("aggregate_budget")
-                        or {}
-                    )
-                    if rules.get("require_per_user_daily_tokens") and (
-                        "per_user_daily_tokens" not in aggregate
-                    ):
-                        raise RegistryError(
-                            "policy aggregate_budget per_user_daily_tokens is invalid"
-                        )
 
-                    workload_imports = YAML_PARSER.load(
-                        (root / "registries" / "workload_imports.yaml").read_text()
-                    )
-                    for import_entry in workload_imports.get("imports") or []:
-                        for capability_id, capability in (
-                            import_entry.get("capabilities") or {}
-                        ).items():
-                            profiles = (
-                                (capability.get("model_bounds") or {}).get(
-                                    "allowed_profiles"
-                                )
-                                or []
+                workload_imports = YAML_PARSER.load(
+                    (root / "registries" / "workload_imports.yaml").read_text()
+                )
+                for import_entry in workload_imports.get("imports") or []:
+                    for capability_id, capability in (
+                        import_entry.get("capabilities") or {}
+                    ).items():
+                        profiles = (
+                            (capability.get("model_bounds") or {}).get(
+                                "allowed_profiles"
                             )
-                            if len(profiles) != 1:
-                                raise RegistryError(
-                                    "worker_service model call bounds must declare "
-                                    f"exactly one allowed profile: {capability_id}"
-                                )
-                    return cls()
+                            or []
+                        )
+                        if len(profiles) != 1:
+                            raise RegistryError(
+                                "worker_service model call bounds must declare "
+                                f"exactly one allowed profile: {capability_id}"
+                            )
             """
         ).strip()
         + "\n",
