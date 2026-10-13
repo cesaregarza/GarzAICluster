@@ -4,8 +4,11 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
+import select
 import subprocess
 import sys
+import textwrap
 import unittest
 from contextlib import redirect_stdout
 from importlib.machinery import SourceFileLoader
@@ -828,6 +831,50 @@ class MandateDeployTrainTests(unittest.TestCase):
             [{"stage": "control-plane", "result": "prune-set", "application": contract.name,
               "delete": ["Deployment/mandate/callback-adapter"]}],
         )
+
+    def test_the_prune_set_reaches_a_piped_log_before_the_sync_is_submitted(self) -> None:
+        # A real pipe is block-buffered: without a flush the receipt only appears
+        # after exit, i.e. after the destructive sync. The child blocks where the
+        # submit would run until the parent has read the receipt.
+        child = textwrap.dedent(
+            f"""
+            import importlib.util
+            import sys
+            from pathlib import Path
+
+            sys.path.insert(0, {str(SCRIPTS)!r})
+            spec = importlib.util.spec_from_file_location("mandate_deploy_train", {str(SCRIPT)!r})
+            train = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = train
+            spec.loader.exec_module(train)
+            payload = {{"status": {{"resources": [{{"kind": "Deployment", "namespace": "mandate",
+                "name": "callback-adapter", "requiresPruning": True}}]}}}}
+            train.argo.read_application_payload = lambda *args, **kwargs: payload
+            train.validate_live_application = lambda contract, live: None
+            contract = train.load_application_contracts(Path({str(ROOT)!r}), "a" * 40)[
+                train.ROOT_APPLICATION
+            ]
+            train._revalidate_and_announce_prune_set(
+                contract, stage="control-plane", kubeconfig=Path("/tmp/scoped"),
+                kubectl="kubectl", namespace="argocd", runner=None,
+            )
+            sys.stdin.readline()  # the destructive submit would run here
+            """
+        )
+        env = {key: value for key, value in os.environ.items() if key != "PYTHONUNBUFFERED"}
+        proc = subprocess.Popen(
+            [sys.executable, "-c", child], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            text=True, env=env,
+        )
+        try:
+            readable, _, _ = select.select([proc.stdout], [], [], 20)
+            self.assertTrue(readable, "prune-set receipt still buffered while the sync is pending")
+            receipt = json.loads(proc.stdout.readline())
+        finally:
+            proc.communicate("\n", timeout=20)
+
+        self.assertEqual(receipt["result"], "prune-set")
+        self.assertEqual(receipt["delete"], ["Deployment/mandate/callback-adapter"])
 
     def test_sync_boundary_drift_refuses_submission_or_final_acceptance(self) -> None:
         for failure in ("spec", "before-submit", "after-completion"):
