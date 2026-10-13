@@ -63,10 +63,12 @@ bindings:
         - agent_workloads.citrus_receipt_draft
   - id: synthetic-live-verify-probe
     description: >-
-      Scheduled no-key deployment and readonly-query live verify probe. This
-      binding is intentionally narrower than the private admin binding so
-      CronJob credentials can prove the live submit/worker/output/callback
-      path without gaining operator capabilities.
+      Scheduled readonly-query live verify probe. This binding is
+      intentionally narrower than the private admin binding so CronJob
+      credentials can prove the live submit/worker/output/callback path
+      without gaining operator capabilities. The deployment smoke moved to
+      the role binding below (CES-1376): an exact-subject match always wins,
+      so a grant left here would keep the role path from ever running.
     principal:
       issuer: synthetic
       subject_kind: service
@@ -77,8 +79,24 @@ bindings:
         - mandate-live-probe
     capabilities:
       allow:
-        - mandate.deploy.smoke
         - agent_workloads.readonly_query
+  - id: synthetic-live-verify-role-probe
+    description: >-
+      Role-admission proof (CES-890). The scheduled deployment-smoke journey
+      is admitted only through the synthetic_probe role, never by subject.
+    principal:
+      issuer: synthetic
+      subject_kind: service
+      tenant_id: garzai-prod
+    roles:
+      authorized:
+        - synthetic_probe
+    delivery_scope:
+      kind: internal
+      target_ref: synthetic-live-verify
+    capabilities:
+      allow:
+        - mandate.deploy.smoke
   - id: private-admin-trusted-readonly
     description: Narrower trusted-user binding on the private admin surface for a
       non-admin trusted user. Read/query capabilities only (no propose, apply,
