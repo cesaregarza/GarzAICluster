@@ -1333,47 +1333,20 @@ def reconcile_application(
         return "waited"
 
     if force_sync or completed is None:
-        if current.operation_present or current.operation.phase in argo.ACTIVE_PHASES:
-            raise argo.ArgoCoreError(
-                f"stage={stage} application={contract.name} reason=operation-overlap"
-            )
-        run_id = f"{invocation_id}-{contract.name}"[:80]
-        emit_receipt(stage, "started", application=contract.name, run_id=run_id)
-        # Waiting for refresh/adoption can outlive another actor's spec edit.
-        # Revalidate the complete reviewed spec and refuse a newly active sync.
-        current = validate_live_application(
+        completed = _run_correlated_sync(
             contract,
-            argo.read_application_payload(
-                contract.name,
-                kubeconfig=kubeconfig,
-                kubectl=kubectl,
-                namespace=namespace,
-                runner=runner,
-            ),
-        )
-        revision_guard()
-        argo.submit_sync(
-            contract.name,
-            revisions=submission_revisions(contract),
-            run_id=run_id,
+            current,
+            stage=stage,
+            invocation_id=invocation_id,
+            revision_guard=revision_guard,
             kubeconfig=kubeconfig,
             argocd=argocd,
-            runner=runner,
-        )
-        completed = argo.poll_operation(
-            contract.name,
-            before=current.operation,
-            expected_revisions=contract.resolved_revisions,
-            expected_automated=False,
-            run_id=run_id,
-            kubeconfig=kubeconfig,
             kubectl=kubectl,
             namespace=namespace,
-            timeout=operation_timeout,
+            operation_timeout=operation_timeout,
             interval=interval,
             runner=runner,
         )
-        revision_guard()
         outcome = "manual"
 
     assert_full_hook_operation(contract.name, completed)
@@ -1416,6 +1389,92 @@ def reconcile_application(
         receipt_fields["skill_count"] = live_after.skill_count
     emit_receipt(stage, "succeeded", **receipt_fields)
     return outcome or "synced"
+
+
+def _run_correlated_sync(
+    contract: ApplicationContract,
+    current: argo.ApplicationSnapshot,
+    *,
+    stage: str,
+    invocation_id: str,
+    revision_guard: Callable[[], None],
+    kubeconfig: Path,
+    argocd: str,
+    kubectl: str,
+    namespace: str,
+    operation_timeout: float,
+    interval: float,
+    runner: Runner,
+) -> argo.OperationSnapshot:
+    """Submit this stage's correlated sync and wait for its exact operation."""
+    if current.operation_present or current.operation.phase in argo.ACTIVE_PHASES:
+        raise argo.ArgoCoreError(
+            f"stage={stage} application={contract.name} reason=operation-overlap"
+        )
+    run_id = f"{invocation_id}-{contract.name}"[:80]
+    emit_receipt(stage, "started", application=contract.name, run_id=run_id)
+    current = _revalidate_and_announce_prune_set(
+        contract, stage=stage, kubeconfig=kubeconfig, kubectl=kubectl,
+        namespace=namespace, runner=runner,
+    )
+    revision_guard()
+    argo.submit_sync(
+        contract.name,
+        revisions=submission_revisions(contract),
+        run_id=run_id,
+        kubeconfig=kubeconfig,
+        argocd=argocd,
+        runner=runner,
+    )
+    completed = argo.poll_operation(
+        contract.name,
+        before=current.operation,
+        expected_revisions=contract.resolved_revisions,
+        expected_automated=False,
+        run_id=run_id,
+        kubeconfig=kubeconfig,
+        kubectl=kubectl,
+        namespace=namespace,
+        timeout=operation_timeout,
+        interval=interval,
+        runner=runner,
+    )
+    revision_guard()
+    return completed
+
+
+def _revalidate_and_announce_prune_set(
+    contract: ApplicationContract,
+    *,
+    stage: str,
+    kubeconfig: Path,
+    kubectl: str,
+    namespace: str,
+    runner: Runner,
+) -> argo.ApplicationSnapshot:
+    """Re-read and revalidate the reviewed spec, then name what the sync will delete.
+
+    Waiting for refresh/adoption can outlive another actor's spec edit, so the
+    complete spec is revalidated and a newly active sync refused. The sync
+    prunes (CES-946), so every resource it will delete is printed and flushed
+    before it runs: a piped log must show an unexpected entry in time to stop.
+    """
+    live_payload = argo.read_application_payload(
+        contract.name,
+        kubeconfig=kubeconfig,
+        kubectl=kubectl,
+        namespace=namespace,
+        runner=runner,
+    )
+    current = validate_live_application(contract, live_payload)
+    emit_receipt(
+        stage,
+        "prune-set",
+        application=contract.name,
+        delete=argo.pruning_resources(live_payload),
+    )
+    sys.stdout.flush()
+    return current
 
 
 def ensure_no_active_verify_job(
