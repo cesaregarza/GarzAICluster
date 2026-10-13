@@ -254,9 +254,9 @@ Utilities that were previously bundled with the app repo move here when they are
 - `check_agent_control_plane_registry_compat.py` – materializes the live
   Agent Control Plane registry overlay into a checked-out `agent-platform`
   source tree and builds the pinned revision's
-  `RegistrySnapshot.from_repo(environment="prod")`. Use this when a registry
-  overlay or policy change must be proven compatible with the deployed Mandate
-  binary:
+  `mandate.loaders.load_registry_snapshot(environment="prod")`. Use this when a
+  registry overlay or policy change must be proven compatible with the deployed
+  Mandate binary:
 
   ```bash
   uv run python scripts/check_agent_control_plane_registry_compat.py \
