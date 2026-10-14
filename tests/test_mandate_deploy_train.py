@@ -267,7 +267,7 @@ class MandateDeployTrainTests(unittest.TestCase):
         self.assertEqual(
             loaded["agent-control-plane"].resolved_revisions,
             (
-                "f98a5ca247344249f9b6e2461342eccc787c7041",
+                "b570e14d8d69413582efbd19380cfd4d4768e0a6",
                 sha,
                 sha,
             ),
