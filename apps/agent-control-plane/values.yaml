@@ -120,7 +120,7 @@ localWorker:
   # its true (no-auth) digests here instead of inheriting the shared auth-bearing
   # top-level pin (which crash-loops it fail-closed).
   env:
-    AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON: '{"model_gateway":{"digest":"sha256:72f9d4f2bb0220793aa81929272cfd8e93b45e55a97e59c371908b1bd393ead1","protocol":"model_gateway"},"readonly-sql-broker":{"digest":"sha256:73203a3ff8309cb762966f7559abf871f46a239c3136e7a5658eb069f52066c1","protocol":"readonly_sql"}}'
+    AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON: '{"model_gateway":{"digest":"sha256:631f5710a1b9bfab74de2489d8618d0861bed568a581b65d47311044ad025107","protocol":"model_gateway"},"readonly-sql-broker":{"digest":"sha256:73203a3ff8309cb762966f7559abf871f46a239c3136e7a5658eb069f52066c1","protocol":"readonly_sql"}}'
 
 callbackAdapter:
   health:
@@ -170,7 +170,7 @@ modelGateway:
   enabled: true
   replicaCount: 1
   env:
-    AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON: '{"model_gateway":{"digest":"sha256:2010eb78000580e9bc9ad74b57b70500318014a397193133005fae153b39c336","protocol":"model_gateway"}}'
+    AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON: '{"model_gateway":{"digest":"sha256:a7bee0a1bcac5663827c9487108c467b4b956e68d8a2303cf3cbb090274df696","protocol":"model_gateway"}}'
   codexAuthPersistence:
     enabled: true
     accessModes:
@@ -447,7 +447,7 @@ syntheticLiveVerify:
 # API-only Citrus-dev transport identity; shared workloads inherit neither keys nor pins.
 apiEnv:
   AGENT_PLATFORM_BROKER_OPERATION_PROVIDERS_JSON: '[{"broker_id":"citrus_purchasing","ca_file":"/var/run/mandate/citrus-dev-broker/ca.crt","client_cert_file":"/var/run/mandate/citrus-dev-broker/tls.crt","client_key_file":"/var/run/mandate/citrus-dev-broker/tls.key","endpoint":"https://agent-workloads-citrus-broker.agent-workloads.svc:8443/v1/execute"},{"broker_id":"citrus_receipts","ca_file":"/var/run/mandate/citrus-dev-receipts/ca.crt","client_cert_file":"/var/run/mandate/citrus-dev-receipts/tls.crt","client_key_file":"/var/run/mandate/citrus-dev-receipts/tls.key","endpoint":"https://10.108.0.8:8444/v1/execute"}]'
-  AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON: '{"citrus_purchasing":{"digest":"sha256:b8ac2d9f3a1436bd6fd5cd3bda761dc4cd81abbd3d2cd688e8a9d7df75501202","protocol":"broker-operation-mtls.v1"},"citrus_receipts":{"digest":"sha256:9acb73fbf21aec9983b5d328d6d641b7e6bc0abec868a544ba658de21f6a8202","protocol":"broker-operation-mtls.v1"},"model_gateway":{"digest":"sha256:2010eb78000580e9bc9ad74b57b70500318014a397193133005fae153b39c336","protocol":"model_gateway"},"readonly-sql-broker":{"digest":"sha256:73203a3ff8309cb762966f7559abf871f46a239c3136e7a5658eb069f52066c1","protocol":"readonly_sql"}}'
+  AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON: '{"citrus_purchasing":{"digest":"sha256:b8ac2d9f3a1436bd6fd5cd3bda761dc4cd81abbd3d2cd688e8a9d7df75501202","protocol":"broker-operation-mtls.v1"},"citrus_receipts":{"digest":"sha256:9acb73fbf21aec9983b5d328d6d641b7e6bc0abec868a544ba658de21f6a8202","protocol":"broker-operation-mtls.v1"},"model_gateway":{"digest":"sha256:a7bee0a1bcac5663827c9487108c467b4b956e68d8a2303cf3cbb090274df696","protocol":"model_gateway"},"readonly-sql-broker":{"digest":"sha256:73203a3ff8309cb762966f7559abf871f46a239c3136e7a5658eb069f52066c1","protocol":"readonly_sql"}}'
 apiExtraVolumes:
 - name: citrus-dev-broker-client-tls
   secret:
