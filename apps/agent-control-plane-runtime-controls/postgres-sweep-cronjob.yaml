@@ -44,7 +44,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: postgres-sweep
-              image: registry.digitalocean.com/sendouq/agent-platform:sha-b570e14d8d69
+              image: registry.digitalocean.com/sendouq/agent-platform:sha-722012a5927b
               imagePullPolicy: IfNotPresent
               command:
                 - mandate-postgres-sweep
