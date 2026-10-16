@@ -243,8 +243,8 @@ data:
 
     bindings:
       - id: private-admin-controlled-capabilities
-        description: Production-safe private admin binding for no-key probes,
-          bounded read-only SQL, and the first imported worker-service probe.
+        description: Production-safe private admin binding for no-key probes
+          and the first imported worker-service probe.
         surface_identifiers:
           guild_id: "1523242748822425750"
           channel_id: "1523242750043226234"
@@ -257,7 +257,6 @@ data:
           allow:
             - task.echo
             - approval.probe
-            - readonly_sql
             - audit.digest
             - mandate.ops.inspect
             - mandate.deploy.smoke
