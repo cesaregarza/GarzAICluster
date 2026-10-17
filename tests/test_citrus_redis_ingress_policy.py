@@ -31,7 +31,6 @@ BATCH_COMPONENTS = [
     "recurring-preflight",
     "recurring-tick",
     "recurring-health",
-    "direct-order-payment-sweep",
 ]
 REDIS_IMAGE = (
     "redis:7.2.16-alpine@sha256:"
