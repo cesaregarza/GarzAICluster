@@ -1705,6 +1705,24 @@ exit 64
             "https://github.com/cesaregarza/GarzAICluster",
         )
 
+    def test_trusted_edge_producers_cannot_impersonate_each_other(self) -> None:
+        # ADR 2 §6 in config form (CES-1378): each producer's key may attest only its
+        # own principal issuers, so no two producers may claim the same issuer, and
+        # no two may sign with the same key.
+        producers = json.loads(
+            self.control_plane_values["apiEnv"]["AGENT_PLATFORM_MCP_TRUSTED_CONTEXT_PRODUCERS_JSON"]
+        )
+        issuers = [issuer for producer in producers for issuer in producer["principal_issuers"]]
+
+        self.assertEqual(len(issuers), len(set(issuers)), issuers)
+        self.assertEqual(
+            len({producer["secret_env"] for producer in producers}), len(producers)
+        )
+        self.assertEqual(
+            {producer["edge_id"]: producer["principal_issuers"] for producer in producers},
+            {"synthetic-live-verify": ["synthetic"], "hermes": ["discord"]},
+        )
+
     def test_model_gateway_provider_pins_are_scoped_to_gateway_process(self) -> None:
         values = self.control_plane_values
         api_pins = json.loads(values["env"]["AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON"])
