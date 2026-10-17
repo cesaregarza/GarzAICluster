@@ -44,9 +44,10 @@ spec:
             - {{ .Values.worker.command | quote }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
+          {{- if or .Values.redis.enabled .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
           env:
             {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
+            {{- include "citrus.redisClientEnv" . | nindent 12 }}
             {{- include "citrus.paymentSafety.env" . | nindent 12 }}
             {{- include "citrus.paymentCredentials.devRuntimeEnv" . | nindent 12 }}
           {{- end }}

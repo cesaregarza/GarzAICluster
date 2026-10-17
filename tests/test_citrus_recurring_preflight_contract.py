@@ -379,7 +379,8 @@ class CitrusRecurringPreflightContractTests(unittest.TestCase):
         self.assertEqual(config["RECURRING_CHARGING_ENABLED"], "False")
         self.assertEqual(config["RECURRING_CHARGE_EMERGENCY_STOP"], "True")
         self.assertEqual(config["CELERY_TASK_ALWAYS_EAGER"], "False")
-        self.assertEqual(config["CELERY_BROKER_URL"], "redis://citrus-redis:6379/1")
+        # The chart builds the authenticated broker URL (CES-1508).
+        self.assertNotIn("CELERY_BROKER_URL", config)
 
     def test_payment_boundary_selects_the_preflight_job(self) -> None:
         policy = _named(
@@ -667,14 +668,14 @@ class CitrusRecurringPreflightContractTests(unittest.TestCase):
             ),
             (
                 ["--set-string", "application.configData.CELERY_BROKER_URL="],
-                "CELERY_BROKER_URL must select the same-release Redis billing broker",
+                "CACHE_URL and CELERY_BROKER_URL come from citrus.redisClientEnv",
             ),
             (
                 [
                     "--set-string",
                     "application.configData.CELERY_BROKER_URL=redis://other:6379/1",
                 ],
-                "CELERY_BROKER_URL must select the same-release Redis billing broker",
+                "CACHE_URL and CELERY_BROKER_URL come from citrus.redisClientEnv",
             ),
             (
                 ["--set-string", "recurringRuntime.schedule="],

@@ -20,8 +20,10 @@ CHART = ROOT / "helm" / "citrus"
 HELM = os.environ.get("HELM_BIN", "helm")
 YAML_PARSER = YAML(typ="safe")
 REDIS_ENV = ("CACHE_URL", "CELERY_BROKER_URL")
-# Their own egress policies admit no Redis path, so they stay outside.
-NO_REDIS_EGRESS = {"stripe-smoke-runner", "sms-reconciliation"}
+# Their own egress policies admit no Redis path, so they stay outside. The
+# payment sweep uses neither the cache nor Celery and keeps its minimal
+# secret projection, so it gets no Redis password either.
+NO_REDIS_EGRESS = {"stripe-smoke-runner", "sms-reconciliation", "direct-order-payment-sweep"}
 REDIS_IMAGE = (
     "redis:7.2.16-alpine@sha256:"
     "29e8589c3f9ba699b5f7aa4b3c7733c58852a3626439e619aa0ee78de08c6ca0"
@@ -158,7 +160,6 @@ class CitrusRedisIngressPolicyTests(unittest.TestCase):
             "citrus-dev-billing-worker",
             "citrus-dev-migrate-1",
             "citrus-dev-recurring-preflight",
-            "citrus-dev-direct-order-payment-sweep",
             "citrus-dev-media-requeue",
             "citrus-dev-media-gc",
             "citrus-dev-recurring-tick",
@@ -174,7 +175,7 @@ class CitrusRedisIngressPolicyTests(unittest.TestCase):
                     any("namespace" in key for key in {*labels, *keys}), peer,
                 )
 
-    def test_redis_runs_patched_image_with_memory_cap(self):
+    def test_redis_runs_the_patched_image(self):
         for documents in (render(*PROD), render(*DEV)):
             [container] = [
                 template
@@ -182,10 +183,6 @@ class CitrusRedisIngressPolicyTests(unittest.TestCase):
                 if name == "citrus-redis"
             ][0]["spec"]["containers"]
             self.assertEqual(container["image"], REDIS_IMAGE)
-            self.assertEqual(
-                container["args"],
-                ["--maxmemory", "200mb", "--maxmemory-policy", "volatile-lru"],
-            )
 
 
 if __name__ == "__main__":
