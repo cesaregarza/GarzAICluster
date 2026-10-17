@@ -1348,10 +1348,18 @@ exit 64
         )
         self.assertEqual(
             synthetic_binding["capabilities"]["allow"],
-            ["mandate.deploy.smoke", "agent_workloads.readonly_query"],
+            ["agent_workloads.readonly_query"],
         )
         self.assertEqual(synthetic_binding["users"].get("admins"), [])
         self.assertNotIn("approval_overrides", synthetic_binding["capabilities"])
+        role_binding = bindings_by_id["synthetic-live-verify-role-probe"]
+        self.assertEqual(role_binding["principal"], synthetic_binding["principal"])
+        self.assertEqual(role_binding["roles"], {"authorized": ["synthetic_probe"]})
+        self.assertNotIn("users", role_binding)
+        self.assertEqual(
+            role_binding["delivery_scope"],
+            {"kind": "internal", "target_ref": "synthetic-live-verify"},
+        )
 
         self.assertIn(
             "agent_workloads.opencode_propose",
@@ -1413,6 +1421,28 @@ exit 64
         self.assertEqual(
             mounts["/app/registries/evals.yaml"]["subPath"],
             "evals.yaml",
+        )
+
+    def test_moving_the_smoke_grant_to_the_synthetic_role_widens_nothing(self) -> None:
+        # CES-1376: anyone who can sign a synthetic-issuer assertion can claim the
+        # subject or the role, so moving the grant must leave the reachable set as it
+        # was. The grant must also leave the subject binding: an exact-subject match
+        # is chosen ahead of any role match, so a copy there would hide the role path.
+        policy = YAML_PARSER.load(self.data["policy.prod.yaml"])
+        synthetic_service = {"issuer": "synthetic", "subject_kind": "service",
+                             "tenant_id": "garzai-prod"}
+        bindings = {
+            item["id"]: item["capabilities"]["allow"]
+            for item in policy["bindings"]
+            if item.get("principal") == synthetic_service
+        }
+
+        reachable = {capability for allowed in bindings.values() for capability in allowed}
+        self.assertEqual(reachable, {"mandate.deploy.smoke", "agent_workloads.readonly_query"})
+        self.assertEqual(
+            {binding_id for binding_id, allowed in bindings.items()
+             if "mandate.deploy.smoke" in allowed},
+            {"synthetic-live-verify-role-probe"},
         )
 
     def test_synthetic_live_verify_runs_internal_deployment_and_readonly_probes(

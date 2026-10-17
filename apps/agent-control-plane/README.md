@@ -89,10 +89,13 @@ Required before activation:
 - `syntheticLiveVerify.enabled=true` runs the scheduled deployment smoke and
   readonly-query probes every five minutes through the trusted-edge `/v1/tasks`
   path with signed `mctx_v2` assertions. The dedicated
-  `mandate-live-probe` service principal is policy-granted only for
-  `mandate.deploy.smoke` and `agent_workloads.readonly_query`, and the delivery
-  target is internal so successful probes do not post to the operator Discord
-  channel. The readonly-query journey requires the `model_call.finished` audit
+  `mandate-live-probe` service principal reaches only
+  `agent_workloads.readonly_query`, by exact subject
+  (`synthetic-live-verify-probe`), and `mandate.deploy.smoke`, only through its
+  `synthetic_probe` role (`synthetic-live-verify-role-probe`), so every run
+  proves role admission live (CES-890). The delivery target is internal so
+  successful probes do not post to the operator Discord channel. The
+  readonly-query journey requires the `model_call.finished` audit
   event as explicit proof that the external worker completed a Mandate-brokered
   MODEL round-trip; a green deployment-smoke journey alone is not a deploy
   gate. Failed Jobs alert through the production Prometheus/Alertmanager route.
