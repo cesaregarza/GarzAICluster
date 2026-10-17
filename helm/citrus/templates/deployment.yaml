@@ -53,9 +53,10 @@ spec:
             - {{ .Values.application.command | quote }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled .Values.cloudflareAccess.enabled }}
+          {{- if or .Values.redis.enabled .Values.paymentCredentials.enabled .Values.paymentSafety.enabled .Values.cloudflareAccess.enabled }}
           env:
             {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
+            {{- include "citrus.redisClientEnv" . | nindent 12 }}
             {{- include "citrus.paymentSafety.env" . | nindent 12 }}
             {{- include "citrus.paymentCredentials.webEnv" . | nindent 12 }}
             {{- include "citrus.cloudflareAccess.env" . | nindent 12 }}

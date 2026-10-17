@@ -37,9 +37,10 @@ spec:
                 {{- toYaml .Values.mediaRequeue.command | nindent 16 }}
               securityContext:
                 {{- toYaml .Values.containerSecurityContext | nindent 16 }}
-              {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
+              {{- if or .Values.redis.enabled .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
               env:
                 {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 16 }}
+                {{- include "citrus.redisClientEnv" . | nindent 16 }}
                 {{- include "citrus.paymentSafety.env" . | nindent 16 }}
                 {{- include "citrus.paymentCredentials.devRuntimeEnv" . | nindent 16 }}
               {{- end }}
@@ -107,9 +108,10 @@ spec:
                 {{- toYaml .Values.mediaGc.command | nindent 16 }}
               securityContext:
                 {{- toYaml .Values.containerSecurityContext | nindent 16 }}
-              {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
+              {{- if or .Values.redis.enabled .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
               env:
                 {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 16 }}
+                {{- include "citrus.redisClientEnv" . | nindent 16 }}
                 {{- include "citrus.paymentSafety.env" . | nindent 16 }}
                 {{- include "citrus.paymentCredentials.devRuntimeEnv" . | nindent 16 }}
               {{- end }}
