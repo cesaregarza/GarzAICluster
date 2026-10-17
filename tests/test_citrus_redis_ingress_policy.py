@@ -180,18 +180,56 @@ def policy_target(policy):
     return policy["spec"].get("endpointSelector") or {}
 
 
+INGRESS_SPEC_KEYS = {"ingress", "ingressDeny", "enableDefaultDeny"}
+SUPPORTED_PORTS = [{"ports": [{"port": REDIS_PORT, "protocol": "TCP"}]}]
+
+
 def ingress_policies_for(documents, labels):
+    """Every policy that selects the pod and says anything about its ingress."""
     return [
         policy
         for policy in documents
         if policy["kind"] in POLICY_KINDS
         and selects(policy_target(policy), labels)
         and (
-            "ingress" in policy["spec"]
+            bool(INGRESS_SPEC_KEYS & set(policy["spec"]))
             or "Ingress" in policy["spec"].get("policyTypes", [])
             or (policy["kind"] == "NetworkPolicy" and "egress" not in policy["spec"])
         )
     ]
+
+
+def unsupported_ingress_form(policy):
+    """Why a policy selecting Redis falls outside the modelled shape, or None.
+
+    The only modelled shape is a CiliumNetworkPolicy that keeps ingress
+    default-deny and whose rules are explicit, non-empty fromEndpoints
+    selectors on TCP 6379. Anything else is treated as admitting every peer,
+    so an unmodelled allow can never be read as a denial.
+    """
+    if policy["kind"] != "CiliumNetworkPolicy":
+        return f"{policy['kind']} is not modelled"
+    spec = policy["spec"]
+    if (spec.get("enableDefaultDeny") or {}).get("ingress", True) is not True:
+        return "enableDefaultDeny.ingress is not true"
+    if "ingressDeny" in spec:
+        return "ingressDeny is not modelled"
+    rules = spec.get("ingress")
+    if not rules:
+        return "no ingress rules"
+    for rule in rules:
+        if set(rule) != {"fromEndpoints", "toPorts"}:
+            return f"rule keys {sorted(rule)} are not exactly fromEndpoints+toPorts"
+        if rule["toPorts"] != SUPPORTED_PORTS:
+            return f"toPorts {rule['toPorts']} is not exactly 6379/TCP"
+        if not rule["fromEndpoints"]:
+            return "empty fromEndpoints"
+        for peer in rule["fromEndpoints"]:
+            if not peer or set(peer) - {"matchLabels", "matchExpressions"} or not (
+                peer.get("matchLabels") or peer.get("matchExpressions")
+            ):
+                return f"peer {peer} is not an explicit selector"
+    return None
 
 
 def effectively_admitted(documents, policy_namespace, redis_labels, labels, namespace):
@@ -199,30 +237,14 @@ def effectively_admitted(documents, policy_namespace, redis_labels, labels, name
     policies = ingress_policies_for(documents, redis_labels)
     if not policies:
         return True  # no ingress isolation: everything is admitted
-    for policy in policies:
-        for rule in policy["spec"].get("ingress") or []:
-            if not allows_port(rule, REDIS_PORT):
-                continue
-            if policy["kind"] == "NetworkPolicy":
-                peers = rule.get("from")
-                if not peers:
-                    return True
-                for peer in peers:
-                    if "ipBlock" in peer or "namespaceSelector" in peer:
-                        return True
-                    if namespace == policy_namespace and selects(
-                        peer.get("podSelector") or {}, labels
-                    ):
-                        return True
-                continue
-            if any(key in rule for key in (
-                "fromEntities", "fromCIDR", "fromCIDRSet", "fromRequires",
-            )):
-                return True
-            for peer in rule.get("fromEndpoints") or []:
-                if cilium_peer_selects(peer, policy_namespace, labels, namespace):
-                    return True
-    return False
+    if any(unsupported_ingress_form(policy) for policy in policies):
+        return True  # fail closed on anything the model does not interpret
+    return any(
+        cilium_peer_selects(peer, policy_namespace, labels, namespace)
+        for policy in policies
+        for rule in policy["spec"]["ingress"]
+        for peer in rule["fromEndpoints"]
+    )
 
 
 def has_redis_egress(documents, policy_namespace, labels, redis_labels):
@@ -449,6 +471,22 @@ class CitrusRedisIngressPolicyTests(unittest.TestCase):
                     ],
                     "toPorts": [{"ports": [{"port": REDIS_PORT, "protocol": "TCP"}]}],
                 })
+
+    def test_redis_is_in_ingress_default_deny(self):
+        # The isolation invariant: at least one policy puts Redis into ingress
+        # default-deny, and every policy touching its ingress is in the one
+        # shape the admission model interprets.
+        for environment, (_, documents) in self.renders.items():
+            policies = ingress_policies_for(documents, redis_labels(documents))
+            with self.subTest(environment=environment):
+                self.assertTrue(policies)
+                self.assertEqual(
+                    {
+                        policy["metadata"]["name"]: unsupported_ingress_form(policy)
+                        for policy in policies
+                    },
+                    {policy["metadata"]["name"]: None for policy in policies},
+                )
 
     def test_no_other_policy_opens_ingress_to_redis(self):
         # Cilium and Kubernetes allows are additive: any other policy that
