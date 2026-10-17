@@ -668,14 +668,14 @@ class CitrusRecurringPreflightContractTests(unittest.TestCase):
             ),
             (
                 ["--set-string", "application.configData.CELERY_BROKER_URL="],
-                "CACHE_URL and CELERY_BROKER_URL come from citrus.redisClientEnv",
+                "CELERY_BROKER_URL comes from citrus.redisClientEnv, not configData",
             ),
             (
                 [
                     "--set-string",
                     "application.configData.CELERY_BROKER_URL=redis://other:6379/1",
                 ],
-                "CACHE_URL and CELERY_BROKER_URL come from citrus.redisClientEnv",
+                "CELERY_BROKER_URL comes from citrus.redisClientEnv, not configData",
             ),
             (
                 ["--set-string", "recurringRuntime.schedule="],

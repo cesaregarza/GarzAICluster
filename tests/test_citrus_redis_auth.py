@@ -7,6 +7,7 @@ a password or a passwordless Redis URL.
 
 from __future__ import annotations
 
+import shlex
 import shutil
 import subprocess
 import unittest
@@ -31,6 +32,12 @@ URLS = {
     "CACHE_URL": "redis://:$(REDIS_PASSWORD)@citrus-redis:6379/0",
     "CELERY_BROKER_URL": "redis://:$(REDIS_PASSWORD)@citrus-redis:6379/1",
 }
+STARTUP_TOKENS = [
+    "umask", "077", "&&",
+    "printf", "requirepass %s\\n", "$REDIS_PASSWORD", ">", "/tmp/redis-auth.conf", "&&",
+    "exec", "redis-server", "/tmp/redis-auth.conf",
+    "--maxmemory", "200mb", "--maxmemory-policy", "volatile-lru",
+]
 PONG_PROBE = ["/bin/sh", "-ec", 'test "$(redis-cli --raw ping)" = PONG']
 
 
@@ -60,14 +67,12 @@ class CitrusRedisAuthTests(unittest.TestCase):
                     )
                 self.assertEqual(container["command"], ["sh", "-c"])
                 [script] = container["args"]
-                self.assertIn(
-                    """printf 'requirepass %s\\n' "$REDIS_PASSWORD" > /tmp/redis-auth.conf""",
-                    script,
-                )
-                self.assertTrue(script.startswith("umask 077 && "))
-                self.assertIn("exec redis-server /tmp/redis-auth.conf", script)
-                self.assertIn("--maxmemory 200mb --maxmemory-policy volatile-lru", script)
-                self.assertNotIn("--requirepass", script)
+                # The whole startup is pinned: a later option would override
+                # an earlier one, so substring checks are not enough.
+                self.assertEqual(shlex.split(script), STARTUP_TOKENS)
+                redis_argv = STARTUP_TOKENS[STARTUP_TOKENS.index("exec") + 1:]
+                for option in ("--maxmemory", "--maxmemory-policy"):
+                    self.assertEqual(redis_argv.count(option), 1)
                 for probe in ("livenessProbe", "readinessProbe"):
                     self.assertEqual(container[probe]["exec"]["command"], PONG_PROBE)
 
@@ -108,18 +113,27 @@ class CitrusRedisAuthTests(unittest.TestCase):
                             with self.subTest(release=release, pod=name, env=item["name"]):
                                 self.assertIn("$(REDIS_PASSWORD)@", value)
 
-    def test_configdata_redis_urls_are_rejected(self):
-        for key in ("CACHE_URL", "CELERY_BROKER_URL"):
-            command = [
-                HELM, "template", "citrus-dev", str(CHART), "--namespace", "citrus-dev",
-                *(arg for value in DEV[2:] for arg in ("-f", str(CHART / value))),
-                "--set-string", f"application.configData.{key}=redis://citrus-redis:6379/0",
-            ]
-            result = subprocess.run(command, capture_output=True, text=True)
-            with self.subTest(key=key):
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn("come from citrus.redisClientEnv", result.stderr)
-
+    def test_configdata_redis_urls_are_rejected_in_every_mode(self):
+        modes = {
+            "prod": PROD,
+            "dev": DEV,
+            "base (no recurring runtime)": ("citrus", "default", "values.yaml"),
+        }
+        for mode, (release, namespace, *value_files) in modes.items():
+            for key in ("CACHE_URL", "CELERY_BROKER_URL"):
+                for value in ("", "redis://citrus-redis:6379/1"):
+                    command = [
+                        HELM, "template", release, str(CHART), "--namespace", namespace,
+                        *(arg for name in value_files for arg in ("-f", str(CHART / name))),
+                        "--set-string", f"application.configData.{key}={value}",
+                    ]
+                    result = subprocess.run(command, capture_output=True, text=True)
+                    with self.subTest(mode=mode, key=key, value=value):
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn(
+                            f"{key} comes from citrus.redisClientEnv, not configData",
+                            result.stderr,
+                        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -182,6 +182,19 @@ Authenticated Redis URLs for Citrus Redis clients (CES-1508). The password is
 the REDIS_PASSWORD key of the app-key Secret; Kubernetes expands
 $(REDIS_PASSWORD) from the entry defined first, so no URL holds a literal.
 */}}
+{{/*
+Redis URLs never live in the ConfigMap (CES-1508): it is not a secret, and an
+entry there would reach containers that deliberately carry no Redis env.
+Rendered from the ConfigMap template, so every chart mode enforces it.
+*/}}
+{{- define "citrus.redisConfigDataGuard" -}}
+{{- range $key := list "CACHE_URL" "CELERY_BROKER_URL" }}
+{{- if hasKey $.Values.application.configData $key }}
+{{- fail (printf "%s comes from citrus.redisClientEnv, not configData" $key) }}
+{{- end }}
+{{- end }}
+{{- end }}
+
 {{- define "citrus.redisClientEnv" -}}
 {{- if .Values.redis.enabled }}
 {{- if not .Values.application.generatedSecretName }}
@@ -519,9 +532,6 @@ partial render must never create a controller that bypasses the preflight.
 {{- end -}}
 {{- if not .Values.redis.enabled -}}
 {{- fail "the recurring runtime requires the same-release Redis billing broker" -}}
-{{- end -}}
-{{- if or (hasKey .Values.application.configData "CACHE_URL") (hasKey .Values.application.configData "CELERY_BROKER_URL") -}}
-{{- fail "CACHE_URL and CELERY_BROKER_URL come from citrus.redisClientEnv, not configData" -}}
 {{- end -}}
 
 {{- $preflightCommand := list "python" "manage.py" "preflight_recurring_runtime" "--include-broker" "--format=json" -}}
