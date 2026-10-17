@@ -383,7 +383,7 @@ class CitrusCiContractTests(unittest.TestCase):
         self.assertIn("rendered a broad or provider Secret reference", run)
         self.assertIn("exactly six named runtime keys", run)
         for expected in (
-            "kind: CiliumNetworkPolicy",
+            "app.kubernetes.io/component: sms-reconciliation-egress",
             'argocd.argoproj.io/sync-wave: "2"',
             "citrus.grace/sms-reconciliation-egress: restricted",
             "citrus.grace/sms-reconciliation-egress-policy-revision",
@@ -416,7 +416,7 @@ class CitrusCiContractTests(unittest.TestCase):
                 self.assertIn(expected, checker)
         for expected in (
             "active_dev=rendered/citrus-dev.yaml",
-            "grep -Ec '^kind:[[:space:]]+CiliumNetworkPolicy$'",
+            "grep -Fc 'app.kubernetes.io/component: payment-egress-boundary'",
             "grep -Fc 'citrus.grace/payment-egress-boundary: enabled'",
             "grep -Fc 'name: PAYMENT_EGRESS_POLICY_REVISION'",
             "grep -Fc 'matchName:'",
