@@ -1707,14 +1707,19 @@ exit 64
 
     def test_model_gateway_provider_pins_are_scoped_to_gateway_process(self) -> None:
         values = self.control_plane_values
-        api_pins = json.loads(values["env"]["AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON"])
+        shared_pins = json.loads(values["env"]["AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON"])
+        api_env = {**values["env"], **values.get("apiEnv", {})}
+        api_pins = json.loads(api_env["AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON"])
         gateway_pins = json.loads(
             values["modelGateway"]["env"]["AGENT_PLATFORM_PROVIDER_DIGEST_PINS_JSON"]
         )
 
+        self.assertNotIn("model_gateway", shared_pins)
+        self.assertEqual(set(shared_pins), {"readonly-sql-broker"})
+        self.assertEqual(shared_pins["readonly-sql-broker"], api_pins["readonly-sql-broker"])
         self.assertEqual(
             set(api_pins),
-            {"model_gateway", "readonly-sql-broker"},
+            {"citrus_purchasing", "citrus_receipts", "model_gateway", "readonly-sql-broker"},
         )
         self.assertEqual(
             set(gateway_pins),
@@ -1730,7 +1735,7 @@ exit 64
             {
                 "digest": (
                     "sha256:"
-                    "2010eb78000580e9bc9ad74b57b70500318014a397193133005fae153b39c336"
+                    "a7bee0a1bcac5663827c9487108c467b4b956e68d8a2303cf3cbb090274df696"
                 ),
                 "protocol": "model_gateway",
             },
