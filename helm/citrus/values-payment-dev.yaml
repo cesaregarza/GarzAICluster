@@ -17,7 +17,7 @@ directOrderPaymentSweep:
   enabled: true
   suspend: false
   runtimeSecretName: citrus-dev-sweep-runtime
-  verifiedImageTag: 42b040895916e4ffa253d554dcb50e90d4e8e83d
+  verifiedImageTag: bbc3a69336767320d78425f9e9b2cb3e823383a4
   offSessionMode: legacy
 
 # Normal browser checkout uses the isolated Stripe sandbox. This overlay follows
