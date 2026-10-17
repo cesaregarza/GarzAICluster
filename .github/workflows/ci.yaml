@@ -631,7 +631,7 @@ jobs:
           grep -F 'citrus-dev-sms-reconciliation-runtime' rendered/citrus-sms-reconciliation-dev.yaml >/dev/null
           grep -F 'secretKeyRef:' rendered/citrus-sms-reconciliation-prod.yaml >/dev/null
           for file in rendered/citrus-sms-reconciliation-*.yaml; do
-            grep -F 'kind: CiliumNetworkPolicy' "$file" >/dev/null
+            grep -F 'app.kubernetes.io/component: sms-reconciliation-egress' "$file" >/dev/null
             grep -F 'argocd.argoproj.io/sync-wave: "2"' "$file" >/dev/null
             grep -F 'citrus.grace/sms-reconciliation-egress: restricted' "$file" >/dev/null
             grep -F 'citrus.grace/sms-reconciliation-egress-policy-revision: "ces-848-ci"' "$file" >/dev/null
@@ -672,7 +672,7 @@ jobs:
           grep -F 'citrus.grace/verified-image-tag: "4353f11595094bc4893b5799233cfd56c52aed89"' "$schedulers" >/dev/null
           grep -F 'name: citrus-ci-direct-order-runtime' "$schedulers" >/dev/null
 
-          if grep -E '^kind:[[:space:]]+CiliumNetworkPolicy$|PAYMENT_NETWORK_MODE|payment-egress-boundary' \
+          if grep -E 'PAYMENT_NETWORK_MODE|payment-egress-boundary' \
             rendered/citrus-base-prod.yaml >/dev/null; then
             echo "Citrus production base render must keep CES-845 disabled" >&2
             exit 1
@@ -700,7 +700,7 @@ jobs:
           fi
           active_dev_sha=${active_dev_images[0]##*:}
           [[ "$active_dev_sha" =~ ^[0-9a-f]{40}$ ]]
-          test "$(grep -Ec '^kind:[[:space:]]+CiliumNetworkPolicy$' "$active_dev")" -eq 2
+          test "$(grep -Fc 'app.kubernetes.io/component: payment-egress-boundary' "$active_dev")" -eq 2
           test "$(grep -Fc 'citrus.grace/payment-egress-boundary: enabled' "$active_dev")" -eq 6
           test "$(grep -Fc 'name: PAYMENT_EGRESS_POLICY_REVISION' "$active_dev")" -eq 6
           test "$(grep -Fc 'value: "citrus-dev-sandbox-v1"' "$active_dev")" -eq 6
@@ -743,7 +743,7 @@ jobs:
           test "$(grep -Fc 'value: "ces-883-stripe-smoke-v1"' "$stripe_smoke")" -eq 1
           test "$(grep -Fc 'matchName: "api.stripe.com"' "$stripe_smoke")" -eq 3
           test "$(grep -Fc 'port: "25060"' "$stripe_smoke")" -eq 3
-          test "$(grep -Ec '^kind:[[:space:]]+CiliumNetworkPolicy$' "$stripe_smoke")" -eq 3
+          test "$(grep -Ec 'app.kubernetes.io/component: (payment-egress-boundary|stripe-smoke-runner-egress)$' "$stripe_smoke")" -eq 3
           if grep -F 'serviceAccountName:' "$stripe_smoke" >/dev/null; then
             echo "The CES-883 stage-1 runner must not add a ServiceAccount" >&2
             exit 1
@@ -796,7 +796,7 @@ jobs:
 
           safety_dev=rendered/citrus-payment-safety-dev.yaml
           safety_prod=rendered/citrus-payment-safety-prod.yaml
-          grep -F 'kind: CiliumNetworkPolicy' "$safety_dev" >/dev/null
+          grep -F 'app.kubernetes.io/component: payment-egress-boundary' "$safety_dev" >/dev/null
           grep -F 'citrus.grace/payment-egress-boundary: enabled' "$safety_dev" >/dev/null
           grep -F 'matchName: "db.dev.example"' "$safety_dev" >/dev/null
           grep -F 'matchName: "citrus-media-dev.nyc3.digitaloceanspaces.com"' "$safety_dev" >/dev/null
@@ -808,7 +808,7 @@ jobs:
             exit 1
           fi
 
-          grep -F 'kind: CiliumNetworkPolicy' "$safety_prod" >/dev/null
+          grep -F 'app.kubernetes.io/component: payment-egress-boundary' "$safety_prod" >/dev/null
           grep -F -- '- all' "$safety_prod" >/dev/null
           grep -F 'value: "allow"' "$safety_prod" >/dev/null
 

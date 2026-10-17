@@ -1,0 +1,46 @@
+{{- if .Values.redis.enabled }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ .Values.redis.name }}-ingress
+  labels:
+    {{- include "citrus.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-ingress
+spec:
+  # Django's RedisCache unpickles every value it reads, so a write to this
+  # Redis is code execution in the web pod (CES-1508). Admit only the Citrus
+  # pods that read CACHE_URL or CELERY_BROKER_URL and whose egress reaches
+  # Redis; everything else, including other apps in this namespace, is denied.
+  # tests/test_citrus_redis_ingress_policy.py keeps this list exact.
+  endpointSelector:
+    matchLabels:
+      {{- include "citrus.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  ingress:
+    - fromEndpoints:
+        # Deployment pods carry only their app label, not the release labels.
+        - matchExpressions:
+            - key: app
+              operator: In
+              values:
+                - citrus-web
+                - citrus-media-worker
+                - citrus-billing-worker
+        - matchLabels:
+            {{- include "citrus.selectorLabels" . | nindent 12 }}
+          matchExpressions:
+            - key: app.kubernetes.io/component
+              operator: In
+              values:
+                - migrations
+                - media-requeue
+                - media-gc
+                - recurring-preflight
+                - recurring-tick
+                - recurring-health
+                - direct-order-payment-sweep
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+{{- end }}

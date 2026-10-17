@@ -270,6 +270,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
         self.assertFalse(
             any(
                 document.get("kind") == "CiliumNetworkPolicy"
+                and "egress" in document["spec"]
                 for document in self.default_prod
             )
         )
@@ -287,6 +288,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             document
             for document in self.actual_dev
             if document.get("kind") == "CiliumNetworkPolicy"
+               and "egress" in document["spec"]
         ]
         self.assertEqual(
             {policy["metadata"]["name"] for policy in policies},
@@ -440,6 +442,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             document
             for document in self.enforced_dev
             if document.get("kind") == "CiliumNetworkPolicy"
+               and "egress" in document["spec"]
         ]
         self.assertEqual(
             {policy["metadata"]["name"] for policy in policies},
@@ -593,6 +596,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             document
             for document in self.sandbox_dev
             if document.get("kind") == "CiliumNetworkPolicy"
+               and "egress" in document["spec"]
         ]
         self.assertEqual(len(policies), 2)
         for policy in policies:
@@ -666,6 +670,7 @@ class CitrusPaymentEgressPolicyTests(unittest.TestCase):
             document
             for document in self.explicit_prod
             if document.get("kind") == "CiliumNetworkPolicy"
+               and "egress" in document["spec"]
         ]
         self.assertEqual(len(policies), 2)
         for policy in policies:
