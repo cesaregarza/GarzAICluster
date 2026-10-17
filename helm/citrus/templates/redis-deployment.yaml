@@ -37,6 +37,7 @@ spec:
         - name: redis
           image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
           imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          args: ["--maxmemory", "200mb", "--maxmemory-policy", "volatile-lru"]
           ports:
             - name: redis
               containerPort: 6379

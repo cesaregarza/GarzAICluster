@@ -181,6 +181,7 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
                 document["metadata"]["name"]
                 for document in documents
                 if document.get("kind") == "CiliumNetworkPolicy"
+                   and "egress" in document["spec"]
                 and any(target.get("matchName") == "api.stripe.com"
                         for rule in document["spec"].get("egress", [])
                         for target in rule.get("toFQDNs", []))
@@ -492,6 +493,7 @@ class CitrusStripeSmokeRunnerTests(unittest.TestCase):
             document
             for document in self.enabled_dev
             if document.get("kind") == "CiliumNetworkPolicy"
+               and "egress" in document["spec"]
         ]
         stripe_policies = []
         for policy in policies:

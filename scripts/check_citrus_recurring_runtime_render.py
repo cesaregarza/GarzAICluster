@@ -223,7 +223,7 @@ def _verify_renders(rendered: dict[str, str], *, active_dev_revision: str) -> No
     for forbidden in (
         "PAYMENT_NETWORK_MODE",
         "citrus.grace/payment-egress-boundary",
-        "kind: CiliumNetworkPolicy",
+        "app.kubernetes.io/component: payment-egress-boundary",
     ):
         if forbidden in base_prod:
             raise ContractError(
@@ -231,7 +231,7 @@ def _verify_renders(rendered: dict[str, str], *, active_dev_revision: str) -> No
             )
 
     for marker in (
-        "kind: CiliumNetworkPolicy",
+        "app.kubernetes.io/component: payment-egress-boundary",
         "name: citrus-prod-payment-credentials",
         "name: STRIPE_WEBHOOK_SECRET_PROD",
         'value: "production"',
@@ -244,7 +244,7 @@ def _verify_renders(rendered: dict[str, str], *, active_dev_revision: str) -> No
         raise ContractError("citrus-prod must omit generic and dev webhook environment roles")
 
     for marker in (
-        "kind: CiliumNetworkPolicy",
+        "app.kubernetes.io/component: payment-egress-boundary",
         "citrus.grace/payment-egress-boundary: enabled",
         'citrus.grace/payment-egress-policy-revision: "citrus-dev-sandbox-v1"',
         "app.kubernetes.io/component: direct-order-payment-sweep",
@@ -263,7 +263,7 @@ def _verify_renders(rendered: dict[str, str], *, active_dev_revision: str) -> No
         )
 
     for marker in (
-        "kind: CiliumNetworkPolicy",
+        "app.kubernetes.io/component: payment-egress-boundary",
         "app.kubernetes.io/component: billing-worker",
         "app.kubernetes.io/component: recurring-preflight",
         "app.kubernetes.io/component: recurring-tick",
@@ -299,7 +299,7 @@ def _verify_renders(rendered: dict[str, str], *, active_dev_revision: str) -> No
             "citrus-payment-safety-dev must omit every Stripe destination"
         )
 
-    for marker in ("kind: CiliumNetworkPolicy", "- all", 'value: "allow"'):
+    for marker in ("app.kubernetes.io/component: payment-egress-boundary", "- all", 'value: "allow"'):
         _require(safe_prod, marker, render="citrus-payment-safety-prod")
 
     if _active_dev_revision(runtime_dev) != active_dev_revision:

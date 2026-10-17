@@ -448,7 +448,8 @@ redis:
       - ReadWriteOnce
   image:
     repository: redis
-    tag: "7.2.4-alpine"
+    # 7.2.11+ fixes CVE-2025-49844 (Lua use-after-free RCE); pinned by digest.
+    tag: "7.2.16-alpine@sha256:29e8589c3f9ba699b5f7aa4b3c7733c58852a3626439e619aa0ee78de08c6ca0"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
