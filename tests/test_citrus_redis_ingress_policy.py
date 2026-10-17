@@ -180,6 +180,74 @@ def policy_target(policy):
     return policy["spec"].get("endpointSelector") or {}
 
 
+MODELLED_POLICY_KINDS = {"CiliumNetworkPolicy", "NetworkPolicy"}
+POLICY_SPEC_KEYS = {
+    "CiliumNetworkPolicy": {
+        "endpointSelector", "ingress", "ingressDeny", "egress", "egressDeny",
+        "enableDefaultDeny", "description",
+    },
+    "NetworkPolicy": {"podSelector", "ingress", "egress", "policyTypes"},
+}
+SELECTOR_OPERATORS = {"In", "NotIn", "Exists", "DoesNotExist"}
+
+
+def plain_selector_problem(selector):
+    """None for a plain label selector; otherwise why the model can't read it."""
+    if not isinstance(selector, dict):
+        return "selector is not a mapping"
+    if set(selector) - {"matchLabels", "matchExpressions"}:
+        return f"selector keys {sorted(selector)}"
+    keys = list(selector.get("matchLabels") or {})
+    for expression in selector.get("matchExpressions") or []:
+        if set(expression) - {"key", "operator", "values"}:
+            return f"expression keys {sorted(expression)}"
+        if expression.get("operator") not in SELECTOR_OPERATORS:
+            return f"operator {expression.get('operator')}"
+        keys.append(expression.get("key", ""))
+    prefixed = [key for key in keys if ":" in key]
+    if prefixed:
+        return f"source-prefixed keys {prefixed}"
+    return None
+
+
+def policy_inventory_violations(documents):
+    """Every policy object the admission model would misread, render-wide.
+
+    Runs before any relevance filter: a Cilium kind other than a namespaced
+    CiliumNetworkPolicy (for example a CiliumClusterwideNetworkPolicy), any
+    field beside spec (such as a specs array), an unknown spec field, or a
+    target selector with source-prefixed or unknown keys all fail closed.
+    """
+    violations = []
+    for doc in documents:
+        kind = str(doc.get("kind", ""))
+        api = str(doc.get("apiVersion", ""))
+        if not (api.startswith("cilium.io/") or kind.endswith("NetworkPolicy")):
+            continue
+        name = f"{kind}/{(doc.get('metadata') or {}).get('name')}"
+        if kind not in MODELLED_POLICY_KINDS:
+            violations.append(f"{name}: kind is not modelled")
+            continue
+        extra = set(doc) - {"apiVersion", "kind", "metadata", "spec"}
+        if extra:
+            violations.append(f"{name}: top-level fields {sorted(extra)}")
+        spec = doc.get("spec")
+        if not isinstance(spec, dict):
+            violations.append(f"{name}: spec is not a mapping")
+            continue
+        unknown = set(spec) - POLICY_SPEC_KEYS[kind]
+        if unknown:
+            violations.append(f"{name}: spec fields {sorted(unknown)}")
+        target_key = "endpointSelector" if kind == "CiliumNetworkPolicy" else "podSelector"
+        if target_key not in spec:
+            violations.append(f"{name}: no {target_key}")
+            continue
+        problem = plain_selector_problem(spec[target_key])
+        if problem:
+            violations.append(f"{name}: {target_key} {problem}")
+    return violations
+
+
 INGRESS_SPEC_KEYS = {"ingress", "ingressDeny", "enableDefaultDeny"}
 SUPPORTED_PORTS = [{"ports": [{"port": REDIS_PORT, "protocol": "TCP"}]}]
 
@@ -225,15 +293,17 @@ def unsupported_ingress_form(policy):
         if not rule["fromEndpoints"]:
             return "empty fromEndpoints"
         for peer in rule["fromEndpoints"]:
-            if not peer or set(peer) - {"matchLabels", "matchExpressions"} or not (
+            if not peer or plain_selector_problem(peer) or not (
                 peer.get("matchLabels") or peer.get("matchExpressions")
             ):
-                return f"peer {peer} is not an explicit selector"
+                return f"peer {peer} is not an explicit plain selector"
     return None
 
 
 def effectively_admitted(documents, policy_namespace, redis_labels, labels, namespace):
     """Whether a peer may open TCP 6379 to Redis under every applicable policy."""
+    if policy_inventory_violations(documents):
+        return True  # fail closed before deciding which policies apply
     policies = ingress_policies_for(documents, redis_labels)
     if not policies:
         return True  # no ingress isolation: everything is admitted
@@ -471,6 +541,11 @@ class CitrusRedisIngressPolicyTests(unittest.TestCase):
                     ],
                     "toPorts": [{"ports": [{"port": REDIS_PORT, "protocol": "TCP"}]}],
                 })
+
+    def test_render_holds_only_modelled_policy_objects(self):
+        for environment, (_, documents) in self.renders.items():
+            with self.subTest(environment=environment):
+                self.assertEqual(policy_inventory_violations(documents), [])
 
     def test_redis_is_in_ingress_default_deny(self):
         # The isolation invariant: at least one policy puts Redis into ingress
