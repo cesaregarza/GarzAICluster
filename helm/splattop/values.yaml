@@ -292,3 +292,18 @@ serviceAccount:
 # Override chart name
 nameOverride: ""
 fullnameOverride: ""
+
+# Static closure page; enable only after disabling every legacy component.
+farewell:
+  enabled: false
+  image:
+    repository: nginx
+    tag: "1.28-alpine"
+    digest: sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236
+  resources:
+    requests:
+      cpu: 5m
+      memory: 8Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

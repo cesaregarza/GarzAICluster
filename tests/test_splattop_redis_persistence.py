@@ -54,7 +54,7 @@ class SplatTopRedisPersistenceTests(unittest.TestCase):
         self.assertNotIn("securityContext", pod)
 
     def test_production_is_single_writer_retained_and_nonroot(self) -> None:
-        deployment, pvc = self._redis(self._render("-f", str(CHART / "values-prod.yaml")))
+        deployment, pvc = self._redis(self._render("-f", str(CHART / "values-prod.yaml"), "--set", "farewell.enabled=false,redis.enabled=true"))
         pod = deployment["spec"]["template"]["spec"]
         container = pod["containers"][0]
         self.assertEqual(deployment["spec"]["replicas"], 1)
@@ -80,7 +80,7 @@ class SplatTopRedisPersistenceTests(unittest.TestCase):
     def test_persistent_redis_requires_exactly_one_replica(self) -> None:
         for replicas in (0, 2):
             result = subprocess.run(
-                ["helm", "template", "splattop-prod", str(CHART), "-f", str(CHART / "values-prod.yaml"), "--set", f"redis.replicas={replicas}"],
+                ["helm", "template", "splattop-prod", str(CHART), "-f", str(CHART / "values-prod.yaml"), "--set", f"farewell.enabled=false,redis.enabled=true,redis.replicas={replicas}"],
                 capture_output=True,
                 text=True,
             )
