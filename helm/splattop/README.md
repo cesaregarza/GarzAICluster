@@ -6,10 +6,24 @@ and Simplified Chinese at both `splat.top` and `comp.splat.top`. The copy says
 FAQ describes collection from February 2023; neither establishes a 2022 launch.
 
 `farewell.enabled` requires all legacy components and the warmup hook to be
-disabled. API, WebSocket, and well-known application routes return **410 Gone**;
-old frontend bookmarks serve the farewell page. No application bundle,
-credentials, database connection, external fonts, or JavaScript are needed.
+disabled. With `sendouProxy.enabled`, `/api/sendou` on both hosts reaches a
+single, independent Sendou converter. Other API, WebSocket, and well-known
+application routes return **410 Gone**; old frontend bookmarks serve the farewell
+page. The farewell page needs no application bundle,
+credentials, database connection, external fonts, or JavaScript.
 The page reuses the original gray/purple site styling and favicon.
+
+The proxy preserves the existing four read-only routes for tournament matches,
+tournament teams, the tournament team list, and SendouQ matches. It returns the
+same decoded JSON as the former API, including upstream errors, and allows
+cross-origin GET requests. Its bootstrap loads only the Sendou router from the
+digest-pinned v2.0.42 API image (source
+`80fbfa82ceebf085c3dae1f3f2ae0e28e9f33ab6`); importing the routes package normally
+would eagerly load retired data routers. The main API lifecycle never runs.
+There are no database/Redis credentials, data mounts, Celery tasks, or WebSockets.
+The process has one worker, at most eight concurrent connections, and a 128 MiB
+memory limit. Removing it requires disabling `sendouProxy` and removing its two
+ingress paths together.
 
 The existing TLS secret and ingress name stay in use. ConfigMap and server
 readiness precede ingress cutover; Argo's `PruneLast=true` removes the old
@@ -20,7 +34,8 @@ mounted by the static server. No database or persistent data is deleted.
 Validate with Helm lint, a production render, and the closure contract tests.
 After the GitOps PR passes CI and merges, dry-run and manually sync only
 `splattop-prod` at the verified config revision, with pruning enabled. Verify
-both public hosts, old bookmarks, 410 responses, and absence of legacy pods.
+both public hosts, decoded Sendou JSON and CORS, old bookmarks, 410 responses,
+and absence of legacy pods.
 
 Other Applications (including the blog, teams, bots, and shared monitoring) have
 separate ownership and are not retired by this chart change. Reopening the
