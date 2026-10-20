@@ -7,8 +7,9 @@ FAQ describes collection from February 2023; neither establishes a 2022 launch.
 
 `farewell.enabled` requires all legacy components and the warmup hook to be
 disabled. API, WebSocket, and well-known application routes return **410 Gone**;
-old frontend bookmarks serve the farewell page. No application assets,
+old frontend bookmarks serve the farewell page. No application bundle,
 credentials, database connection, external fonts, or JavaScript are needed.
+The page reuses the original gray/purple site styling and favicon.
 
 The existing TLS secret and ingress name stay in use. ConfigMap and server
 readiness precede ingress cutover; Argo's `PruneLast=true` removes the old

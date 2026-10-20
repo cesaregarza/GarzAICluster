@@ -77,7 +77,7 @@ class SplatTopFarewellTests(unittest.TestCase):
         self.assertEqual(claim['metadata']['annotations']['argocd.argoproj.io/sync-options'],
                          'Prune=false,Delete=false')
 
-    def test_four_languages_are_available_without_scripts_or_downloads(self):
+    def test_four_languages_are_available_without_scripts_or_external_resources(self):
         config = next(doc for doc in self.docs if doc['kind'] == 'ConfigMap')['data']
         parser = PageParser()
         parser.feed(config['index.html'])
