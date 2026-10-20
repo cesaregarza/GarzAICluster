@@ -113,6 +113,12 @@ jobs:
 
       - name: Check deployed registry compatibility
         uses: cesaregarza/.github/actions/agent-control-plane-registry-compat-gate@a1d2fb4a6b288066574b1ac53074ac62e920a07f
+        with:
+          # Match the deployed source lock instead of resolving removed index versions.
+          # Keep the config repo's own dependencies in the shared gate environment.
+          platform-install-command: >-
+            UV_PROJECT_ENVIRONMENT="$PWD/.venv"
+            uv sync --project agent-platform --frozen --inexact --no-dev
 
   agent-control-plane-provider-digest-pins:
     runs-on: ubuntu-latest
