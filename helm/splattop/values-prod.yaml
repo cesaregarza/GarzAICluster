@@ -160,14 +160,16 @@ splatnlp:
         app.kubernetes.io/name: splattop
 
 # Retired in October 2026. Keep the existing Redis claim for recovery, but
-# remove all application workloads, data services, and scheduled warmup tasks.
+# remove legacy application workloads, data services, and scheduled warmup tasks.
 farewell:
+  enabled: true
+sendouProxy:
   enabled: true
 warmupJob:
   enabled: false
 
-# Both public hosts and every old bookmark land on the same static server.
-# The server explicitly returns 410 Gone for /api, /ws, and /.well-known.
+# Both public hosts and old frontend bookmarks serve the same static page.
+# The Sendou converter stays available; other API, WS and well-known paths are gone.
 ingress:
   enabled: true
   nameOverride: prod-ingress
@@ -176,12 +178,20 @@ ingress:
   hosts:
   - host: splat.top
     paths:
+    - path: /api/sendou
+      pathType: Prefix
+      serviceName: sendou-proxy
+      servicePort: 8000
     - path: /
       pathType: Prefix
       serviceName: farewell
       servicePort: 8080
   - host: comp.splat.top
     paths:
+    - path: /api/sendou
+      pathType: Prefix
+      serviceName: sendou-proxy
+      servicePort: 8000
     - path: /
       pathType: Prefix
       serviceName: farewell
