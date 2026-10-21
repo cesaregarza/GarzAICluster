@@ -32,7 +32,8 @@ def find(docs: list[dict[str, Any]], kind: str, name: str) -> dict[str, Any]:
 class ReplicaAvailabilityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.api_docs = render("splattop", "splattop-prod", "helm/splattop/values-prod.yaml")
+        cls.api_docs = render("splattop", "splattop-prod", "helm/splattop/values-prod.yaml",
+                              ("farewell.enabled=false", "sendouProxy.enabled=false", "fastapi.enabled=true"))
         cls.worker_docs = render("agent-workloads", "agent-workloads", "apps/agent-workloads/values.yaml")
 
     def assert_revision_spread_and_budget(self, docs: list[dict[str, Any]], name: str) -> None:
@@ -95,7 +96,7 @@ class ReplicaAvailabilityTests(unittest.TestCase):
 
     def test_production_api_can_explicitly_disable_spreading_and_budget(self) -> None:
         docs = render("splattop", "splattop-prod", "helm/splattop/values-prod.yaml",
-                      ("fastapi.spreadAcrossNodes=false",))
+                      ("farewell.enabled=false", "sendouProxy.enabled=false", "fastapi.enabled=true", "fastapi.spreadAcrossNodes=false"))
         spec = find(docs, "Deployment", "splattop-prod-fastapi")["spec"]
         self.assertNotIn("topologySpreadConstraints", spec["template"]["spec"])
         self.assertFalse(any(d["kind"] == "PodDisruptionBudget" for d in docs))

@@ -292,3 +292,34 @@ serviceAccount:
 # Override chart name
 nameOverride: ""
 fullnameOverride: ""
+
+# Static closure page; enable only after disabling every legacy component.
+farewell:
+  enabled: false
+  image:
+    repository: nginx
+    tag: "1.28-alpine"
+    digest: sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236
+  resources:
+    requests:
+      cpu: 5m
+      memory: 8Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# Keep only the Sendou JSON converter available after retiring the main app.
+sendouProxy:
+  enabled: false
+  image:
+    repository: registry.digitalocean.com/sendouq/fast-api
+    tag: v2.0.42
+    # SplatTop source 80fbfa82ceebf085c3dae1f3f2ae0e28e9f33ab6.
+    digest: sha256:d13c92bb49bd6ca77addff79ff433738ab23b1707c05d4c5bbdb4c05b1dd7113
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

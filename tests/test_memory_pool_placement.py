@@ -15,6 +15,9 @@ def render(chart: str, production: bool) -> list[dict]:
     command = ["helm", "template", "splattop-prod", str(ROOT / "helm" / chart)]
     if production:
         command += ["-f", str(ROOT / "helm" / chart / "values-prod.yaml")]
+        if chart == "splattop":
+            # Exercise the reusable legacy placement settings explicitly.
+            command += ["--set", "farewell.enabled=false,sendouProxy.enabled=false,fastapi.enabled=true,celeryWorker.enabled=true"]
     elif chart == "garz-observability":
         command += ["--set", "monitoring.prometheus.enabled=true"]
     output = subprocess.run(command, check=True, capture_output=True, text=True).stdout

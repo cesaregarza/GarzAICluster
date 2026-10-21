@@ -1,0 +1,110 @@
+{{- if .Values.sendouProxy.enabled }}
+{{- if not .Values.farewell.enabled }}
+{{- fail "sendouProxy.enabled requires farewell.enabled; the live application already includes the Sendou router" }}
+{{- end }}
+{{- if not (regexMatch "^sha256:[0-9a-f]{64}$" .Values.sendouProxy.image.digest) }}
+{{- fail "sendouProxy.image.digest must be a lowercase sha256:<64 hex> digest" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "splattop.fullname" . }}-sendou-proxy
+  labels:
+    {{- include "splattop.componentLabels" (dict "component" "sendou-proxy" "root" .) | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+data:
+  app.py: |
+    {{- .Files.Get "files/sendou-proxy/app.py" | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "splattop.fullname" . }}-sendou-proxy
+  labels:
+    {{- include "splattop.componentLabels" (dict "component" "sendou-proxy" "root" .) | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "splattop.componentSelectorLabels" (dict "component" "sendou-proxy" "root" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "splattop.componentSelectorLabels" (dict "component" "sendou-proxy" "root" .) | nindent 8 }}
+      annotations:
+        checksum/content: {{ .Files.Get "files/sendou-proxy/app.py" | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      {{- include "splattop.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sendou-proxy
+          image: "{{ .Values.sendouProxy.image.repository }}:{{ .Values.sendouProxy.image.tag }}@{{ .Values.sendouProxy.image.digest }}"
+          imagePullPolicy: IfNotPresent
+          # Override the old app's Gunicorn entrypoint and its DB/Redis lifecycle.
+          command: ["/app/.venv/bin/python", "-B", "-m", "uvicorn"]
+          args:
+            - app:app
+            - --app-dir
+            - /etc/sendou-proxy
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+            - --no-access-log
+            - --limit-concurrency
+            - "8"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 8000
+          resources:
+            {{- toYaml .Values.sendouProxy.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          volumeMounts:
+            - name: bootstrap
+              mountPath: /etc/sendou-proxy
+              readOnly: true
+      volumes:
+        - name: bootstrap
+          configMap:
+            name: {{ include "splattop.fullname" . }}-sendou-proxy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "splattop.fullname" . }}-sendou-proxy
+  labels:
+    {{- include "splattop.componentLabels" (dict "component" "sendou-proxy" "root" .) | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+  selector:
+    {{- include "splattop.componentSelectorLabels" (dict "component" "sendou-proxy" "root" .) | nindent 4 }}
+{{- end }}
