@@ -64,8 +64,6 @@ application:
     HELP_EMAIL: "help@citrus-grace.com"
     ORDERS_EMAIL: "orders@citrus-grace.com"
     BUSINESS_TIME_ZONE: "America/Chicago"
-    CACHE_URL: "redis://citrus-redis:6379/0"
-    CELERY_BROKER_URL: "redis://citrus-redis:6379/1"
     CELERY_TASK_ALWAYS_EAGER: "False"
     CELERY_TASK_DEFAULT_QUEUE: "media"
     CELERY_BROKER_VISIBILITY_TIMEOUT: "3600"

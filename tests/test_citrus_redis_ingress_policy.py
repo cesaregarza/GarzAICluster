@@ -34,7 +34,6 @@ BATCH_COMPONENTS = [
     "recurring-preflight",
     "recurring-tick",
     "recurring-health",
-    "direct-order-payment-sweep",
 ]
 REDIS_IMAGE = (
     "redis:7.2.16-alpine@sha256:"
@@ -415,7 +414,6 @@ class CitrusRedisIngressPolicyTests(unittest.TestCase):
             "citrus-dev-billing-worker",
             "citrus-dev-migrate-1",
             "citrus-dev-recurring-preflight",
-            "citrus-dev-direct-order-payment-sweep",
             "citrus-dev-media-requeue",
             "citrus-dev-media-gc",
             "citrus-dev-recurring-tick",
@@ -574,7 +572,9 @@ class CitrusRedisIngressPolicyTests(unittest.TestCase):
             with self.subTest(environment=environment):
                 self.assertEqual(others, set())
 
-    def test_redis_runs_patched_image_with_memory_cap(self):
+    def test_redis_runs_the_patched_image(self):
+        # The authenticated start command and memory args are pinned in
+        # tests/test_citrus_redis_auth.py.
         for environment, (_, documents) in self.renders.items():
             [container] = [
                 template
@@ -583,10 +583,6 @@ class CitrusRedisIngressPolicyTests(unittest.TestCase):
             ][0]["spec"]["containers"]
             with self.subTest(environment=environment):
                 self.assertEqual(container["image"], REDIS_IMAGE)
-                self.assertEqual(
-                    container["args"],
-                    ["--maxmemory", "200mb", "--maxmemory-policy", "volatile-lru"],
-                )
 
 
 if __name__ == "__main__":
