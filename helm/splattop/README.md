@@ -16,10 +16,12 @@ The page reuses the original gray/purple site styling and favicon.
 The proxy preserves the existing four read-only routes for tournament matches,
 tournament teams, the tournament team list, and SendouQ matches. It returns the
 same decoded JSON as the former API, including upstream errors, and allows
-cross-origin GET requests. Its bootstrap loads only the Sendou router from the
-digest-pinned v2.0.42 API image (source
-`80fbfa82ceebf085c3dae1f3f2ae0e28e9f33ab6`); importing the routes package normally
-would eagerly load retired data routers. The main API lifecycle never runs.
+cross-origin GET requests. The standalone FastAPI app and JSON loader helpers
+come from the chart ConfigMap. The digest-pinned v2.0.42 image supplies the Python
+runtime and HTTP/FastAPI dependencies; the retired application's routers and
+lifecycle are never imported. The proxy selects the requested JSON loader,
+handles the renamed tournament-match route, and requests the tournament parent
+loader directly to avoid the index route's redirect when listing teams.
 There are no database/Redis credentials, data mounts, Celery tasks, or WebSockets.
 The process has one worker, at most eight concurrent connections, and a 128 MiB
 memory limit. Removing it requires disabling `sendouProxy` and removing its two
