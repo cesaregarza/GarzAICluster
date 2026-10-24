@@ -16,6 +16,8 @@ metadata:
 data:
   app.py: |
     {{- .Files.Get "files/sendou-proxy/app.py" | nindent 4 }}
+  sendou_response.py: |
+    {{- .Files.Get "files/sendou-proxy/sendou_response.py" | nindent 4 }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -35,7 +37,7 @@ spec:
       labels:
         {{- include "splattop.componentSelectorLabels" (dict "component" "sendou-proxy" "root" .) | nindent 8 }}
       annotations:
-        checksum/content: {{ .Files.Get "files/sendou-proxy/app.py" | sha256sum }}
+        checksum/content: {{ print (.Files.Get "files/sendou-proxy/app.py") (.Files.Get "files/sendou-proxy/sendou_response.py") | sha256sum }}
     spec:
       automountServiceAccountToken: false
       {{- include "splattop.imagePullSecrets" . | nindent 6 }}
