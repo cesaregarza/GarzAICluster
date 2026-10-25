@@ -37,23 +37,42 @@ spec:
         - name: redis
           image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
           imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
-          args: ["--maxmemory", "200mb", "--maxmemory-policy", "volatile-lru"]
+          # requirepass goes through a 0600 file so the password never appears
+          # in the process command line; REDISCLI_AUTH authenticates probes.
+          command: ["sh", "-c"]
+          args:
+            - >-
+              umask 077 &&
+              printf 'requirepass %s\n' "$REDIS_PASSWORD" > /tmp/redis-auth.conf &&
+              exec redis-server /tmp/redis-auth.conf
+              --maxmemory 200mb --maxmemory-policy volatile-lru
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "redis requires application.generatedSecretName" .Values.application.generatedSecretName }}
+                  key: REDIS_PASSWORD
+                  optional: false
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.application.generatedSecretName }}
+                  key: REDIS_PASSWORD
+                  optional: false
           ports:
             - name: redis
               containerPort: 6379
               protocol: TCP
           livenessProbe:
             exec:
-              command:
-                - redis-cli
-                - ping
+              # redis-cli exits 0 on NOAUTH/WRONGPASS, so require a real PONG.
+              command: ["/bin/sh", "-ec", 'test "$(redis-cli --raw ping)" = PONG']
             initialDelaySeconds: 10
             periodSeconds: 30
           readinessProbe:
             exec:
-              command:
-                - redis-cli
-                - ping
+              # redis-cli exits 0 on NOAUTH/WRONGPASS, so require a real PONG.
+              command: ["/bin/sh", "-ec", 'test "$(redis-cli --raw ping)" = PONG']
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:

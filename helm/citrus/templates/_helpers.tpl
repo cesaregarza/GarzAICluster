@@ -177,6 +177,42 @@ enter the container environment.
 {{- end }}
 {{- end }}
 
+{{/*
+Authenticated Redis URLs for Citrus Redis clients (CES-1508). The password is
+the REDIS_PASSWORD key of the app-key Secret; Kubernetes expands
+$(REDIS_PASSWORD) from the entry defined first, so no URL holds a literal.
+*/}}
+{{/*
+Redis URLs never live in the ConfigMap (CES-1508): it is not a secret, and an
+entry there would reach containers that deliberately carry no Redis env.
+Rendered from the ConfigMap template, so every chart mode enforces it.
+*/}}
+{{- define "citrus.redisConfigDataGuard" -}}
+{{- range $key := list "CACHE_URL" "CELERY_BROKER_URL" }}
+{{- if hasKey $.Values.application.configData $key }}
+{{- fail (printf "%s comes from citrus.redisClientEnv, not configData" $key) }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "citrus.redisClientEnv" -}}
+{{- if .Values.redis.enabled }}
+{{- if not .Values.application.generatedSecretName }}
+{{- fail "redis requires application.generatedSecretName to hold REDIS_PASSWORD" }}
+{{- end }}
+- name: REDIS_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.application.generatedSecretName }}
+      key: REDIS_PASSWORD
+      optional: false
+{{- range $name, $db := dict "CACHE_URL" 0 "CELERY_BROKER_URL" 1 }}
+- name: {{ $name }}
+  value: {{ printf "redis://:$(REDIS_PASSWORD)@%s:%d/%d" $.Values.redis.name (int $.Values.redis.service.port) $db | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+
 {{/* Preserve the existing broad import only while isolation is disabled. */}}
 {{- define "citrus.applicationRuntimeSecretEnvFrom" -}}
 {{- if not .Values.paymentCredentials.enabled }}
@@ -494,9 +530,8 @@ partial render must never create a controller that bypasses the preflight.
 {{- if ne (lower (toString .Values.application.configData.CELERY_TASK_ALWAYS_EAGER)) "false" -}}
 {{- fail "CELERY_TASK_ALWAYS_EAGER must remain false for the recurring runtime scheduler" -}}
 {{- end -}}
-{{- $brokerURL := printf "redis://%s:%d/1" .Values.redis.name (int .Values.redis.service.port) -}}
-{{- if ne (toString .Values.application.configData.CELERY_BROKER_URL) $brokerURL -}}
-{{- fail "CELERY_BROKER_URL must select the same-release Redis billing broker" -}}
+{{- if not .Values.redis.enabled -}}
+{{- fail "the recurring runtime requires the same-release Redis billing broker" -}}
 {{- end -}}
 
 {{- $preflightCommand := list "python" "manage.py" "preflight_recurring_runtime" "--include-broker" "--format=json" -}}
