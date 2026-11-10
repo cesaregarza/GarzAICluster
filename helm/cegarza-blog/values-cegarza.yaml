@@ -16,8 +16,8 @@ blog:
     type: Recreate
   image:
     repository: registry.digitalocean.com/sendouq/cegarza-blog
-    tag: v1.0.45
-    digest: sha256:b519763bdd59b93a8c6e58efeb0656a357d2f149e2f22b541dafb0a2a7ad0a58
+    tag: v1.0.46
+    digest: sha256:33b6479c38235dfe93b9e3667cc37150663a3c8c3f52092b43bbd6373e415e96
     pullPolicy: IfNotPresent
   secretKeys:
   - DATABASE_URL
