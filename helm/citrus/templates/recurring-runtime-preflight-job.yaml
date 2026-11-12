@@ -41,6 +41,7 @@ spec:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           env:
             {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
+            {{- include "citrus.redisClientEnv" . | nindent 12 }}
             {{- include "citrus.paymentSafety.env" . | nindent 12 }}
             {{- include "citrus.recurringRuntime.env" (dict "revision" .Values.recurringRuntime.preflight.topologyRevision "expectedSourceRevision" .Values.recurringRuntime.expectedSourceRevision) | nindent 12 }}
             {{- include "citrus.paymentCredentials.consumerEnv" . | nindent 12 }}

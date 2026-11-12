@@ -1,3 +1,4 @@
+{{- include "citrus.redisConfigDataGuard" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

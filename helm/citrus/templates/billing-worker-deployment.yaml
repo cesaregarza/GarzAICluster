@@ -61,9 +61,10 @@ spec:
             - {{ printf "exec celery -A Mycore worker --loglevel=INFO --queues=%s --concurrency=1 --prefetch-multiplier=1 --max-tasks-per-child=100 --soft-time-limit=240 --time-limit=300" $billingQueue | quote }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
+          {{- if or .Values.redis.enabled .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
           env:
             {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
+            {{- include "citrus.redisClientEnv" . | nindent 12 }}
             {{- include "citrus.paymentSafety.env" . | nindent 12 }}
             {{- include "citrus.recurringRuntime.env" (dict "revision" .Values.billingWorker.topologyRevision "expectedSourceRevision" .Values.recurringRuntime.expectedSourceRevision) | nindent 12 }}
             {{- include "citrus.paymentCredentials.consumerEnv" . | nindent 12 }}
@@ -103,9 +104,10 @@ spec:
               containerPort: {{ .Values.billingWorker.metrics.port }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
+          {{- if or .Values.redis.enabled .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
           env:
             {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 12 }}
+            {{- include "citrus.redisClientEnv" . | nindent 12 }}
             {{- include "citrus.paymentSafety.env" . | nindent 12 }}
             {{- include "citrus.recurringRuntime.env" (dict "revision" .Values.billingWorker.topologyRevision "expectedSourceRevision" .Values.recurringRuntime.expectedSourceRevision) | nindent 12 }}
             {{- include "citrus.paymentCredentials.devRuntimeEnv" . | nindent 12 }}

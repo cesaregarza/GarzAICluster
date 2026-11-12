@@ -53,9 +53,10 @@ spec:
                 {{- toYaml .Values.recurringRuntime.command | nindent 16 }}
               securityContext:
                 {{- toYaml .Values.containerSecurityContext | nindent 16 }}
-              {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
+              {{- if or .Values.redis.enabled .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
               env:
                 {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 16 }}
+                {{- include "citrus.redisClientEnv" . | nindent 16 }}
                 {{- include "citrus.paymentSafety.env" . | nindent 16 }}
                 {{- include "citrus.recurringRuntime.env" (dict "revision" .Values.recurringRuntime.topologyRevision "expectedSourceRevision" .Values.recurringRuntime.expectedSourceRevision) | nindent 16 }}
                 {{- include "citrus.paymentCredentials.consumerEnv" . | nindent 16 }}
@@ -131,9 +132,10 @@ spec:
                 {{- toYaml .Values.recurringRuntime.health.command | nindent 16 }}
               securityContext:
                 {{- toYaml .Values.containerSecurityContext | nindent 16 }}
-              {{- if or .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
+              {{- if or .Values.redis.enabled .Values.paymentCredentials.enabled .Values.paymentSafety.enabled }}
               env:
                 {{- include "citrus.applicationRuntimeSecretEnv" . | nindent 16 }}
+                {{- include "citrus.redisClientEnv" . | nindent 16 }}
                 {{- include "citrus.paymentSafety.env" . | nindent 16 }}
                 {{- include "citrus.recurringRuntime.env" (dict "revision" .Values.recurringRuntime.health.topologyRevision "expectedSourceRevision" .Values.recurringRuntime.expectedSourceRevision) | nindent 16 }}
                 {{- include "citrus.paymentCredentials.consumerEnv" . | nindent 16 }}
