@@ -46,6 +46,11 @@ application:
   # dev overrides this with citrus-dev-app-key in values-dev.yaml.
   generatedSecretName: citrus-app-key
   spacesSecretName: django-spaces-secrets
+  # Signup reCAPTCHA Enterprise keys, read by the web pods only (KSOPS:
+  # secrets/citrus/citrus-recaptcha.enc.yaml): CAPTCHA_PUBLIC,
+  # RECAPTCHA_ENTERPRISE_PROJECT_ID, RECAPTCHA_ENTERPRISE_API_KEY. Without
+  # them the signup form renders no captcha.
+  recaptchaSecretName: citrus-recaptcha
   rolloutOnConfigChange: true
   # Citrus performs blocking network I/O in request handlers. Keep the process
   # count bounded for the pod's CPU limit while allowing unrelated requests to

@@ -67,6 +67,8 @@ application:
   # Standalone generated-secret file (KSOPS: secrets/citrus-dev/django-app-key.enc.yaml)
   # holding a real DJANGO_SECRET_KEY, encrypted with the public age recipient only.
   generatedSecretName: citrus-dev-app-key
+  # No signup reCAPTCHA keys in dev yet; dev egress denies the verification host.
+  recaptchaSecretName: ""
   rolloutOnConfigChange: true
   configData:
     DJANGO_DEBUG: "False"
