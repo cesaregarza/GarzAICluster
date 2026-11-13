@@ -5,6 +5,7 @@ Encrypted runtime secrets consumed by the `citrus-secrets` Argo CD app.
 - `django-secrets.enc.yaml`: Django, Stripe, and Postgres runtime environment for the Citrus Helm release.
 - `citrus-prod-payment-credentials.enc.yaml`: Existing live API, publishable, and production webhook credentials prepared for the production-only chart projection. The production application consumes this Secret only after `values-payment-prod.yaml` is activated.
 - `django-email-secrets.enc.yaml`: SMTP and contact-address runtime environment for the Citrus Helm release.
+- `citrus-recaptcha.enc.yaml`: signup reCAPTCHA Enterprise site key, Google Cloud project ID and API key, read by the web pods. Encrypted with the public age recipient only.
 - `django-spaces-secrets.enc.yaml`: DO Spaces media upload credentials for the Citrus media bucket.
 - `regcred.enc.yaml`: DOCR pull credentials for the `default` namespace Citrus deployment.
 
